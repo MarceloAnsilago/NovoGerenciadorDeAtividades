@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Início{% endblock %}
+
+{% block content %}
+  <h1>Bem-vindo, {{ user.first_name|default:user.username }}</h1>
+  <p>Use o menu lateral para navegar.</p>
+{% endblock %}

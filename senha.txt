@@ -1,0 +1,7 @@
+superuser
+admin
+poder123321
+
+
+.venv\Scripts\activate
+python manage.py runserver

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Excluir vínculo{% endblock %}
+{% block content %}
+<h3>Excluir vínculo</h3>
+<p>Tem certeza que deseja excluir o vínculo de <strong>{{ v.usuario.username }}</strong> na unidade
+<strong>{{ v.unidade.nome }}</strong> (política <strong>{{ v.perfil_politica.nome|default:"—" }}</strong>)?</p>
+
+<form method="post" class="d-flex gap-2">
+  {% csrf_token %}
+  <button class="btn btn-danger" type="submit"><i class="bi bi-trash"></i> Excluir</button>
+  <a class="btn btn-secondary" href="{% url 'organizacao:vinculos_home' %}">Cancelar</a>
+</form>
+{% endblock %}
