@@ -1,7 +1,5 @@
-superuser
-admin
-poder123321
-
-
-.venv\Scripts\activate
 python manage.py runserver
+.venv\Scripts\Activate
+
+admin
+123433Ro

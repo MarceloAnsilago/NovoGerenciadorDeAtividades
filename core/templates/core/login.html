@@ -1,0 +1,18 @@
+<!-- templates/core/login.html -->
+{% extends 'base.html' %}
+{% block title %}Entrar{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Entrar</h5>
+        <form method="post">{% csrf_token %}
+          {{ form.as_p }}
+          <button class="btn btn-primary w-100">Entrar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

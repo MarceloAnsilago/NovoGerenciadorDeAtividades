@@ -1,180 +1,190 @@
-<!doctype html>
+<!-- templates/base.html -->
+<!DOCTYPE html>
+{% load static %}
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{% block title %}Gerenciador de Atividades{% endblock %}</title>
+  <title>{% block title %}App{% endblock %}</title>
 
-  <!-- Bootstrap 5 -->
+  <!-- Bootstrap (CDN) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Icons -->
+  <!-- Icons (Bootstrap Icons) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
+  <!-- CSS embutido -->
   <style>
-    body { min-height: 100vh; display:flex; flex-direction:column; }
-    .app { display:flex; flex:1; min-height:0; }
-    .sidebar { width:240px; background:#212529; color:#fff; padding:16px 8px; }
-    .sidebar a { color:#fff; display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; text-decoration:none; }
-    .sidebar a:hover, .sidebar a.active { background:#2563eb; color:#fff; }
-    .content { flex:1; background:#f8f9fa; padding:24px; }
-    @media (max-width: 992px){ .sidebar{ display:none; } }
+    :root {
+      --sidebar-width: 260px;
+      --navbar-height: 56px;
+    }
+
+    body {
+      margin: 0;
+      padding-top: var(--navbar-height);
+      background-color: #f8f9fa;
+      font-family: system-ui, sans-serif;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: var(--navbar-height);
+      left: 0;
+      width: var(--sidebar-width);
+      height: calc(100vh - var(--navbar-height));
+      background-color: #f8f9fa;
+      border-right: 1px solid #dee2e6;
+      padding-top: 1rem;
+      overflow-y: auto;
+      z-index: 1030;
+    }
+
+    .sidebar .nav-link {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 1rem;
+      color: #333;
+      text-decoration: none;
+      border-radius: 0.375rem;
+      margin: 0.125rem 0.5rem;
+    }
+
+    .sidebar .nav-link i {
+      margin-right: 0.5rem;
+    }
+
+    .sidebar .nav-link.active {
+      background-color: #0d6efd;
+      color: #fff;
+    }
+
+    .content {
+      margin-left: var(--sidebar-width);
+      padding: 2rem;
+      transition: margin-left 0.3s ease;
+    }
+
+    .sidebar.collapsed {
+      width: 70px;
+    }
+
+    .sidebar.collapsed + .content {
+      margin-left: 70px;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #dee2e6;
+      }
+
+      .content {
+        margin-left: 0;
+      }
+    }
   </style>
+
+  {% block extra_head %}{% endblock %}
 </head>
+
 <body>
 
-<!-- NAVBAR -->
-<nav class="navbar navbar-dark bg-dark">
-  <div class="container-fluid">
-    <a class="navbar-brand d-flex align-items-center gap-2" href="/">
-      <i class="bi bi-clipboard-check" style="font-size:1.4rem;color:#22c55e"></i>
-      <strong>Gerenciador</strong>
-    </a>
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="{% url 'core:dashboard' %}">Gerenciador</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
+        <span class="navbar-toggler-icon"></span>
+      </button>
 
-    <ul class="navbar-nav ms-auto flex-row align-items-center gap-3">
-
-      {% if user.is_authenticated and ctx_vinculos %}
-      <!-- Dropdown de contexto -->
-      <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle text-white" href="#" data-bs-toggle="dropdown" aria-expanded="false">
-          {% if ctx_vinculo %}
-            {{ ctx_vinculo.unidade.nome }} —
-            {{ ctx_vinculo.perfil_politica.nome|default:"—" }}
-          {% else %}
-            Selecionar contexto
-          {% endif %}
-        </a>
-        <ul class="dropdown-menu dropdown-menu-end">
-          {% for v in ctx_vinculos %}
-          <li>
-            <a class="dropdown-item" href="{% url 'organizacao:trocar_contexto' v.id %}">
-              {{ v.unidade.nome }} — {{ v.perfil_politica.nome|default:"—" }}
-            </a>
-          </li>
-          {% empty %}
-          <li><span class="dropdown-item-text text-muted">Sem vínculos</span></li>
-          {% endfor %}
+      <div class="collapse navbar-collapse" id="navbarMain">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <!-- links topo (se quiser adicionar algo) -->
         </ul>
-      </li>
-      {% endif %}
+        <ul class="navbar-nav ms-auto">
+          {% if request.user.is_authenticated %}
+            <li class="nav-item">
+              <span class="navbar-text me-3">
+                Olá, {{ request.user.get_short_name|default:request.user.username }}
+              </span>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'logout' %}">Sair</a>
+            </li>
+          {% else %}
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'login' %}">Entrar</a>
+            </li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
 
-      {% if request.user.is_authenticated %}
-      <li class="nav-item">
-        <span class="navbar-text text-white d-flex align-items-center gap-2">
-          <i class="bi bi-person-circle" style="font-size:1.3rem"></i>
-          {{ request.user.first_name|default:request.user.username }}
-        </span>
-      </li>
-      {% endif %}
+  <div class="app-wrapper">
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="sidebar bg-light">
+      <div class="sidebar-header d-flex align-items-center justify-content-between px-3 py-2">
+        <span class="fw-semibold">Menu</span>
+        <button id="sidebarToggle" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-layout-sidebar-inset"></i>
+        </button>
+      </div>
 
+      <ul class="nav flex-column px-2">
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+            href="{% url 'core:dashboard' %}">
+            <i class="bi bi-speedometer2 me-2"></i> Dashboard
+          </a>
+        </li>
 
+        {% if request.user.is_superuser %}
+        <li class="nav-item mt-2">
+          <div class="text-uppercase text-muted small px-3">Administração</div>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}"
+            href="{% url 'core:admin_arvore' %}">
+            <i class="bi bi-diagram-3 me-2"></i> Administrador
+          </a>
+        </li>
+        <!-- Novo botão Criar Perfil -->
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'criar_perfil' %}active{% endif %}"
+            href="{% url 'core:criar_perfil' %}">
+            <i class="bi bi-person-plus me-2"></i> Criar Perfil
+          </a>
+        </li>
+        {% endif %}
+      </ul>
+    </aside>
 
-      {% if 'auth.add_user' in ctx_perms_full or user.is_staff %}
-       <a href="{% url 'organizacao:usuarios_lista' %}"
-        class="{% if request.resolver_match and request.resolver_match.url_name == 'usuarios_lista' %}active{% endif %}">
-        <i class="bi bi-person-badge-fill"></i><span>Usuários</span>
-      </a>
-{% endif %}
-    </ul>
+    <!-- CONTEÚDO -->
+    <main class="content">
+      <div class="container-fluid py-4">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
   </div>
-</nav>
 
-<div class="app">
-  <!-- SIDEBAR (itens condicionais por permissão da política do contexto) -->
-  <aside class="sidebar">
-    <!-- Home (sempre visível) -->
-    <a href="/" class="{% if request.path == '/' %}active{% endif %}">
-      <i class="bi bi-house-door-fill"></i><span>Início</span>
-    </a>
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Toggle simples da sidebar
+    document.addEventListener('DOMContentLoaded', function () {
+      const btn = document.getElementById('sidebarToggle');
+      const sidebar = document.getElementById('sidebar');
+      btn?.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        document.querySelector('.content').classList.toggle('expanded');
+      });
+    });
+  </script>
 
-    {# Exemplo: Servidores (listar/cadastrar) #}
-    {% if 'servidores.view_servidor' in ctx_perms_full %}
-      <a href="{% url 'pagina_servidores' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'pagina_servidores' %}active{% endif %}">
-        <i class="bi bi-people-fill"></i><span>Servidores</span>
-      </a>
-    {% endif %}
-    {% if 'servidores.add_servidor' in ctx_perms_full %}
-      <a href="{% url 'servidores:novo' %}">
-        <i class="bi bi-person-plus"></i><span>Novo Servidor</span>
-      </a>
-    {% endif %}
-
-    {# Atividades #}
-    {% if 'atividades.view_atividade' in ctx_perms_full %}
-      <a href="{% url 'atividades:lista' %}" class="{% if request.resolver_match and request.resolver_match.namespace == 'atividades' %}active{% endif %}">
-        <i class="bi bi-list-check"></i><span>Atividades</span>
-      </a>
-    {% endif %}
-
-    {# Veículos #}
-    {% if 'veiculos.view_veiculo' in ctx_perms_full %}
-      <a href="{% url 'pagina_veiculos' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'pagina_veiculos' %}active{% endif %}">
-        <i class="bi bi-truck-front-fill"></i><span>Veículos</span>
-      </a>
-    {% endif %}
-
-    {# Descanso #}
-    {% if 'descanso.view_descanso' in ctx_perms_full %}
-      <a href="{% url 'pagina_descanso' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'pagina_descanso' %}active{% endif %}">
-        <i class="bi bi-calendar-check"></i><span>Descanso</span>
-      </a>
-    {% endif %}
-
-    {# Plantão #}
-    {% if 'plantao.view_plantao' in ctx_perms_full %}
-      <a href="{% url 'plantao:pagina_plantao' %}" class="{% if request.resolver_match and request.resolver_match.namespace == 'plantao' %}active{% endif %}">
-        <i class="bi bi-person-video2"></i><span>Plantão</span>
-      </a>
-    {% endif %}
-
-    {# Metas #}
-    {% if 'metas.view_meta' in ctx_perms_full %}
-      <a href="{% url 'metas:pagina_metas' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'pagina_metas' %}active{% endif %}">
-        <i class="bi bi-bullseye"></i><span>Metas</span>
-      </a>
-    {% endif %}
-
-    {% if messages %}
-     <div class="mb-3">
-      {% for m in messages %}
-        <div class="alert alert-{{ m.tags|default:'info' }} mb-2">{{ m }}</div>
-      {% endfor %}
-     </div>
-   {% endif %}
-
-
-
-    {# Administração (somente para quem tem manage_policies na política do contexto) #}
-    {% if 'organizacao.manage_policies' in ctx_perms_full %}
-      <a href="{% url 'organizacao:politicas_lista' %}" class="{% if request.resolver_match and request.resolver_match.url_name in 'politicas_lista,politicas_novo,politicas_editar' %}active{% endif %}">
-        <i class="bi bi-gear-fill"></i><span>Administração</span>
-      </a>
-      <a href="{% url 'organizacao:vinculos_home' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'vinculos_home' %}active{% endif %}">
-        <i class="bi bi-people-gear"></i><span>Vínculos</span>
-      </a>
-    {% endif %}
-
-    <hr class="border-secondary">
-
-    {% if user.is_authenticated %}
-      <a href="{% url 'admin:index' %}">
-        <i class="bi bi-speedometer2"></i><span>Admin</span>
-      </a>
-      <a href="{% url 'logout' %}">
-        <i class="bi bi-box-arrow-right"></i><span>Sair</span>
-      </a>
-    {% else %}
-      <a href="{% url 'login' %}">
-        <i class="bi bi-box-arrow-in-right"></i><span>Entrar</span>
-      </a>
-    {% endif %}
-  </aside>
-
-  <!-- CONTEÚDO -->
-  <main class="content">
-    {% block content %}{% endblock %}
-  </main>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  {% block extra_js %}{% endblock %}
 </body>
 </html>

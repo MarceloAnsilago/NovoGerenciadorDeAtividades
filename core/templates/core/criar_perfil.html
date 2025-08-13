@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Perfis por Nó{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Paleta sutil por nível */
+  .level-0 { --lvl-bg: #f1f8ff; --lvl-border: #cfe5ff; }
+  .level-1 { --lvl-bg: #f6f9ff; --lvl-border: #d9e5ff; }
+  .level-2 { --lvl-bg: #f7fff8; --lvl-border: #d6f5da; }
+  .level-3 { --lvl-bg: #fff9f1; --lvl-border: #ffe3c2; }
+  .level-4 { --lvl-bg: #fdf7ff; --lvl-border: #ead9ff; }
+  .level-5 { --lvl-bg: #fff7f8; --lvl-border: #ffd6dc; }
+  .level-6, .level-default { --lvl-bg: #f5f5f5; --lvl-border: #e0e0e0; }
+
+  .row-level {
+    background: var(--lvl-bg);
+    border-left: 4px solid var(--lvl-border);
+    transition: background-color .2s ease;
+  }
+  .row-level:hover { filter: brightness(0.98); }
+
+  /* Indicador de nível (bolinha colorida) */
+  .lvl-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    display: inline-block; background-color: var(--lvl-border);
+    margin-right: .5rem;
+  }
+
+  /* Indentação visual do nome por nível */
+  .indent { display: inline-block; height: 1px; }
+
+  /* Tabela mais clean */
+  .table-clean thead th {
+    background: #f8f9fc;
+    border-bottom: 1px solid #e9ecef;
+  }
+  .table-clean tbody td {
+    border-top: 1px dashed #eceff3;
+    vertical-align: middle;
+  }
+  .card.table-card {
+    border: 1px solid #e9ecef;
+    border-radius: .75rem;
+  }
+
+  /* Coluna de ações mais elegante */
+  .actions-col {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  /* Botão circular com ícone */
+  .btn-icon {
+    --size: 36px;
+    width: var(--size);
+    height: var(--size);
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h4 mb-0">Perfis por Nó</h1>
+    <span class="text-muted small">{{ total_nos }} nó(s)</span>
+  </div>
+
+  <div class="card table-card shadow-sm">
+    <div class="card-body">
+
+      <div class="alert alert-secondary d-flex align-items-center mb-4" role="alert">
+        <i class="bi bi-info-circle me-2"></i>
+        Cada linha representa um nó da hierarquia. Use o botão <strong>+</strong> para iniciar a criação de um perfil vinculado a esse nó.
+      </div>
+
+      {% if nos_planos %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 table-clean">
+          <thead>
+            <tr>
+              <th style="width: 45%">Nó</th>
+              <th style="width: 20%">Tipo</th>
+              <th>Caminho completo</th>
+              <th class="text-end actions-col">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for no in nos_planos %}
+            {% with cls='level-'|add:no.level|stringformat:"s" %}
+            <tr class="row-level {{ cls }}">
+              <td>
+                <span class="lvl-dot"></span>
+                <span class="badge bg-light text-dark border me-2">Nível {{ no.level }}</span>
+                <span class="indent" style="width: {{ no.indent_px }}px;"></span>
+                <strong>{{ no.nome }}</strong>
+              </td>
+              <td>
+                {% if no.tipo %}
+                  <span class="badge bg-primary text-white">{{ no.tipo }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-muted small">{{ no.path }}</td>
+              <td class="text-end">
+                <!-- Ícone apenas + tooltip. Por enquanto aponta para esta mesma rota com ?no=ID -->
+                <a href="{% url 'core:criar_perfil' %}?no={{ no.id }}"
+                   class="btn btn-outline-primary btn-icon"
+                   title="Criar Perfil para {{ no.nome }}"
+                   data-bs-toggle="tooltip" data-bs-placement="left"
+                   aria-label="Criar Perfil para {{ no.nome }}">
+                  <i class="bi bi-person-plus"></i>
+                </a>
+              </td>
+            </tr>
+            {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Nenhum nó encontrado. Crie a estrutura na página <a href="{% url 'core:admin_arvore' %}">Administrador</a>.
+        </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

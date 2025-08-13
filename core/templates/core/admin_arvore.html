@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Administrador - Árvore{% endblock %}
+
+{% block extra_head %}
+  <!-- jsTree CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jstree@3.3.12/dist/themes/default/style.min.css" />
+{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5>Estrutura Hierárquica</h5>
+      {% if not tem_estrutura %}
+        <form method="post" action="{% url 'core:criar_raiz' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary">Criar Estrutura</button>
+        </form>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if tem_estrutura %}
+        <div id="arvore"></div>
+      {% else %}
+        <p class="text-muted">Nenhuma estrutura criada ainda.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  {% if tem_estrutura %}
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+
+    <!-- jsTree -->
+    <script src="https://cdn.jsdelivr.net/npm/jstree@3.3.12/dist/jstree.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jstree@3.3.12/dist/jstree.contextmenu.min.js"></script>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        $('#arvore').jstree({
+          'core': {
+            'check_callback': true,
+            'data': {
+              'url': '{% url "core:nos_json" %}',
+              'dataType': 'json'
+            }
+          },
+          'plugins': ['contextmenu', 'dnd', 'wholerow'],
+          'contextmenu': {
+            'items': function (node) {
+              return {
+                "Create": {
+                  "label": "Criar",
+                  "action": function () {
+                    // Cria nó vazio
+                    const novo = $('#arvore').jstree().create_node(node, { text: "Novo nó" });
+
+                    // Abre para editar nome
+                    $('#arvore').jstree().edit(novo, null, function (node_editado) {
+                      $.post("{% url 'core:ajax_criar_no' %}", {
+                        parent: node.id,
+                        nome: node_editado.text,
+                        tipo: "indefinido",  // default até o usuário definir
+                        csrfmiddlewaretoken: '{{ csrf_token }}'
+                      }, function (data) {
+                        $('#arvore').jstree(true).set_id(node_editado, data.id);
+                      });
+                    });
+                  }
+                },
+
+                "Rename": {
+                  "label": "Renomear",
+                  "action": function () {
+                    $('#arvore').jstree().edit(node, null, function (node_editado) {
+                      $.post("{% url 'core:ajax_renomear_no' %}", {
+                        id: node.id,
+                        nome: node_editado.text,
+                        csrfmiddlewaretoken: '{{ csrf_token }}'
+                      });
+                    });
+                  }
+                },
+
+                "SetType": {
+                  "label": "Definir Tipo",
+                  "action": function () {
+                    const tipo = prompt("Digite o tipo para este nó:");
+                    if (tipo) {
+                      $.post("{% url 'core:definir_tipo' %}", {
+                        id: node.id,
+                        tipo: tipo,
+                        csrfmiddlewaretoken: '{{ csrf_token }}'
+                      }, function () {
+                        alert("Tipo definido com sucesso!");
+                      }).fail(function () {
+                        alert("Erro ao definir tipo.");
+                      });
+                    }
+                  }
+                },
+
+                "Delete": {
+                  "label": "Excluir",
+                  "action": function () {
+                    if (confirm("Tem certeza que deseja excluir este nó?")) {
+                      $.post("{% url 'core:ajax_excluir_no' %}", {
+                        id: node.id,
+                        csrfmiddlewaretoken: '{{ csrf_token }}'
+                      }, function () {
+                        $('#arvore').jstree().delete_node(node);
+                      });
+                    }
+                  }
+                }
+              };
+            }
+          }
+        });
+      });
+    </script>
+  {% endif %}
+{% endblock %}
