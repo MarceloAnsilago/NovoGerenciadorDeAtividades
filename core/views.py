@@ -7,8 +7,15 @@ from .models import No
 from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-
-
+from django.shortcuts import render, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth.models import Group, Permission
+from django.contrib.auth import get_user_model
+from django.db import transaction
+import secrets
+from .forms import NovoPerfilForm
+from django.contrib.auth import logout
+from django.urls import reverse
 
 def dashboard(request):
     return render(request, 'core/dashboard.html')
@@ -144,3 +151,85 @@ def criar_perfil(request):
         'total_nos': len(flat),
     }
     return render(request, 'core/criar_perfil.html', contexto)
+
+User = get_user_model()
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+@transaction.atomic
+def novo_perfil(request):
+    no_id = request.GET.get('no')
+    no_selecionado = None
+    if no_id:
+        no_selecionado = get_object_or_404(No, id=no_id)
+
+    if request.method == 'POST':
+        form = NovoPerfilForm(request.POST)
+        if form.is_valid():
+            # 1) Grupo (perfil)
+            group_name = form.cleaned_data['group_name'].strip()
+            group, _ = Group.objects.get_or_create(name=group_name)
+
+            # 2) Permissões (exemplo: core.No)
+            perms = []
+            def p(codename):
+                try:
+                    return Permission.objects.get(codename=codename)
+                except Permission.DoesNotExist:
+                    return None
+
+            if form.cleaned_data['allow_view_no']:   perms.append(p('view_no'))
+            if form.cleaned_data['allow_add_no']:    perms.append(p('add_no'))
+            if form.cleaned_data['allow_change_no']: perms.append(p('change_no'))
+            if form.cleaned_data['allow_delete_no']: perms.append(p('delete_no'))
+            perms = [perm for perm in perms if perm]
+
+            # Se quiser acumular permissões já existentes do grupo, use .add(*perms)
+            # Aqui vamos definir exatamente as marcadas:
+            if perms:
+                group.permissions.set(perms)
+            else:
+                group.permissions.clear()
+
+            # 3) Usuário + senha provisória
+            username   = form.cleaned_data['username']
+            first_name = form.cleaned_data.get('first_name', '')
+            last_name  = form.cleaned_data.get('last_name', '')
+            email      = form.cleaned_data['email']
+
+            temp_password = secrets.token_urlsafe(8)  # ex.: 'q7T3Z...'
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=temp_password,
+                first_name=first_name,
+                last_name=last_name,
+                is_active=True,
+            )
+
+            # 4) Vincular grupo e nó + força troca de senha
+            user.groups.add(group)
+            profile = getattr(user, 'profile', None)
+            if profile:
+                profile.must_change_password = True
+                profile.no = no_selecionado
+                profile.save(update_fields=['must_change_password', 'no'])
+
+            messages.success(
+                request,
+                f"Perfil '{group.name}' preparado. Usuário '{user.username}' criado. "
+                f"Senha provisória (mostrada uma única vez): {temp_password}"
+            )
+            return redirect('core:criar_perfil')
+    else:
+        form = NovoPerfilForm()
+
+    contexto = {
+        'form': form,
+        'no_selecionado': no_selecionado,
+    }
+    return render(request, 'core/novo_perfil.html', contexto)
+
+def sair(request):
+    logout(request)
+    return redirect(reverse('core:login'))

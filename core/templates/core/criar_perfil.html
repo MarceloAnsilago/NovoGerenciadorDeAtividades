@@ -3,6 +3,8 @@
 
 {% block extra_head %}
 <style>
+  :root { --indent-step: 18px; }
+
   /* Paleta sutil por nível */
   .level-0 { --lvl-bg: #f1f8ff; --lvl-border: #cfe5ff; }
   .level-1 { --lvl-bg: #f6f9ff; --lvl-border: #d9e5ff; }
@@ -13,8 +15,12 @@
   .level-6, .level-default { --lvl-bg: #f5f5f5; --lvl-border: #e0e0e0; }
 
   .row-level {
-    background: var(--lvl-bg);
-    border-left: 4px solid var(--lvl-border);
+    /* Fallbacks se a classe level-X não existir */
+    --lvl-bg: #f5f5f5;
+    --lvl-border: #e0e0e0;
+
+    background: var(--lvl-bg, #f5f5f5);
+    border-left: 4px solid var(--lvl-border, #e0e0e0);
     transition: background-color .2s ease;
   }
   .row-level:hover { filter: brightness(0.98); }
@@ -22,12 +28,23 @@
   /* Indicador de nível (bolinha colorida) */
   .lvl-dot {
     width: 10px; height: 10px; border-radius: 50%;
-    display: inline-block; background-color: var(--lvl-border);
+    display: inline-block; background-color: var(--lvl-border, #e0e0e0);
     margin-right: .5rem;
   }
 
-  /* Indentação visual do nome por nível */
+  /* Indentação por classe (sem style inline) */
   .indent { display: inline-block; height: 1px; }
+  .indent.lvl-0  { width: calc(var(--indent-step) * 0); }
+  .indent.lvl-1  { width: calc(var(--indent-step) * 1); }
+  .indent.lvl-2  { width: calc(var(--indent-step) * 2); }
+  .indent.lvl-3  { width: calc(var(--indent-step) * 3); }
+  .indent.lvl-4  { width: calc(var(--indent-step) * 4); }
+  .indent.lvl-5  { width: calc(var(--indent-step) * 5); }
+  .indent.lvl-6  { width: calc(var(--indent-step) * 6); }
+  .indent.lvl-7  { width: calc(var(--indent-step) * 7); }
+  .indent.lvl-8  { width: calc(var(--indent-step) * 8); }
+  .indent.lvl-9  { width: calc(var(--indent-step) * 9); }
+  .indent.lvl-10 { width: calc(var(--indent-step) * 10); }
 
   /* Tabela mais clean */
   .table-clean thead th {
@@ -90,36 +107,37 @@
               <th class="text-end actions-col">Ações</th>
             </tr>
           </thead>
+         
           <tbody>
             {% for no in nos_planos %}
-            {% with cls='level-'|add:no.level|stringformat:"s" %}
-            <tr class="row-level {{ cls }}">
-              <td>
-                <span class="lvl-dot"></span>
-                <span class="badge bg-light text-dark border me-2">Nível {{ no.level }}</span>
-                <span class="indent" style="width: {{ no.indent_px }}px;"></span>
-                <strong>{{ no.nome }}</strong>
-              </td>
-              <td>
-                {% if no.tipo %}
-                  <span class="badge bg-primary text-white">{{ no.tipo }}</span>
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-              <td class="text-muted small">{{ no.path }}</td>
-              <td class="text-end">
-                <!-- Ícone apenas + tooltip. Por enquanto aponta para esta mesma rota com ?no=ID -->
-                <a href="{% url 'core:criar_perfil' %}?no={{ no.id }}"
-                   class="btn btn-outline-primary btn-icon"
-                   title="Criar Perfil para {{ no.nome }}"
-                   data-bs-toggle="tooltip" data-bs-placement="left"
-                   aria-label="Criar Perfil para {{ no.nome }}">
-                  <i class="bi bi-person-plus"></i>
-                </a>
-              </td>
-            </tr>
-            {% endwith %}
+              {# define level com fallback para 0 #}
+              {% with level=no.level|default_if_none:0 %}
+                <tr class="row-level {% if level|add:0 <= 10 %}level-{{ level }}{% else %}level-default{% endif %}">
+                  <td>
+                    <span class="lvl-dot" aria-hidden="true"></span>
+                    <span class="badge bg-light text-dark border me-2">Nível {{ level }}</span>
+                    <span class="indent lvl-{{ level }}"></span>
+                    <strong>{{ no.nome }}</strong>
+                  </td>
+                  <td>
+                    {% if no.tipo %}
+                      <span class="badge bg-primary text-white">{{ no.tipo }}</span>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-muted small">{{ no.path }}</td>
+                  <td class="text-end">
+                    <a href="{% url 'core:novo_perfil' %}?no={{ no.id }}"
+                      class="btn btn-outline-primary btn-icon"
+                      title="Criar Perfil para {{ no.nome }}"
+                      data-bs-toggle="tooltip" data-bs-placement="left"
+                      aria-label="Criar Perfil para {{ no.nome }}">
+                      <i class="bi bi-person-plus"></i>
+                    </a>
+                  </td>
+                </tr>
+              {% endwith %}
             {% endfor %}
           </tbody>
         </table>
@@ -134,4 +152,11 @@
     </div>
   </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function (el) { new bootstrap.Tooltip(el); });
+  });
+</script>
 {% endblock %}

@@ -1,4 +1,3 @@
-<!-- templates/base.html -->
 <!DOCTYPE html>
 {% load static %}
 <html lang="pt-br">
@@ -12,12 +11,8 @@
   <!-- Icons (Bootstrap Icons) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
-  <!-- CSS embutido -->
   <style>
-    :root {
-      --sidebar-width: 260px;
-      --navbar-height: 56px;
-    }
+    :root { --sidebar-width: 260px; --navbar-height: 56px; }
 
     body {
       margin: 0;
@@ -27,63 +22,28 @@
     }
 
     .sidebar {
-      position: fixed;
-      top: var(--navbar-height);
-      left: 0;
-      width: var(--sidebar-width);
-      height: calc(100vh - var(--navbar-height));
-      background-color: #f8f9fa;
-      border-right: 1px solid #dee2e6;
-      padding-top: 1rem;
-      overflow-y: auto;
-      z-index: 1030;
+      position: fixed; top: var(--navbar-height); left: 0;
+      width: var(--sidebar-width); height: calc(100vh - var(--navbar-height));
+      background-color: #f8f9fa; border-right: 1px solid #dee2e6;
+      padding-top: 1rem; overflow-y: auto; z-index: 1030;
     }
-
     .sidebar .nav-link {
-      display: flex;
-      align-items: center;
-      padding: 0.5rem 1rem;
-      color: #333;
-      text-decoration: none;
-      border-radius: 0.375rem;
-      margin: 0.125rem 0.5rem;
+      display: flex; align-items: center; padding: 0.5rem 1rem;
+      color: #333; text-decoration: none; border-radius: .375rem; margin: .125rem .5rem;
     }
+    .sidebar .nav-link i { margin-right: .5rem; }
+    .sidebar .nav-link.active { background-color: #0d6efd; color: #fff; } /* legível */
 
-    .sidebar .nav-link i {
-      margin-right: 0.5rem;
-    }
-
-    .sidebar .nav-link.active {
-      background-color: #0d6efd;
-      color: #fff;
-    }
-
-    .content {
-      margin-left: var(--sidebar-width);
-      padding: 2rem;
-      transition: margin-left 0.3s ease;
-    }
-
-    .sidebar.collapsed {
-      width: 70px;
-    }
-
-    .sidebar.collapsed + .content {
-      margin-left: 70px;
-    }
+    .content { margin-left: var(--sidebar-width); padding: 2rem; transition: margin-left .3s ease; }
+    .sidebar.collapsed { width: 70px; }
+    .sidebar.collapsed + .content, .content.expanded { margin-left: 70px; }
 
     @media (max-width: 768px) {
       .sidebar {
-        position: relative;
-        width: 100%;
-        height: auto;
-        border-right: none;
-        border-bottom: 1px solid #dee2e6;
+        position: relative; width: 100%; height: auto;
+        border-right: none; border-bottom: 1px solid #dee2e6;
       }
-
-      .content {
-        margin-left: 0;
-      }
+      .content { margin-left: 0; }
     }
   </style>
 
@@ -102,27 +62,41 @@
 
       <div class="collapse navbar-collapse" id="navbarMain">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <!-- links topo (se quiser adicionar algo) -->
+          <!-- links topo -->
         </ul>
         <ul class="navbar-nav ms-auto">
+
           {% if request.user.is_authenticated %}
             <li class="nav-item">
               <span class="navbar-text me-3">
                 Olá, {{ request.user.get_short_name|default:request.user.username }}
               </span>
             </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'logout' %}">Sair</a>
-            </li>
+            <form method="post" action="{% url 'core:logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-light">Sair</button>
+            </form>
           {% else %}
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'login' %}">Entrar</a>
+              <a class="nav-link" href="{% url 'core:login' %}">Entrar</a>
             </li>
           {% endif %}
         </ul>
       </div>
     </div>
   </nav>
+
+  <!-- FLASH MESSAGES -->
+  {% if messages %}
+    <div class="container mt-3" style="max-width: 920px;">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
 
   <div class="app-wrapper">
     <!-- SIDEBAR -->
@@ -137,28 +111,27 @@
       <ul class="nav flex-column px-2">
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
-            href="{% url 'core:dashboard' %}">
+             href="{% url 'core:dashboard' %}">
             <i class="bi bi-speedometer2 me-2"></i> Dashboard
           </a>
         </li>
 
         {% if request.user.is_superuser %}
-        <li class="nav-item mt-2">
-          <div class="text-uppercase text-muted small px-3">Administração</div>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}"
-            href="{% url 'core:admin_arvore' %}">
-            <i class="bi bi-diagram-3 me-2"></i> Administrador
-          </a>
-        </li>
-        <!-- Novo botão Criar Perfil -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'criar_perfil' %}active{% endif %}"
-            href="{% url 'core:criar_perfil' %}">
-            <i class="bi bi-person-plus me-2"></i> Criar Perfil
-          </a>
-        </li>
+          <li class="nav-item mt-2">
+            <div class="text-uppercase text-muted small px-3">Administração</div>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}"
+               href="{% url 'core:admin_arvore' %}">
+              <i class="bi bi-diagram-3 me-2"></i> Administrador
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'criar_perfil' %}active{% endif %}"
+               href="{% url 'core:criar_perfil' %}">
+              <i class="bi bi-person-plus me-2"></i> Criar Perfil
+            </a>
+          </li>
         {% endif %}
       </ul>
     </aside>

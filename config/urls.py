@@ -18,13 +18,10 @@ Including another URLconf
 # config/urls.py
 from django.contrib import admin
 from django.urls import path, include
-from django.contrib.auth import views as auth_views
+from django.shortcuts import redirect
 
 urlpatterns = [
-    # core primeiro (de preferência com namespace)
+    path('', lambda request: redirect('core:dashboard'), name='home_redirect'),
     path('', include(('core.urls', 'core'), namespace='core')),
-    path('login/', auth_views.LoginView.as_view(template_name='core/login.html'), name='login'),
-    path('logout/', auth_views.LogoutView.as_view(), name='logout'),
-    # admin por último
     path('admin/', admin.site.urls),
 ]

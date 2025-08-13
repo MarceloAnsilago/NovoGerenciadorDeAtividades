@@ -1,7 +1,7 @@
 from pathlib import Path
 import environ
 import os
-
+from django.urls import reverse_lazy
 # Base dir
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -11,7 +11,7 @@ env = environ.Env(
 )
 
 # Carrega .env se existir
-environ.Env.read_env(BASE_DIR / ".env")
+environ.Env.read_env(str(BASE_DIR / ".env"))
 
 # Segurança
 SECRET_KEY = env("DJANGO_SECRET_KEY", default="changeme-unsafe")
@@ -26,8 +26,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    'core'
-
+    "core.apps.CoreConfig",
+    'widget_tweaks',
 ]
 
 MIDDLEWARE = [
@@ -38,6 +38,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+
+    "core.middleware.ForcePasswordChangeMiddleware", 
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -111,7 +113,8 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
-
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# Redirecionamentos de autenticação
+LOGIN_URL = '/core/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'   
 LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/login/'

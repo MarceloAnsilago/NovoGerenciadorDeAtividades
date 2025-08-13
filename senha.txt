@@ -1,5 +1,10 @@
 python manage.py runserver
 .venv\Scripts\Activate
 
+ ---------------------------
 admin
 123433Ro
+---------------------------
+Marcelo
+
+T0NF5Gb6KEo
