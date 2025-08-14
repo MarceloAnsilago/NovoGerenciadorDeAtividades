@@ -4,15 +4,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{% block title %}App{% endblock %}</title>
+  <title>{% block title %}Gerenciador de Atividades{% endblock %}</title>
 
-  <!-- Bootstrap (CDN) -->
+  <!-- Bootstrap + Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Icons (Bootstrap Icons) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
   <style>
-    :root { --sidebar-width: 260px; --navbar-height: 56px; }
+    :root {
+      --sidebar-width: 260px;
+      --sidebar-width-collapsed: 70px;
+      --navbar-height: 56px;
+    }
 
     body {
       margin: 0;
@@ -21,29 +24,97 @@
       font-family: system-ui, sans-serif;
     }
 
-    .sidebar {
-      position: fixed; top: var(--navbar-height); left: 0;
-      width: var(--sidebar-width); height: calc(100vh - var(--navbar-height));
-      background-color: #f8f9fa; border-right: 1px solid #dee2e6;
-      padding-top: 1rem; overflow-y: auto; z-index: 1030;
+    /* NAVBAR */
+    .navbar {
+      background: linear-gradient(135deg, #07162e, #04112b);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+      z-index: 1040;
     }
-    .sidebar .nav-link {
-      display: flex; align-items: center; padding: 0.5rem 1rem;
-      color: #333; text-decoration: none; border-radius: .375rem; margin: .125rem .5rem;
-    }
-    .sidebar .nav-link i { margin-right: .5rem; }
-    .sidebar .nav-link.active { background-color: #0d6efd; color: #fff; } /* legível */
 
-    .content { margin-left: var(--sidebar-width); padding: 2rem; transition: margin-left .3s ease; }
-    .sidebar.collapsed { width: 70px; }
-    .sidebar.collapsed + .content, .content.expanded { margin-left: 70px; }
+    .navbar .navbar-brand,
+    .navbar .nav-link,
+    .navbar .navbar-text {
+      color: #ffffff !important;
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      position: fixed;
+      top: var(--navbar-height);
+      left: 0;
+      width: var(--sidebar-width);
+      height: calc(100vh - var(--navbar-height));
+      background: linear-gradient(135deg, #07162e, #04112b);
+      border-right: 1px solid #1f2a40;
+      overflow-y: auto;
+      z-index: 1030;
+      color: white;
+      transition: width 0.3s ease;
+    }
+
+    .sidebar.collapsed {
+      width: var(--sidebar-width-collapsed);
+    }
+
+    .sidebar .nav-link {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 1rem;
+      color: white;
+      text-decoration: none;
+      border-radius: 0.375rem;
+      margin: 0.125rem 0.5rem;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .sidebar .nav-link i {
+      margin-right: 0.5rem;
+    }
+
+    .sidebar .nav-link:hover,
+    .sidebar .nav-link.active {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar .nav-section-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: #adb5bd;
+      padding: 0.75rem 1rem 0.25rem;
+    }
+
+    .sidebar-header {
+      padding: 0 1rem;
+    }
+
+    .sidebar.collapsed .nav-link span {
+      display: none;
+    }
+
+    /* CONTEÚDO */
+    .content {
+      margin-left: var(--sidebar-width);
+      padding: 2rem;
+      transition: margin-left 0.3s ease;
+    }
+
+    .content.expanded {
+      margin-left: var(--sidebar-width-collapsed);
+    }
 
     @media (max-width: 768px) {
       .sidebar {
-        position: relative; width: 100%; height: auto;
-        border-right: none; border-bottom: 1px solid #dee2e6;
+        position: relative;
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #dee2e6;
       }
-      .content { margin-left: 0; }
+
+      .content {
+        margin-left: 0;
+      }
     }
   </style>
 
@@ -52,112 +123,126 @@
 
 <body>
 
-  <!-- NAVBAR -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-    <div class="container-fluid">
-      <a class="navbar-brand" href="{% url 'core:dashboard' %}">Gerenciador</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
-        <span class="navbar-toggler-icon"></span>
-      </button>
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg fixed-top">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand" href="{% url 'core:dashboard' %}">Gerenciador de Atividades IDARON</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
+      <span class="navbar-toggler-icon"></span>
+    </button>
 
-      <div class="collapse navbar-collapse" id="navbarMain">
-        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <!-- links topo -->
-        </ul>
-        <ul class="navbar-nav ms-auto">
-
-          {% if request.user.is_authenticated %}
-            <li class="nav-item">
-              <span class="navbar-text me-3">
-                Olá, {{ request.user.get_short_name|default:request.user.username }}
-              </span>
-            </li>
-            <form method="post" action="{% url 'core:logout' %}">
+    <div class="collapse navbar-collapse" id="navbarMain">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <!-- Links do lado esquerdo -->
+      </ul>
+      <ul class="navbar-nav ms-auto align-items-center gap-2">
+        {% if request.user.is_authenticated %}
+          <li class="nav-item">
+            <span class="navbar-text">
+              <i class="bi bi-person-circle me-1"></i>
+              {{ request.user.get_short_name|default:request.user.username }}
+            </span>
+          </li>
+          <li class="nav-item">
+            <form method="post" action="{% url 'core:logout' %}" class="d-inline">
               {% csrf_token %}
-              <button type="submit" class="btn btn-outline-light">Sair</button>
+              <button type="submit" class="btn btn-outline-light btn-sm">
+                <i class="bi bi-box-arrow-right"></i> Sair
+              </button>
             </form>
-          {% else %}
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'core:login' %}">Entrar</a>
-            </li>
-          {% endif %}
-        </ul>
-      </div>
-    </div>
-  </nav>
-
-  <!-- FLASH MESSAGES -->
-  {% if messages %}
-    <div class="container mt-3" style="max-width: 920px;">
-      {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
-
-  <div class="app-wrapper">
-    <!-- SIDEBAR -->
-    <aside id="sidebar" class="sidebar bg-light">
-      <div class="sidebar-header d-flex align-items-center justify-content-between px-3 py-2">
-        <span class="fw-semibold">Menu</span>
-        <button id="sidebarToggle" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-layout-sidebar-inset"></i>
-        </button>
-      </div>
-
-      <ul class="nav flex-column px-2">
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
-             href="{% url 'core:dashboard' %}">
-            <i class="bi bi-speedometer2 me-2"></i> Dashboard
-          </a>
-        </li>
-
-        {% if request.user.is_superuser %}
-          <li class="nav-item mt-2">
-            <div class="text-uppercase text-muted small px-3">Administração</div>
           </li>
+        {% else %}
           <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}"
-               href="{% url 'core:admin_arvore' %}">
-              <i class="bi bi-diagram-3 me-2"></i> Administrador
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'criar_perfil' %}active{% endif %}"
-               href="{% url 'core:criar_perfil' %}">
-              <i class="bi bi-person-plus me-2"></i> Criar Perfil
+            <a class="nav-link" href="{% url 'core:login' %}">
+              <i class="bi bi-box-arrow-in-right"></i> Entrar
             </a>
           </li>
         {% endif %}
       </ul>
-    </aside>
-
-    <!-- CONTEÚDO -->
-    <main class="content">
-      <div class="container-fluid py-4">
-        {% block content %}{% endblock %}
-      </div>
-    </main>
+    </div>
   </div>
+</nav>
 
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Toggle simples da sidebar
-    document.addEventListener('DOMContentLoaded', function () {
-      const btn = document.getElementById('sidebarToggle');
-      const sidebar = document.getElementById('sidebar');
-      btn?.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
-        document.querySelector('.content').classList.toggle('expanded');
-      });
+<!-- FLASH MESSAGES -->
+{% if messages %}
+  <div class="container mt-3" style="max-width: 920px;">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<!-- SIDEBAR + CONTEÚDO -->
+<div class="app-wrapper">
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="sidebar">
+    <!-- Botão colapsar -->
+    <div class="d-flex justify-content-end px-3 pt-2">
+      <button id="sidebarToggle" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-layout-sidebar-inset"></i>
+      </button>
+    </div>
+
+    <!-- Título -->
+    <div class="sidebar-header py-2">
+      <span class="fw-semibold">Menu</span>
+    </div>
+
+    <!-- Navegação -->
+    <ul class="nav flex-column px-2">
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+           href="{% url 'core:dashboard' %}">
+          <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
+        </a>
+      </li>
+
+      {% if request.user.is_superuser %}
+        <li class="nav-item">
+          <div class="nav-section-title">Administração</div>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}"
+             href="{% url 'core:admin_arvore' %}">
+            <i class="bi bi-diagram-3"></i> <span>Administrador</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'criar_perfil' %}active{% endif %}"
+             href="{% url 'core:criar_perfil' %}">
+            <i class="bi bi-person-plus"></i> <span>Criar Perfil</span>
+          </a>
+        </li>
+      {% endif %}
+    </ul>
+  </aside>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <main class="content">
+    <div class="container-fluid py-4">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const btn = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const content = document.querySelector('.content');
+
+    btn?.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+      content.classList.toggle('expanded');
     });
-  </script>
+  });
+</script>
 
-  {% block extra_js %}{% endblock %}
+{% block extra_js %}{% endblock %}
 </body>
 </html>
