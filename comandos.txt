@@ -1,0 +1,11 @@
+.\venv\Scripts\Activate
+
+python manage.py runserver
+
+
+admin
+Wn3@!xLr92
+
+
+ULSAVunidade1
+phZfKheBOkS

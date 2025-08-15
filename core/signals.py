@@ -1,10 +1,9 @@
-from django.conf import settings
+# app/signals.py
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from .models import UserProfile, Policy
 
-from .models import UserProfile
-
-@receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        UserProfile.objects.create(user=instance)
+@receiver(post_save, sender=UserProfile)
+def create_policy_for_user_profile(sender, instance, created, **kwargs):
+    if created and not hasattr(instance, 'policy'):
+        Policy.objects.create(user_profile=instance)

@@ -1,15 +1,10 @@
+# core/apps.py
 from django.apps import AppConfig
 
 
 class CoreConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'core'
-
-
-class CoreConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "core"
+    name = 'core'  # deve bater com a pasta e com INSTALLED_APPS
 
     def ready(self):
-        # importa os handlers de signal
-        from . import signals  # noqa: F401    
+        import core.signals  # ajuste 'core' conforme nome real da app

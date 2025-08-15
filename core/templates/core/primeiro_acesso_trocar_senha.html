@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+{% load widget_tweaks %}
+
+{% block title %}Trocar Senha - Primeiro Acesso{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width: 500px;">
+  <div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Troque sua senha</h5>
+    </div>
+    <div class="card-body">
+      <p class="mb-3">Defina uma nova senha para concluir seu primeiro acesso ao sistema.</p>
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Nova senha</label>
+          {% render_field form.new_password1 class="form-control" %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Confirme a nova senha</label>
+          {% render_field form.new_password2 class="form-control" %}
+        </div>
+        <button type="submit" class="btn btn-success w-100">Salvar nova senha</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

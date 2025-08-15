@@ -1,25 +1,47 @@
-{% extends "base.html" %}
-{% load widget_tweaks %}
+
+{% extends "core/base.html" %}
+
 {% block title %}Entrar{% endblock %}
+
 {% block content %}
-<div class="container py-4" style="max-width:420px">
-  <h1 class="h4 mb-3">Entrar</h1>
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <div class="card shadow">
+      <div class="card-header text-center">
+        <h5 class="mb-0">Entrar no sistema</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
 
-  {% if form.errors %}
-    <div class="alert alert-danger">Usuário ou senha inválidos.</div>
-  {% endif %}
+          {% csrf_token %}
 
-  <form method="post" novalidate>
-    {% csrf_token %}
-    <div class="mb-3">
-      <label class="form-label">Usuário</label>
-      {{ form.username|add_class:"form-control" }}
+          <div class="mb-3">
+            <label for="username" class="form-label">Usuário</label>
+            <input type="text" class="form-control" id="username" name="username" required autofocus>
+          </div>
+
+          <div class="mb-3">
+            <label for="password" class="form-label">Senha</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-box-arrow-in-right me-1"></i> Entrar
+          </button>
+          <button type="button" class="btn btn-outline-secondary w-100 mt-2" id="btnLimparCampos">
+            <i class="bi bi-eraser me-1"></i> Limpar
+          </button>
+        </form>
+
+        <script>
+        document.getElementById('btnLimparCampos').addEventListener('click', function() {
+          document.getElementById('username').value = '';
+          document.getElementById('password').value = '';
+          document.getElementById('username').focus();
+        });
+        </script>
+      </div>
     </div>
-    <div class="mb-3">
-      <label class="form-label">Senha</label>
-      {{ form.password|add_class:"form-control" }}
-    </div>
-    <button class="btn btn-primary w-100" type="submit">Entrar</button>
-  </form>
+  </div>
 </div>
 {% endblock %}

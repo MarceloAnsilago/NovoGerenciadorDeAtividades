@@ -1,40 +1,24 @@
 from django.urls import path
-from django.contrib.auth import views as auth_views
-from . import views
-from .views_auth import MustChangePasswordView, MustChangePasswordDoneView
+import core.views as views
 
-app_name = 'core'
+app_name = "core"
 
 urlpatterns = [
-    # 🌐 Página inicial / dashboard (LOGIN_REDIRECT_URL aponta pra cá)
-    path('dashboard/', views.dashboard, name='dashboard'),
+    path("", views.home, name="dashboard"),
+    path("estrutura/", views.admin_arvore, name="admin_arvore"),
+    path("perfis/", views.perfis, name="perfis"),
+    path("perfis/criar/", views.criar_perfil, name="criar_perfil"),
+    path("login/", views.login_view, name="login"),
+    path("logout/", views.logout_view, name="logout"),
 
-    # 🌳 Administração / árvore de nós
-    path('arvore/', views.admin_arvore, name='admin_arvore'),
-    path('nos-json/', views.nos_json, name='nos_json'),
-    path('health/', views.health, name='health'),
-    path('criar-raiz/', views.criar_raiz, name='criar_raiz'),
+    # CRUD do jsTree
+    path("nos/", views.nos_list, name="nos_list"),
+    path("nos/criar/", views.nos_criar, name="nos_criar"),
+    path("nos/renomear/<int:pk>/", views.nos_renomear, name="nos_renomear"),
+    path("nos/mover/<int:pk>/", views.nos_mover, name="nos_mover"),
+    path("nos/deletar/<int:pk>/", views.nos_deletar, name="nos_deletar"),
 
-    # 🔁 Ajax
-    path('ajax/criar-no/', views.ajax_criar_no, name='ajax_criar_no'),
-    path('ajax/renomear-no/', views.ajax_renomear_no, name='ajax_renomear_no'),
-    path('ajax/excluir-no/', views.ajax_excluir_no, name='ajax_excluir_no'),
-    path('definir-tipo/', views.ajax_definir_tipo, name='definir_tipo'),
-
-    # 👥 Perfis
-    path('admin/perfis/criar/', views.criar_perfil, name='criar_perfil'),
-    path('novo-perfil/', views.novo_perfil, name='novo_perfil'),
-
-    # 🔐 Troca obrigatória de senha
-    path("accounts/password-change/", MustChangePasswordView.as_view(), name="password_change"),
-    path("accounts/password-change/done/", MustChangePasswordDoneView.as_view(), name="password_change_done"),
-
-
-    # 🔐 Autenticação
-    path('login/', auth_views.LoginView.as_view(
-        template_name='registration/login.html',
-        redirect_authenticated_user=True
-    ), name='login'),
-
-    path('logout/', views.sair, name='logout'),  # View personalizada que redireciona para 'core:login'
+    # Adiciona aqui a rota de primeiro acesso
+    path("primeiro-acesso/", views.primeiro_acesso_token_view, name="primeiro_acesso_token"),
+    path("primeiro-acesso/trocar/", views.trocar_senha_primeiro_acesso, name="trocar_senha_primeiro_acesso"),
 ]

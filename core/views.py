@@ -1,235 +1,243 @@
 # core/views.py
 
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.shortcuts import render
-from django.http import JsonResponse
-from .models import No
-from django.shortcuts import redirect
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.contrib.auth.models import Group, Permission
-from django.contrib.auth import get_user_model
-from django.db import transaction
-import secrets
-from .forms import NovoPerfilForm
-from django.contrib.auth import logout
-from django.urls import reverse
+from django.http import JsonResponse, HttpResponseBadRequest
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, logout, login as auth_login
+from django.contrib.auth.forms import SetPasswordForm
+import string, random
 
-def dashboard(request):
-    return render(request, 'core/dashboard.html')
+from .models import No, UserProfile
+from .forms import UserProfileForm
+# ============
+# DASHBOARD
+# ============
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+def home(request):
+    return render(request, "core/home.html")
+
+
+# ============
+# ÁRVORE (jsTree)
+# ============
+
+@user_passes_test(lambda u: u.is_staff)
 def admin_arvore(request):
-    return render(request, 'core/admin_arvore.html')
-
-def health(request):
-    return JsonResponse({"status": "ok"})
-
-@login_required
-@user_passes_test(lambda u: u.is_superuser)
-def nos_json(request):
-    def node_to_dict(no):
-        return {
-            'id': no.id,
-            'parent': '#' if no.parent is None else no.parent.id,
-            'text': f"{no.nome} [{no.tipo}]",  # ← Aqui mostramos o tipo ao lado do nome
-            'tipo': no.tipo  # Mantemos isso para uso interno no JS
-        }
-
-    nos = No.objects.all()
-    data = [node_to_dict(no) for no in nos]
-    return JsonResponse(data, safe=False)
-
+    tem_unidades = No.objects.exists()
+    return render(request, "core/admin_arvore.html", {
+        "tem_unidades": tem_unidades
+    })
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
-def admin_arvore(request):
-    tem_estrutura = No.objects.exists()
-    return render(request, 'core/admin_arvore.html', {'tem_estrutura': tem_estrutura})
+def nos_list(request):
+    dados = [no.to_jstree() for no in No.objects.all()]
+    return JsonResponse(dados, safe=False)
 
-@login_required
-@user_passes_test(lambda u: u.is_superuser)
-def criar_raiz(request):
-    if request.method == "POST" and not No.objects.exists():
-        No.objects.create(nome="Estrutura Principal", tipo="gerente")
-    return redirect('core:admin_arvore')
-
-
-@csrf_exempt
 @require_POST
-def ajax_criar_no(request):
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def nos_criar(request):
+    nome = request.POST.get('nome', 'Novo Nó')
     parent_id = request.POST.get('parent')
-    nome = request.POST.get('nome', 'Novo nó')
-    tipo = request.POST.get('tipo', 'indefinido')  # <- valor padrão aqui
-
     parent = No.objects.filter(id=parent_id).first() if parent_id else None
-    novo_no = No.objects.create(nome=nome, tipo=tipo, parent=parent)
+    no = No.objects.create(nome=nome, parent=parent)
+    return JsonResponse(no.to_jstree())
 
-    return JsonResponse({'id': novo_no.id})
-
-@csrf_exempt
 @require_POST
-def ajax_renomear_no(request):
-    no_id = request.POST.get('id')
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def nos_renomear(request, pk):
+    no = get_object_or_404(No, pk=pk)
     novo_nome = request.POST.get('nome')
-
-    try:
-        no = No.objects.get(id=no_id)
+    if novo_nome:
         no.nome = novo_nome
         no.save()
         return JsonResponse({'status': 'ok'})
-    except No.DoesNotExist:
-        return JsonResponse({'status': 'erro', 'mensagem': 'Nó não encontrado'}, status=404)
+    return HttpResponseBadRequest('Nome inválido')
 
-@csrf_exempt
 @require_POST
-def ajax_excluir_no(request):
-    no_id = request.POST.get('id')
-
-    try:
-        no = No.objects.get(id=no_id)
-        no.delete()
-        return JsonResponse({'status': 'ok'})
-    except No.DoesNotExist:
-        return JsonResponse({'status': 'erro', 'mensagem': 'Nó não encontrado'}, status=404)
-    
-@csrf_exempt
-@require_POST
-def ajax_definir_tipo(request):
-    no_id = request.POST.get('id')
-    tipo = request.POST.get('tipo')
-
-    try:
-        no = No.objects.get(id=no_id)
-        no.tipo = tipo
-        no.save()
-        return JsonResponse({'status': 'ok'})
-    except No.DoesNotExist:
-        return JsonResponse({'status': 'erro', 'mensagem': 'Nó não encontrado'}, status=404)
-    
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
-def criar_perfil(request):
-    return render(request, 'core/criar_perfil.html')
+@user_passes_test(lambda u: u.is_staff)
+def nos_mover(request, pk):
+    no = get_object_or_404(No, pk=pk)
+    novo_parent_id = request.POST.get('parent')
+    novo_parent = No.objects.filter(id=novo_parent_id).first() if novo_parent_id else None
+    no.parent = novo_parent
+    no.save()
+    return JsonResponse({'status': 'ok'})
+
+@require_POST
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def nos_deletar(request, pk):
+    no = get_object_or_404(No, pk=pk)
+    no.delete()
+    return JsonResponse({'status': 'ok'})
+
+
+# ============
+# PERFIS
+# ============
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
+def perfis(request):
+    return render(request, "core/perfis.html")
+
+def gerar_senha_provisoria(tamanho=10):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=tamanho))
+
+@csrf_exempt  # remova se seu frontend envia CSRF corretamente
+@login_required
 def criar_perfil(request):
-    # Carrega todos os nós e organiza por parent
-    nos = list(No.objects.select_related('parent').all())
-    filhos_por_parent = {}
-    for no in nos:
-        filhos_por_parent.setdefault(no.parent_id, []).append(no)
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        unidade_id = request.POST.get('unidade_id')
+        is_admin = request.POST.get('is_admin') == 'on'
 
-    # Ordenação consistente (alfabética) por nome
-    for lista in filhos_por_parent.values():
-        lista.sort(key=lambda n: (n.nome or "").lower())
+        if not (username and email and unidade_id):
+            return JsonResponse({'erro': 'Campos obrigatórios faltando'}, status=400)
 
-    def dfs(no, level, path_so_far, acumulador):
-        path = path_so_far + [no.nome]
-        acumulador.append({
-            'id': no.id,
-            'nome': no.nome,
-            'tipo': no.tipo,
-            'level': level,
-            'indent_px': level * 18,  # indentação visual
-            'path': " / ".join(path),
+        if User.objects.filter(username=username).exists():
+            return JsonResponse({'erro': 'Usuário já existe'}, status=400)
+
+        senha_provisoria = gerar_senha_provisoria()
+
+        # Criação do usuário
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+        )
+        user.is_staff = is_admin
+        user.is_active = True
+        user.set_unusable_password()  # Bloqueia login direto
+        user.save()
+
+        # Criação do UserProfile
+        unidade = get_object_or_404(No, pk=unidade_id)
+        profile = UserProfile.objects.create(
+            user=user,
+            unidade=unidade,
+            senha_provisoria=senha_provisoria,
+            ativado=False
+        )
+
+        # Retorna a senha provisória para o frontend (para exibir ao admin)
+        return JsonResponse({
+            'status': 'ok',
+            'mensagem': f'Usuário criado. Senha provisória: {senha_provisoria}'
         })
-        for filho in filhos_por_parent.get(no.id, []):
-            dfs(filho, level + 1, path, acumulador)
 
-    # Começa pelos nós raiz (parent=None)
-    flat = []
-    for raiz in filhos_por_parent.get(None, []):
-        dfs(raiz, 0, [], flat)
-
-    contexto = {
-        'nos_planos': flat,  # lista flatten com level/indent/path
-        'total_nos': len(flat),
-    }
-    return render(request, 'core/criar_perfil.html', contexto)
-
-User = get_user_model()
+    return HttpResponseBadRequest("Apenas requisições POST são permitidas.")
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser)
-@transaction.atomic
-def novo_perfil(request):
-    no_id = request.GET.get('no')
-    no_selecionado = None
-    if no_id:
-        no_selecionado = get_object_or_404(No, id=no_id)
+def perfis(request):
+    unidades = No.objects.prefetch_related('filhos', 'userprofile_set', 'userprofile_set__user')
+    return render(request, "core/perfis.html", {"unidades": unidades})
+
+
+
+
+def primeiro_acesso_token_view(request):
+    context = {}
 
     if request.method == 'POST':
-        form = NovoPerfilForm(request.POST)
-        if form.is_valid():
-            # 1) Grupo (perfil)
-            group_name = form.cleaned_data['group_name'].strip()
-            group, _ = Group.objects.get_or_create(name=group_name)
+        username = request.POST.get('username')
+        token = request.POST.get('token')
 
-            # 2) Permissões (exemplo: core.No)
-            perms = []
-            def p(codename):
-                try:
-                    return Permission.objects.get(codename=codename)
-                except Permission.DoesNotExist:
-                    return None
-
-            if form.cleaned_data['allow_view_no']:   perms.append(p('view_no'))
-            if form.cleaned_data['allow_add_no']:    perms.append(p('add_no'))
-            if form.cleaned_data['allow_change_no']: perms.append(p('change_no'))
-            if form.cleaned_data['allow_delete_no']: perms.append(p('delete_no'))
-            perms = [perm for perm in perms if perm]
-
-            # Se quiser acumular permissões já existentes do grupo, use .add(*perms)
-            # Aqui vamos definir exatamente as marcadas:
-            if perms:
-                group.permissions.set(perms)
+        try:
+            user = User.objects.get(username=username)
+            profile = user.userprofile
+            if profile.senha_provisoria == token and not profile.ativado:
+                request.session['troca_user_id'] = user.id
+                return redirect('core:trocar_senha_primeiro_acesso')
             else:
-                group.permissions.clear()
+                context['erro'] = "Token inválido ou já utilizado."
+        except User.DoesNotExist:
+            context['erro'] = "Usuário não encontrado."
 
-            # 3) Usuário + senha provisória
-            username   = form.cleaned_data['username']
-            first_name = form.cleaned_data.get('first_name', '')
-            last_name  = form.cleaned_data.get('last_name', '')
-            email      = form.cleaned_data['email']
+    return render(request, 'primeiro_acesso_verificar.html', context)
 
-            temp_password = secrets.token_urlsafe(8)  # ex.: 'q7T3Z...'
-            user = User.objects.create_user(
-                username=username,
-                email=email,
-                password=temp_password,
-                first_name=first_name,
-                last_name=last_name,
-                is_active=True,
-            )
+def trocar_senha_primeiro_acesso(request):
+    user_id = request.session.get('troca_user_id')
+    if not user_id:
+        messages.error(request, "Sessão de primeiro acesso expirada ou inválida.")
+        return redirect('core:login')
 
-            # 4) Vincular grupo e nó + força troca de senha
-            user.groups.add(group)
-            profile = getattr(user, 'profile', None)
-            if profile:
-                profile.must_change_password = True
-                profile.no = no_selecionado
-                profile.save(update_fields=['must_change_password', 'no'])
+    user = User.objects.get(id=user_id)
 
-            messages.success(
-                request,
-                f"Perfil '{group.name}' preparado. Usuário '{user.username}' criado. "
-                f"Senha provisória (mostrada uma única vez): {temp_password}"
-            )
-            return redirect('core:criar_perfil')
+    if request.method == 'POST':
+        form = SetPasswordForm(user, request.POST)
+        if form.is_valid():
+            form.save()
+            profile = user.userprofile
+            profile.ativado = True
+            profile.senha_provisoria = None
+            profile.save()
+
+            # Limpa sessão temporária
+            del request.session['troca_user_id']
+
+            # Faz login automático
+            auth_login(request, user)
+            messages.success(request, "Senha alterada com sucesso! Bem-vindo(a) ao sistema.")
+            return redirect('core:dashboard')
+        else:
+            messages.error(request, "Erro ao alterar senha. Verifique os campos.")
     else:
-        form = NovoPerfilForm()
+        form = SetPasswordForm(user)
 
-    contexto = {
-        'form': form,
-        'no_selecionado': no_selecionado,
-    }
-    return render(request, 'core/novo_perfil.html', contexto)
+    return render(request, 'core/primeiro_acesso_trocar_senha.html', {'form': form})
 
-def sair(request):
+
+
+
+# ============
+# AUTENTICAÇÃO
+# ============
+
+from django.contrib.auth import authenticate, login
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth.models import User
+from .models import UserProfile
+
+def login_view(request):
+    if request.method == "POST":
+        username = request.POST.get("username")
+        password = request.POST.get("password")
+
+        # 1️⃣ Tentativa de login normal
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect("core:dashboard")
+
+        # 2️⃣ Se não autenticou, tenta validar como senha provisória
+        try:
+            user_obj = User.objects.get(username=username)
+            profile = user_obj.userprofile
+        except (User.DoesNotExist, UserProfile.DoesNotExist):
+            messages.error(request, "Usuário ou senha inválidos.")
+            return render(request, "core/login.html")
+
+        if profile.senha_provisoria == password and not profile.ativado:
+            # Guarda ID do usuário para fluxo de troca de senha
+            request.session['troca_user_id'] = user_obj.id
+            return redirect('core:trocar_senha_primeiro_acesso')
+
+        # 3️⃣ Se não for senha provisória válida nem senha normal
+        messages.error(request, "Usuário ou senha inválidos.")
+        return render(request, "core/login.html")
+
+    return render(request, "core/login.html")
+
+def logout_view(request):
     logout(request)
-    return redirect(reverse('core:login'))
+    messages.success(request, "Você saiu da sessão.")
+    return redirect("core:login")

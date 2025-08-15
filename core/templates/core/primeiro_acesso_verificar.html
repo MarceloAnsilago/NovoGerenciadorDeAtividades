@@ -1,0 +1,27 @@
+{% extends "core/base.html" %}
+{% block title %}Trocar senha - Primeiro acesso{% endblock %}
+
+{% block content %}
+<div class="container mt-5" style="max-width: 500px;">
+  <div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Troque sua senha</h5>
+    </div>
+    <div class="card-body">
+      <p class="mb-3">Defina sua nova senha para concluir o primeiro acesso.</p>
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label" for="id_new_password1">Nova senha</label>
+          {{ form.new_password1|add_class:"form-control" }}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="id_new_password2">Confirmação da nova senha</label>
+          {{ form.new_password2|add_class:"form-control" }}
+        </div>
+        <button type="submit" class="btn btn-success w-100">Salvar nova senha</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

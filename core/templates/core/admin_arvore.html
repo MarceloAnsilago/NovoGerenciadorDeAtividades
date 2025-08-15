@@ -1,126 +1,127 @@
-{% extends "base.html" %}
-{% load static %}
+{# core/templates/core/admin_arvore.html #}
+{% extends "core/base.html" %}
 
-{% block title %}Administrador - Árvore{% endblock %}
-
-{% block extra_head %}
-  <!-- jsTree CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jstree@3.3.12/dist/themes/default/style.min.css" />
-{% endblock %}
+{% block title %}Administrador - Estrutura{% endblock %}
 
 {% block content %}
-  <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <h5>Estrutura Hierárquica</h5>
-      {% if not tem_estrutura %}
-        <form method="post" action="{% url 'core:criar_raiz' %}">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-primary">Criar Estrutura</button>
-        </form>
-      {% endif %}
+  <h3>Gerenciar Estrutura</h3>
+
+  {% if not tem_unidades %}
+    <div class="alert alert-info">
+      Nenhuma unidade cadastrada ainda.
+      <button class="btn btn-primary btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#modalCriarRaiz">
+        ➕ Inserir Primeiro Nível
+      </button>
     </div>
-    <div class="card-body">
-      {% if tem_estrutura %}
-        <div id="arvore"></div>
-      {% else %}
-        <p class="text-muted">Nenhuma estrutura criada ainda.</p>
-      {% endif %}
+  {% endif %}
+
+  <!-- Container da Árvore (jsTree vai preencher isso) -->
+  <div id="jstree"></div>
+
+  <!-- Modal para criação de primeiro nível -->
+  <div class="modal fade" id="modalCriarRaiz" tabindex="-1" aria-labelledby="modalCriarRaizLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form method="post" action="{% url 'core:nos_criar' %}" id="formCriarRaiz">
+          {% csrf_token %}
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalCriarRaizLabel">Criar Unidade Raiz</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="id_nome_raiz" class="form-label">Nome da Unidade</label>
+              <input type="text" name="nome" class="form-control" id="id_nome_raiz" required>
+            </div>
+            <input type="hidden" name="parent" value="">  <!-- nenhum parent = raiz -->
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
+
+  <script>
+    document.getElementById('formCriarRaiz').addEventListener('submit', async function(event) {
+      event.preventDefault();
+      const form = event.target;
+      const data = new FormData(form);
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: data,
+        headers: { 'X-CSRFToken': data.get('csrfmiddlewaretoken') }
+      });
+
+      if (response.ok) {
+        location.reload(); // recarrega para exibir o novo nó
+      } else {
+        alert("Erro ao criar unidade raiz.");
+      }
+    });
+  </script>
 {% endblock %}
 
 {% block extra_js %}
-  {% if tem_estrutura %}
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <!-- jQuery (caso não esteja no base.html) -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
-    <!-- jsTree -->
-    <script src="https://cdn.jsdelivr.net/npm/jstree@3.3.12/dist/jstree.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jstree@3.3.12/dist/jstree.contextmenu.min.js"></script>
+  <!-- jsTree -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/jstree.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/themes/default/style.min.css" rel="stylesheet" />
 
-    <script>
-      document.addEventListener('DOMContentLoaded', function () {
-        $('#arvore').jstree({
-          'core': {
-            'check_callback': true,
-            'data': {
-              'url': '{% url "core:nos_json" %}',
-              'dataType': 'json'
-            }
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      $('#jstree').jstree({
+        'core': {
+          'data': {
+            'url': '/nos/',  // ✅ CORRIGIDO
+            'dataType': 'json'
           },
-          'plugins': ['contextmenu', 'dnd', 'wholerow'],
-          'contextmenu': {
-            'items': function (node) {
-              return {
-                "Create": {
-                  "label": "Criar",
-                  "action": function () {
-                    // Cria nó vazio
-                    const novo = $('#arvore').jstree().create_node(node, { text: "Novo nó" });
-
-                    // Abre para editar nome
-                    $('#arvore').jstree().edit(novo, null, function (node_editado) {
-                      $.post("{% url 'core:ajax_criar_no' %}", {
-                        parent: node.id,
-                        nome: node_editado.text,
-                        tipo: "indefinido",  // default até o usuário definir
-                        csrfmiddlewaretoken: '{{ csrf_token }}'
-                      }, function (data) {
-                        $('#arvore').jstree(true).set_id(node_editado, data.id);
-                      });
-                    });
-                  }
-                },
-
-                "Rename": {
-                  "label": "Renomear",
-                  "action": function () {
-                    $('#arvore').jstree().edit(node, null, function (node_editado) {
-                      $.post("{% url 'core:ajax_renomear_no' %}", {
-                        id: node.id,
-                        nome: node_editado.text,
-                        csrfmiddlewaretoken: '{{ csrf_token }}'
-                      });
-                    });
-                  }
-                },
-
-                "SetType": {
-                  "label": "Definir Tipo",
-                  "action": function () {
-                    const tipo = prompt("Digite o tipo para este nó:");
-                    if (tipo) {
-                      $.post("{% url 'core:definir_tipo' %}", {
-                        id: node.id,
-                        tipo: tipo,
-                        csrfmiddlewaretoken: '{{ csrf_token }}'
-                      }, function () {
-                        alert("Tipo definido com sucesso!");
-                      }).fail(function () {
-                        alert("Erro ao definir tipo.");
-                      });
-                    }
-                  }
-                },
-
-                "Delete": {
-                  "label": "Excluir",
-                  "action": function () {
-                    if (confirm("Tem certeza que deseja excluir este nó?")) {
-                      $.post("{% url 'core:ajax_excluir_no' %}", {
-                        id: node.id,
-                        csrfmiddlewaretoken: '{{ csrf_token }}'
-                      }, function () {
-                        $('#arvore').jstree().delete_node(node);
-                      });
-                    }
-                  }
-                }
-              };
-            }
+          'check_callback': true,
+          'themes': {
+            'variant': 'large'
           }
+        },
+        'plugins': ['contextmenu', 'dnd', 'types', 'wholerow'],
+        'contextmenu': {
+          'items': function (node) {
+            let items = $.jstree.defaults.contextmenu.items();
+            items.create.label = "Criar filho";
+            items.rename.label = "Renomear";
+            items.remove.label = "Deletar";
+            return items;
+          }
+        }
+      })
+      .on('create_node.jstree', function (e, data) {
+        $.post('/nos/criar/', {  // ✅ CORRIGIDO
+          nome: data.node.text,
+          parent: data.node.parent !== "#" ? data.node.parent : "",
+          csrfmiddlewaretoken: '{{ csrf_token }}'
+        }, function (res) {
+          $('#jstree').jstree(true).set_id(data.node, res.id);
+        });
+      })
+      .on('rename_node.jstree', function (e, data) {
+        $.post(`/nos/renomear/${data.node.id}/`, {  // ✅ CORRIGIDO
+          nome: data.text,
+          csrfmiddlewaretoken: '{{ csrf_token }}'
+        });
+      })
+      .on('move_node.jstree', function (e, data) {
+        $.post(`/nos/mover/${data.node.id}/`, {  // ✅ CORRIGIDO
+          parent: data.parent !== "#" ? data.parent : "",
+          csrfmiddlewaretoken: '{{ csrf_token }}'
+        });
+      })
+      .on('delete_node.jstree', function (e, data) {
+        $.post(`/nos/deletar/${data.node.id}/`, {  // ✅ CORRIGIDO
+          csrfmiddlewaretoken: '{{ csrf_token }}'
         });
       });
-    </script>
-  {% endif %}
+    });
+  </script>
 {% endblock %}

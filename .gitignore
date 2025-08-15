@@ -1,16 +1,57 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.sqlite3
-
-# Venv
+# Virtual environment
+venv/
+ENV/
+env/
 .venv/
 
-# Django
+# Python
+*.py[cod]
+__pycache__/
+*.so
+
+# VSCode settings
+.vscode/
+
+# Django & pytest cache
+*.log
+*.pot
+*.pyc
+*.mo
+*.sqlite3
+db.sqlite3
+*.db
+__pycache__/
+.pytest_cache/
+
+# Static & media (gerados em produção)
 staticfiles/
 media/
+static/
 
-# Env
+# Environment variables
 .env
+
+# Compiled files / OS
+.DS_Store
+Thumbs.db
+
+# Testing / Coverage
+htmlcov/
+.coverage
+.tox/
+coverage.xml
+nosetests.xml
+*.cover
+*.log
+.cache
+
+# pipenv / poetry
+Pipfile.lock
+Pipfile
+poetry.lock
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Ignore secrets
+senha.txt

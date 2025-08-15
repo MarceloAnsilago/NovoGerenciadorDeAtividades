@@ -1,0 +1,10 @@
+<!-- templates/userprofile_form.html -->
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <p><strong>Permissões:</strong></p>
+  <p>Can Read: {{ form.can_read }}</p>
+  <p>Can Write: {{ form.can_write }}</p>
+  <p>Scope: {{ form.scope }}</p>
+  <button type="submit">Salvar</button>
+</form>
