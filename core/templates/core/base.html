@@ -1,4 +1,4 @@
-{% load static %}
+profile.senha_provisoria{% load static %}
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -136,27 +136,69 @@
 
     <div class="collapse navbar-collapse" id="navbarMain">
       <ul class="navbar-nav ms-auto align-items-center gap-2">
+    
         {% if request.user.is_authenticated %}
-          <li class="nav-item">
-            <span class="navbar-text">
-              <i class="bi bi-person-circle me-1"></i>
-              {{ request.user.get_short_name|default:request.user.username }}
-            </span>
-          </li>
-          <li class="nav-item">
-            <form method="post" action="{% url 'core:logout' %}" class="d-inline">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-outline-light btn-sm">
-                <i class="bi bi-box-arrow-right"></i> Sair
-              </button>
-            </form>
-          </li>
+            
+            <!-- Nome do usuário -->
+            <li class="nav-item">
+              <span class="navbar-text">
+                <i class="bi bi-person-circle me-1"></i>
+                {{ request.user.get_short_name|default:request.user.username }}
+              </span>
+            </li>
+
+            <!-- Unidade assumida -->
+            {% if request.session.contexto_nome %}
+              <li class="nav-item">
+                <span class="badge bg-info text-dark ms-1">
+                  Unidade atual: {{ request.session.contexto_nome }}
+                </span>
+              </li>
+
+              <!-- Botão de voltar ao contexto original -->
+              <li class="nav-item">
+                <a href="{% url 'voltar_contexto' %}" class="btn btn-outline-warning btn-sm ms-1">
+                  <i class="bi bi-arrow-counterclockwise"></i> Voltar
+                </a>
+              </li>
+            {% endif %}
+
+            <!-- Dropdown para trocar unidade -->
+            {% if perms.core.assumir_unidade and unidades_disponiveis %}
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle btn btn-sm btn-outline-light" href="#" role="button" data-bs-toggle="dropdown">
+                  Trocar unidade
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  {% for u in unidades_disponiveis %}
+                    <li>
+                      <a class="dropdown-item {% if u.id == request.session.contexto_atual %}active disabled{% endif %}"
+                        href="{% if u.id != request.session.contexto_atual %}{% url 'assumir_unidade' u.id %}{% else %}#{% endif %}">
+                        {{ u.nome }}
+                        {% if u.id == request.session.contexto_atual %} (Atual) {% endif %}
+                      </a>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </li>
+            {% endif %}
+
+            <!-- Botão de logout -->
+            <li class="nav-item">
+              <form method="post" action="{% url 'core:logout' %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-light btn-sm">
+                  <i class="bi bi-box-arrow-right"></i> Sair
+                </button>
+              </form>
+            </li>
+
         {% else %}
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'core:login' %}">
-              <i class="bi bi-box-arrow-in-right"></i> Entrar
-            </a>
-          </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'core:login' %}">
+                <i class="bi bi-box-arrow-in-right"></i> Entrar
+              </a>
+            </li>
         {% endif %}
       </ul>
     </div>
@@ -211,11 +253,7 @@
           <i class="bi bi-diagram-3"></i> <span>Administrador</span>
         </a>
       </li>
-      <li class="nav-item">
-        <a class="nav-link {% if request.resolver_match.url_name == 'criar_perfil' %}active{% endif %}" href="{% url 'core:criar_perfil' %}">
-          <i class="bi bi-person-plus"></i> <span>Criar Perfil</span>
-        </a>
-      </li>
+
       {% endif %}
     </ul>
   </aside>

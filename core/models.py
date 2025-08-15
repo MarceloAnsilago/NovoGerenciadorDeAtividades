@@ -25,6 +25,11 @@ class No(models.Model):
             'text': self.nome,
         }
 
+    class Meta:
+        permissions = [
+            ("assumir_unidade", "Pode assumir unidades"),
+        ]
+
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)

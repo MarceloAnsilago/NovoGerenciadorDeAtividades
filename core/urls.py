@@ -1,5 +1,7 @@
 from django.urls import path
 import core.views as views
+from .views import assumir_unidade
+from .views import voltar_contexto
 
 app_name = "core"
 
@@ -21,4 +23,6 @@ urlpatterns = [
     # Adiciona aqui a rota de primeiro acesso
     path("primeiro-acesso/", views.primeiro_acesso_token_view, name="primeiro_acesso_token"),
     path("primeiro-acesso/trocar/", views.trocar_senha_primeiro_acesso, name="trocar_senha_primeiro_acesso"),
+    path('assumir-unidade/<int:id>/', views.assumir_unidade, name='assumir_unidade'),
+    path('voltar-contexto/', views.voltar_contexto, name='voltar_contexto'),
 ]

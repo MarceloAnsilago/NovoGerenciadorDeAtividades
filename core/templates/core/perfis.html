@@ -2,102 +2,121 @@
 {% block title %}Perfis{% endblock %}
 
 {% block content %}
-  <h1 class="mb-3">Perfis</h1>
-  <p>Aqui você pode listar/gerenciar os perfis por unidade da estrutura organizacional.</p>
+<h1 class="mb-3">Perfis</h1>
+<p>Aqui você pode listar/gerenciar os perfis por unidade da estrutura organizacional.</p>
 
-  <div class="accordion" id="accordionRoot">
-    {% for unidade in unidades %}
-      {% if not unidade.parent %}
-        {% include "core/_unidade_accordion.html" with unidade=unidade %}
-      {% endif %}
-    {% empty %}
-      <div class="alert alert-warning">Nenhuma unidade encontrada.</div>
-    {% endfor %}
+<div class="accordion" id="accordionRoot">
+  {% for unidade in unidades %}
+    {% if not unidade.parent %}
+      {% include "core/_unidade_accordion.html" with unidade=unidade %}
+    {% endif %}
+  {% empty %}
+    <div class="alert alert-warning">Nenhuma unidade encontrada.</div>
+  {% endfor %}
+</div>
+
+<!-- Modal Criar Perfil -->
+<div class="modal fade" id="modalCriarPerfil" tabindex="-1" aria-labelledby="modalCriarPerfilLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="formCriarPerfil">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalCriarPerfilLabel">Criar Perfil</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="unidade_id" id="inputUnidadeId">
+          <div class="mb-3">
+            <label for="id_username" class="form-label">Nome de Usuário</label>
+            <input type="text" class="form-control" name="username" id="id_username" required>
+          </div>
+          <div class="mb-3">
+            <label for="id_email" class="form-label">Email</label>
+            <input type="email" class="form-control" name="email" id="id_email" required>
+          </div>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" value="1" name="is_staff" id="id_is_staff">
+            <label class="form-check-label" for="id_is_staff">Administrador?</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
   </div>
+</div>
 
-  <!-- ✅ Alerta para exibir a senha provisória -->
-  <div id="alertSenhaProvisoria" class="alert alert-success d-none mt-3" role="alert"></div>
-
-  <!-- Modal Criar Perfil -->
-  <div class="modal fade" id="modalCriarPerfil" tabindex="-1" aria-labelledby="modalCriarPerfilLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <form method="post" id="formCriarPerfil">
-          {% csrf_token %}
-          <div class="modal-header">
-            <h5 class="modal-title" id="modalCriarPerfilLabel">Criar Perfil</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-          </div>
-          <div class="modal-body">
-            <input type="hidden" name="unidade_id" id="inputUnidadeId">
-            <div class="mb-3">
-              <label for="id_username" class="form-label">Nome de Usuário</label>
-              <input type="text" class="form-control" name="username" id="id_username" required>
-            </div>
-            <div class="mb-3">
-              <label for="id_email" class="form-label">Email</label>
-              <input type="email" class="form-control" name="email" id="id_email" required>
-            </div>
-            <div class="form-check mb-2">
-              <input class="form-check-input" type="checkbox" value="1" name="is_staff" id="id_is_staff">
-              <label class="form-check-label" for="id_is_staff">Administrador?</label>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-            <button type="submit" class="btn btn-primary">Salvar</button>
-          </div>
-        </form>
+<!-- Modal com informações de acesso -->
+<div class="modal fade" id="modalInfoPerfil" tabindex="-1" aria-labelledby="modalInfoPerfilLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalInfoPerfilLabel">Perfil Criado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="infoPerfilTexto"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-success" data-bs-dismiss="modal">Entendi</button>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- Script: Preenche unidade no modal -->
-  <script>
-    const modal = document.getElementById('modalCriarPerfil');
-    modal.addEventListener('show.bs.modal', event => {
-      const button = event.relatedTarget;
-      const unidadeId = button.getAttribute('data-unidade-id');
-      const inputUnidade = modal.querySelector('#inputUnidadeId');
-      inputUnidade.value = unidadeId;
+<script>
+  // Preenche unidade_id ao abrir modal de criação
+  document.getElementById('modalCriarPerfil').addEventListener('show.bs.modal', event => {
+    const button = event.relatedTarget;
+    const unidadeId = button.getAttribute('data-unidade-id');
+    document.getElementById('inputUnidadeId').value = unidadeId;
+  });
+
+  // Submete criação e mostra modal de informações
+  document.getElementById("formCriarPerfil").addEventListener("submit", function (e) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+    fetch("{% url 'core:criar_perfil' %}", {
+      method: "POST",
+      headers: { "X-CSRFToken": csrfToken },
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === "ok") {
+        // Fecha modal de criação
+        bootstrap.Modal.getInstance(document.getElementById('modalCriarPerfil')).hide();
+
+        // Preenche conteúdo do modal de info
+        document.getElementById("infoPerfilTexto").innerHTML = `
+          <p>✅ Usuário <strong>${data.username}</strong> criado com sucesso!</p>
+          <p><strong>Login:</strong> ${data.username}</p>
+          <p><strong>Senha provisória:</strong> ${data.senha_provisoria}</p>
+          <hr>
+          <p><em>Instruções para o usuário:</em></p>
+          <ol>
+            <li>Acesse o sistema com o login e senha provisória acima.</li>
+            <li>Você será redirecionado para a tela de troca de senha.</li>
+            <li>Defina sua nova senha para continuar.</li>
+          </ol>
+        `;
+
+        // Abre modal de informações
+        new bootstrap.Modal(document.getElementById('modalInfoPerfil')).show();
+
+        form.reset();
+      } else {
+        alert("Erro: " + (data.erro || "Não foi possível criar o perfil."));
+      }
+    })
+    .catch(error => {
+      console.error("Erro:", error);
+      alert("Erro ao processar requisição.");
     });
-  </script>
-
-  <!-- Script: Criação de perfil via fetch + alerta com senha -->
-  <script>
-    document.getElementById("formCriarPerfil").addEventListener("submit", function (e) {
-      e.preventDefault();
-
-      const form = e.target;
-      const formData = new FormData(form);
-      const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
-
-      fetch("{% url 'core:criar_perfil' %}", {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": csrfToken
-        },
-        body: formData
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.status === "ok") {
-          const alerta = document.getElementById("alertSenhaProvisoria");
-          alerta.classList.remove("d-none");
-          alerta.textContent = data.mensagem;
-
-          // Limpa e fecha o modal
-          form.reset();
-          const modal = bootstrap.Modal.getInstance(document.getElementById('modalCriarPerfil'));
-          modal.hide();
-        } else {
-          alert("Erro: " + (data.erro || "Não foi possível criar o perfil."));
-        }
-      })
-      .catch(error => {
-        console.error("Erro:", error);
-        alert("Erro ao processar requisição.");
-      });
-    });
-  </script>
+  });
+</script>
 {% endblock %}
