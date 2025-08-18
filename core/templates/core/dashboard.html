@@ -1,0 +1,41 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <h1 class="h3 mb-4">Dashboard</h1>
+
+  <div class="row g-3">
+    {% for m in metrics %}
+      <div class="col-12 col-sm-6 col-lg-4">
+        <a href="{% url m.link_name %}" class="text-decoration-none">
+          <div class="card shadow-sm h-100">
+            <div class="card-body d-flex align-items-center justify-content-between {{ m.bg }}">
+              <div>
+                <div class="fw-semibold {{ m.fg }}">{{ m.label }}</div>
+                <div class="display-6 fw-bold text-dark">{{ m.value }}</div>
+              </div>
+              <i class="bi {{ m.icon }} {{ m.fg }}" style="font-size: 3rem;"></i>
+            </div>
+            <div class="card-footer bg-transparent small">
+              Abrir {{ m.label }} <i class="bi bi-arrow-right-short"></i>
+            </div>
+          </div>
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="mt-4">
+    <h2 class="h5 mb-3">Atalhos</h2>
+    <div class="d-flex flex-wrap gap-2">
+      {% for s in shortcuts %}
+        <a class="btn btn-outline-secondary" href="{% url s.link_name %}">
+          <i class="bi {{ s.icon }} me-1"></i> {{ s.label }}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

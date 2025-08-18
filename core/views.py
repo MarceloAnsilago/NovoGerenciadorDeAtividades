@@ -14,6 +14,10 @@ from django.db import transaction, IntegrityError
 from .models import No as Unidade, No, UserProfile  # No e alias Unidade
 from .forms import UserProfileForm
 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.views.generic import TemplateView
+
 import secrets
 import string
 import random
@@ -233,3 +237,48 @@ def voltar_contexto(request):
     request.session.pop("contexto_nome", None)
     messages.success(request, "Contexto restaurado para a unidade original.")
     return redirect(request.META.get("HTTP_REFERER", "core:dashboard"))
+
+
+class DashboardView(TemplateView):
+    template_name = "core/dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        User = get_user_model()
+
+        total_usuarios = User.objects.count()
+        total_perfis = Group.objects.count()       # ou seu modelo de perfil, se tiver
+        total_nos = No.objects.count()
+
+        ctx["metrics"] = [
+            {
+                "label": "Usuários",
+                "value": total_usuarios,
+                "icon": "bi-people",
+                "bg": "bg-primary-subtle",
+                "fg": "text-primary",
+                "link_name": "core:perfis",          # ✅ EXISTE
+            },
+            {
+                "label": "Perfis",
+                "value": total_perfis,
+                "icon": "bi-person-badge",
+                "bg": "bg-success-subtle",
+                "fg": "text-success",
+                "link_name": "core:perfis",          # ✅ EXISTE
+            },
+            {
+                "label": "Unidades / Estrutura",
+                "value": total_nos,
+                "icon": "bi-diagram-3",
+                "bg": "bg-warning-subtle",
+                "fg": "text-warning",
+                "link_name": "core:admin_arvore",    # ✅ EXISTE
+            },
+        ]
+
+        ctx["shortcuts"] = [
+            {"label": "Ir para Estrutura", "icon": "bi-diagram-3", "link_name": "core:admin_arvore"},
+            {"label": "Ir para Perfis", "icon": "bi-person-badge", "link_name": "core:perfis"},
+        ]
+        return ctx

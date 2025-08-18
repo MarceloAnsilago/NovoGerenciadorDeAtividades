@@ -157,14 +157,18 @@ profile.senha_provisoria{% load static %}
 
               <!-- Botão de voltar ao contexto original -->
               <li class="nav-item">
-                <a href="{% url 'voltar_contexto' %}" class="btn btn-outline-warning btn-sm ms-1">
+                <a href="{% url 'core:voltar_contexto' %}" class="btn btn-outline-warning btn-sm ms-1">
                   <i class="bi bi-arrow-counterclockwise"></i> Voltar
                 </a>
               </li>
+
+
             {% endif %}
 
             <!-- Dropdown para trocar unidade -->
             {% if perms.core.assumir_unidade and unidades_disponiveis %}
+
+
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle btn btn-sm btn-outline-light" href="#" role="button" data-bs-toggle="dropdown">
                   Trocar unidade
@@ -173,7 +177,7 @@ profile.senha_provisoria{% load static %}
                   {% for u in unidades_disponiveis %}
                     <li>
                       <a class="dropdown-item {% if u.id == request.session.contexto_atual %}active disabled{% endif %}"
-                        href="{% if u.id != request.session.contexto_atual %}{% url 'assumir_unidade' u.id %}{% else %}#{% endif %}">
+                        href="{% if u.id != request.session.contexto_atual %}{% url 'core:assumir_unidade' u.id %}{% else %}#{% endif %}">
                         {{ u.nome }}
                         {% if u.id == request.session.contexto_atual %} (Atual) {% endif %}
                       </a>
@@ -234,28 +238,38 @@ profile.senha_provisoria{% load static %}
 
     <ul class="nav flex-column px-2">
       <li class="nav-item">
-        <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'core:dashboard' %}">
-          <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
-        </a>
+        {% if request.resolver_match.url_name == 'dashboard' %}
+          <span class="nav-link active">
+            <i class="bi bi-speedometer2 me-2"></i> Dashboard
+          </span>
+        {% else %}
+          <a class="nav-link" href="{% url 'core:dashboard' %}">
+            <i class="bi bi-speedometer2 me-2"></i> Dashboard
+          </a>
+        {% endif %}
       </li>
-        <li class="nav-item">
+
+      {# ---> adiciona AQUI o item Perfis <--- #}
+      <li class="nav-item">
         <a class="nav-link {% if request.resolver_match.url_name == 'perfis' %}active{% endif %}"
-            href="{% url 'core:perfis' %}">
-            <i class="bi bi-people"></i> <span>Perfis</span>
-        </a>
-        </li>
-      {% if request.user.is_superuser %}
-      <li class="nav-item">
-        <div class="nav-section-title">Administração</div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}" href="{% url 'core:admin_arvore' %}">
-          <i class="bi bi-diagram-3"></i> <span>Administrador</span>
+          href="{% url 'core:perfis' %}">
+          <i class="bi bi-people me-2"></i> <span>Perfis</span>
         </a>
       </li>
 
+      {% if request.user.is_superuser %}
+        <li class="nav-item">
+          <div class="nav-section-title">Administração</div>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}"
+            href="{% url 'core:admin_arvore' %}">
+            <i class="bi bi-diagram-3 me-2"></i> <span>Administrador</span>
+          </a>
+        </li>
       {% endif %}
     </ul>
+
   </aside>
 
   <!-- CONTEÚDO -->
