@@ -1,9 +1,6 @@
-
 {% load unidade_tags %}
 <div class="accordion-item">
   <h2 class="accordion-header" id="heading{{ unidade.id }}">
-
-    {% comment %} Tarja com cor diferente por nível de profundidade {% endcomment %}
     {% with nivel=unidade|depth %}
     <button class="accordion-button collapsed 
                   {% if nivel == 0 %} bg-primary-subtle
@@ -19,8 +16,8 @@
       {{ unidade.nome }}
     </button>
     {% endwith %}
-
   </h2>
+
   <div id="collapse{{ unidade.id }}" class="accordion-collapse collapse"
        aria-labelledby="heading{{ unidade.id }}"
        data-bs-parent="#accordion{{ unidade.parent.id|default:'Root' }}">
@@ -55,9 +52,22 @@
                     <span class="badge bg-secondary">Inativo</span>
                   {% endif %}
                 </td>
-                <td>
-                  <a href="#" class="btn btn-sm btn-outline-secondary disabled">Editar</a>
-                  <a href="#" class="btn btn-sm btn-outline-danger disabled">Excluir</a>
+                <td class="d-flex gap-1 flex-wrap">
+                  <button class="btn btn-sm btn-outline-secondary"
+                          data-user-id="{{ perfil.user.id }}"
+                          data-username="{{ perfil.user.username }}"
+                          onclick="handleRedefinirSenha(this)">
+                    Redefinir Senha
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger"
+                          data-user-id="{{ perfil.user.id }}"
+                          onclick="handleExcluirPerfil(this)">
+                    Excluir
+                  </button>
+                  <a href="{% url 'controle_acesso:gerenciar_permissoes' %}?user_id={{ perfil.user.id }}"
+                     class="btn btn-sm btn-outline-warning">
+                    Permissões
+                  </a>
                 </td>
               </tr>
             {% empty %}

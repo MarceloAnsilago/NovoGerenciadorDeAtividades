@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "widget_tweaks",
     'core.apps.CoreConfig',
     "django_extensions",
+    "controle_acesso",
 
 ]
 

@@ -49,12 +49,12 @@
   </div>
 </div>
 
-<!-- Modal com informações de acesso -->
+<!-- Modal com informações -->
 <div class="modal fade" id="modalInfoPerfil" tabindex="-1" aria-labelledby="modalInfoPerfilLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modalInfoPerfilLabel">Perfil Criado</h5>
+        <h5 class="modal-title" id="modalInfoPerfilLabel">Informações</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" id="infoPerfilTexto"></div>
@@ -65,58 +65,133 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
-  // Preenche unidade_id ao abrir modal de criação
-  document.getElementById('modalCriarPerfil').addEventListener('show.bs.modal', event => {
-    const button = event.relatedTarget;
-    const unidadeId = button.getAttribute('data-unidade-id');
-    document.getElementById('inputUnidadeId').value = unidadeId;
-  });
-
-  // Submete criação e mostra modal de informações
-  document.getElementById("formCriarPerfil").addEventListener("submit", function (e) {
-    e.preventDefault();
-    const form = e.target;
-    const formData = new FormData(form);
-    const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
-
-    fetch("{% url 'core:criar_perfil' %}", {
-      method: "POST",
-      headers: { "X-CSRFToken": csrfToken },
-      body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.status === "ok") {
-        // Fecha modal de criação
-        bootstrap.Modal.getInstance(document.getElementById('modalCriarPerfil')).hide();
-
-        // Preenche conteúdo do modal de info
-        document.getElementById("infoPerfilTexto").innerHTML = `
-          <p>✅ Usuário <strong>${data.username}</strong> criado com sucesso!</p>
-          <p><strong>Login:</strong> ${data.username}</p>
-          <p><strong>Senha provisória:</strong> ${data.senha_provisoria}</p>
-          <hr>
-          <p><em>Instruções para o usuário:</em></p>
-          <ol>
-            <li>Acesse o sistema com o login e senha provisória acima.</li>
-            <li>Você será redirecionado para a tela de troca de senha.</li>
-            <li>Defina sua nova senha para continuar.</li>
-          </ol>
-        `;
-
-        // Abre modal de informações
-        new bootstrap.Modal(document.getElementById('modalInfoPerfil')).show();
-
-        form.reset();
-      } else {
-        alert("Erro: " + (data.erro || "Não foi possível criar o perfil."));
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== "") {
+    const cookies = document.cookie.split(";");
+    for (let cookie of cookies) {
+      cookie = cookie.trim();
+      if (cookie.startsWith(name + "=")) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
       }
-    })
-    .catch(error => {
-      console.error("Erro:", error);
-      alert("Erro ao processar requisição.");
-    });
+    }
+  }
+  return cookieValue;
+}
+
+function handleExcluirPerfil(button) {
+  const userId = button.getAttribute("data-user-id");
+  if (!confirm("Tem certeza que deseja excluir este perfil?")) return;
+
+  fetch(`/perfis/${userId}/excluir/`, {
+    method: "POST",
+    headers: {
+      "X-CSRFToken": getCookie("csrftoken"),
+      "Accept": "application/json"
+    }
+  })
+  .then(res => {
+    if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
+    return res.json();
+  })
+  .then(data => {
+    if (data.status === "excluido" || data.status === "inativado") {
+      alert("✅ Perfil removido com sucesso.");
+      location.reload();
+    } else {
+      alert("Erro: " + (data.erro || "Não foi possível excluir o perfil."));
+    }
+  })
+  .catch(err => {
+    console.error("Erro na requisição:", err);
+    alert("Falha ao comunicar com o servidor.");
   });
+}
+
+function handleRedefinirSenha(button) {
+  const userId = button.getAttribute("data-user-id");
+  const username = button.getAttribute("data-username");
+
+  if (!confirm(`Gerar nova senha provisória para ${username}?`)) return;
+
+  fetch(`/perfis/${userId}/redefinir-senha/`, {
+    method: "POST",
+    headers: {
+      "X-CSRFToken": getCookie("csrftoken")
+    }
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "ok") {
+      document.getElementById("infoPerfilTexto").innerHTML = `
+        <p>🔐 A senha do usuário <strong>${data.username}</strong> foi redefinida com sucesso.</p>
+        <p><strong>Nova senha provisória:</strong> ${data.senha_provisoria}</p>
+        <hr>
+        <p><em>Instruções para o usuário:</em></p>
+        <ol>
+          <li>Faça login com a senha provisória acima.</li>
+          <li>Você será direcionado para a troca de senha.</li>
+          <li>Defina uma nova senha pessoal.</li>
+        </ol>
+      `;
+      new bootstrap.Modal(document.getElementById("modalInfoPerfil")).show();
+    } else {
+      alert("Erro ao redefinir senha: " + (data.erro || "Erro desconhecido."));
+    }
+  });
+}
+
+// Preenche unidade_id ao abrir modal de criação
+document.getElementById('modalCriarPerfil').addEventListener('show.bs.modal', event => {
+  const button = event.relatedTarget;
+  const unidadeId = button.getAttribute('data-unidade-id');
+  document.getElementById('inputUnidadeId').value = unidadeId;
+});
+
+// Submete criação e mostra modal de informações
+document.getElementById("formCriarPerfil").addEventListener("submit", function (e) {
+  e.preventDefault();
+  const form = e.target;
+  const formData = new FormData(form);
+  const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+  fetch("{% url 'core:criar_perfil' %}", {
+    method: "POST",
+    headers: { "X-CSRFToken": csrfToken },
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.status === "ok") {
+      bootstrap.Modal.getInstance(document.getElementById('modalCriarPerfil')).hide();
+
+      document.getElementById("infoPerfilTexto").innerHTML = `
+        <p>✅ Usuário <strong>${data.username}</strong> criado com sucesso!</p>
+        <p><strong>Login:</strong> ${data.username}</p>
+        <p><strong>Senha provisória:</strong> ${data.senha_provisoria}</p>
+        <hr>
+        <p><em>Instruções para o usuário:</em></p>
+        <ol>
+          <li>Acesse o sistema com o login e senha provisória acima.</li>
+          <li>Você será redirecionado para a tela de troca de senha.</li>
+          <li>Defina sua nova senha para continuar.</li>
+        </ol>
+      `;
+      new bootstrap.Modal(document.getElementById('modalInfoPerfil')).show();
+      form.reset();
+    } else {
+      alert("Erro: " + (data.erro || "Não foi possível criar o perfil."));
+    }
+  })
+  .catch(error => {
+    console.error("Erro:", error);
+    alert("Erro ao processar requisição.");
+  });
+});
 </script>
 {% endblock %}

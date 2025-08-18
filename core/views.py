@@ -138,6 +138,30 @@ def criar_perfil(request):
     except Exception as e:
         return JsonResponse({"status": "erro", "erro": str(e)}, status=500)
 
+@require_POST
+@login_required
+@permission_required('core.add_userprofile', raise_exception=True)
+def excluir_perfil(request, user_id):
+    print("🚨 Requisição chegou na view excluir_perfil")
+
+    user = get_object_or_404(User, id=user_id)
+    print(f"➡️ Tentando excluir usuário: {user.username} (ID: {user.id})")
+
+    try:
+        user.delete()
+        print("✅ Usuário excluído com sucesso.")
+        return JsonResponse({"status": "excluido"})
+    except Exception as e:
+        print(f"❌ Erro ao excluir, tentando inativar: {e}")
+        try:
+            user.is_active = False
+            user.save()
+            print("🟡 Usuário inativado com sucesso.")
+            return JsonResponse({"status": "inativado"})
+        except Exception as e2:
+            print(f"❌ Erro ao inativar: {e2}")
+            return JsonResponse({"status": "erro", "erro": str(e2)}, status=500)
+
 
 # ============ PRIMEIRO ACESSO / TROCA DE SENHA ============
 

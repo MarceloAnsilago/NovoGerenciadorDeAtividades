@@ -4,7 +4,7 @@ from .views import voltar_contexto
 from django.urls import path, include
 app_name = "core"
 from .views import DashboardView
-
+from .views import excluir_perfil
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
     path("estrutura/", views.admin_arvore, name="admin_arvore"),
@@ -26,7 +26,8 @@ urlpatterns = [
     path("assumir-unidade/<int:id>/", views.assumir_unidade, name="assumir_unidade"),
     path('voltar-contexto/', views.voltar_contexto, name='voltar_contexto'),
 
-    
+    path("perfis/<int:user_id>/excluir/", excluir_perfil, name="excluir_perfil"),
+
   
 
 ]
