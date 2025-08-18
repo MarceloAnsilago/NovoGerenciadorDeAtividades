@@ -1,35 +1,41 @@
 {% extends "core/base.html" %}
-{% block title %}Gerenciar Permissões{% endblock %}
+{% load perm_utils %}
+
+{% block title %}Permissões de {{ usuario.username }}{% endblock %}
 
 {% block content %}
 <h1>Permissões de {{ usuario.username }}</h1>
 
-<table class="table table-bordered">
-  <thead>
-    <tr>
-      <th>Grupo</th>
-      <th>Permissões</th>
-      <th>Ações</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for grupo in grupos %}
-      <tr>
-        <td>{{ grupo.name }}</td>
-        <td>
-          {% for p in grupo.permissions.all %}
-            <span class="badge bg-secondary">{{ p.codename }}</span>
-          {% empty %}
-            <span class="text-muted">Sem permissões</span>
-          {% endfor %}
-        </td>
-        <td>
-          <a href="{% url 'controle_acesso:editar_grupo' grupo.id %}" class="btn btn-sm btn-primary">Editar</a>
-        </td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="3">Nenhum grupo cadastrado.</td></tr>
+<form method="post">
+  {% csrf_token %}
+  
+  <div class="row">
+    {% regroup form.fields.permissoes.queryset by content_type.app_label as app_list %}
+
+    {% for app in app_list %}
+      <div class="col-md-4 mb-4">
+        <h5>{{ app.grouper|lower|lookup:app_labels }}</h5>
+
+        {% for perm in app.list %}
+          <div class="form-check mb-1">
+            <input class="form-check-input"
+                   type="checkbox"
+                   name="permissoes"
+                   value="{{ perm.id }}"
+                   id="perm_{{ perm.id }}"
+                   {% if perm in form.initial.permissoes %}checked{% endif %}>
+            <label class="form-check-label" for="perm_{{ perm.id }}">
+              {{ perm.name|perm_label }}
+              <span class="text-muted small">
+                ({{ perm.content_type.model|lower|lookup:model_labels }})
+              </span>
+            </label>
+          </div>
+        {% endfor %}
+      </div>
     {% endfor %}
-  </tbody>
-</table>
+  </div>
+
+  <button type="submit" class="btn btn-success mt-3">Salvar permissões</button>
+</form>
 {% endblock %}
