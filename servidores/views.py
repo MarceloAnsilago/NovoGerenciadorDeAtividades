@@ -11,24 +11,27 @@ from .forms import ServidorForm
 from .models import Servidor
 
 
-def _get_unidade_atual(request: HttpRequest):
+# servidores/views.py
+
+def _get_unidade_atual(request):
     """
-    Obtém a unidade atual do usuário.
-    Tenta user.userprofile.unidade (ou aliases), ou 'unidade_id' da sessão.
+    Obtém a unidade atual (prioriza o contexto da sessão).
+    - Session: 'contexto_atual' (usado no core) ou 'unidade_id' (fallback antigo)
+    - Fallback: user.userprofile.unidade (ou aliases)
     """
+    # 1) Sessão (o que o core usa ao "assumir" unidade)
+    uid = request.session.get("contexto_atual") or request.session.get("unidade_id")
+    if uid:
+        from core.models import No  # import tardio evita circular
+        return No.objects.filter(pk=uid).first()
+
+    # 2) Fallback: perfil do usuário
     user = request.user
     for attr in ("userprofile", "profile", "perfil"):
         obj = getattr(user, attr, None)
         if obj and getattr(obj, "unidade_id", None):
             return obj.unidade
-    uid = request.session.get("unidade_id")
-    if uid:
-        # Import tardio para evitar dependência circular
-        try:
-            from core.models import No
-            return No.objects.filter(pk=uid).first()
-        except Exception:
-            return None
+
     return None
 
 

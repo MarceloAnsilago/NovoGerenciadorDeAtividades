@@ -1,0 +1,60 @@
+{# servidores/templates/servidores/editar.html #}
+{% extends "core/base.html" %}
+{% load static widget_tweaks %}
+
+{% block title %}Editar Servidor{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-pencil-square fs-3 text-warning"></i>
+      <h1 class="h4 mb-0">Editar Servidor</h1>
+    </div>
+    <a href="{% url 'servidores:lista' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.nome.id_for_label }}">Nome</label>
+            {{ form.nome|add_class:"form-control" }}
+            <div class="text-danger small">{{ form.nome.errors }}</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="{{ form.telefone.id_for_label }}">Telefone</label>
+            {{ form.telefone|add_class:"form-control" }}
+            <div class="text-danger small">{{ form.telefone.errors }}</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="{{ form.matricula.id_for_label }}">Matrícula</label>
+            {{ form.matricula|add_class:"form-control" }}
+            <div class="text-danger small">{{ form.matricula.errors }}</div>
+          </div>
+          <div class="col-md-3 d-flex align-items-center">
+            <div class="form-check mt-4">
+              {{ form.ativo|add_class:"form-check-input" }}
+              <label class="form-check-label" for="{{ form.ativo.id_for_label }}">Ativo</label>
+            </div>
+            <div class="text-danger small w-100">{{ form.ativo.errors }}</div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 justify-content-end mt-4">
+          <a href="{% url 'servidores:lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-save"></i> Salvar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
