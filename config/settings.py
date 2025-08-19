@@ -23,7 +23,7 @@ INSTALLED_APPS = [
     "django_extensions",
     "controle_acesso",
     "servidores",
-
+    'veiculos',
 ]
 
 MIDDLEWARE = [

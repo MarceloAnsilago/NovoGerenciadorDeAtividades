@@ -1,0 +1,24 @@
+{% extends 'core/base.html' %}
+{% block content %}
+  <h2>Novo Veículo</h2>
+  <form method="post" class="mt-3">
+    {% csrf_token %}
+    <div class="mb-3">
+      {{ form.unidade.label_tag }}
+      {{ form.unidade }}
+    </div>
+    <div class="mb-3">
+      {{ form.nome.label_tag }}
+      {{ form.nome }}
+    </div>
+    <div class="mb-3">
+      {{ form.placa.label_tag }}
+      {{ form.placa }}
+    </div>
+    <div class="form-check mb-3">
+      {{ form.ativo }} {{ form.ativo.label_tag }}
+    </div>
+    <button type="submit" class="btn btn-success">Salvar</button>
+    <a href="{% url 'veiculos:lista' %}" class="btn btn-secondary">Cancelar</a>
+  </form>
+{% endblock %}

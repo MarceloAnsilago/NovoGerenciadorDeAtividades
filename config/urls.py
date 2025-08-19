@@ -23,5 +23,7 @@ urlpatterns = [
     path('', include(('core.urls', 'core'), namespace='core')),
     path("controle-acesso/", include("controle_acesso.urls")),
     path("servidores/", include(("servidores.urls", "servidores"), namespace="servidores")),
+    path('veiculos/', include('veiculos.urls', namespace='veiculos')),
+   
     
 ]

@@ -304,12 +304,7 @@
       </a>
     </li>
 
-    <li class="nav-item">
-      <a class="nav-link {% if request.resolver_match.url_name == 'perfis' %}active{% endif %}"
-         href="{% url 'core:perfis' %}" data-bs-title="Perfis">
-        <i class="bi bi-people"></i> <span>Perfis</span>
-      </a>
-    </li>
+
     <li class="nav-item">
       <a class="nav-link {% if request.resolver_match.app_name == 'servidores' or 'servidores' in request.resolver_match.namespaces %}active{% endif %}"
         href="{% url 'servidores:lista' %}" data-bs-title="Servidores"
@@ -317,9 +312,24 @@
         <i class="bi bi-person-gear"></i> <span>Servidores</span>
       </a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link {% if request.resolver_match.app_name == 'veiculos' or 'veiculos' in request.resolver_match.namespaces %}active{% endif %}"
+        href="{% url 'veiculos:lista' %}" data-bs-title="Veículos"
+        aria-current="{% if request.resolver_match.app_name == 'veiculos' %}page{% endif %}">
+      <i class="bi bi-truck"></i> <span>Veículos</span>
+     </a>
+    </li>
+
     {% if request.user.is_superuser %}
       <li class="nav-item mt-3">
         <div class="nav-section-title">Administração</div>
+      </li>
+
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'perfis' %}active{% endif %}"
+          href="{% url 'core:perfis' %}" data-bs-title="Perfis">
+          <i class="bi bi-people"></i> <span>Perfis</span>
+        </a>
       </li>
       <li class="nav-item">
         <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}"
