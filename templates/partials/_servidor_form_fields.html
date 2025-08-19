@@ -1,0 +1,27 @@
+{# servidores/templates/servidores/partials/_servidor_form_fields.html #}
+{{ form.non_field_errors }}
+<div class="row g-3">
+  <div class="col-md-6">
+    <label for="{{ form.nome.id_for_label }}" class="form-label">Nome</label>
+    {{ form.nome }}
+    <div class="text-danger small">{{ form.nome.errors }}</div>
+  </div>
+  <div class="col-md-3">
+    <label for="{{ form.telefone.id_for_label }}" class="form-label">Telefone</label>
+    {{ form.telefone }}
+    <div class="form-text">Ex.: (11) 91234-5678</div>
+    <div class="text-danger small">{{ form.telefone.errors }}</div>
+  </div>
+  <div class="col-md-3">
+    <label for="{{ form.matricula.id_for_label }}" class="form-label">Matrícula</label>
+    {{ form.matricula }}
+    <div class="text-danger small">{{ form.matricula.errors }}</div>
+  </div>
+  <div class="col-md-3 d-flex align-items-center">
+    <div class="form-check mt-4">
+      {{ form.ativo }}
+      <label class="form-check-label" for="{{ form.ativo.id_for_label }}">Ativo</label>
+    </div>
+    <div class="text-danger small w-100">{{ form.ativo.errors }}</div>
+  </div>
+</div>

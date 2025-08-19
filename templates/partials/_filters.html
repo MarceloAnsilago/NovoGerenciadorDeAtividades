@@ -1,0 +1,23 @@
+{# servidores/templates/servidores/partials/_filters.html #}
+<form method="get" class="mb-3">
+  <div class="row g-2">
+    <div class="col-md-6">
+      <label class="form-label" for="id_q">Buscar</label>
+      <input id="id_q" name="q" type="text" class="form-control"
+             placeholder="Nome, matrícula ou telefone" value="{{ q|default_if_none:'' }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="id_status">Status</label>
+      <select id="id_status" name="status" class="form-select">
+        <option value="todos" {% if status == "todos" or not status %}selected{% endif %}>Todos</option>
+        <option value="ativos" {% if status == "ativos" %}selected{% endif %}>Ativos</option>
+        <option value="inativos" {% if status == "inativos" %}selected{% endif %}>Inativos</option>
+      </select>
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+      <button class="btn btn-outline-primary w-100" type="submit">
+        <i class="bi bi-search"></i> Buscar
+      </button>
+    </div>
+  </div>
+</form>
