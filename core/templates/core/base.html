@@ -1,4 +1,4 @@
-profile.senha_provisoria{% load static %}
+{% load static %}
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -100,7 +100,66 @@ profile.senha_provisoria{% load static %}
     .content.expanded {
       margin-left: var(--sidebar-width-collapsed);
     }
+    .sidebar.collapsed {
+      width: var(--sidebar-width-collapsed);
+      text-align: center;
+    }
 
+    .sidebar .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: white;
+      padding: 0.65rem 1rem;
+      border-radius: 0.375rem;
+      text-decoration: none;
+      margin: 0.125rem 0.5rem;
+      transition: background 0.2s;
+      position: relative;
+    }
+
+    .sidebar.collapsed .nav-link {
+      justify-content: center;
+      padding: 0.75rem 0.5rem;
+    }
+
+    .sidebar .nav-link i {
+      font-size: 1.2rem;
+    }
+
+    .sidebar.collapsed .nav-link i {
+      font-size: 1.4rem;
+      margin: 0;
+    }
+
+    .sidebar.collapsed .nav-link span {
+      display: none;
+    }
+
+    /* Tooltip ao passar o mouse */
+    .sidebar.collapsed .nav-link::after {
+      content: attr(data-bs-title);
+      position: absolute;
+      left: 100%;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0, 0, 0, 0.85);
+      color: #fff;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      opacity: 0;
+      visibility: hidden;
+      border-radius: 0.25rem;
+      margin-left: 0.5rem;
+      transition: all 0.2s ease;
+      z-index: 9999;
+    }
+
+    .sidebar.collapsed .nav-link:hover::after {
+      opacity: 1;
+      visibility: visible;
+    }
     @media (max-width: 768px) {
       .sidebar {
         position: relative;
@@ -224,53 +283,48 @@ profile.senha_provisoria{% load static %}
 <!-- SIDEBAR + CONTEÚDO -->
 <div class="app-wrapper">
 
-  <!-- SIDEBAR -->
-  <aside id="sidebar" class="sidebar">
-    <div class="d-flex justify-content-end px-3 pt-2">
-      <button id="sidebarToggle" class="btn btn-sm btn-outline-light">
-        <i class="bi bi-layout-sidebar-inset"></i>
-      </button>
-    </div>
 
-    <div class="sidebar-header py-2">
-      <span class="fw-semibold">Menu</span>
-    </div>
+<!-- SIDEBAR -->
+<aside id="sidebar" class="sidebar">
+  <div class="d-flex justify-content-end px-3 pt-2">
+    <button id="sidebarToggle" class="btn btn-sm btn-outline-light">
+      <i class="bi bi-layout-sidebar-inset"></i>
+    </button>
+  </div>
 
-    <ul class="nav flex-column px-2">
-      <li class="nav-item">
-        {% if request.resolver_match.url_name == 'dashboard' %}
-          <span class="nav-link active">
-            <i class="bi bi-speedometer2 me-2"></i> Dashboard
-          </span>
-        {% else %}
-          <a class="nav-link" href="{% url 'core:dashboard' %}">
-            <i class="bi bi-speedometer2 me-2"></i> Dashboard
-          </a>
-        {% endif %}
+  <div class="sidebar-header py-2 text-center">
+    <span class="fw-semibold">Menu</span>
+  </div>
+
+  <ul class="nav flex-column px-2 text-start text-md-start">
+    <li class="nav-item">
+      <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+         href="{% url 'core:dashboard' %}" data-bs-title="Dashboard">
+        <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link {% if request.resolver_match.url_name == 'perfis' %}active{% endif %}"
+         href="{% url 'core:perfis' %}" data-bs-title="Perfis">
+        <i class="bi bi-people"></i> <span>Perfis</span>
+      </a>
+    </li>
+
+    {% if request.user.is_superuser %}
+      <li class="nav-item mt-3">
+        <div class="nav-section-title">Administração</div>
       </li>
-
-      {# ---> adiciona AQUI o item Perfis <--- #}
       <li class="nav-item">
-        <a class="nav-link {% if request.resolver_match.url_name == 'perfis' %}active{% endif %}"
-          href="{% url 'core:perfis' %}">
-          <i class="bi bi-people me-2"></i> <span>Perfis</span>
+        <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}"
+           href="{% url 'core:admin_arvore' %}" data-bs-title="Administrador">
+          <i class="bi bi-diagram-3"></i> <span>Administrador</span>
         </a>
       </li>
+    {% endif %}
+  </ul>
+</aside>
 
-      {% if request.user.is_superuser %}
-        <li class="nav-item">
-          <div class="nav-section-title">Administração</div>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}"
-            href="{% url 'core:admin_arvore' %}">
-            <i class="bi bi-diagram-3 me-2"></i> <span>Administrador</span>
-          </a>
-        </li>
-      {% endif %}
-    </ul>
-
-  </aside>
 
   <!-- CONTEÚDO -->
   <main class="content">

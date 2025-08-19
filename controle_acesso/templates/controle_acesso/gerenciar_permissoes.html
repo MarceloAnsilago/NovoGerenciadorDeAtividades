@@ -26,11 +26,19 @@
     {% for app in app_list %}
       <div class="col-md-6 mb-4">
         <div class="card shadow-sm h-100">
-          <div class="card-header bg-light">
-            <h5 class="mb-0">
-              {{ app.grouper|lower|lookup:app_labels }}
-            </h5>
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            {{ app.grouper|lower|lookup:app_labels }}
+          </h5>
+          <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-secondary check-app" data-app="{{ app.grouper }}">
+              Marcar tudo
+            </button>
+            <button type="button" class="btn btn-outline-secondary uncheck-app" data-app="{{ app.grouper }}">
+              Desmarcar
+            </button>
           </div>
+        </div>
           <div class="card-body">
             {% for perm in app.list %}
               <div class="form-check mb-1">
@@ -40,6 +48,7 @@
                   name="permissoes"
                   value="{{ perm.id }}"
                   id="perm_{{ perm.id }}"
+                  data-app="{{ app.grouper }}"
                   {% if perm.id in form.initial.permissoes %}checked{% endif %}
                 >
                 <label class="form-check-label" for="perm_{{ perm.id }}">
@@ -64,12 +73,33 @@
     const byClass = (c) => Array.from(document.getElementsByClassName(c));
     const all = byClass('perm-checkbox');
 
+    // Botões globais
     document.getElementById('check-all')?.addEventListener('click', () => {
       all.forEach(cb => cb.checked = true);
     });
+
     document.getElementById('uncheck-all')?.addEventListener('click', () => {
       all.forEach(cb => cb.checked = false);
     });
+
+    // Botões por grupo
+    const checkAppButtons = document.querySelectorAll('.check-app');
+    const uncheckAppButtons = document.querySelectorAll('.uncheck-app');
+
+    checkAppButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const app = btn.dataset.app;
+        all.filter(cb => cb.dataset.app === app).forEach(cb => cb.checked = true);
+      });
+    });
+
+    uncheckAppButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const app = btn.dataset.app;
+        all.filter(cb => cb.dataset.app === app).forEach(cb => cb.checked = false);
+      });
+    });
   })();
 </script>
+
 {% endblock %}
