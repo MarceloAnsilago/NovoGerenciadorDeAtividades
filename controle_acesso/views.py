@@ -1,23 +1,10 @@
+# controle_acesso/views.py (trecho relevante)
 from django.contrib.auth.models import Group, Permission, User
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
 
 from .forms import PermissoesUsuarioForm
-
-@permission_required("auth.change_group", raise_exception=True)
-def editar_grupo(request, grupo_id):
-    grupo = get_object_or_404(Group, id=grupo_id)
-    permissoes = Permission.objects.all().order_by("content_type__app_label", "codename")
-    if request.method == "POST":
-        selecionadas = request.POST.getlist("permissoes")
-        grupo.permissions.set(selecionadas)
-        return redirect("controle_acesso:editar_grupo", grupo_id=grupo.id)
-    return render(request, "controle_acesso/editar_grupo.html", {
-        "grupo": grupo,
-        "permissoes": permissoes,
-        "permissoes_grupo": grupo.permissions.all(),
-    })
 
 @login_required
 @permission_required('auth.change_user', raise_exception=True)
@@ -34,7 +21,6 @@ def gerenciar_permissoes_usuario(request):
     else:
         form = PermissoesUsuarioForm(instance=usuario)
 
-    # Passe "form" no contexto:
     app_labels = {
         'admin': 'Administração',
         'auth': 'Autenticação e Autorização',
@@ -62,3 +48,24 @@ def gerenciar_permissoes_usuario(request):
         "app_labels": app_labels,
         "model_labels": model_labels,
     })
+
+@permission_required("auth.change_group", raise_exception=True)
+def editar_grupo(request, grupo_id):
+    grupo = get_object_or_404(Group, pk=grupo_id)
+    permissoes = Permission.objects.all().order_by("content_type__app_label", "codename")
+
+    if request.method == "POST":
+        selecionadas = request.POST.getlist("permissoes")
+        grupo.permissions.set(selecionadas)
+        messages.success(request, "Permissões do grupo atualizadas com sucesso!")
+        return redirect("controle_acesso:editar_grupo", grupo_id=grupo.id)
+
+    return render(
+        request,
+        "controle_acesso/editar_grupo.html",
+        {
+            "grupo": grupo,
+            "permissoes": permissoes,
+            "permissoes_grupo": grupo.permissions.all(),
+        },
+    )

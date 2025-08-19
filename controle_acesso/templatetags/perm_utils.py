@@ -1,27 +1,30 @@
+# controle_acesso/templatetags/perm_utils.py
 from django import template
 
 register = template.Library()
 
 @register.filter
-def lookup(value, arg_dict):
-    """
-    Busca por chave em um dicionário no template.
-    """
-    return arg_dict.get(value, value)
+def lookup(key, mapping):
+    """Busca segura de dicionário no template."""
+    if not isinstance(mapping, dict):
+        return key
+    return mapping.get(key, key)
 
 @register.filter
-def perm_label(name):
+def perm_label(name: str):
     """
-    Traduz o nome da permissão para português.
+    Traduz prefixos padrão do Django para PT-BR.
+    Ex.: "Can add User" -> "Pode adicionar User"
     """
-    traducoes = {
+    if not isinstance(name, str):
+        return name
+    mapa = {
         "Can add": "Pode adicionar",
         "Can change": "Pode editar",
         "Can delete": "Pode excluir",
-        "Can view": "Pode visualizar"
+        "Can view": "Pode visualizar",
     }
-
-    for ingles, portugues in traducoes.items():
-        if name.startswith(ingles):
-            return name.replace(ingles, portugues, 1)
+    for en, pt in mapa.items():
+        if name.startswith(en):
+            return name.replace(en, pt, 1)
     return name

@@ -1,9 +1,10 @@
+# controle_acesso/forms.py
 from django import forms
 from django.contrib.auth.models import Permission, User
 
 class PermissoesUsuarioForm(forms.ModelForm):
     permissoes = forms.ModelMultipleChoiceField(
-        queryset=Permission.objects.all(),
+        queryset=Permission.objects.all().select_related('content_type'),
         widget=forms.CheckboxSelectMultiple,
         required=False,
         label="Permissões"
@@ -11,18 +12,20 @@ class PermissoesUsuarioForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = []  # não editaremos outros campos do User
+        fields = []  # não vamos editar campos do User aqui
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Marca as permissões atuais
+        # ✅ Envie SEMPRE IDs no initial (evita comparar objeto no template)
         if self.instance and self.instance.pk:
-            self.fields['permissoes'].initial = self.instance.user_permissions.all()
+            self.initial['permissoes'] = list(
+                self.instance.user_permissions.values_list('id', flat=True)
+            )
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        # Atualiza permissões de acordo com o campo
         if commit:
             user.save()
-            user.user_permissions.set(self.cleaned_data['permissoes'])
+            # set() substitui o conjunto de permissões do usuário pelo escolhido
+            self.instance.user_permissions.set(self.cleaned_data.get('permissoes', []))
         return user
