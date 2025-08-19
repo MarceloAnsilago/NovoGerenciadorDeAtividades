@@ -28,7 +28,7 @@ urlpatterns = [
 
     path("perfis/<int:user_id>/excluir/", excluir_perfil, name="excluir_perfil"),
     path("perfis/<int:user_id>/redefinir-senha/", views.redefinir_senha, name="redefinir_senha"),
-
+  
 
 
   

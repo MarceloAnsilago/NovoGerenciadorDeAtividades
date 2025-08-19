@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     'core.apps.CoreConfig',
     "django_extensions",
     "controle_acesso",
+    "servidores",
 
 ]
 
