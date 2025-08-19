@@ -27,6 +27,9 @@ urlpatterns = [
     path('voltar-contexto/', views.voltar_contexto, name='voltar_contexto'),
 
     path("perfis/<int:user_id>/excluir/", excluir_perfil, name="excluir_perfil"),
+    path("perfis/<int:user_id>/redefinir-senha/", views.redefinir_senha, name="redefinir_senha"),
+
+
 
   
 

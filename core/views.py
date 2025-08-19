@@ -162,6 +162,31 @@ def excluir_perfil(request, user_id):
             print(f"❌ Erro ao inativar: {e2}")
             return JsonResponse({"status": "erro", "erro": str(e2)}, status=500)
 
+@require_POST
+@login_required
+@permission_required('core.change_userprofile', raise_exception=True)
+def redefinir_senha(request, user_id):
+    user = get_object_or_404(User, pk=user_id)
+
+    try:
+        profile = user.userprofile
+    except UserProfile.DoesNotExist:
+        return JsonResponse({"status": "erro", "erro": "Perfil não encontrado."}, status=404)
+
+    nova_senha = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    user.set_unusable_password()
+    user.save()
+
+    profile.senha_provisoria = nova_senha
+    profile.ativado = False
+    profile.save()
+
+    return JsonResponse({
+        "status": "ok",
+        "username": user.username,
+        "senha_provisoria": nova_senha
+    })
+
 
 # ============ PRIMEIRO ACESSO / TROCA DE SENHA ============
 
