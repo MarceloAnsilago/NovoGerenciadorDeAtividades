@@ -1,0 +1,62 @@
+{# templates/partials/_atividade_table.html #}
+{% with total=atividades|length %}
+  {% if total %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>Título</th>
+            <th>Área</th>
+            <th>Status</th>
+            <th>Criada em</th>
+            <th class="text-end">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in atividades %}
+          <tr>
+            <td>{{ a.titulo }}</td>
+            <td>{{ a.get_area_display }}</td>
+            <td>
+              {% if a.ativo %}
+                <span class="badge text-bg-success">Ativa</span>
+              {% else %}
+                <span class="badge text-bg-secondary">Inativa</span>
+              {% endif %}
+            </td>
+            <td>{{ a.criado_em|date:"d/m/Y H:i" }}</td>
+            <td class="text-end">
+              {% if a.pk %}
+                <div class="btn-group" role="group">
+                  <a class="btn btn-warning btn-sm"
+                     href="{% url 'atividades:editar' pk=a.pk %}?next={{ request.get_full_path|urlencode }}"
+                     title="Editar">
+                    <i class="bi bi-pencil-square me-1"></i> Editar
+                  </a>
+                  <form method="post" action="{% url 'atividades:toggle_ativo' pk=a.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    {% if a.ativo %}
+                      <button type="submit" class="btn btn-outline-danger btn-sm" title="Inativar">
+                        <i class="bi bi-x-circle me-1"></i> Inativar
+                      </button>
+                    {% else %}
+                      <button type="submit" class="btn btn-success btn-sm" title="Ativar">
+                        <i class="bi bi-check-circle me-1"></i> Ativar
+                      </button>
+                    {% endif %}
+                  </form>
+                </div>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="alert alert-info">Nenhuma atividade cadastrada ainda.</div>
+  {% endif %}
+{% endwith %}

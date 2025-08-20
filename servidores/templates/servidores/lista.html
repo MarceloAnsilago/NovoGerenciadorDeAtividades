@@ -1,4 +1,3 @@
-{# servidores/templates/servidores/lista.html #}
 {% extends "core/base.html" %}
 {% load static %}
 
@@ -9,12 +8,9 @@
 
   {% url 'core:dashboard' as dash_url %}
   {% if unidade %}
-    {% include "partials/_page_header.html" with title="Servidores" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-people-gear" %}
+    {% include "partials/_page_header.html" with title=" Servidores" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-person-gear" %}
   {% else %}
-    {% include "partials/_page_header.html" with
-         title="Servidores"
-         back_url=dash_url
-         icon="bi-people-gear" %}
+    {% include "partials/_page_header.html" with title=" Servidores" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-person-gear" %}
   {% endif %}
 
   {% include "partials/_messages.html" %}
@@ -48,5 +44,4 @@
   </div>
 
 </div>
-
 {% endblock %}

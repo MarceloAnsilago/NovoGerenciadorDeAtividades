@@ -1,0 +1,66 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Atividades da Unidade{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  {% url 'core:dashboard' as dash_url %}
+  {% if unidade %}
+    {% include "partials/_page_header.html" with title="Atividades" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-list-task" %}
+  {% else %}
+    {% include "partials/_page_header.html" with title="Atividades" back_url=dash_url icon="bi-list-task" %}
+  {% endif %}
+
+  {% include "partials/_messages.html" %}
+
+  <!-- Card: Cadastrar -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+      <strong><i class="bi bi-list-task me-1"></i> Cadastrar Atividade</strong>
+    </div>
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.errors %}
+          <div class="alert alert-danger">
+            <ul class="mb-0">
+              {% for field in form %}
+                {% for error in field.errors %}
+                  <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                {% endfor %}
+              {% endfor %}
+              {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        {% include "partials/_atividade_form_fields.html" %}
+
+        <div class="d-flex justify-content-end mt-4">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save"></i> Salvar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Card: Lista -->
+  <div class="card shadow-sm">
+    <div class="card-header bg-light">
+      <strong><i class="bi bi-list-ul me-1"></i> Lista de Atividades</strong>
+    </div>
+    <div class="card-body">
+      {% include "partials/_atividade_filters.html" %}
+      {% include "partials/_atividade_table.html" %}
+      {% include "partials/_pagination.html" %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

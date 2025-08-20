@@ -1,0 +1,26 @@
+{# templates/partials/_atividade_form_fields.html #}
+{% load widget_tweaks %}
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <label class="form-label" for="{{ form.titulo.id_for_label }}">Título</label>
+    {% render_field form.titulo class="form-control" placeholder="Ex.: Barreira" %}
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label" for="{{ form.area.id_for_label }}">Área</label>
+    {% render_field form.area class="form-select" %}
+  </div>
+
+  <div class="col-md-2 d-flex align-items-end">
+    <div class="form-check">
+      {% render_field form.ativo class="form-check-input" id="id_atividade_ativa" %}
+      <label class="form-check-label" for="id_atividade_ativa">Ativa</label>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <label class="form-label" for="{{ form.descricao.id_for_label }}">Descrição</label>
+    {% render_field form.descricao class="form-control" rows="3" %}
+  </div>
+</div>

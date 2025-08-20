@@ -24,6 +24,7 @@ urlpatterns = [
     path("controle-acesso/", include("controle_acesso.urls")),
     path("servidores/", include(("servidores.urls", "servidores"), namespace="servidores")),
     path('veiculos/', include('veiculos.urls', namespace='veiculos')),
+    path("atividades/", include("atividades.urls")),
    
     
 ]

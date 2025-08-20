@@ -319,6 +319,13 @@
       <i class="bi bi-truck"></i> <span>Veículos</span>
      </a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link {% if request.resolver_match.app_name == 'atividades' or 'atividades' in request.resolver_match.namespaces %}active{% endif %}"
+        href="{% url 'atividades:lista' %}" data-bs-title="Atividades"
+        aria-current="{% if request.resolver_match.app_name == 'atividades' %}page{% endif %}">
+        <i class="bi bi-list-task"></i> <span>Atividades</span>
+      </a>
+    </li>
 
     {% if request.user.is_superuser %}
       <li class="nav-item mt-3">

@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "controle_acesso",
     "servidores",
     'veiculos',
+    'atividades.apps.AtividadesConfig',
 ]
 
 MIDDLEWARE = [
