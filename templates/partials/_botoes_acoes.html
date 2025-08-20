@@ -1,0 +1,14 @@
+{# Espera variáveis no contexto: edit_base, delete_base #}
+<div class="d-flex justify-content-end gap-2">
+  <a href="{{ edit_base }}?next={{ request.get_full_path|urlencode }}"
+     class="btn btn-sm btn-primary" title="Editar">
+    <i class="bi bi-pencil-square"></i>
+    <span class="d-none d-lg-inline ms-1">Editar</span>
+  </a>
+
+  <a href="{{ delete_base }}?next={{ request.get_full_path|urlencode }}"
+     class="btn btn-sm btn-danger" title="Excluir">
+    <i class="bi bi-trash"></i>
+    <span class="d-none d-lg-inline ms-1">Excluir</span>
+  </a>
+</div>

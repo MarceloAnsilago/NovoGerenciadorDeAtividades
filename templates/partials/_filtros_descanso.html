@@ -1,0 +1,41 @@
+<form method="get" class="row g-2 align-items-end mb-3">
+  <div class="col-auto">
+    <label class="form-label small">Status</label>
+    <select name="status" class="form-select form-select-sm">
+      <option value="ativos" {% if status == 'ativos' %}selected{% endif %}>Ativos</option>
+      <option value="futuros" {% if status == 'futuros' %}selected{% endif %}>Futuros</option>
+      <option value="finalizados" {% if status == 'finalizados' %}selected{% endif %}>Finalizados</option>
+      <option value="todos" {% if status == 'todos' %}selected{% endif %}>Todos</option>
+    </select>
+  </div>
+
+  <div class="col-auto">
+    <label class="form-label small">Tipo</label>
+    <select name="tipo" class="form-select form-select-sm">
+      <option value="">Todos</option>
+      {% for value,label in tipos %}
+        <option value="{{ value }}" {% if filtros.tipo == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-auto">
+    <label class="form-label small">Início</label>
+    <input type="date" name="inicio" class="form-control form-control-sm" value="{{ filtros.inicio|default:'' }}">
+  </div>
+
+  <div class="col-auto">
+    <label class="form-label small">Fim</label>
+    <input type="date" name="fim" class="form-control form-control-sm" value="{{ filtros.fim|default:'' }}">
+  </div>
+
+  <div class="col-auto">
+    <label class="form-label small">Buscar</label>
+    <input type="text" name="q" class="form-control form-control-sm" placeholder="observações/servidor" value="{{ filtros.q|default:'' }}">
+  </div>
+
+  <div class="col-auto">
+    <button class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i> Filtrar</button>
+    <a href="?" class="btn btn-secondary btn-sm">Limpar</a>
+  </div>
+</form>

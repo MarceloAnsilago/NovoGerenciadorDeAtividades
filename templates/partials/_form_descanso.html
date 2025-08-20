@@ -1,0 +1,42 @@
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+  <div class="mb-3">
+    <label class="form-label">Servidor</label>
+    {{ form.servidor }}
+    {% if form.servidor.errors %}<div class="text-danger small">{{ form.servidor.errors }}</div>{% endif %}
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Tipo</label>
+    {{ form.tipo }}
+    {% if form.tipo.errors %}<div class="text-danger small">{{ form.tipo.errors }}</div>{% endif %}
+  </div>
+
+  <div class="row">
+    <div class="col-md-6 mb-3">
+      <label class="form-label">Data inicial</label>
+      {{ form.data_inicio }}
+      {% if form.data_inicio.errors %}<div class="text-danger small">{{ form.data_inicio.errors }}</div>{% endif %}
+    </div>
+    <div class="col-md-6 mb-3">
+      <label class="form-label">Data final</label>
+      {{ form.data_fim }}
+      {% if form.data_fim.errors %}<div class="text-danger small">{{ form.data_fim.errors }}</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Observações</label>
+    {{ form.observacoes }}
+    {% if form.observacoes.errors %}<div class="text-danger small">{{ form.observacoes.errors }}</div>{% endif %}
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-check2 me-1"></i> Salvar
+    </button>
+    <a href="{% url 'descanso:lista_servidores' %}" class="btn btn-secondary">Cancelar</a>
+  </div>
+</form>
