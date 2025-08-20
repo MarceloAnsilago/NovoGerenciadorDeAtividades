@@ -1,0 +1,25 @@
+{# templates/partials/_atividade_row.html #}
+<tr>
+  <td class="fw-medium">
+    {% if a.titulo %}{{ a.titulo }}{% else %}{{ a }}{% endif %}
+  </td>
+  <td>{% firstof a.responsavel a.servidor "—" %}</td>
+  <td>
+    {% if a.prazo %}{{ a.prazo|date:"d/m/Y" }}
+    {% elif a.data_limite %}{{ a.data_limite|date:"d/m/Y" }}
+    {% elif a.data %}{{ a.data|date:"d/m/Y" }}
+    {% else %}—{% endif %}
+  </td>
+  <td class="text-center">
+    {% if a.concluida or a.finalizada %}
+      <span class="badge bg-success">Concluída</span>
+    {% else %}
+      <span class="badge bg-secondary">{% firstof a.status "Pendente" %}</span>
+    {% endif %}
+  </td>
+  <td class="text-end">
+    {% url 'atividades:editar' a.id as edit_base %}
+    {% url 'atividades:excluir' a.id as delete_base %}
+    {% include "partials/_botoes_acoes.html" %}
+  </td>
+</tr>

@@ -1,48 +1,51 @@
-{% load static %}
-
-<table class="table table-bordered table-hover align-middle">
-  <thead class="table-light">
-    <tr>
-      <th>Nome</th>
-      <th>Placa</th>
-      <th>Status</th>
-      <th class="text-center" style="width: 220px;">Ações</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for veiculo in veiculos %}
+{# veiculos/templates/partials/_veiculo_table.html #}
+<div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
       <tr>
-        <td>{{ veiculo.nome }}</td>
-        <td>{{ veiculo.placa }}</td>
-        <td>
-          {% if veiculo.ativo %}
-            <span class="badge bg-success">Ativo</span>
-          {% else %}
-            <span class="badge bg-secondary">Inativo</span>
-          {% endif %}
-        </td>
-        <td class="text-center">
-          <div class="d-flex justify-content-center gap-2">
-            <a href="{% url 'veiculos:editar' veiculo.pk %}" class="btn btn-warning btn-sm">
-              <i class="bi bi-pencil-square me-1"></i> Editar
-            </a>
+        <th><i class="bi bi-truck me-1"></i> Veículo</th>
+        <th><i class="bi bi-123 me-1"></i> Placa</th>
+        <th class="text-center"><i class="bi bi-activity me-1"></i> Status</th>
+        <th class="text-end"><i class="bi bi-tools me-1"></i> Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in veiculos %}
+        <tr>
+          {# Mostra o __str__ do veículo (ex.: "PLACA - MODELO") ou um campo "modelo" se preferir #}
+          <td class="fw-medium">{{ v }}</td>
+          <td>{{ v.placa|default:"—" }}</td>
 
-            {% if veiculo.ativo %}
-              <a href="{% url 'veiculos:inativar' veiculo.pk %}" class="btn btn-outline-danger btn-sm">
-                <i class="bi bi-x-circle me-1"></i> Inativar
+          <td class="text-center">
+            {% if v.ativo %}
+              <span class="badge bg-success">Ativo</span>
+            {% else %}
+              <span class="badge bg-danger">Inativo</span>
+            {% endif %}
+          </td>
+
+          <td class="text-end">
+            <a class="btn btn-sm btn-warning" href="{% url 'veiculos:editar' v.id %}">
+              <i class="bi bi-pencil"></i> Editar
+            </a>
+            {% if v.ativo %}
+              <a class="btn btn-sm btn-outline-danger" href="{% url 'veiculos:inativar' v.id %}">
+                <i class="bi bi-x-circle"></i> Inativar
               </a>
             {% else %}
-              <a href="{% url 'veiculos:ativar' veiculo.pk %}" class="btn btn-outline-success btn-sm">
-                <i class="bi bi-check-circle me-1"></i> Ativar
+              <a class="btn btn-sm btn-outline-success" href="{% url 'veiculos:ativar' v.id %}">
+                <i class="bi bi-check-circle"></i> Ativar
               </a>
             {% endif %}
-          </div>
-        </td>
-      </tr>
-    {% empty %}
-      <tr>
-        <td colspan="4" class="text-center text-muted">Nenhum veículo encontrado.</td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="4" class="text-center text-muted py-4">
+            Nenhum veículo encontrado para esta unidade.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

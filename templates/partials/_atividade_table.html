@@ -1,62 +1,75 @@
 {# templates/partials/_atividade_table.html #}
-{% with total=atividades|length %}
-  {% if total %}
-    <div class="table-responsive">
-      <table class="table table-sm align-middle">
-        <thead>
+<div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+      <tr>
+        <th><i class="bi bi-clipboard-check me-1"></i> Tarefa</th>
+        <th><i class="bi bi-person-check me-1"></i> Responsável</th>
+        <th><i class="bi bi-calendar-event me-1"></i> Prazo</th>
+        <th class="text-center"><i class="bi bi-activity me-1"></i> Status</th>
+        <th class="text-end"><i class="bi bi-tools me-1"></i> Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if page_obj %}
+        {% for a in page_obj.object_list %}
           <tr>
-            <th>Título</th>
-            <th>Área</th>
-            <th>Status</th>
-            <th>Criada em</th>
-            <th class="text-end">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for a in atividades %}
-          <tr>
-            <td>{{ a.titulo }}</td>
-            <td>{{ a.get_area_display }}</td>
+            <td class="fw-medium">
+              {% if a.titulo %}{{ a.titulo }}{% else %}{{ a }}{% endif %}
+            </td>
+            <td>{% firstof a.responsavel a.servidor "—" %}</td>
             <td>
-              {% if a.ativo %}
-                <span class="badge text-bg-success">Ativa</span>
+              {% if a.prazo %}{{ a.prazo|date:"d/m/Y" }}
+              {% elif a.data_limite %}{{ a.data_limite|date:"d/m/Y" }}
+              {% elif a.data %}{{ a.data|date:"d/m/Y" }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-center">
+              {% if a.concluida or a.finalizada %}
+                <span class="badge bg-success">Concluída</span>
               {% else %}
-                <span class="badge text-bg-secondary">Inativa</span>
+                <span class="badge bg-secondary">{% firstof a.get_status_display a.status "Pendente" %}</span>
               {% endif %}
             </td>
-            <td>{{ a.criado_em|date:"d/m/Y H:i" }}</td>
             <td class="text-end">
-              {% if a.pk %}
-                <div class="btn-group" role="group">
-                  <a class="btn btn-warning btn-sm"
-                     href="{% url 'atividades:editar' pk=a.pk %}?next={{ request.get_full_path|urlencode }}"
-                     title="Editar">
-                    <i class="bi bi-pencil-square me-1"></i> Editar
-                  </a>
-                  <form method="post" action="{% url 'atividades:toggle_ativo' pk=a.pk %}" class="d-inline">
-                    {% csrf_token %}
-                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                    {% if a.ativo %}
-                      <button type="submit" class="btn btn-outline-danger btn-sm" title="Inativar">
-                        <i class="bi bi-x-circle me-1"></i> Inativar
-                      </button>
-                    {% else %}
-                      <button type="submit" class="btn btn-success btn-sm" title="Ativar">
-                        <i class="bi bi-check-circle me-1"></i> Ativar
-                      </button>
-                    {% endif %}
-                  </form>
-                </div>
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
+              {% url 'atividades:editar' a.id as edit_base %}
+              {% url 'atividades:excluir' a.id as delete_base %}
+              {% include "partials/_botoes_acoes.html" %}
             </td>
           </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% else %}
-    <div class="alert alert-info">Nenhuma atividade cadastrada ainda.</div>
-  {% endif %}
-{% endwith %}
+        {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">Nenhuma atividade encontrada.</td></tr>
+        {% endfor %}
+      {% else %}
+        {% for a in atividades %}
+          <tr>
+            <td class="fw-medium">
+              {% if a.titulo %}{{ a.titulo }}{% else %}{{ a }}{% endif %}
+            </td>
+            <td>{% firstof a.responsavel a.servidor "—" %}</td>
+            <td>
+              {% if a.prazo %}{{ a.prazo|date:"d/m/Y" }}
+              {% elif a.data_limite %}{{ a.data_limite|date:"d/m/Y" }}
+              {% elif a.data %}{{ a.data|date:"d/m/Y" }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-center">
+              {% if a.concluida or a.finalizada %}
+                <span class="badge bg-success">Concluída</span>
+              {% else %}
+                <span class="badge bg-secondary">{% firstof a.get_status_display a.status "Pendente" %}</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% url 'atividades:editar' a.id as edit_base %}
+              {% url 'atividades:excluir' a.id as delete_base %}
+              {% include "partials/_botoes_acoes.html" %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">Nenhuma atividade encontrada.</td></tr>
+        {% endfor %}
+      {% endif %}
+    </tbody>
+  </table>
+</div>
