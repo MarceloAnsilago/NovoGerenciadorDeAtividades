@@ -1,0 +1,136 @@
+{% extends "core/base.html" %}
+
+{% block title %}Mapa de Férias/Descanso — {{ ano }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4 report-container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">
+      <i class="bi bi-calendar3 me-2"></i> Mapa de Férias/Descanso — {{ ano }}
+    </h2>
+
+    <div class="report-toolbar d-flex gap-2">
+      <form method="get" class="d-flex align-items-center gap-2">
+        <label class="form-label mb-0 small">Ano</label>
+        <select name="ano" class="form-select form-select-sm">
+          {% for a in anos_opcoes %}
+            <option value="{{ a }}" {% if a == ano %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-sm btn-outline-primary" type="submit" title="Atualizar ano">
+          <i class="bi bi-arrow-repeat me-1"></i> Atualizar
+        </button>
+      </form>
+
+      <div class="btn-group btn-group-sm" role="group" aria-label="Imprimir">
+        <button class="btn btn-outline-secondary" type="button" onclick="setPrintOrientation('portrait')">
+          <i class="bi bi-printer"></i> Retrato
+        </button>
+        <button class="btn btn-primary" type="button" onclick="setPrintOrientation('landscape')">
+          <i class="bi bi-printer-fill"></i> Paisagem
+        </button>
+      </div>
+
+      <a href="{% url 'descanso:lista_servidores' %}" class="btn btn-sm btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+      </a>
+    </div>
+  </div>
+
+  {# meses_data: [(mes_num, mes_nome, rows=[{"servidor":..., "dias":[...]}])...] #}
+  {% for mes_num, mes_nome, rows in meses_data %}
+    <section class="month-block">
+      <h4 class="mt-4">{{ mes_nome }}</h4>
+      <div class="table-responsive mb-3">
+        <table class="table table-bordered table-sm text-center align-middle w-100" style="font-size:.95rem;">
+          <thead class="table-secondary">
+            <tr>
+              <th>Servidor</th>
+              <th>Dias de Descanso</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if rows %}
+              {% for row in rows %}
+                <tr>
+                  <td class="text-start" style="min-width:220px;">{{ row.servidor.nome }}</td>
+                  <td>
+                    <div class="days-grid">
+                      {% for marcado in row.dias %}
+                        {% if marcado %}
+                          <span class="day-marked" title="Descanso">{{ forloop.counter }}</span>
+                        {% endif %}
+                      {% endfor %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="2" class="text-center text-muted">Nenhum descanso nesse mês.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endfor %}
+</div>
+
+<style>
+/* visual na tela (igual ao seu) */
+.days-grid { display:flex; flex-wrap:wrap; gap:2px; }
+.day-marked {
+  display:inline-block; width:22px; height:22px; line-height:22px;
+  background:#222; color:#fff; border-radius:4px; font-size:.8rem;
+}
+
+/* impressão */
+@media print {
+  @page {
+    /* IMPORTANTE: não defina 'size' aqui, para o Chrome mostrar o seletor de Layout */
+    margin: 10mm 10mm 14mm 10mm;
+  }
+
+  .navbar, .sidebar, .navbar-brand, .navbar-text { display:none !important; }
+  .report-toolbar, .btn { display:none !important; }
+
+  /* ocupar largura total sem travar em mm */
+  .content, .container, .container-fluid, .report-container {
+    width:100% !important; max-width:none !important;
+    margin:0 auto !important; padding:0 !important;
+  }
+  .wrapper, .layout, .content { margin:0 !important; }
+
+  .table, .table-responsive { width:100% !important; }
+
+  .month-block { break-inside: avoid; page-break-inside: avoid; margin-bottom:8mm; }
+
+  h2, h4 { color:#000 !important; }
+  .day-marked { background:#000 !important; color:#fff !important; }
+}
+</style>
+
+<script>
+function setPrintOrientation(orientation) {
+  // remove override anterior
+  const old = document.getElementById('print-orientation');
+  if (old) old.remove();
+
+  // injeta orientação desejada (sem especificar tamanho)
+  const style = document.createElement('style');
+  style.id = 'print-orientation';
+  style.textContent = `@media print { @page { size: ${orientation}; } }`;
+  document.head.appendChild(style);
+
+  // remove após imprimir para não afetar próximas vezes
+  const cleanup = () => {
+    const s = document.getElementById('print-orientation');
+    if (s) s.remove();
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+
+  window.print();
+}
+</script>
+
+{% endblock %}

@@ -11,6 +11,11 @@
       <i class="bi bi-arrow-left"></i> Voltar à lista de servidores
     </a>
   </div>
+  <div class="d-flex justify-content-end mb-2">
+    <a href="{% url 'descanso:relatorio_mapa' %}?ano={{ now|date:'Y' }}" class="btn btn-outline-dark btn-sm">
+      <i class="bi bi-calendar3 me-1"></i> Mapa de Férias/Descanso (impressão)
+    </a>
+  </div>
 
   <ul class="nav nav-pills small mb-2">
     <li class="nav-item"><a class="nav-link{% if status == 'ativos' %} active{% endif %}" href="?status=ativos">Ativos <span class="badge bg-light text-dark ms-1">{{ counts.ativos }}</span></a></li>

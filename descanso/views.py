@@ -10,7 +10,9 @@ from servidores.models import Servidor
 from .models import Descanso
 from .forms import DescansoForm
 from core.utils import get_unidade_atual_id
-
+from datetime import date
+from collections import OrderedDict
+from calendar import monthrange
 
 @login_required
 def lista_servidores(request):
@@ -219,3 +221,73 @@ def excluir_descanso(request, pk: int):
         return redirect(next_url or reverse("descanso:descansos_unidade"))
 
     return render(request, "descanso/excluir.html", {"obj": obj, "next": request.GET.get("next")})
+
+
+@login_required
+def relatorio_mapa(request):
+    # ano escolhido (GET ?ano=YYYY) ou ano atual
+    try:
+        ano = int(request.GET.get("ano") or timezone.localdate().year)
+    except (TypeError, ValueError):
+        ano = timezone.localdate().year
+
+    unidade_id = get_unidade_atual_id(request)
+    servidores_qs = Servidor.objects.select_related("unidade")
+    if unidade_id:
+        servidores_qs = servidores_qs.filter(unidade_id=unidade_id)
+    else:
+        messages.warning(request, "Contexto de unidade não definido. Exibindo todas as unidades.")
+    servidores_qs = servidores_qs.order_by("nome")
+
+    # janela do ano
+    inicio_ano = date(ano, 1, 1)
+    fim_ano = date(ano, 12, 31)
+
+    # descansos que tocam o ano selecionado
+    descansos = (
+        Descanso.objects
+        .filter(servidor__in=servidores_qs, data_inicio__lte=fim_ano, data_fim__gte=inicio_ano)
+        .select_related("servidor")
+    )
+
+    meses_label = [
+        (1, "Janeiro"), (2, "Fevereiro"), (3, "Março"), (4, "Abril"),
+        (5, "Maio"), (6, "Junho"), (7, "Julho"), (8, "Agosto"),
+        (9, "Setembro"), (10, "Outubro"), (11, "Novembro"), (12, "Dezembro"),
+    ]
+
+    # mes_mapa[mes] = {"ndias": N, "rows": {servidor_id: {"servidor": Servidor, "dias":[bool]*N}}}
+    mes_mapa = {}
+    for mes, _ in meses_label:
+        mes_mapa[mes] = {"ndias": monthrange(ano, mes)[1], "rows": {}}
+
+    # marca os dias de cada descanso nos meses correspondentes
+    for d in descansos:
+        inicio = max(d.data_inicio, inicio_ano)
+        fim = min(d.data_fim, fim_ano)
+        for mes, _ in meses_label:
+            ndias = mes_mapa[mes]["ndias"]
+            mes_inicio = date(ano, mes, 1)
+            mes_fim = date(ano, mes, ndias)
+            s = max(inicio, mes_inicio)
+            e = min(fim, mes_fim)
+            if s <= e:
+                rows = mes_mapa[mes]["rows"]
+                row = rows.get(d.servidor_id)
+                if row is None:
+                    row = {"servidor": d.servidor, "dias": [False] * ndias}
+                for dia in range(s.day, e.day + 1):
+                    row["dias"][dia - 1] = True
+                rows[d.servidor_id] = row
+
+    # prepara dados ordenados por nome p/ template (lista, não dict)
+    meses_data = []
+    for mes, nome in meses_label:
+        rows_dict = mes_mapa[mes]["rows"]
+        rows = list(rows_dict.values())
+        rows.sort(key=lambda r: r["servidor"].nome.lower())
+        meses_data.append((mes, nome, rows))
+
+    anos_opcoes = list(range(ano - 2, ano + 3))
+    ctx = {"ano": ano, "anos_opcoes": anos_opcoes, "meses_data": meses_data}
+    return render(request, "descanso/relatorio_mapa.html", ctx)
