@@ -1,0 +1,57 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="container py-3">
+  <h2 class="mb-3"><i class="bi bi-person-exclamation"></i> Servidores em descanso</h2>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label for="data_inicial" class="form-label">Data inicial</label>
+          <input type="date" id="data_inicial" name="data_inicial" class="form-control" value="{{ data_inicial }}">
+        </div>
+        <div class="col-md-4">
+          <label for="data_final" class="form-label">Data final</label>
+          <input type="date" id="data_final" name="data_final" class="form-control" value="{{ data_final }}">
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="submit" class="btn btn-secondary w-100">
+            <i class="bi bi-search"></i> Filtrar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if descansos %}
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <table class="table table-sm table-striped">
+          <thead>
+            <tr>
+              <th>Servidor</th>
+              <th>Tipo</th>
+              <th>Início</th>
+              <th>Fim</th>
+              <th>Observações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in descansos %}
+              <tr>
+                <td>{{ d.servidor.nome }}</td>
+                <td>{{ d.get_tipo_display }}</td>
+                <td>{{ d.data_inicio|date:"d/m/Y" }}</td>
+                <td>{{ d.data_fim|date:"d/m/Y" }}</td>
+                <td>{{ d.observacoes|default:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% elif data_inicial and data_final %}
+    <div class="alert alert-info">Nenhum servidor em descanso no período informado.</div>
+  {% endif %}
+</div>
+{% endblock %}

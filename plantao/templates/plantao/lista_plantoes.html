@@ -1,0 +1,114 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="container py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="m-0">
+      <i class="bi bi-calendar3"></i> Plantões
+    </h2>
+    <a href="{% url 'plantao:pagina_plantao' %}" class="btn btn-sm btn-primary">Novo Plantão</a>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label for="data_inicial" class="form-label">Data inicial</label>
+          <input type="date" id="data_inicial" name="data_inicial" class="form-control" value="{{ request.GET.data_inicial }}">
+        </div>
+
+        <div class="col-md-4">
+          <label for="data_final" class="form-label">Data final</label>
+          <input type="date" id="data_final" name="data_final" class="form-control" value="{{ request.GET.data_final }}">
+        </div>
+
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="submit" class="btn btn-secondary w-100">
+            <i class="bi bi-funnel"></i> Filtrar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <table class="table table-sm table-striped">
+    <thead>
+      <tr>
+        <th>Início</th>
+        <th>Fim</th>
+        <th>Criado por</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if plantoes %}
+        {% for p in plantoes %}
+          <tr>
+            <td>{{ p.inicio|date:"d/m/Y" }}</td>
+            <td>{{ p.fim|date:"d/m/Y" }}</td>
+            <td>
+              {% if p.criado_por %}
+                {{ p.criado_por.get_full_name|default:p.criado_por }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+              <a href="{% url 'plantao:imprimir_plantao' p.id %}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Imprimir">
+                <i class="bi bi-printer"></i>
+              </a>
+              <a href="{% url 'plantao:pagina_plantao' %}?periodo_inicial={{ p.inicio }}&periodo_final={{ p.fim }}" class="btn btn-sm btn-outline-primary" title="Abrir">
+                <i class="bi bi-folder2-open"></i>
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="4">Nenhum plantão encontrado.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+    <nav aria-label="Navegação de página">
+      <ul class="pagination">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for k,v in extra_params.items %}&{{ k }}={{ v }}{% endfor %}" aria-label="Anterior">
+              &laquo; Anterior
+            </a>
+          </li>
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">&laquo; Anterior</span></li>
+        {% endif %}
+
+        {% for num in paginator.page_range %}
+          {% if num >= page_obj.number|add:"-3" and num <= page_obj.number|add:"3" %}
+            {% if num == page_obj.number %}
+              <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% else %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ num }}{% for k,v in extra_params.items %}&{{ k }}={{ v }}{% endfor %}">{{ num }}</a>
+              </li>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for k,v in extra_params.items %}&{{ k }}={{ v }}{% endfor %}" aria-label="Próximo">
+              Próximo &raquo;
+            </a>
+          </li>
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">Próximo &raquo;</span></li>
+        {% endif %}
+      </ul>
+    </nav>
+
+    <div class="text-muted small mt-2">
+      Página {{ page_obj.number }} de {{ paginator.num_pages }} — {{ paginator.count }} registros
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

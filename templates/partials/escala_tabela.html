@@ -1,0 +1,37 @@
+{# Espera: grupos (lista de dicts com keys: periodo=(ini,fim), servidores=[Servidor,...]) #}
+<div class="card shadow-sm mt-4">
+  <div class="card-header bg-light">
+    <strong><i class="bi bi-table"></i> Escala do plantão</strong>
+  </div>
+  <div class="card-body">
+    <table class="table table-sm table-striped align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Início</th>
+          <th>Fim</th>
+          <th>Servidor</th>
+          <th>Telefone</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in grupos %}
+          {% with s=g.servidores.0 %}
+          <tr id="escala-row-{{ g.index }}">
+            <td>{{ g.periodo.0|date:"d/m/Y" }}</td>
+            <td>{{ g.periodo.1|date:"d/m/Y" }}</td>
+            <td id="escala-nome-{{ g.index }}">
+              {% if s %}{{ s.nome }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td id="escala-fone-{{ g.index }}">
+              {% if s %}{{ s.telefone|default:"—" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+          </tr>
+          {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="text-muted small mb-0">
+      A tabela usa o <strong>primeiro servidor</strong> de cada grupo. Reordene ↑/↓ no card do grupo para alterar.
+    </p>
+  </div>
+</div>

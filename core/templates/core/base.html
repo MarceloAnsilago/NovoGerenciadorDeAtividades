@@ -299,11 +299,10 @@
   <ul class="nav flex-column px-2 text-start text-md-start">
     <li class="nav-item">
       <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
-         href="{% url 'core:dashboard' %}" data-bs-title="Dashboard">
+        href="{% url 'core:dashboard' %}" data-bs-title="Dashboard">
         <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
       </a>
     </li>
-
 
     <li class="nav-item">
       <a class="nav-link {% if request.resolver_match.app_name == 'servidores' or 'servidores' in request.resolver_match.namespaces %}active{% endif %}"
@@ -312,13 +311,15 @@
         <i class="bi bi-person-gear"></i> <span>Servidores</span>
       </a>
     </li>
+
     <li class="nav-item">
       <a class="nav-link {% if request.resolver_match.app_name == 'veiculos' or 'veiculos' in request.resolver_match.namespaces %}active{% endif %}"
         href="{% url 'veiculos:lista' %}" data-bs-title="Veículos"
         aria-current="{% if request.resolver_match.app_name == 'veiculos' %}page{% endif %}">
       <i class="bi bi-truck"></i> <span>Veículos</span>
-     </a>
+    </a>
     </li>
+
     <li class="nav-item">
       <a class="nav-link {% if request.resolver_match.app_name == 'atividades' or 'atividades' in request.resolver_match.namespaces %}active{% endif %}"
         href="{% url 'atividades:lista' %}" data-bs-title="Atividades"
@@ -326,12 +327,22 @@
         <i class="bi bi-list-task"></i> <span>Atividades</span>
       </a>
     </li>
+
     <li class="nav-item">
       <a class="nav-link {% if request.resolver_match.app_name == 'descanso' or 'descanso' in request.resolver_match.namespaces %}active{% endif %}"
         href="{% url 'descanso:lista_servidores' %}"
         data-bs-title="Descanso"
         aria-current="{% if request.resolver_match.app_name == 'descanso' %}page{% endif %}">
         <i class="bi bi-calendar-check"></i> <span>Descanso</span>
+      </a>
+    </li>
+
+    <!-- Novo: Plantão -->
+    <li class="nav-item">
+      <a class="nav-link {% if request.resolver_match.app_name == 'plantao' or 'plantao' in request.resolver_match.namespaces %}active{% endif %}"
+        href="{% url 'plantao:lista_plantao' %}" data-bs-title="Plantão"
+        aria-current="{% if request.resolver_match.app_name == 'plantao' %}page{% endif %}">
+        <i class="bi bi-calendar-week"></i> <span>Plantão</span>
       </a>
     </li>
 
@@ -348,11 +359,10 @@
       </li>
       <li class="nav-item">
         <a class="nav-link {% if request.resolver_match.url_name == 'admin_arvore' %}active{% endif %}"
-           href="{% url 'core:admin_arvore' %}" data-bs-title="Administrador">
+          href="{% url 'core:admin_arvore' %}" data-bs-title="Administrador">
           <i class="bi bi-diagram-3"></i> <span>Administrador</span>
         </a>
       </li>
-
     {% endif %}
   </ul>
 </aside>

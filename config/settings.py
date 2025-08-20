@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'veiculos',
     'atividades.apps.AtividadesConfig',
     "descanso",
+    'plantao',
 ]
 
 MIDDLEWARE = [

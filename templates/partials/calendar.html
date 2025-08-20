@@ -1,0 +1,28 @@
+<div class="table-responsive">
+  {% for semana in tabela_plantao %}
+    <h5>Período: {{ semana.inicio }} → {{ semana.fim }}</h5>
+    <table id="calendar-table" class="table table-bordered table-sm table-calendar">
+      <thead>
+        <tr>
+          <th>Servidor</th>
+          {% for d in semana.dias %}
+            <th>{{ d|date:"d/m (D)" }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in semana.linhas %}
+          <tr data-servidor-id="{{ linha.servidor.id }}">
+            <td class="server-name">{{ linha.servidor }}</td>
+            {% for cel in linha.atrib %}
+              <td data-dia="{{ cel.dia|date:"Y-m-d" }}" 
+                  {% if cel.status == "DESCANSO" %}class="table-warning"{% elif cel.status == "SERVIÇO" %}class="table-success"{% endif %}>
+                {{ cel.status }}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+</div>

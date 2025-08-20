@@ -1,0 +1,27 @@
+{# partials/multiselect.html #}
+<div class="row g-3 my-2">
+  <div class="col-md-3">
+    <label for="qtd-servidores" class="form-label">Qtd. por plantão</label>
+    <input type="number"
+           id="qtd-servidores"
+           name="qtd"
+           class="form-control"
+           min="1"
+           max="{{ servidores_options|length }}"
+           value="{{ qtd|default:servidores_options|length }}">
+    <small class="text-muted">Limite máximo será aplicado na seleção.</small>
+  </div>
+
+  <div class="col-md-9">
+    <label class="form-label">
+      <i class="bi bi-people me-1"></i> Servidores (selecione e ordene)
+      <small id="sel-counter" class="text-muted ms-1"></small>
+    </label>
+    <select id="sel-servidores" name="servidores" class="form-select" multiple size="10">
+      {% for s in servidores_options %}
+        <option value="{{ s.value }}" {% if s.selected %}selected{% endif %}>{{ s.label }}</option>
+      {% endfor %}
+    </select>
+    <small class="form-text text-muted">Use os botões abaixo para ajustar a ordem.</small>
+  </div>
+</div>

@@ -1,0 +1,109 @@
+<div class="row g-3">
+  <!-- Disponíveis -->
+  <div class="col-md-8">
+    <label class="form-label">
+      <i class="bi bi-person-lines-fill me-1"></i> Disponíveis
+    </label>
+    <select id="sel-disponiveis" class="form-select" multiple size="10">
+      {% for s in servidores_options %}
+        <option
+          value="{{ s.value }}"
+          data-name="{{ s.label }}"
+          data-count="{{ s.count }}"
+          data-phone="{{ s.phone|default:'' }}"
+        >
+          {{ s.label }}{% if s.count %} ({{ s.count }}){% endif %}
+        </option>
+      {% endfor %}
+    </select>
+    <div class="btn-group mt-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addToGroupSelected()">Adicionar →</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="excludeSelected()">Excluir →</button>
+    </div>
+    <small class="form-text text-muted">
+      Selecione à esquerda e use “Adicionar →” para enviar ao grupo focado (ou ao primeiro).
+    </small>
+  </div>
+
+  <!-- Excluídos -->
+  <div class="col-md-4">
+    <label class="form-label">
+      <i class="bi bi-person-x-fill me-1"></i> Excluídos
+    </label>
+    <select id="sel-excluidos" name="excluidos" class="form-select" multiple size="10">
+      {% for s in excluidos_options %}
+        <option value="{{ s.value }}">{{ s.label }}</option>
+      {% endfor %}
+    </select>
+    <div class="btn-group mt-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="restoreExcluded()">← Restaurar</button>
+    </div>
+    <small class="form-text text-muted">
+      Excluídos não podem ser adicionados aos grupos.
+    </small>
+  </div>
+</div>
+
+<hr class="my-3">
+
+<!-- Grupos (uma semana por card) -->
+<div class="row g-3">
+  {% for g in grupos %}
+  {% with ini=g.periodo.0 fim=g.periodo.1 %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>
+          <i class="bi bi-people"></i>
+          Grupo {{ g.index }}
+          <small class="text-muted">— {{ ini|date:"d/m/Y" }} a {{ fim|date:"d/m/Y" }}</small>
+        </span>
+        <small id="counter-grupo-{{ g.index }}" class="text-muted">
+          {{ g.servidores|length }}{% if g.limite %}/{{ g.limite }}{% endif %}
+        </small>
+      </div>
+
+      <div class="card-body">
+        <!-- Limite do grupo -->
+        <div class="d-flex justify-content-end mb-2">
+          <div class="input-group input-group-sm" style="max-width:160px;">
+            <span class="input-group-text">Limite</span>
+            <input
+              type="number"
+              class="form-control qtd-grupo"
+              name="qtd_{{ g.index }}"
+              id="qtd-{{ g.index }}"
+              min="0" max="99"
+              value="{{ g.limite|default_if_none:0 }}"
+            >
+          </div>
+        </div>
+
+        <!-- Lista do grupo (mantém ordem) -->
+        <select
+          multiple
+          size="8"
+          class="form-select grupo-select"
+          id="grupo-{{ g.index }}"
+          name="grupo_{{ g.index }}"
+        >
+          {% for s in g.servidores %}
+            <option value="{{ s.id }}" data-phone="{{ s.telefone|default:s.celular|default:'' }}" selected>
+              {{ s.nome }}
+            </option>
+          {% endfor %}
+        </select>
+
+        <!-- Ações -->
+        <div class="btn-group mt-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addToGroup('grupo-{{ g.index }}')">Adicionar →</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="removeFromGroup('grupo-{{ g.index }}')">← Remover</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="moveOption('grupo-{{ g.index }}',-1)">↑</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="moveOption('grupo-{{ g.index }}',1)">↓</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+  {% endfor %}
+</div>
