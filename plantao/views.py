@@ -451,19 +451,64 @@ def verificar_descanso(request):
 @login_required
 def ver_plantoes(request):
     """
-    Página que lista plantões salvos. A ação 'Abrir' carrega o fragmento com a tabela de escala abaixo.
+    Página que lista plantões salvos. Suporta filtro por ano (GET ?ano=YYYY)
+    e respeita a unidade atual (exceto para staff).
     """
-    plantoes = Plantao.objects.order_by("-inicio")
-    # aplica filtro se Plantao tem campo unidade e há unidade no contexto (exceto staff)
+    # base queryset (ordenada)
+    plantoes_base = Plantao.objects.order_by("-inicio")
+
+    # aplica filtro de unidade se Plantao tem campo unidade e há unidade no contexto (exceto staff)
     try:
         field_names = [f.name for f in Plantao._meta.fields]
     except Exception:
         field_names = []
 
-    if ("unidade" in field_names or "unidade_id" in field_names) and get_unidade_atual_id(request) and not request.user.is_staff:
-        plantoes = plantoes.filter(unidade_id=get_unidade_atual_id(request))
+    unidade_id = get_unidade_atual_id(request)
+    if ("unidade" in field_names or "unidade_id" in field_names) and unidade_id and not request.user.is_staff:
+        plantoes_base = plantoes_base.filter(unidade_id=unidade_id)
 
-    return render(request, "plantao/ver_plantoes.html", {"plantoes": plantoes})
+    # --- construir lista de anos disponíveis (com base nos campos inicio/fim) ---
+    years_set = set()
+    # usa .dates para obter anos distintos. Se .dates não estiver disponível, cai para values_list
+    try:
+        for d in plantoes_base.dates("inicio", "year"):
+            years_set.add(d.year)
+        for d in plantoes_base.dates("fim", "year"):
+            years_set.add(d.year)
+    except Exception:
+        # fallback: values_list sobre início/fim (menos elegante, mas funciona)
+        ys = plantoes_base.values_list("inicio", flat=True)
+        for dt in ys:
+            if dt:
+                years_set.add(dt.year)
+        ys2 = plantoes_base.values_list("fim", flat=True)
+        for dt in ys2:
+            if dt:
+                years_set.add(dt.year)
+
+    years = sorted(years_set, reverse=True)
+
+    # --- ler filtro de ano vindo do GET ---
+    ano_raw = request.GET.get("ano") or ""
+    ano_selected = None
+    plantoes = plantoes_base
+    if ano_raw:
+        try:
+            ano_selected = int(ano_raw)
+            # seleciona plantões cujo período abrange o ano:
+            # inicio.year <= ano_selected <= fim.year
+            # implementado como dois filtros combinados (AND)
+            plantoes = plantoes_base.filter(inicio__year__lte=ano_selected, fim__year__gte=ano_selected).order_by("-inicio")
+        except (ValueError, TypeError):
+            ano_selected = None
+            # se valor inválido, ignoramos e mostramos tudo
+
+    context = {
+        "plantoes": plantoes,
+        "years": years,
+        "ano_selected": ano_selected,
+    }
+    return render(request, "plantao/ver_plantoes.html", context)
 
 logger = logging.getLogger(__name__)
 # a view tolerante

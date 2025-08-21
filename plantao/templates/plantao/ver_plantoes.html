@@ -11,6 +11,27 @@
     </div>
 
     <div class="card-body p-0">
+
+      {# ====== FILTRO POR ANO (INSERIR AQUI) ====== #}
+      <div class="px-3 py-2 border-bottom">
+        <form method="get" action="{% url 'plantao:ver_plantoes' %}" class="d-flex align-items-end g-2">
+          <div class="me-2">
+            <label for="ano" class="form-label small mb-0">Ano</label>
+            <select id="ano" name="ano" class="form-select form-select-sm">
+              <option value="">(Todos)</option>
+              {% for y in years %}
+                <option value="{{ y }}" {% if ano_selected and ano_selected == y %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="align-self-end">
+            <button type="submit" class="btn btn-sm btn-secondary">Filtrar</button>
+          </div>
+        </form>
+      </div>
+      {# ====== /FILTRO POR ANO ====== #}
+
       <div class="table-responsive">
         <table class="table mb-0">
           <thead class="table-light">
