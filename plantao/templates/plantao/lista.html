@@ -74,20 +74,14 @@
 let currentGroupId = null; // grupo alvo do botão “Adicionar →” geral
 
 /* --------- utils --------- */
-function getGroupLimit(groupId){
-  const idx = groupId.replace('grupo-','');
-  const el  = document.getElementById('qtd-'+idx);
-  const n   = parseInt(el?.value || '0', 10);
-  return isNaN(n) ? 0 : Math.max(0, n);
-}
 function updateGroupCounters(){
   document.querySelectorAll('.grupo-select').forEach(sel=>{
-    const limit = getGroupLimit(sel.id);
     const count = sel.options.length;
     const idx   = sel.id.replace('grupo-','');
     const lbl   = document.getElementById('counter-grupo-'+idx);
-    if (lbl) lbl.textContent = limit>0 ? `${count}/${limit}` : `${count}`;
-    if (limit>0 && count>=limit) sel.classList.add('is-valid'); else sel.classList.remove('is-valid');
+    if (lbl) lbl.textContent = `${count}`;
+    // remove classes relacionadas a validação de limite (se existirem)
+    sel.classList.remove('is-valid', 'is-invalid');
   });
 }
 function setAvailLabel(opt){
@@ -129,29 +123,61 @@ function refreshEscalaRowByGroupId(groupId){
 }
 
 /* --------- ações --------- */
-function addToGroup(groupId){
+async function verificarDescanso(servidorId, inicio, fim) {
+  const url = `/plantao/verificar-descanso/?servidor_id=${servidorId}&inicio=${inicio}&fim=${fim}`;
+  const resp = await fetch(url, { credentials: 'same-origin' }); // garante cookies de sessão
+  if (!resp.ok) {
+    // mostra erro amigável no console e evita quebrar
+    console.error('verificar-descanso HTTP error', resp.status);
+    try { const t = await resp.text(); console.debug(t); } catch(e){}
+    return false; // se API falhou, optamos por permitir (ou troque pra true se preferir bloquear em caso de erro)
+  }
+  const data = await resp.json();
+  if (data.bloqueado) {
+    const msg = data.impedimentos.map(i => {
+      const tipo = i.tipo || '';
+      const obs  = i.observacoes ? ` — ${i.observacoes}` : '';
+      return `• ${tipo}${obs} (${i.data_inicio} a ${i.data_fim})`;
+    }).join('\n');
+    alert(`Servidor impedido nesta semana:\n${msg}`);
+    return true;
+  }
+  return false;
+}
+
+
+async function addToGroup(groupId){
   const avail = document.getElementById('sel-disponiveis');
   const target= document.getElementById(groupId);
   const excl  = document.getElementById('sel-excluidos');
   if (!avail || !target) return;
 
-  const limit = getGroupLimit(groupId);
+
   const selected = [...avail.options].filter(o=>o.selected);
 
+  const idx = groupId.replace("grupo-", "");
+  const elSemana = document.getElementById(`grupo-${idx}-periodo`);
+  const [inicio, fim] = elSemana?.value?.split(" a ") || [];
+
   for (const o of selected){
-    if ([...excl.options].some(e=>e.value===o.value)) continue; // não adiciona excluídos
-    if (limit>0 && target.options.length>=limit) break;
+    if ([...excl.options].some(e=>e.value===o.value)) continue;
+  
+
+    const impedido = await verificarDescanso(o.value, inicio, fim);
+    if (impedido) continue;
 
     const phone = o.getAttribute('data-phone') || '';
     const name  = o.getAttribute('data-name') || o.text;
     const clone = new Option(name, o.value, false, true);
-    clone.setAttribute('data-phone', phone); // <-- leva telefone junto
+    clone.setAttribute('data-phone', phone);
     target.add(clone);
     incAvailCount(o.value, +1);
   }
+
   updateGroupCounters();
-  refreshEscalaRowByGroupId(groupId); // <-- atualiza tabela da semana
+  refreshEscalaRowByGroupId(groupId);
 }
+
 function addToGroupSelected(){
   const groups = [...document.querySelectorAll('.grupo-select')];
   if (groups.length === 0) return;
