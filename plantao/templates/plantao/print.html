@@ -1,0 +1,113 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>Imprimir Plantão — {{ plantao.inicio }} a {{ plantao.fim }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- você pode incluir bootstrap se quiser manter o mesmo estilo; opcional -->
+  <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+
+  <style>
+    /* layout para impressão */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #111;
+      background: #fff;
+      margin: 0.5cm;
+      font-size: 12pt;
+    }
+    .card {
+      border: none;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 0.6rem;
+    }
+    thead th {
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+      padding: 6px 8px;
+      background: #f7f7f7;
+      font-weight: 600;
+    }
+    tbody td {
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    .small-muted { color: #666; font-size: 10pt; }
+
+    @media print {
+      /* remove qualquer coisa que não deve aparecer */
+      a { text-decoration: none; color: #000; }
+      button, .no-print { display: none !important; }
+      @page { margin: 10mm; }
+      body { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header style="margin-bottom:12px;">
+    <h3 style="margin:0;">Escala do plantão</h3>
+    <div class="small-muted">Plantão: {{ plantao.inicio|date:"d/m/Y" }} a {{ plantao.fim|date:"d/m/Y" }}</div>
+  </header>
+
+  <section>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:18%;">Início</th>
+          <th style="width:18%;">Fim</th>
+          <th style="width:48%;">Servidores</th>
+          <th style="width:16%;">Telefones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in grupos %}
+          <tr>
+            <td>{{ g.periodo.0|date:"d/m/Y" }}</td>
+            <td>{{ g.periodo.1|date:"d/m/Y" }}</td>
+            <td>
+              {% if g.servidores %}
+                <ul style="margin:0; padding-left:1rem;">
+                {% for s in g.servidores %}
+                  <li>{{ s.nome }}</li>
+                {% endfor %}
+                </ul>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>
+              {% if g.servidores %}
+                <ul style="margin:0; padding-left:0.5rem; list-style:none;">
+                {% for s in g.servidores %}
+                  <li>{{ s.telefone }}</li>
+                {% endfor %}
+                </ul>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <footer style="margin-top:12px; color:#666; font-size:10pt;">
+    <div>Gerado por: {{ request.user.get_full_name|default:request.user.username }}</div>
+    <div>Data: {{ now|date:"d/m/Y H:i" }}</div>
+  </footer>
+
+  <script>
+    // Quando carregar, aguarda um pouquinho e dispara print().
+    // A espera ajuda caso o CSS ainda esteja carregando.
+    window.addEventListener('load', function() {
+      setTimeout(function(){ window.print(); }, 200);
+    });
+  </script>
+</body>
+</html>

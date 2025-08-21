@@ -4,6 +4,14 @@
 <div class="container py-3">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="m-0"><i class="bi bi-calendar3"></i> Plantões</h2>
+
+    <!-- botão para ver plantões salvos -->
+    <a href="{% url 'plantao:ver_plantoes' %}"
+      class="btn btn-outline-primary"
+      role="button"
+      title="Ver plantões salvos">
+      <i class="bi bi-folder2-open me-1"></i> Ver plantões salvos
+    </a>
   </div>
 
   <!-- Filtro -->
@@ -51,22 +59,25 @@
       <div class="small text-muted"><i class="bi bi-person-fill-slash"></i> Excluídos (descanso integral): {{ bloqueados|length }}</div>
     </div>
     <div class="card-body">
-      <form method="post" action="{% url 'plantao:lista_plantao' %}">
+      <form id="form-escala" method="post" action="{% url 'plantao:lista_plantao' %}">
         {% csrf_token %}
         <input type="hidden" name="data_inicial" value="{{ data_inicial }}">
         <input type="hidden" name="data_final" value="{{ data_final }}">
 
         {% include "partials/escala_grupos.html" %}
 
+        <!-- botão Salvar dentro do form -->
+        <div class="mt-3">
+          <button type="submit" id="btn-salvar" class="btn btn-primary">
+            <i class="bi bi-save"></i> Salvar
+          </button>
+        </div>
 
       </form>
     </div>
   </div>
-  {% include "partials/escala_tabela.html" with grupos=grupos only %}
 
-   <div class="mt-3">
-          <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Salvar</button>
-  </div>
+  {% include "partials/escala_tabela.html" with grupos=grupos only %}
   {% endif %}
 </div>
 
@@ -80,7 +91,6 @@ function updateGroupCounters(){
     const idx   = sel.id.replace('grupo-','');
     const lbl   = document.getElementById('counter-grupo-'+idx);
     if (lbl) lbl.textContent = `${count}`;
-    // remove classes relacionadas a validação de limite (se existirem)
     sel.classList.remove('is-valid', 'is-invalid');
   });
 }
@@ -127,10 +137,9 @@ async function verificarDescanso(servidorId, inicio, fim) {
   const url = `/plantao/verificar-descanso/?servidor_id=${servidorId}&inicio=${inicio}&fim=${fim}`;
   const resp = await fetch(url, { credentials: 'same-origin' }); // garante cookies de sessão
   if (!resp.ok) {
-    // mostra erro amigável no console e evita quebrar
     console.error('verificar-descanso HTTP error', resp.status);
     try { const t = await resp.text(); console.debug(t); } catch(e){}
-    return false; // se API falhou, optamos por permitir (ou troque pra true se preferir bloquear em caso de erro)
+    return false; // em caso de erro da API, permite (ou mude para true para bloquear por segurança)
   }
   const data = await resp.json();
   if (data.bloqueado) {
@@ -145,13 +154,11 @@ async function verificarDescanso(servidorId, inicio, fim) {
   return false;
 }
 
-
 async function addToGroup(groupId){
   const avail = document.getElementById('sel-disponiveis');
   const target= document.getElementById(groupId);
   const excl  = document.getElementById('sel-excluidos');
   if (!avail || !target) return;
-
 
   const selected = [...avail.options].filter(o=>o.selected);
 
@@ -161,7 +168,6 @@ async function addToGroup(groupId){
 
   for (const o of selected){
     if ([...excl.options].some(e=>e.value===o.value)) continue;
-  
 
     const impedido = await verificarDescanso(o.value, inicio, fim);
     if (impedido) continue;
@@ -193,7 +199,7 @@ function removeFromGroup(groupId){
     incAvailCount(o.value, -1);
   }
   updateGroupCounters();
-  refreshEscalaRowByGroupId(groupId); // <-- atualiza tabela da semana
+  refreshEscalaRowByGroupId(groupId);
 }
 function moveOption(id, dir){
   const sel = document.getElementById(id); if(!sel) return;
@@ -212,7 +218,7 @@ function moveOption(id, dir){
       }
     }
   }
-  refreshEscalaRowByGroupId(id); // <-- se mudou ordem, muda quem está na tabela
+  refreshEscalaRowByGroupId(id);
 }
 function excludeSelected(){
   const avail=document.getElementById('sel-disponiveis');
@@ -240,30 +246,54 @@ function restoreExcluded(){
   }
 }
 
-/* --------- init --------- */
-document.addEventListener('DOMContentLoaded', ()=>{
+/* --------- util: desenha todas as linhas da tabela de escala --------- */
+function refreshAllEscalaRows() {
+  document.querySelectorAll('.grupo-select').forEach(s => {
+    refreshEscalaRowByGroupId(s.id);
+  });
+}
+
+/* --------- init e submit handler seguro --------- */
+document.addEventListener('DOMContentLoaded', ()=> {
   [...document.getElementById('sel-disponiveis')?.options||[]].forEach(setAvailLabel);
   updateGroupCounters();
-  refreshAllEscalaRows(); // desenha a tabela com o 1º de cada grupo no load
+  if (typeof refreshAllEscalaRows === 'function') refreshAllEscalaRows();
 
   // registra foco/click para o “grupo alvo” do botão geral
   document.querySelectorAll('.grupo-select').forEach(sel=>{
     sel.addEventListener('focus', ()=>{ currentGroupId = sel.id; });
     sel.addEventListener('click', ()=>{ currentGroupId = sel.id; });
   });
-  // reconta ao alterar limite de qualquer grupo
+
+  // reconta ao alterar limite de qualquer grupo (se houver qtd-grupo inputs)
   document.querySelectorAll('.qtd-grupo').forEach(inp=>{
     inp.addEventListener('input', updateGroupCounters);
   });
-});
 
-// no submit, marca todos os itens para o backend receber a lista completa
-document.getElementById('form-escala')?.addEventListener('submit', () => {
-  document.querySelectorAll('.grupo-select').forEach(sel => {
-    [...sel.options].forEach(o => o.selected = true);
-  });
-  const exc = document.getElementById('sel-excluidos');
-  if (exc) [...exc.options].forEach(o => o.selected = true);
+  // submit handler: marca options e previne double-submit
+  const form = document.getElementById('form-escala');
+  const btnSalvar = document.getElementById('btn-salvar');
+
+  if (form) {
+    form.addEventListener('submit', (ev) => {
+      // marca todos os options para o backend receber a lista completa
+      document.querySelectorAll('.grupo-select').forEach(sel => {
+        [...sel.options].forEach(o => o.selected = true);
+      });
+      const exc = document.getElementById('sel-excluidos');
+      if (exc) [...exc.options].forEach(o => o.selected = true);
+
+      // desabilita botão para evitar double submit e mostra spinner
+      if (btnSalvar) {
+        btnSalvar.disabled = true;
+        btnSalvar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...';
+      }
+
+      // deixamos o submit normal prosseguir (se preferir AJAX, posso mudar)
+    });
+  } else {
+    console.warn('form-escala não encontrado — o submit pode não funcionar.');
+  }
 });
 </script>
 

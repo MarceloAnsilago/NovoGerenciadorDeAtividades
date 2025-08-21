@@ -1,0 +1,54 @@
+{# templates/partials/escala_print_fragment.html #}
+<div class="card shadow-sm mb-3">
+  <div class="card-header">
+    <strong><i class="bi bi-ui-checks-grid"></i> Escala do plantão</strong>
+    <div class="small text-muted">Plantão: {{ plantao.inicio|date:"d/m/Y" }} a {{ plantao.fim|date:"d/m/Y" }}</div>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Início</th>
+            <th>Fim</th>
+            <th>Servidores</th>
+            <th>Telefones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in grupos %}
+            <tr>
+              <td>{{ g.periodo.0|date:"d/m/Y" }}</td>
+              <td>{{ g.periodo.1|date:"d/m/Y" }}</td>
+              <td>
+                {% if g.servidores %}
+                  <ul class="mb-0" style="padding-left:1rem;">
+                  {% for s in g.servidores %}
+                    <li>{{ s.nome }}</li>
+                  {% endfor %}
+                  </ul>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>
+                {% if g.servidores %}
+                  <ul class="mb-0" style="list-style:none; padding-left:0;">
+                  {% for s in g.servidores %}
+                    <li style="text-align:right;">{{ s.telefone }}</li>
+                  {% endfor %}
+                  </ul>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card-footer small text-muted">
+    Gerado por: {{ request.user.get_full_name|default:request.user.username }} — {{ now|date:"d/m/Y H:i" }}
+  </div>
+</div>

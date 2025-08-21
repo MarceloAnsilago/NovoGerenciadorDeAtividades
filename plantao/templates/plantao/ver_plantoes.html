@@ -1,0 +1,257 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="container py-3">
+  <div class="card shadow-sm mb-4">
+
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong><i class="bi bi-list-ul"></i> Plantões salvos</strong>
+      <a href="{% url 'plantao:lista_plantao' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Voltar
+      </a>
+    </div>
+
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Nome</th>
+              <th>Início</th>
+              <th>Fim</th>
+              <th>Criado por</th>
+              <th>Criado em</th>
+              <th class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="plantoes-tbody">
+            {% for p in plantoes %}
+            <tr data-pk="{{ p.pk }}" id="plantao-row-{{ p.pk }}">
+              <td>{{ p.nome|default:"Plantão" }}</td>
+              <td>{{ p.inicio|date:"d/m/Y" }}</td>
+              <td>{{ p.fim|date:"d/m/Y" }}</td>
+              <td>
+                {% if p.criado_por %}
+                  {{ p.criado_por.get_full_name|default:p.criado_por.username }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>{{ p.criado_em|date:"d/m/Y H:i" }}</td>
+              <td class="text-end">
+                <div class="btn-group">
+                  <button class="btn btn-sm btn-outline-primary btn-open" data-pk="{{ p.pk }}" type="button">
+                    <i class="bi bi-folder2-open"></i> Abrir
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger btn-delete" data-pk="{{ p.pk }}" type="button">
+                    <i class="bi bi-trash"></i> Excluir
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-muted">Nenhum plantão salvo.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- container onde será injetada a tabela de escala do plantão aberto -->
+  <div id="plantao-detalhe-container" class="mb-3"></div>
+
+  <!-- Ações do detalhe: Imprimir -->
+  <div class="mb-4">
+    <button id="btn-imprimir-plantao" class="btn btn-outline-secondary no-print" style="display:none;">
+      <i class="bi bi-printer-fill me-1"></i> Imprimir
+    </button>
+  </div>
+</div>
+
+<script>
+/* --------- helpers CSRF (Django recommended) --------- */
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let c of cookies) {
+      c = c.trim();
+      if (c.startsWith(name + '=')) {
+        cookieValue = decodeURIComponent(c.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+/* --------- estado global --------- */
+let currentPlantaoPk = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const tbody = document.getElementById('plantoes-tbody');
+  const detalheContainer = document.getElementById('plantao-detalhe-container');
+  const btnPrint = document.getElementById('btn-imprimir-plantao');
+
+  /* --------- abrir (fetch fragmento HTML) ao clicar 'Abrir' --------- */
+  tbody.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.btn-open');
+    if (!btn) return;
+    const pk = btn.getAttribute('data-pk');
+    if (!pk) return;
+
+    // url do fragmento (usa trick com pk=0 e replace para manter reverse em template)
+    const url = `{% url 'plantao:plantao_detalhe_fragment' pk=0 %}`.replace('/0/', `/${pk}/`);
+
+    try {
+      btn.disabled = true;
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Carregando...';
+      const resp = await fetch(url, { credentials: 'same-origin' });
+
+      if (!resp.ok) {
+        const txt = await resp.text();
+        detalheContainer.innerHTML = `<div class="alert alert-danger">Erro ao carregar escala: ${resp.status}</div>`;
+        console.error('Erro ao carregar fragmento:', txt);
+        // esconder botão imprimir (se estava visível)
+        if (btnPrint) btnPrint.style.display = 'none';
+        currentPlantaoPk = null;
+        // remover destaque de linhas
+        document.querySelectorAll('#plantoes-tbody tr').forEach(r => r.classList.remove('table-active'));
+      } else {
+        const html = await resp.text();
+        detalheContainer.innerHTML = html;
+        detalheContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // marca o plantão atual
+        currentPlantaoPk = pk;
+
+        // mostra o botão imprimir
+        if (btnPrint) btnPrint.style.display = 'inline-block';
+
+        // destaca linha ativa
+        document.querySelectorAll('#plantoes-tbody tr').forEach(r => r.classList.remove('table-active'));
+        const row = document.getElementById(`plantao-row-${pk}`);
+        if (row) row.classList.add('table-active');
+      }
+    } catch (err) {
+      console.error('Erro fetch fragmento:', err);
+      detalheContainer.innerHTML = `<div class="alert alert-danger">Erro inesperado ao carregar escala.</div>`;
+      if (btnPrint) btnPrint.style.display = 'none';
+      currentPlantaoPk = null;
+      document.querySelectorAll('#plantoes-tbody tr').forEach(r => r.classList.remove('table-active'));
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-folder2-open"></i> Abrir';
+    }
+  });
+
+  /* --------- excluir com confirmação (POST) --------- */
+  tbody.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.btn-delete');
+    if (!btn) return;
+    const pk = btn.getAttribute('data-pk');
+    if (!pk) return;
+
+    if (!confirm("Confirma exclusão deste plantão? Esta ação não poderá ser desfeita.")) return;
+
+    const url = `{% url 'plantao:plantao_excluir' pk=0 %}`.replace('/0/', `/${pk}/`);
+    try {
+      btn.disabled = true;
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Excluindo...';
+      const resp = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'X-CSRFToken': csrftoken,
+          'Accept': 'application/json'
+        }
+      });
+
+      const data = await resp.json().catch(()=>({ ok: false, erro: 'Resposta inválida do servidor' }));
+
+      if (resp.ok && data.ok) {
+        // remover linha e limpar detalhe se estava mostrando
+        const row = document.getElementById(`plantao-row-${pk}`);
+        if (row) row.remove();
+
+        // limpar detalhe se estivermos vendo este plantão
+        if (String(currentPlantaoPk) === String(pk)) {
+          detalheContainer.innerHTML = '';
+          currentPlantaoPk = null;
+          if (btnPrint) btnPrint.style.display = 'none';
+        }
+
+        // feedback
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-success';
+        alert.textContent = 'Plantão excluído com sucesso.';
+        document.querySelector('.container').insertBefore(alert, detalheContainer);
+        setTimeout(()=> alert.remove(), 3000);
+      } else {
+        const err = data.erro || 'Erro ao excluir.';
+        alert(err);
+      }
+    } catch (err) {
+      console.error('Erro ao excluir:', err);
+      alert('Erro de comunicação ao tentar excluir.');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-trash"></i> Excluir';
+    }
+  });
+
+  /* --------- imprimir (abre página de impressão em nova aba) --------- */
+    let _previousDetalheHtml = null;
+
+btnPrint?.addEventListener('click', async (ev) => {
+  ev.preventDefault();
+  if (!currentPlantaoPk) {
+    alert('Nenhum plantão carregado para imprimir.');
+    return;
+  }
+
+  // se quiser atualizar o fragmento antes de imprimir (opcional), pode fetchar /imprimir/?inline=1
+  // mas se já tiver o HTML carregado no detalhe, vamos usar direto.
+
+  // CSS que esconde tudo e mostra apenas #plantao-detalhe-container
+  const printCss = `
+    @media print {
+      body * { visibility: hidden !important; }
+      /* mostrar somente o container e seus filhos */
+      #plantao-detalhe-container, #plantao-detalhe-container * {
+        visibility: visible !important;
+      }
+      /* posiciona o container no topo da página */
+      #plantao-detalhe-container { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }
+      /* esconde elementos que tenham explicitamente essa classe */
+      .no-print { display: none !important; }
+      @page { margin: 12mm; }
+    }
+  `;
+
+  // cria a <style> temporária
+  const styleEl = document.createElement('style');
+  styleEl.id = 'print-only-style';
+  styleEl.appendChild(document.createTextNode(printCss));
+  document.head.appendChild(styleEl);
+
+  // força repaint/pequeno delay, então chama print
+  setTimeout(() => {
+    try {
+      window.print();
+    } finally {
+      // remove o style e restaura a página (um pequeno timeout para permitir finalização do diálogo)
+      setTimeout(() => {
+        const s = document.getElementById('print-only-style');
+        if (s) s.remove();
+      }, 300);
+    }
+  }, 150);
+});
+});
+</script>
+{% endblock %}

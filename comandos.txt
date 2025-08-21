@@ -2,6 +2,7 @@
 
 python manage.py runserver
 
+python manage.py shell
 
 admin
 Wn3@!xLr92

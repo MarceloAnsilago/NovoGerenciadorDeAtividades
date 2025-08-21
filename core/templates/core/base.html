@@ -173,6 +173,11 @@
         margin-left: 0;
       }
     }
+ 
+    /* esconder elementos marcados com .no-print apenas na impressão */
+    @media print {
+        .no-print { display: none !important; }
+    }
   </style>
 
    {% block extra_head %}
