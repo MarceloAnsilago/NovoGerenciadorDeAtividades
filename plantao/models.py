@@ -9,6 +9,10 @@ class Plantao(models.Model):
     criado_em = models.DateTimeField(auto_now_add=True)
     observacao = models.TextField(blank=True)
 
+    # --- adicionar isto ---
+    unidade = models.ForeignKey("core.No", null=True, blank=True, on_delete=models.PROTECT)
+    # ------------------------
+
     class Meta:
         ordering = ["-inicio"]
         verbose_name = "Plantão"

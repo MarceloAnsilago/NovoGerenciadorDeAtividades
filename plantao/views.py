@@ -26,6 +26,30 @@ from descanso.models import Descanso
 from .models import Plantao, Semana, SemanaServidor
 from .utils import verifica_conflito_plantao
 
+def _get_plantao_respeitando_unidade(request, pk):
+    """
+    Retorna um Plantao (ou 404) aplicando filtro por unidade, se o model Plantao
+    tiver o campo `unidade`. Staff vê tudo; usuários normais só veem plantões da unidade atual.
+    """
+    unidade_id = get_unidade_atual_id(request)
+    # verifica se o model Plantao tem campo 'unidade' (compatibilidade)
+    try:
+        field_names = [f.name for f in Plantao._meta.fields]
+    except Exception:
+        field_names = []
+
+    qs = Plantao.objects.all()
+    if "unidade" in field_names or "unidade_id" in field_names:
+        # se existe unidade no contexto e não é staff, filtra por unidade_id
+        if unidade_id and not request.user.is_staff:
+            qs = qs.filter(unidade_id=unidade_id)
+        # se unidade_id None -> não aplicamos filtro (útil para admin ou contextos sem unidade)
+    # get_object_or_404 aceita uma queryset como primeiro argumento
+    return get_object_or_404(qs, pk=pk)
+
+
+
+
 # --- helpers de datas (já no seu código) ---
 def _prev_or_same_saturday(d):  # Mon=0..Sun=6; Saturday=5
     from datetime import timedelta
@@ -64,9 +88,9 @@ def lista_plantao(request):
         "conflito_abort": False,
     }
 
-    # validações iniciais / render vazio
-    if not unidade_id:
-        return render(request, "plantao/lista.html", empty_context)
+     # validações iniciais / render vazio
+    if not unidade_id and not request.user.is_staff:
+       return render(request, "plantao/lista.html", empty_context)
 
     if not (data_inicial and data_final):
         return render(request, "plantao/lista.html", empty_context)
@@ -430,6 +454,15 @@ def ver_plantoes(request):
     Página que lista plantões salvos. A ação 'Abrir' carrega o fragmento com a tabela de escala abaixo.
     """
     plantoes = Plantao.objects.order_by("-inicio")
+    # aplica filtro se Plantao tem campo unidade e há unidade no contexto (exceto staff)
+    try:
+        field_names = [f.name for f in Plantao._meta.fields]
+    except Exception:
+        field_names = []
+
+    if ("unidade" in field_names or "unidade_id" in field_names) and get_unidade_atual_id(request) and not request.user.is_staff:
+        plantoes = plantoes.filter(unidade_id=get_unidade_atual_id(request))
+
     return render(request, "plantao/ver_plantoes.html", {"plantoes": plantoes})
 
 logger = logging.getLogger(__name__)
@@ -441,7 +474,7 @@ def plantao_detalhe_fragment(request, pk):
     Monta estruturas simples (SimpleNamespace) para evitar lookups dinâmicos quebrando templates.
     """
     try:
-        plantao = get_object_or_404(Plantao, pk=pk)
+        plantao = _get_plantao_respeitando_unidade(request, pk)
 
         # pega queryset de semanas com fallback caso related_name diferente
         if hasattr(plantao, "semanas"):
@@ -532,7 +565,8 @@ def plantao_excluir(request, pk):
     """
     Exclui um plantão. Permissão: quem criou ou staff. Retorna JSON.
     """
-    plantao = get_object_or_404(Plantao, pk=pk)
+    
+    plantao = _get_plantao_respeitando_unidade(request, pk)
     user = request.user
 
     # permite exclusão apenas pelo criador ou staff (ajuste conforme política)
@@ -549,7 +583,7 @@ def plantao_excluir(request, pk):
     
 @login_required
 def plantao_imprimir(request, pk):
-    plantao = get_object_or_404(Plantao, pk=pk)
+    plantao = _get_plantao_respeitando_unidade(request, pk)
 
     # monta os grupos (mesma lógica que antes)
     if hasattr(plantao, "semanas"):
