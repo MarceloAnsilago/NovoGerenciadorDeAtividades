@@ -10,7 +10,7 @@
   {% url 'servidores:lista' as lista_url %}
    {% include "partials/_page_header.html" with title="Editar Servidor" subtitle=unidade|default_if_none:"" back_url=lista_url icon="bi-pencil-square" %}
 
-  {% include "partials/_messages.html" %}
+  {% include "partials/_messages.html" with show_local_messages=False only %}
 
   <div class="card shadow-sm">
     <div class="card-body">

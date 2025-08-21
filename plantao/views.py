@@ -43,20 +43,26 @@ from descanso.models import Descanso
 
 # modelos deste app (plantao)
 from .models import Plantao, Semana, SemanaServidor
+import logging
+
 
 import traceback
 import sys
 from django.conf import settings
 from django.utils import timezone
+from django.urls import reverse
 
-
+# --- helpers de datas (já no seu código) ---
 def _prev_or_same_saturday(d):  # Mon=0..Sun=6; Saturday=5
+    from datetime import timedelta
     return d - timedelta(days=(d.weekday() - 5) % 7)
 
 def _next_or_same_friday(d):    # Friday=4
+    from datetime import timedelta
     return d + timedelta(days=(4 - d.weekday()) % 7)
 
 def _weeks_sat_to_fri(dt_ini, dt_fim):
+    from datetime import timedelta
     start = _prev_or_same_saturday(dt_ini)
     last  = _next_or_same_friday(dt_fim)
     weeks, cur = [], start
@@ -64,7 +70,6 @@ def _weeks_sat_to_fri(dt_ini, dt_fim):
         weeks.append((cur, cur + timedelta(days=6)))
         cur += timedelta(days=7)
     return weeks
-
 
 @login_required
 def lista_plantao(request):
@@ -117,6 +122,19 @@ def lista_plantao(request):
             "servidores_options": disp_options, "excluidos_options": exc_options,
             "bloqueados": bloqueados, "grupos": grupos_data,
         })
+
+    # --- Verificação de conflitos de PLANTAO (dispara já no Filtrar/GET) ---
+    plantoes_conflitantes = (Plantao.objects
+                             .filter(inicio__lte=dt_fim, fim__gte=dt_ini)
+                             .order_by("inicio"))
+    if plantoes_conflitantes.exists():
+        itens = [f"{p.inicio.strftime('%d/%m/%Y')} a {p.fim.strftime('%d/%m/%Y')}" for p in plantoes_conflitantes]
+        contador = plantoes_conflitantes.count()
+        plural = "plantão(ões)" if contador != 1 else "plantão"
+        periodo_sel = f"{dt_ini.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}"
+        msg = (f"Periodo inválido: já existe(m) {contador} {plural} que conflitam com o período informado: "
+               f"{periodo_sel} — {', '.join(itens)}")
+        messages.error(request, msg)
 
     # descansos de referência (para mostrar na tabela)
     descansos = (Descanso.objects
@@ -188,89 +206,93 @@ def lista_plantao(request):
         ids = grupos_sel_ids.get(i, [])
         if not ids:
             continue
-        # busca descansos que intersectam a semana atual para os servidores selecionados
         qs_conf = (Descanso.objects
                    .filter(servidor_id__in=ids, data_inicio__lte=fim, data_fim__gte=ini)
                    .select_related("servidor")
                    .order_by("servidor__nome", "data_inicio"))
-        # agrupa por servidor
         mapa = defaultdict(list)
         for d in qs_conf:
             mapa[d.servidor].append(d)
         for servidor_obj, descansos_servidor in mapa.items():
             conflitos[i].append((servidor_obj, descansos_servidor))
 
-    # Se o método for POST e houver conflitos -> informa e re-renderiza (não salva)
-    if request.method == "POST" and conflitos:
-        mensagens = []
-        for grupo_idx, itens in conflitos.items():
-            ini, fim = weeks[grupo_idx - 1]
-            periodo_str = f"{ini.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')}"
-            for servidor_obj, descansos_servidor in itens:
-                detalhes = "; ".join(
-                    f"{(getattr(d, 'get_tipo_display', lambda: getattr(d, 'tipo', ''))() or getattr(d, 'tipo', ''))} "
-                    f"({d.data_inicio.strftime('%d/%m/%Y')} a {d.data_fim.strftime('%d/%m/%Y')})"
-                    for d in descansos_servidor
-                )
-                mensagens.append(f"{servidor_obj.nome} está em descanso no período {periodo_str}: {detalhes}")
-        for m in mensagens:
-            messages.error(request, m)
-
-    # Se método POST e sem conflitos -> persistir Plantao / Semanas / SemanaServidor
-    elif request.method == "POST" and not conflitos:
-        # opcional: não duplicar plantões com mesmo início/fim
-        if Plantao.objects.filter(inicio=dt_ini, fim=dt_fim).exists():
-            messages.error(request, "Já existe um plantão salvo com esse intervalo (início/fim).")
-        else:
-            try:
-                with transaction.atomic():
-                    nome = f"{dt_ini.isoformat()} a {dt_fim.isoformat()}"
-                    observacao = request.POST.get("observacao", "").strip()
-
-                    plantao = Plantao.objects.create(
-                        nome=nome,
-                        inicio=dt_ini,
-                        fim=dt_fim,
-                        criado_por=request.user,
-                        observacao=observacao,
+    # --- GRAVAÇÃO: se for POST e sem conflitos de servidores, grava Plantao/semana/itens ---
+    if request.method == "POST":
+        # 1) se existem conflitos de descanso -> erro (já armado acima)
+        if conflitos:
+            mensagens = []
+            for grupo_idx, itens in conflitos.items():
+                ini, fim = weeks[grupo_idx - 1]
+                periodo_str = f"{ini.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')}"
+                for servidor_obj, descansos_servidor in itens:
+                    detalhes = "; ".join(
+                        f"{(getattr(d, 'get_tipo_display', lambda: getattr(d, 'tipo', ''))() or getattr(d, 'tipo', ''))} "
+                        f"({d.data_inicio.strftime('%d/%m/%Y')} a {d.data_fim.strftime('%d/%m/%Y')})"
+                        for d in descansos_servidor
                     )
+                    mensagens.append(f"{servidor_obj.nome} está em descanso no período {periodo_str}: {detalhes}")
+            for m in mensagens:
+                messages.error(request, m)
 
-                    # criar semanas + itens (mantendo ordem)
-                    for i, (ini, fim) in enumerate(weeks, start=1):
-                        semana = Semana.objects.create(
-                            plantao=plantao,
-                            inicio=ini,
-                            fim=fim,
-                            ordem=i,
-                        )
-                        ids = grupos_sel_ids.get(i, [])
-                        for ordem, sid in enumerate(ids, start=1):
-                            try:
-                                servidor = Servidor.objects.get(pk=sid)
-                            except Servidor.DoesNotExist:
-                                continue
-                            telefone = getattr(servidor, "telefone", "") or getattr(servidor, "celular", "") or ""
-                            SemanaServidor.objects.create(
-                                semana=semana,
-                                servidor=servidor,
-                                ordem=ordem,
-                                telefone_snapshot=telefone,
-                            )
-
-                messages.success(request, f"Plantão salvo com sucesso: {plantao}")
-                # tenta redirecionar para detalhe do plantão, se a rota existir; caso contrário, volta à lista
+        else:
+            # 2) Re-checar conflito PLANTAO (defesa contra race condition)
+            existe_conf_plantao = Plantao.objects.filter(inicio__lte=dt_fim, fim__gte=dt_ini).exists()
+            if existe_conf_plantao:
+                messages.error(request, "Não é possível salvar: já existe(m) plantão(ões) que conflitam com o período informado: "
+                                        f"{dt_ini.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}")
+            else:
+                # 3) grava em transação
                 try:
-                    return redirect("plantao:detalhe", pk=plantao.pk)
-                except Exception:
-                    return redirect(request.path + f"?saved_id={plantao.pk}")
-            except Exception as e:
-                messages.error(request, f"Erro ao salvar plantão: {e}")
+                    with transaction.atomic():
+                        observacao = request.POST.get("observacao", "")[:2000]
+                        plantao = Plantao.objects.create(
+                            inicio=dt_ini,
+                            fim=dt_fim,
+                            criado_por=request.user,
+                            observacao=observacao,
+                        )
+                        # criar semanas e itens
+                        for i, (ini, fim) in enumerate(weeks, start=1):
+                            # cria a semana ligada ao plantão (adapte campos se necessário)
+                            semana = Semana.objects.create(plantao=plantao, inicio=ini, fim=fim)
+                            # cria os servidores para essa semana (ordem preservada conforme ids enviados)
+                            ids = grupos_sel_ids.get(i, [])
+                            for ordem, sid in enumerate(ids, start=1):
+                                # pega telefone/backup
+                                try:
+                                    srv = Servidor.objects.get(pk=sid)
+                                    tel = getattr(srv, "telefone", None) or getattr(srv, "celular", None) or ""
+                                except Servidor.DoesNotExist:
+                                    srv = None
+                                    tel = ""
+                                # cria registro de vínculo (adapte nome do model/campos se diferente)
+                                SemanaServidor.objects.create(
+                                    semana=semana,
+                                    servidor_id=sid,
+                                    telefone_snapshot=tel,
+                                    ordem=ordem
+                                )
+                    # sucesso
+                    messages.success(request, f"Plantão salvo com sucesso: {dt_ini.strftime('%Y-%m-%d')} a {dt_fim.strftime('%Y-%m-%d')}")
+                    # redireciona para versão GET preservando filtro (evita re-POST)
+                    url = f"{reverse('plantao:lista_plantao')}?data_inicial={data_inicial}&data_final={data_final}"
+                    return redirect(url)
+                except Exception as e:
+                    messages.error(request, "Erro ao salvar plantão: " + str(e))
 
-    # monta dados por grupo (ordem) para render
+    # monta dados por grupo (ordem) e garante atributos de telefone para templates
     for i, (ini, fim) in enumerate(weeks, start=1):
         ids = grupos_sel_ids.get(i, [])
         objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids))}
         ordered = [objs[sid] for sid in ids if sid in objs]
+
+        # garantir atributo 'telefone' e 'celular' nas instâncias (evita VariableDoesNotExist no template)
+        for obj in ordered:
+            tel = getattr(obj, "telefone", None) or getattr(obj, "celular", None) or ""
+            setattr(obj, "telefone", tel)
+            if not hasattr(obj, "celular"):
+                setattr(obj, "celular", "")
+
         grupos_data.append({"index": i, "periodo": (ini, fim), "servidores": ordered})
 
     return render(request, "plantao/lista.html", {
@@ -279,7 +301,6 @@ def lista_plantao(request):
         "servidores_options": disp_options, "excluidos_options": exc_options,
         "bloqueados": bloqueados, "grupos": grupos_data,
     })
-
 
 @login_required
 def servidores_em_descanso(request):
@@ -366,31 +387,45 @@ def ver_plantoes(request):
     plantoes = Plantao.objects.order_by("-inicio")
     return render(request, "plantao/ver_plantoes.html", {"plantoes": plantoes})
 
-
+logger = logging.getLogger(__name__)
 # a view tolerante
 @login_required
 def plantao_detalhe_fragment(request, pk):
     """
-    Versão robusta que fornece atributos esperados pelo partial (telefone, celular, telefone_snapshot, id, nome).
+    Retorna um fragmento HTML para injeção via JS com a tabela de escala do plantão `pk`.
+    Monta estruturas simples (SimpleNamespace) para evitar lookups dinâmicos quebrando templates.
     """
     try:
         plantao = get_object_or_404(Plantao, pk=pk)
 
-        # semanas: tenta 'semanas' então 'semana_set'
+        # pega queryset de semanas com fallback caso related_name diferente
         if hasattr(plantao, "semanas"):
-            semanas_qs = plantao.semanas.order_by("ordem", "inicio").all()
+            try:
+                semanas_qs = plantao.semanas.all().order_by("ordem", "inicio")
+            except Exception:
+                # se 'ordem' não existir, tenta apenas por 'inicio'
+                semanas_qs = plantao.semanas.all().order_by("inicio")
         elif hasattr(plantao, "semana_set"):
-            semanas_qs = plantao.semana_set.order_by("ordem", "inicio").all()
+            try:
+                semanas_qs = plantao.semana_set.all().order_by("ordem", "inicio")
+            except Exception:
+                semanas_qs = plantao.semana_set.all().order_by("inicio")
         else:
             semanas_qs = []
 
         grupos = []
         for i, semana in enumerate(semanas_qs, start=1):
-            # itens na semana: tenta 'itens' então 'semanaservidor_set'
+            # detecta nome correto do relacionamento de itens e cria queryset seguro
             if hasattr(semana, "itens"):
-                itens_qs = semana.itens.order_by("ordem").all()
+                try:
+                    itens_qs = semana.itens.all().order_by("ordem")
+                except Exception:
+                    itens_qs = semana.itens.all()
             elif hasattr(semana, "semanaservidor_set"):
-                itens_qs = semana.semanaservidor_set.order_by("ordem").all()
+                try:
+                    itens_qs = semana.semanaservidor_set.all().order_by("ordem")
+                except Exception:
+                    itens_qs = semana.semanaservidor_set.all()
             else:
                 itens_qs = []
 
@@ -398,7 +433,7 @@ def plantao_detalhe_fragment(request, pk):
             for item in itens_qs:
                 servidor = getattr(item, "servidor", None)
 
-                # pega telefone preferencialmente do item snapshot (se existir) ou do servidor
+                # snapshot do telefone no item (se existir), senão pega do servidor
                 telefone_snapshot = getattr(item, "telefone_snapshot", "") or ""
                 telefone_servidor = ""
                 celular_servidor = ""
@@ -408,40 +443,41 @@ def plantao_detalhe_fragment(request, pk):
                 if servidor is not None:
                     servidor_id = getattr(servidor, "id", None)
                     nome_servidor = getattr(servidor, "nome", "") or str(servidor)
-                    # tente várias propriedades possíveis no modelo Servidor
-                    telefone_servidor = getattr(servidor, "telefone", "") or getattr(servidor, "celular", "") or ""
-                    # se o modelo tem ambos, preserva ambos (telefone_servidor -> telefone, celular_servidor -> celular)
-                    celular_servidor = getattr(servidor, "celular", "") or getattr(servidor, "telefone", "") or ""
-                # define o valor final a mostrar (prioriza snapshot do item)
+                    telefone_servidor = getattr(servidor, "telefone", "") or ""
+                    celular_servidor = getattr(servidor, "celular", "") or ""
+
                 telefone_final = telefone_snapshot or telefone_servidor or celular_servidor or ""
 
-                # monta um objeto com todos os atributos que o partial pode tentar ler
+                # SimpleNamespace funciona bem no template (atributos acessíveis via dot)
                 servidor_obj = SimpleNamespace(
                     id=servidor_id,
                     nome=nome_servidor,
                     telefone=telefone_final,
                     celular=celular_servidor,
                     telefone_snapshot=telefone_snapshot,
-                    servidor_original=servidor  # referência ao objeto real, caso precise
+                    servidor_original=servidor
                 )
 
                 itens.append(servidor_obj)
 
+            # cuidado: certifique-se que semana tem attrs inicio/fim (ajuste se nome diferente)
+            inicio = getattr(semana, "inicio", None)
+            fim = getattr(semana, "fim", None)
+
             grupos.append({
                 "index": i,
-                "periodo": (semana.inicio, semana.fim),
+                "periodo": (inicio, fim),
                 "servidores": itens,
             })
 
         html = render_to_string("partials/escala_tabela.html", {"grupos": grupos}, request=request)
-        return HttpResponse(html)
+        return HttpResponse(html, content_type="text/html")
 
-    except Exception:
-        tb = traceback.format_exc()
-        # imprime no servidor para facilitar debug
-        print("Erro em plantao_detalhe_fragment:", file=sys.stderr)
-        print(tb, file=sys.stderr)
+    except Exception as exc:
+        # registra stacktrace para debug no log
+        logger.exception("Erro em plantao_detalhe_fragment pk=%s: %s", pk, exc)
         if getattr(settings, "DEBUG", False):
+            tb = traceback.format_exc()
             return HttpResponse(f"<pre>{tb}</pre>", status=500, content_type="text/html")
         return HttpResponse("Erro ao carregar escala.", status=500)
 
@@ -453,15 +489,18 @@ def plantao_excluir(request, pk):
     """
     plantao = get_object_or_404(Plantao, pk=pk)
     user = request.user
-    # permita exclusão apenas pelo criador ou staff (ajuste conforme política)
+
+    # permite exclusão apenas pelo criador ou staff (ajuste conforme política)
     if plantao.criado_por and plantao.criado_por != user and not user.is_staff:
-        return HttpResponseForbidden("Você não tem permissão para excluir este plantão.")
+        return JsonResponse({"ok": False, "erro": "Você não tem permissão para excluir este plantão."}, status=403)
 
     try:
         plantao.delete()
         return JsonResponse({"ok": True})
     except Exception as e:
+        # cuidado com exposição de detalhes em produção; aqui é útil para debug
         return JsonResponse({"ok": False, "erro": str(e)}, status=500)
+
     
 @login_required
 def plantao_imprimir(request, pk):

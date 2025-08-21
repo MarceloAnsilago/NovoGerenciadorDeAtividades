@@ -3,7 +3,6 @@
 {% block content %}
 <div class="container py-3">
   <div class="card shadow-sm mb-4">
-
     <div class="card-header d-flex justify-content-between align-items-center">
       <strong><i class="bi bi-list-ul"></i> Plantões salvos</strong>
       <a href="{% url 'plantao:lista_plantao' %}" class="btn btn-sm btn-outline-secondary">
@@ -27,7 +26,13 @@
           <tbody id="plantoes-tbody">
             {% for p in plantoes %}
             <tr data-pk="{{ p.pk }}" id="plantao-row-{{ p.pk }}">
-              <td>{{ p.nome|default:"Plantão" }}</td>
+              <td>
+                {% if p.nome %}
+                  {{ p.nome }}
+                {% else %}
+                  {{ p.inicio|date:"d/m/Y" }} a {{ p.fim|date:"d/m/Y" }}
+                {% endif %}
+              </td>
               <td>{{ p.inicio|date:"d/m/Y" }}</td>
               <td>{{ p.fim|date:"d/m/Y" }}</td>
               <td>
@@ -69,14 +74,17 @@
   </div>
 </div>
 
+{# URL base (usada pelo JS para gerar a URL do fragmento de forma reversível) #}
+<span id="plantao-fragment-url-base" data-url="{% url 'plantao:plantao_detalhe_fragment' pk=0 %}" style="display:none;"></span>
+
 <script>
-/* --------- helpers CSRF (Django recommended) --------- */
+/* -------- helpers -------- */
 function getCookie(name) {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
     const cookies = document.cookie.split(';');
-    for (let c of cookies) {
-      c = c.trim();
+    for (let i=0;i<cookies.length;i++){
+      let c = cookies[i].trim();
       if (c.startsWith(name + '=')) {
         cookieValue = decodeURIComponent(c.substring(name.length + 1));
         break;
@@ -87,171 +95,176 @@ function getCookie(name) {
 }
 const csrftoken = getCookie('csrftoken');
 
-/* --------- estado global --------- */
+/* estado */
 let currentPlantaoPk = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   const tbody = document.getElementById('plantoes-tbody');
   const detalheContainer = document.getElementById('plantao-detalhe-container');
   const btnPrint = document.getElementById('btn-imprimir-plantao');
+  const baseUrlEl = document.getElementById('plantao-fragment-url-base');
+  const baseFragmentUrl = baseUrlEl ? baseUrlEl.getAttribute('data-url') : null;
 
-  /* --------- abrir (fetch fragmento HTML) ao clicar 'Abrir' --------- */
-  tbody.addEventListener('click', async (ev) => {
-    const btn = ev.target.closest('.btn-open');
-    if (!btn) return;
-    const pk = btn.getAttribute('data-pk');
-    if (!pk) return;
+  // delegação de clicks (abre/excluir)
+  document.body.addEventListener('click', async (ev) => {
+    // ========== Abrir ==========
+    const btnOpen = ev.target.closest('.btn-open');
+    if (btnOpen) {
+      ev.preventDefault();
+      const pk = btnOpen.getAttribute('data-pk');
+      if (!pk) {
+        console.warn('Botão Abrir sem data-pk');
+        return;
+      }
 
-    // url do fragmento (usa trick com pk=0 e replace para manter reverse em template)
-    const url = `{% url 'plantao:plantao_detalhe_fragment' pk=0 %}`.replace('/0/', `/${pk}/`);
+      const url = baseFragmentUrl ? baseFragmentUrl.replace('/0/', `/${pk}/`) : `/plantao/${pk}/detalhe-fragment/`;
 
-    try {
-      btn.disabled = true;
-      const originalHtml = btn.innerHTML;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Carregando...';
-      const resp = await fetch(url, { credentials: 'same-origin' });
+      // UI feedback
+      const originalHtml = btnOpen.innerHTML;
+      btnOpen.disabled = true;
+      btnOpen.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Carregando...';
 
-      if (!resp.ok) {
-        const txt = await resp.text();
-        detalheContainer.innerHTML = `<div class="alert alert-danger">Erro ao carregar escala: ${resp.status}</div>`;
-        console.error('Erro ao carregar fragmento:', txt);
-        // esconder botão imprimir (se estava visível)
+      try {
+        const resp = await fetch(url, { credentials: 'same-origin' });
+        if (!resp.ok) {
+          const text = await resp.text().catch(()=>'(sem body)');
+          console.error('Erro ao buscar fragmento', resp.status, text);
+          if (detalheContainer) detalheContainer.innerHTML = `<div class="alert alert-danger">Erro ao carregar escala (HTTP ${resp.status}).</div>`;
+          // esconder imprimir
+          if (btnPrint) btnPrint.style.display = 'none';
+          currentPlantaoPk = null;
+          document.querySelectorAll('#plantoes-tbody tr').forEach(r=>r.classList.remove('table-active'));
+        } else {
+          const html = await resp.text();
+          if (detalheContainer) detalheContainer.innerHTML = html || '<div class="alert alert-warning">Fragmento vazio.</div>';
+          detalheContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+          // marcar estado
+          currentPlantaoPk = pk;
+          if (btnPrint) btnPrint.style.display = 'inline-block';
+
+          // destacar linha ativa
+          document.querySelectorAll('#plantoes-tbody tr').forEach(r=>r.classList.remove('table-active'));
+          const row = document.getElementById(`plantao-row-${pk}`);
+          if (row) row.classList.add('table-active');
+        }
+      } catch (err) {
+        console.error('Erro fetch fragmento:', err);
+        if (detalheContainer) detalheContainer.innerHTML = `<div class="alert alert-danger">Erro inesperado ao carregar escala.</div>`;
         if (btnPrint) btnPrint.style.display = 'none';
         currentPlantaoPk = null;
-        // remover destaque de linhas
-        document.querySelectorAll('#plantoes-tbody tr').forEach(r => r.classList.remove('table-active'));
-      } else {
-        const html = await resp.text();
-        detalheContainer.innerHTML = html;
-        detalheContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-        // marca o plantão atual
-        currentPlantaoPk = pk;
-
-        // mostra o botão imprimir
-        if (btnPrint) btnPrint.style.display = 'inline-block';
-
-        // destaca linha ativa
-        document.querySelectorAll('#plantoes-tbody tr').forEach(r => r.classList.remove('table-active'));
-        const row = document.getElementById(`plantao-row-${pk}`);
-        if (row) row.classList.add('table-active');
+        document.querySelectorAll('#plantoes-tbody tr').forEach(r=>r.classList.remove('table-active'));
+      } finally {
+        btnOpen.disabled = false;
+        btnOpen.innerHTML = originalHtml;
       }
-    } catch (err) {
-      console.error('Erro fetch fragmento:', err);
-      detalheContainer.innerHTML = `<div class="alert alert-danger">Erro inesperado ao carregar escala.</div>`;
-      if (btnPrint) btnPrint.style.display = 'none';
-      currentPlantaoPk = null;
-      document.querySelectorAll('#plantoes-tbody tr').forEach(r => r.classList.remove('table-active'));
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-folder2-open"></i> Abrir';
+      return;
+    }
+
+    // ========== Excluir ==========
+    const btnDel = ev.target.closest('.btn-delete');
+    if (btnDel) {
+      ev.preventDefault();
+      const pk = btnDel.getAttribute('data-pk');
+      if (!pk) return;
+
+      if (!confirm("Confirma exclusão deste plantão? Esta ação não poderá ser desfeita.")) return;
+
+      // salva HTML original
+      if (!btnDel.dataset.origHtml) btnDel.dataset.origHtml = btnDel.innerHTML;
+      const origHtml = btnDel.dataset.origHtml;
+
+      const url = `{% url 'plantao:plantao_excluir' pk=0 %}`.replace('/0/', `/${pk}/`);
+      try {
+        btnDel.disabled = true;
+        btnDel.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Excluindo...';
+
+        const resp = await fetch(url, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'X-CSRFToken': csrftoken,
+            'Accept': 'application/json'
+          }
+        });
+
+        const text = await resp.text();
+        let data = null;
+        try { data = text ? JSON.parse(text) : null; } catch(e){ /* non-json */ }
+
+        if (resp.ok && data && data.ok) {
+          // remove linha
+          const row = document.getElementById(`plantao-row-${pk}`);
+          if (row) row.remove();
+          // limpa detalhe caso seja o plantão aberto
+          if (String(currentPlantaoPk) === String(pk)) {
+            if (detalheContainer) detalheContainer.innerHTML = '';
+            currentPlantaoPk = null;
+            if (btnPrint) btnPrint.style.display = 'none';
+          }
+
+          // feedback (alert bootstrap)
+          const alert = document.createElement('div');
+          alert.className = 'alert alert-success';
+          alert.role = 'alert';
+          alert.textContent = 'Plantão excluído com sucesso.';
+          const container = document.querySelector('.container') || document.body;
+          container.insertBefore(alert, container.firstChild);
+          setTimeout(()=> alert.remove(), 3500);
+        } else {
+          const serverMsg = (data && data.erro) ? data.erro : null;
+          let message = serverMsg || `Erro ao excluir (HTTP ${resp.status}).`;
+          if (resp.status === 403 && !serverMsg) message = 'Permissão negada para excluir este plantão.';
+          if (!data) message += ' (resposta não foi JSON)';
+          alert(message);
+          console.error('Excluir plantão falhou', { status: resp.status, body: text, parsed: data });
+        }
+      } catch (err) {
+        console.error('Erro comunicação ao excluir:', err);
+        alert('Erro de comunicação ao tentar excluir. Veja console/Network.');
+      } finally {
+        btnDel.disabled = false;
+        btnDel.innerHTML = origHtml;
+      }
+      return;
     }
   });
 
-  /* --------- excluir com confirmação (POST) --------- */
-  tbody.addEventListener('click', async (ev) => {
-    const btn = ev.target.closest('.btn-delete');
-    if (!btn) return;
-    const pk = btn.getAttribute('data-pk');
-    if (!pk) return;
-
-    if (!confirm("Confirma exclusão deste plantão? Esta ação não poderá ser desfeita.")) return;
-
-    const url = `{% url 'plantao:plantao_excluir' pk=0 %}`.replace('/0/', `/${pk}/`);
-    try {
-      btn.disabled = true;
-      const originalHtml = btn.innerHTML;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Excluindo...';
-      const resp = await fetch(url, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'X-CSRFToken': csrftoken,
-          'Accept': 'application/json'
-        }
-      });
-
-      const data = await resp.json().catch(()=>({ ok: false, erro: 'Resposta inválida do servidor' }));
-
-      if (resp.ok && data.ok) {
-        // remover linha e limpar detalhe se estava mostrando
-        const row = document.getElementById(`plantao-row-${pk}`);
-        if (row) row.remove();
-
-        // limpar detalhe se estivermos vendo este plantão
-        if (String(currentPlantaoPk) === String(pk)) {
-          detalheContainer.innerHTML = '';
-          currentPlantaoPk = null;
-          if (btnPrint) btnPrint.style.display = 'none';
-        }
-
-        // feedback
-        const alert = document.createElement('div');
-        alert.className = 'alert alert-success';
-        alert.textContent = 'Plantão excluído com sucesso.';
-        document.querySelector('.container').insertBefore(alert, detalheContainer);
-        setTimeout(()=> alert.remove(), 3000);
-      } else {
-        const err = data.erro || 'Erro ao excluir.';
-        alert(err);
-      }
-    } catch (err) {
-      console.error('Erro ao excluir:', err);
-      alert('Erro de comunicação ao tentar excluir.');
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-trash"></i> Excluir';
+  // ========== Imprimir: mostra apenas o detalhe carregado ========== //
+  btnPrint?.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    if (!currentPlantaoPk) {
+      alert('Nenhum plantão carregado para imprimir.');
+      return;
     }
+
+    // CSS temporário para impressão: esconde tudo exceto o detalhe
+    const printCss = `
+      @media print {
+        body * { visibility: hidden !important; }
+        #plantao-detalhe-container, #plantao-detalhe-container * { visibility: visible !important; }
+        #plantao-detalhe-container { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }
+        .no-print { display: none !important; }
+        @page { margin: 12mm; }
+      }
+    `;
+    const styleEl = document.createElement('style');
+    styleEl.id = 'print-only-style';
+    styleEl.appendChild(document.createTextNode(printCss));
+    document.head.appendChild(styleEl);
+
+    // pequeno delay para garantir repaint
+    setTimeout(() => {
+      try { window.print(); } finally {
+        setTimeout(()=> {
+          const s = document.getElementById('print-only-style');
+          if (s) s.remove();
+        }, 300);
+      }
+    }, 150);
   });
 
-  /* --------- imprimir (abre página de impressão em nova aba) --------- */
-    let _previousDetalheHtml = null;
-
-btnPrint?.addEventListener('click', async (ev) => {
-  ev.preventDefault();
-  if (!currentPlantaoPk) {
-    alert('Nenhum plantão carregado para imprimir.');
-    return;
-  }
-
-  // se quiser atualizar o fragmento antes de imprimir (opcional), pode fetchar /imprimir/?inline=1
-  // mas se já tiver o HTML carregado no detalhe, vamos usar direto.
-
-  // CSS que esconde tudo e mostra apenas #plantao-detalhe-container
-  const printCss = `
-    @media print {
-      body * { visibility: hidden !important; }
-      /* mostrar somente o container e seus filhos */
-      #plantao-detalhe-container, #plantao-detalhe-container * {
-        visibility: visible !important;
-      }
-      /* posiciona o container no topo da página */
-      #plantao-detalhe-container { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }
-      /* esconde elementos que tenham explicitamente essa classe */
-      .no-print { display: none !important; }
-      @page { margin: 12mm; }
-    }
-  `;
-
-  // cria a <style> temporária
-  const styleEl = document.createElement('style');
-  styleEl.id = 'print-only-style';
-  styleEl.appendChild(document.createTextNode(printCss));
-  document.head.appendChild(styleEl);
-
-  // força repaint/pequeno delay, então chama print
-  setTimeout(() => {
-    try {
-      window.print();
-    } finally {
-      // remove o style e restaura a página (um pequeno timeout para permitir finalização do diálogo)
-      setTimeout(() => {
-        const s = document.getElementById('print-only-style');
-        if (s) s.remove();
-      }, 300);
-    }
-  }, 150);
-});
 });
 </script>
+
 {% endblock %}

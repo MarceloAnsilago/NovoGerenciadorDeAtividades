@@ -1,4 +1,4 @@
-{# Espera: grupos (lista de dicts com keys: periodo=(ini,fim), servidores=[Servidor,...]) #}
+{# partials/escala_tabela.html (corrigido) #}
 <div class="card shadow-sm mt-4">
   <div class="card-header bg-light">
     <strong><i class="bi bi-table"></i> Escala de Plantão para recebimento de vacinas e produtos biológicos</strong>
@@ -22,7 +22,9 @@
           <td id="escala-nome-{{ g.index }}">
             {% if g.servidores %}
               <ul class="list-unstyled mb-0">
-                {% for s in g.servidores %}<li>{{ s.nome }}</li>{% endfor %}
+                {% for s in g.servidores %}
+                  <li>{{ s.nome }}</li>
+                {% endfor %}
               </ul>
             {% else %}
               <span class="text-muted">—</span>
@@ -32,8 +34,9 @@
           <td id="escala-fone-{{ g.index }}">
             {% if g.servidores %}
               <ul class="list-unstyled mb-0">
+                {# Aqui usamos apenas 's.telefone' para evitar lookup que falhe #}
                 {% for s in g.servidores %}
-                  <li>{{ s.telefone|default:s.celular|default:"—" }}</li>
+                  <li>{{ s.telefone|default:"—" }}</li>
                 {% endfor %}
               </ul>
             {% else %}
