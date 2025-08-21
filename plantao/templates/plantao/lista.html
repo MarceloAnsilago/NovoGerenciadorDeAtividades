@@ -106,26 +106,26 @@ function incAvailCount(id, delta){
 }
 
 /* --------- escala (tabela) --------- */
+function escapeHtml(s){ return s ? s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;") : ""; }
 function refreshEscalaRowByGroupId(groupId){
-  const idx = groupId.replace('grupo-','');
-  const sel = document.getElementById(groupId);
-  const first = sel && sel.options[0];
-  const nome = document.getElementById('escala-nome-'+idx);
-  const fone = document.getElementById('escala-fone-'+idx);
-  if (!nome || !fone) return;
+  const idx   = groupId.replace('grupo-','');
+  const sel   = document.getElementById(groupId);
+  const nomes = document.getElementById('escala-nome-'+idx);
+  const fones = document.getElementById('escala-fone-'+idx);
+  if (!nomes || !fones) return;
 
-  if (first){
-    nome.textContent = first.text;
-    fone.textContent = first.getAttribute('data-phone') || '—';
-  } else {
-    nome.innerHTML = '<span class="text-muted">—</span>';
-    fone.innerHTML = '<span class="text-muted">—</span>';
+  const opts = sel ? [...sel.options] : [];
+  if (opts.length === 0){
+    nomes.innerHTML = '<span class="text-muted">—</span>';
+    fones.innerHTML = '<span class="text-muted">—</span>';
+    return;
   }
-}
-function refreshAllEscalaRows(){
-  document.querySelectorAll('.grupo-select').forEach(sel=>{
-    refreshEscalaRowByGroupId(sel.id);
-  });
+
+  const nomesLis = opts.map(o => `<li>${escapeHtml(o.text)}</li>`).join('');
+  const fonesLis = opts.map(o => `<li>${escapeHtml(o.getAttribute('data-phone') || '—')}</li>`).join('');
+
+  nomes.innerHTML = `<ul class="list-unstyled mb-0">${nomesLis}</ul>`;
+  fones.innerHTML = `<ul class="list-unstyled mb-0">${fonesLis}</ul>`;
 }
 
 /* --------- ações --------- */

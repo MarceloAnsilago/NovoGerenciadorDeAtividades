@@ -9,29 +9,44 @@
         <tr>
           <th>Início</th>
           <th>Fim</th>
-          <th>Servidor</th>
-          <th>Telefone</th>
+          <th>Servidores</th>
+          <th>Telefones</th>
         </tr>
       </thead>
       <tbody>
         {% for g in grupos %}
-          {% with s=g.servidores.0 %}
-          <tr id="escala-row-{{ g.index }}">
-            <td>{{ g.periodo.0|date:"d/m/Y" }}</td>
-            <td>{{ g.periodo.1|date:"d/m/Y" }}</td>
-            <td id="escala-nome-{{ g.index }}">
-              {% if s %}{{ s.nome }}{% else %}<span class="text-muted">—</span>{% endif %}
-            </td>
-            <td id="escala-fone-{{ g.index }}">
-              {% if s %}{{ s.telefone|default:"—" }}{% else %}<span class="text-muted">—</span>{% endif %}
-            </td>
-          </tr>
-          {% endwith %}
+        <tr id="escala-row-{{ g.index }}">
+          <td>{{ g.periodo.0|date:"d/m/Y" }}</td>
+          <td>{{ g.periodo.1|date:"d/m/Y" }}</td>
+
+          <td id="escala-nome-{{ g.index }}">
+            {% if g.servidores %}
+              <ul class="list-unstyled mb-0">
+                {% for s in g.servidores %}<li>{{ s.nome }}</li>{% endfor %}
+              </ul>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+
+          <td id="escala-fone-{{ g.index }}">
+            {% if g.servidores %}
+              <ul class="list-unstyled mb-0">
+                {% for s in g.servidores %}
+                  <li>{{ s.telefone|default:s.celular|default:"—" }}</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
+
     <p class="text-muted small mb-0">
-      A tabela usa o <strong>primeiro servidor</strong> de cada grupo. Reordene ↑/↓ no card do grupo para alterar.
+      A tabela reflete a ordem dos grupos. Reordene ↑/↓ nos cards dos grupos para alterar.
     </p>
   </div>
 </div>
