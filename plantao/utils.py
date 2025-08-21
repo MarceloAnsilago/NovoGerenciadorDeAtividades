@@ -1,4 +1,7 @@
 from datetime import timedelta
+from django.contrib import messages
+from django.shortcuts import render
+from .models import Plantao
 
 def gerar_plantao_semana_com_impedimentos(servidores, descansos_list, data_inicio, data_fim):
     """
@@ -54,3 +57,21 @@ def gerar_plantao_semana_com_impedimentos(servidores, descansos_list, data_inici
     tabela = [{"inicio": data_inicio, "fim": data_fim, "dias": dias, "linhas": linhas}]
     impedimentos = list(dict.fromkeys(impedimentos))  # dedupe mantendo ordem
     return tabela, impedimentos
+
+
+def verifica_conflito_plantao(request, dt_ini, dt_fim, contexto):
+    conflitos = Plantao.objects.filter(inicio__lte=dt_fim, fim__gte=dt_ini).order_by("inicio")
+    if conflitos.exists():
+        itens = [f"{p.inicio.strftime('%d/%m/%Y')} a {p.fim.strftime('%d/%m/%Y')}" for p in conflitos]
+        contador = len(itens)
+        plural = "plantões" if contador != 1 else "plantão"
+        periodo_sel = f"{dt_ini.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}"
+        itens_txt = ", ".join(itens)
+
+        messages.error(request,
+            f"Já existe(m) <strong>{contador} {plural}</strong> que conflitam com o período "
+            f"(<strong>{periodo_sel}</strong>): {itens_txt}.")
+        
+        return render(request, "plantao/lista.html", contexto)
+
+    return None

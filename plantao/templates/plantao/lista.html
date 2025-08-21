@@ -35,52 +35,87 @@
 
   {% include "partials/_messages.html" %}
 
-  <!-- Descansos -->
-  <div class="card shadow-sm mb-4">
-    <div class="card-header bg-light"><strong><i class="bi bi-calendar-range"></i> Descansos no período</strong></div>
-    <div class="card-body">
-      {% if data_inicial and data_final %}
-        {% if servidores_com_descanso %}
-          {% include "partials/_descanso_por_servidor_table.html" with servidores_com_descanso=servidores_com_descanso only %}
-        {% else %}
-          <p class="text-muted mb-0">Nenhum servidor em descanso no período informado.</p>
+  {# Se houve conflito e a view retornou conflito_abort=True, não renderizar nada além do aviso #}
+  {% if conflito_abort %}
+    <div class="card shadow-sm mb-4 border-danger">
+      <div class="card-header bg-light">
+        <strong class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Conflito de plantão</strong>
+      </div>
+      <div class="card-body">
+        <p class="mb-2">
+          Já existe(m) plantão(ões) que conflitam com o período selecionado
+          (<strong>{{ data_inicial|date:"d/m/Y" }} a {{ data_final|date:"d/m/Y" }}</strong>).
+        </p>
+
+        {% if plantoes_conflitantes %}
+          <div class="mb-2">
+            <strong>Períodos conflitantes:</strong>
+            <ul class="mb-0">
+              {% for p in plantoes_conflitantes %}
+                <li>{{ p.inicio|date:"d/m/Y" }} a {{ p.fim|date:"d/m/Y" }}</li>
+              {% endfor %}
+            </ul>
+          </div>
         {% endif %}
-      {% else %}
-        <p class="text-muted mb-0">Selecione a data inicial e final e clique em <strong>Filtrar</strong>.</p>
-      {% endif %}
+
+        <p class="text-muted mb-0">
+          Altere o período ou visualize os plantões existentes antes de tentar salvar.
+        </p>
+      </div>
     </div>
-  </div>
 
-  <!-- Montar escala: por grupos -->
-  {% if data_inicial and data_final %}
-  <div class="card shadow-sm">
-    <div class="card-header bg-light d-flex justify-content-between align-items-center">
-      <strong><i class="bi bi-people"></i> Montar escala do plantão (por grupos)</strong>
-      <div class="small text-muted"><i class="bi bi-person-fill-slash"></i> Excluídos (descanso integral): {{ bloqueados|length }}</div>
+    {# Não executar o restante da UI (descansos / montagem / scripts) #}
+  {% else %}
+    <!-- Descansos -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-light"><strong><i class="bi bi-calendar-range"></i> Descansos no período</strong></div>
+      <div class="card-body">
+        {% if data_inicial and data_final %}
+          {% if servidores_com_descanso %}
+            {% include "partials/_descanso_por_servidor_table.html" with servidores_com_descanso=servidores_com_descanso only %}
+          {% else %}
+            <p class="text-muted mb-0">Nenhum servidor em descanso no período informado.</p>
+          {% endif %}
+        {% else %}
+          <p class="text-muted mb-0">Selecione a data inicial e final e clique em <strong>Filtrar</strong>.</p>
+        {% endif %}
+      </div>
     </div>
-    <div class="card-body">
-      <form id="form-escala" method="post" action="{% url 'plantao:lista_plantao' %}">
-        {% csrf_token %}
-        <input type="hidden" name="data_inicial" value="{{ data_inicial }}">
-        <input type="hidden" name="data_final" value="{{ data_final }}">
 
-        {% include "partials/escala_grupos.html" %}
+    <!-- Montar escala: por grupos -->
+    {% if data_inicial and data_final %}
+    <div class="card shadow-sm">
+      <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-people"></i> Montar escala do plantão (por grupos)</strong>
+        <div class="small text-muted"><i class="bi bi-person-fill-slash"></i> Excluídos (descanso integral): {{ bloqueados|length }}</div>
+      </div>
+      <div class="card-body">
+        <form id="form-escala" method="post" action="{% url 'plantao:lista_plantao' %}">
+          {% csrf_token %}
+          <input type="hidden" name="data_inicial" value="{{ data_inicial }}">
+          <input type="hidden" name="data_final" value="{{ data_final }}">
 
-        <!-- botão Salvar dentro do form -->
-        <div class="mt-3">
-          <button type="submit" id="btn-salvar" class="btn btn-primary">
-            <i class="bi bi-save"></i> Salvar
-          </button>
-        </div>
+          {% include "partials/escala_grupos.html" %}
 
-      </form>
+          <!-- botão Salvar dentro do form -->
+          <div class="mt-3">
+            <button type="submit" id="btn-salvar" class="btn btn-primary">
+              <i class="bi bi-save"></i> Salvar
+            </button>
+          </div>
+
+        </form>
+      </div>
     </div>
-  </div>
 
-  {% include "partials/escala_tabela.html" with grupos=grupos only %}
+    {% include "partials/escala_tabela.html" with grupos=grupos only %}
+    {% endif %}
   {% endif %}
+
 </div>
 
+{# só incluir os scripts de comportamento se não houver abort por conflito #}
+{% if not conflito_abort %}
 <script>
 let currentGroupId = null; // grupo alvo do botão “Adicionar →” geral
 
@@ -296,5 +331,6 @@ document.addEventListener('DOMContentLoaded', ()=> {
   }
 });
 </script>
+{% endif %}
 
 {% endblock %}

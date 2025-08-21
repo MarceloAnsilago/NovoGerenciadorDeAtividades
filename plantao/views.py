@@ -1,59 +1,30 @@
 # stdlib
 from types import SimpleNamespace
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 from itertools import chain
+import traceback
+import logging
 
 # Django
 from django.shortcuts import render, get_object_or_404, redirect
 from django.template.loader import render_to_string
-from django.http import JsonResponse, HttpResponse, HttpResponseForbidden, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_GET, require_POST
 from django.db import transaction
+from django.urls import reverse
+from django.utils.html import format_html
+from django.conf import settings
+from django.utils import timezone
 
 # project utils / models
 from core.utils import get_unidade_atual_id
 from servidores.models import Servidor
 from descanso.models import Descanso
 from .models import Plantao, Semana, SemanaServidor
-
-# plantao/views.py
-
-from datetime import datetime, timedelta
-from itertools import chain
-# stdlib
-from datetime import datetime
-from collections import defaultdict, Counter
-from itertools import chain
-
-# Django
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
-from django.db import transaction
-
-# utilidades do projeto
-from core.utils import get_unidade_atual_id
-
-# modelos externos ao app atual
-from servidores.models import Servidor
-from descanso.models import Descanso
-
-# modelos deste app (plantao)
-from .models import Plantao, Semana, SemanaServidor
-import logging
-
-
-import traceback
-import sys
-from django.conf import settings
-from django.utils import timezone
-from django.urls import reverse
-
-from django.utils.safestring import mark_safe
-from django.urls import reverse
+from .utils import verifica_conflito_plantao
 
 # --- helpers de datas (já no seu código) ---
 def _prev_or_same_saturday(d):  # Mon=0..Sun=6; Saturday=5
@@ -81,29 +52,24 @@ def lista_plantao(request):
     data_inicial = (request.POST.get("data_inicial") or request.GET.get("data_inicial") or "")
     data_final   = (request.POST.get("data_final")   or request.GET.get("data_final")   or "")
 
-    # variáveis que renderizamos no template
-    servidores_com_descanso = {}
-    bloqueados = []
-    grupos_data = []     # [{"index": i, "periodo": (ini,fim), "servidores": [...]}]
-    disp_options = []    # disponíveis (para select)
-    exc_options  = []    # excluídos (para select)
+    # valores mínimos / vazios que devolvemos se abortar
+    empty_context = {
+        "data_inicial": data_inicial,
+        "data_final": data_final,
+        "servidores_com_descanso": {},
+        "servidores_options": [],
+        "excluidos_options": [],
+        "bloqueados": [],
+        "grupos": [],
+        "conflito_abort": False,  # será True se abortarmos por conflito
+    }
 
     # validações iniciais / render vazio
     if not unidade_id:
-        return render(request, "plantao/lista.html", {
-            "data_inicial": data_inicial, "data_final": data_final,
-            "servidores_com_descanso": servidores_com_descanso,
-            "servidores_options": disp_options, "excluidos_options": exc_options,
-            "bloqueados": bloqueados, "grupos": grupos_data,
-        })
+        return render(request, "plantao/lista.html", empty_context)
 
     if not (data_inicial and data_final):
-        return render(request, "plantao/lista.html", {
-            "data_inicial": data_inicial, "data_final": data_final,
-            "servidores_com_descanso": servidores_com_descanso,
-            "servidores_options": disp_options, "excluidos_options": exc_options,
-            "bloqueados": bloqueados, "grupos": grupos_data,
-        })
+        return render(request, "plantao/lista.html", empty_context)
 
     # parse das datas
     try:
@@ -111,48 +77,48 @@ def lista_plantao(request):
         dt_fim = datetime.strptime(data_final, "%Y-%m-%d").date()
     except ValueError:
         messages.error(request, "Datas inválidas. Use o seletor de data no formato YYYY-MM-DD.")
-        return render(request, "plantao/lista.html", {
-            "data_inicial": "", "data_final": "",
-            "servidores_com_descanso": servidores_com_descanso,
-            "servidores_options": disp_options, "excluidos_options": exc_options,
-            "bloqueados": bloqueados, "grupos": grupos_data,
-        })
+        # devolve contexto mínimo (não carregamos nada pesado)
+        return render(request, "plantao/lista.html", {**empty_context, "data_inicial": "", "data_final": ""})
 
     if dt_fim < dt_ini:
         messages.error(request, "Data final não pode ser anterior à data inicial.")
-        return render(request, "plantao/lista.html", {
-            "data_inicial": data_inicial, "data_final": data_final,
-            "servidores_com_descanso": servidores_com_descanso,
-            "servidores_options": disp_options, "excluidos_options": exc_options,
-            "bloqueados": bloqueados, "grupos": grupos_data,
-        })
+        return render(request, "plantao/lista.html", empty_context)
 
     # -------------------------
-    #  Verificação de conflitos
+    # VERIFICAÇÃO IMEDIATA DE CONFLITO DE PLANTÃO (antes de carregar descansos/servidores)
     # -------------------------
     plantoes_conflitantes = Plantao.objects.filter(inicio__lte=dt_fim, fim__gte=dt_ini).order_by("inicio")
-    existe_conf_plantao = plantoes_conflitantes.exists()
-    if existe_conf_plantao:
+    if plantoes_conflitantes.exists():
         itens = [f"{p.inicio.strftime('%d/%m/%Y')} a {p.fim.strftime('%d/%m/%Y')}" for p in plantoes_conflitantes]
-        contador = plantoes_conflitantes.count()
+        contador = len(itens)
         plural = "plantões" if contador != 1 else "plantão"
         periodo_sel = f"{dt_ini.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}"
         itens_txt = ", ".join(itens)
 
-        # GET (filtrar) => aviso (warning)
-        if request.method == "GET":
-            messages.warning(request,
-                f"Existe(m) <strong>{contador} {plural}</strong> que conflitam com o período selecionado "
-                f"(<strong>{periodo_sel}</strong>): {itens_txt}.")
-        # POST (tentar salvar) => erro e bloqueio
-        else:
-            messages.error(request,
-                f"Não foi possível salvar: existe(m) <strong>{contador} {plural}</strong> que conflitam com o período "
-                f"selecionado (<strong>{periodo_sel}</strong>): {itens_txt}.")
+        # usar format_html para enviar HTML seguro ao messages (se o template exibir mensagens sem escape)
+        msg = format_html(
+            "Já existe(m) <strong>{}</strong> que conflitam com o período ({}) : {}.",
+            f"{contador} {plural}", periodo_sel, itens_txt
+        )
+        # Para GET ou POST mostramos erro e abortamos sem carregar nada
+        messages.error(request, msg)
 
-    # ---------------------------------
-    # descansos de referência (para UI)
-    # ---------------------------------
+        # devolve contexto mínimo e sinaliza abort
+        return render(request, "plantao/lista.html", {
+            "data_inicial": data_inicial,
+            "data_final": data_final,
+            "servidores_com_descanso": {},
+            "servidores_options": [],
+            "excluidos_options": [],
+            "bloqueados": [],
+            "grupos": [],
+            "conflito_abort": True,
+            "plantoes_conflitantes": plantoes_conflitantes,  # opcional: se quiser detalhes no template
+        })
+
+    # -------------------------------------------
+    # dados para UI: descansos, disponíveis, weeks
+    # -------------------------------------------
     descansos = (Descanso.objects
                  .filter(servidor__unidade_id=unidade_id,
                          data_inicio__lte=dt_fim,
@@ -164,7 +130,6 @@ def lista_plantao(request):
         mapa_dd[d.servidor].append(d)
     servidores_com_descanso = dict(mapa_dd)
 
-    # disponíveis = todos - descanso integral (bloqueados = descanso que cobre todo o período selecionado)
     todos = Servidor.objects.filter(unidade_id=unidade_id).order_by("nome")
     bloqueados_ids = (Descanso.objects
                       .filter(servidor__in=todos, data_inicio__lte=dt_ini, data_fim__gte=dt_fim)
@@ -172,10 +137,10 @@ def lista_plantao(request):
     base_qs = todos.exclude(id__in=bloqueados_ids)
     bloqueados = list(todos.filter(id__in=bloqueados_ids))
 
-    # semanas (Sáb→Sex) - função helper _weeks_sat_to_fri deve existir no arquivo
+    # semanas (Sáb→Sex)
     weeks = _weeks_sat_to_fri(dt_ini, dt_fim)
 
-    # grupos vindos do request (sem limites aqui)
+    # grupos vindos do request (sem limites)
     grupos_sel_ids = {}
     for i in range(1, len(weeks) + 1):
         ids = request.POST.getlist(f"grupo_{i}") or request.GET.getlist(f"grupo_{i}") or []
@@ -197,7 +162,6 @@ def lista_plantao(request):
     disp_qs = base_qs.exclude(id__in=excl_ids)
     exc_qs  = base_qs.filter(id__in=excl_ids)
 
-    # preparar opções para os selects JS/templates
     disp_options = [
         {
             "value": s.id,
@@ -207,6 +171,7 @@ def lista_plantao(request):
         }
         for s in disp_qs
     ]
+
     exc_options = [
         {
             "value": s.id,
@@ -216,7 +181,9 @@ def lista_plantao(request):
         for s in exc_qs
     ]
 
-    # validação servidor x descanso por grupo (servidores que conflitam com semanas)
+    # ---------------------------------
+    # validação servidor x descanso por grupo
+    # ---------------------------------
     conflitos = defaultdict(list)  # {grupo_idx: [(Servidor, [Descanso,...]), ...]}
     for i, (ini, fim) in enumerate(weeks, start=1):
         ids = grupos_sel_ids.get(i, [])
@@ -232,81 +199,111 @@ def lista_plantao(request):
         for servidor_obj, descansos_servidor in mapa.items():
             conflitos[i].append((servidor_obj, descansos_servidor))
 
-    # ------------------------------------------
-    # GRAVAÇÃO: se for POST e sem conflitos, grava
-    # ------------------------------------------
+    if request.method == "POST" and conflitos:
+        mensagens = []
+        for grupo_idx, itens in conflitos.items():
+            ini, fim = weeks[grupo_idx - 1]
+            periodo_str = f"{ini.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')}"
+            for servidor_obj, descansos_servidor in itens:
+                detalhes = "; ".join(
+                    f"{(getattr(d, 'get_tipo_display', lambda: getattr(d, 'tipo', ''))() or getattr(d, 'tipo', ''))} "
+                    f"({d.data_inicio.strftime('%d/%m/%Y')} a {d.data_fim.strftime('%d/%m/%Y')})"
+                    for d in descansos_servidor
+                )
+                mensagens.append(f"{servidor_obj.nome} está em descanso no período {periodo_str}: {detalhes}")
+        for m in mensagens:
+            messages.error(request, m)
+
+        # re-monta grupos_data igual ao bloco acima e retorna (abortando gravação)
+        grupos_data = []
+        for i, (ini, fim) in enumerate(weeks, start=1):
+            ids = grupos_sel_ids.get(i, [])
+            objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids))}
+            ordered = [objs[sid] for sid in ids if sid in objs]
+            for obj in ordered:
+                tel = getattr(obj, "telefone", None) or getattr(obj, "celular", None) or ""
+                setattr(obj, "telefone", tel)
+                if not hasattr(obj, "celular"):
+                    setattr(obj, "celular", "")
+            grupos_data.append({"index": i, "periodo": (ini, fim), "servidores": ordered})
+
+        return render(request, "plantao/lista.html", {
+            "data_inicial": data_inicial, "data_final": data_final,
+            "servidores_com_descanso": servidores_com_descanso,
+            "servidores_options": disp_options, "excluidos_options": exc_options,
+            "bloqueados": bloqueados, "grupos": grupos_data,
+        })
+
+    # -------------------------
+    # Se for POST e chegou aqui -> salva
+    # -------------------------
     if request.method == "POST":
-        # 1) conflitos de descanso por servidor -> bloqueia
-        if conflitos:
-            mensagens = []
-            for grupo_idx, itens in conflitos.items():
-                ini, fim = weeks[grupo_idx - 1]
-                periodo_str = f"{ini.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')}"
-                for servidor_obj, descansos_servidor in itens:
-                    detalhes = "; ".join(
-                        f"{(getattr(d, 'get_tipo_display', lambda: getattr(d, 'tipo', ''))() or getattr(d, 'tipo', ''))} "
-                        f"({d.data_inicio.strftime('%d/%m/%Y')} a {d.data_fim.strftime('%d/%m/%Y')})"
-                        for d in descansos_servidor
-                    )
-                    mensagens.append(f"{servidor_obj.nome} está em descanso no período {periodo_str}: {detalhes}")
-            for m in mensagens:
-                messages.error(request, m)
+        # rechecagem final de conflito PLANTAO (race condition defense)
+        if Plantao.objects.filter(inicio__lte=dt_fim, fim__gte=dt_ini).exists():
+            messages.error(request, "Não foi possível salvar: já existe(m) plantão(ões) que conflitam com o período informado.")
+            # re-render context
+            grupos_data = []
+            for i, (ini, fim) in enumerate(weeks, start=1):
+                ids = grupos_sel_ids.get(i, [])
+                objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids))}
+                ordered = [objs[sid] for sid in ids if sid in objs]
+                for obj in ordered:
+                    tel = getattr(obj, "telefone", None) or getattr(obj, "celular", None) or ""
+                    setattr(obj, "telefone", tel)
+                    if not hasattr(obj, "celular"):
+                        setattr(obj, "celular", "")
+                grupos_data.append({"index": i, "periodo": (ini, fim), "servidores": ordered})
 
-        # 2) re-checagem de plantões conflitantes (evita race condition)
-        elif existe_conf_plantao:
-            messages.error(request,
-                "Não é possível salvar: já existe(m) plantão(ões) que conflitam com o período informado.")
-        else:
-            # 3) tudo ok -> cria plantão / semanas / itens dentro de transação
-            try:
-                with transaction.atomic():
-                    observacao = request.POST.get("observacao", "")[:2000]
-                    plantao = Plantao.objects.create(
-                        inicio=dt_ini,
-                        fim=dt_fim,
-                        criado_por=request.user,
-                        observacao=observacao,
-                    )
-                    # cria semanas e itens (preserva ordem conforme ids enviados)
-                    for i, (ini, fim) in enumerate(weeks, start=1):
-                        semana = Semana.objects.create(plantao=plantao, inicio=ini, fim=fim)
-                        ids = grupos_sel_ids.get(i, [])
-                        for ordem, sid in enumerate(ids, start=1):
-                            # obter telefone do servidor (se existir)
-                            try:
-                                srv = Servidor.objects.get(pk=sid)
-                                tel = getattr(srv, "telefone", None) or getattr(srv, "celular", None) or ""
-                            except Servidor.DoesNotExist:
-                                srv = None
-                                tel = ""
-                            # cria item de ligação (ajuste campos se seu model for diferente)
-                            SemanaServidor.objects.create(
-                                semana=semana,
-                                servidor_id=sid,
-                                telefone_snapshot=tel,
-                                ordem=ordem
-                            )
-                # sucesso
-                messages.success(request, f"Plantão salvo com sucesso: {dt_ini.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}")
-                # redirect para evitar re-POST; preserva filtro no GET
-                url = f"{reverse('plantao:lista_plantao')}?data_inicial={data_inicial}&data_final={data_final}"
-                return redirect(url)
-            except Exception as exc:
-                messages.error(request, "Erro ao salvar plantão: " + str(exc))
+            return render(request, "plantao/lista.html", {
+                "data_inicial": data_inicial, "data_final": data_final,
+                "servidores_com_descanso": servidores_com_descanso,
+                "servidores_options": disp_options, "excluidos_options": exc_options,
+                "bloqueados": bloqueados, "grupos": grupos_data,
+            })
 
-    # monta dados por grupo (ordem) e garante atributos de telefone para os templates
+        # procede com gravação
+        try:
+            with transaction.atomic():
+                observacao = request.POST.get("observacao", "")[:2000]
+                plantao = Plantao.objects.create(
+                    inicio=dt_ini,
+                    fim=dt_fim,
+                    criado_por=request.user,
+                    observacao=observacao,
+                )
+                for i, (ini, fim) in enumerate(weeks, start=1):
+                    semana = Semana.objects.create(plantao=plantao, inicio=ini, fim=fim, ordem=i)
+                    ids = grupos_sel_ids.get(i, [])
+                    for ordem, sid in enumerate(ids, start=1):
+                        try:
+                            srv = Servidor.objects.get(pk=sid)
+                            tel = getattr(srv, "telefone", None) or getattr(srv, "celular", None) or ""
+                        except Servidor.DoesNotExist:
+                            srv = None
+                            tel = ""
+                        SemanaServidor.objects.create(
+                            semana=semana,
+                            servidor_id=sid,
+                            telefone_snapshot=tel,
+                            ordem=ordem
+                        )
+            messages.success(request, f"Plantão salvo com sucesso: {dt_ini.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}")
+            url = f"{reverse('plantao:lista_plantao')}?data_inicial={data_inicial}&data_final={data_final}"
+            return redirect(url)
+        except Exception as e:
+            messages.error(request, "Erro ao salvar plantão: " + str(e))
+
+    # monta dados por grupo (ordem) para render (caso GET ou POST abortado)
+    grupos_data = []
     for i, (ini, fim) in enumerate(weeks, start=1):
         ids = grupos_sel_ids.get(i, [])
         objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids))}
         ordered = [objs[sid] for sid in ids if sid in objs]
-
-        # garante atributos que o template espera (evita VariableDoesNotExist)
         for obj in ordered:
             tel = getattr(obj, "telefone", None) or getattr(obj, "celular", None) or ""
             setattr(obj, "telefone", tel)
             if not hasattr(obj, "celular"):
                 setattr(obj, "celular", "")
-
         grupos_data.append({"index": i, "periodo": (ini, fim), "servidores": ordered})
 
     return render(request, "plantao/lista.html", {
@@ -314,8 +311,8 @@ def lista_plantao(request):
         "servidores_com_descanso": servidores_com_descanso,
         "servidores_options": disp_options, "excluidos_options": exc_options,
         "bloqueados": bloqueados, "grupos": grupos_data,
+        "conflito_abort": False,
     })
-
 @login_required
 def servidores_em_descanso(request):
     """
