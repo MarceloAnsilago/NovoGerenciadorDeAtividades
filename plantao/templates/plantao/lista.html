@@ -33,7 +33,7 @@
     </div>
   </div>
 
-  {% include "partials/_messages.html" %}
+
 
   {# Se houve conflito e a view retornou conflito_abort=True, não renderizar nada além do aviso #}
   {% if conflito_abort %}
@@ -196,14 +196,26 @@ async function addToGroup(groupId){
   if (!avail || !target) return;
 
   const selected = [...avail.options].filter(o=>o.selected);
+  if (selected.length === 0) return;
 
   const idx = groupId.replace("grupo-", "");
   const elSemana = document.getElementById(`grupo-${idx}-periodo`);
   const [inicio, fim] = elSemana?.value?.split(" a ") || [];
 
+  const duplicates = []; // names que já existiam no target
+
   for (const o of selected){
+    // não adicionar se estiver nos excluídos
     if ([...excl.options].some(e=>e.value===o.value)) continue;
 
+    // não adicionar se já existir no target (previne duplicata)
+    if ([...(target.options||[])].some(e=>e.value===o.value)) {
+      const name = o.getAttribute('data-name') || o.text;
+      duplicates.push(name);
+      continue;
+    }
+
+    // checa descanso por semana
     const impedido = await verificarDescanso(o.value, inicio, fim);
     if (impedido) continue;
 
@@ -211,8 +223,15 @@ async function addToGroup(groupId){
     const name  = o.getAttribute('data-name') || o.text;
     const clone = new Option(name, o.value, false, true);
     clone.setAttribute('data-phone', phone);
+    clone.setAttribute('data-name', name);
     target.add(clone);
+
+    // só incrementar contagem quando realmente adicionou
     incAvailCount(o.value, +1);
+  }
+
+  if (duplicates.length > 0) {
+    alert("Os seguintes servidores já estão neste grupo \n\n" + duplicates.join("\n"));
   }
 
   updateGroupCounters();

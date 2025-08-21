@@ -61,7 +61,7 @@ def lista_plantao(request):
         "excluidos_options": [],
         "bloqueados": [],
         "grupos": [],
-        "conflito_abort": False,  # será True se abortarmos por conflito
+        "conflito_abort": False,
     }
 
     # validações iniciais / render vazio
@@ -77,17 +77,44 @@ def lista_plantao(request):
         dt_fim = datetime.strptime(data_final, "%Y-%m-%d").date()
     except ValueError:
         messages.error(request, "Datas inválidas. Use o seletor de data no formato YYYY-MM-DD.")
-        # devolve contexto mínimo (não carregamos nada pesado)
         return render(request, "plantao/lista.html", {**empty_context, "data_inicial": "", "data_final": ""})
 
     if dt_fim < dt_ini:
         messages.error(request, "Data final não pode ser anterior à data inicial.")
         return render(request, "plantao/lista.html", empty_context)
 
+    # --- ler optional ignore_plantao (usado após salvar para não reportar o plantão recém-criado) ---
+    ignore_raw = request.GET.get("ignore_plantao") or request.POST.get("ignore_plantao")
+    ignore_plantao_id = None
+    if ignore_raw:
+        try:
+            ignore_plantao_id = int(ignore_raw)
+        except (ValueError, TypeError):
+            ignore_plantao_id = None
+
     # -------------------------
     # VERIFICAÇÃO IMEDIATA DE CONFLITO DE PLANTÃO (antes de carregar descansos/servidores)
     # -------------------------
-    plantoes_conflitantes = Plantao.objects.filter(inicio__lte=dt_fim, fim__gte=dt_ini).order_by("inicio")
+    # monta filtro de unidade se o model Plantao tiver campo de unidade
+    unidade_filter = {}
+    try:
+        field_names = [f.name for f in Plantao._meta.fields]
+    except Exception:
+        field_names = []
+
+    if "unidade" in field_names or "unidade_id" in field_names:
+        unidade_filter = {"unidade_id": unidade_id}
+
+    plantoes_qs = Plantao.objects.filter(
+        inicio__lte=dt_fim,
+        fim__gte=dt_ini,
+        **unidade_filter,
+    ).order_by("inicio")
+
+    if ignore_plantao_id:
+        plantoes_qs = plantoes_qs.exclude(pk=ignore_plantao_id)
+
+    plantoes_conflitantes = plantoes_qs
     if plantoes_conflitantes.exists():
         itens = [f"{p.inicio.strftime('%d/%m/%Y')} a {p.fim.strftime('%d/%m/%Y')}" for p in plantoes_conflitantes]
         contador = len(itens)
@@ -95,15 +122,12 @@ def lista_plantao(request):
         periodo_sel = f"{dt_ini.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}"
         itens_txt = ", ".join(itens)
 
-        # usar format_html para enviar HTML seguro ao messages (se o template exibir mensagens sem escape)
         msg = format_html(
             "Já existe(m) <strong>{}</strong> que conflitam com o período ({}) : {}.",
             f"{contador} {plural}", periodo_sel, itens_txt
         )
-        # Para GET ou POST mostramos erro e abortamos sem carregar nada
         messages.error(request, msg)
 
-        # devolve contexto mínimo e sinaliza abort
         return render(request, "plantao/lista.html", {
             "data_inicial": data_inicial,
             "data_final": data_final,
@@ -113,7 +137,7 @@ def lista_plantao(request):
             "bloqueados": [],
             "grupos": [],
             "conflito_abort": True,
-            "plantoes_conflitantes": plantoes_conflitantes,  # opcional: se quiser detalhes no template
+            "plantoes_conflitantes": plantoes_conflitantes,
         })
 
     # -------------------------------------------
@@ -238,10 +262,10 @@ def lista_plantao(request):
     # Se for POST e chegou aqui -> salva
     # -------------------------
     if request.method == "POST":
-        # rechecagem final de conflito PLANTAO (race condition defense)
-        if Plantao.objects.filter(inicio__lte=dt_fim, fim__gte=dt_ini).exists():
+        # rechecagem final de conflito PLANTAO (race condition defense) --- filtra por unidade também
+        race_qs = Plantao.objects.filter(inicio__lte=dt_fim, fim__gte=dt_ini, **unidade_filter)
+        if race_qs.exists():
             messages.error(request, "Não foi possível salvar: já existe(m) plantão(ões) que conflitam com o período informado.")
-            # re-render context
             grupos_data = []
             for i, (ini, fim) in enumerate(weeks, start=1):
                 ids = grupos_sel_ids.get(i, [])
@@ -265,12 +289,19 @@ def lista_plantao(request):
         try:
             with transaction.atomic():
                 observacao = request.POST.get("observacao", "")[:2000]
-                plantao = Plantao.objects.create(
-                    inicio=dt_ini,
-                    fim=dt_fim,
-                    criado_por=request.user,
-                    observacao=observacao,
-                )
+
+                # monta kwargs dinâmicos para criar o plantão incluindo unidade se o model suportar
+                create_kwargs = {
+                    "inicio": dt_ini,
+                    "fim": dt_fim,
+                    "criado_por": request.user,
+                    "observacao": observacao,
+                }
+                if "unidade" in field_names or "unidade_id" in field_names:
+                    create_kwargs["unidade_id"] = unidade_id
+
+                plantao = Plantao.objects.create(**create_kwargs)
+
                 for i, (ini, fim) in enumerate(weeks, start=1):
                     semana = Semana.objects.create(plantao=plantao, inicio=ini, fim=fim, ordem=i)
                     ids = grupos_sel_ids.get(i, [])
@@ -287,9 +318,11 @@ def lista_plantao(request):
                             telefone_snapshot=tel,
                             ordem=ordem
                         )
-            messages.success(request, f"Plantão salvo com sucesso: {dt_ini.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}")
-            url = f"{reverse('plantao:lista_plantao')}?data_inicial={data_inicial}&data_final={data_final}"
-            return redirect(url)
+
+                messages.success(request, f"Plantão salvo com sucesso: {dt_ini.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}")
+                # redireciona para a lista sem parâmetros (estado inicial). a mensagem será mostrada na página recarregada.
+                return redirect(reverse('plantao:lista_plantao'))
+
         except Exception as e:
             messages.error(request, "Erro ao salvar plantão: " + str(e))
 
@@ -313,6 +346,7 @@ def lista_plantao(request):
         "bloqueados": bloqueados, "grupos": grupos_data,
         "conflito_abort": False,
     })
+
 @login_required
 def servidores_em_descanso(request):
     """

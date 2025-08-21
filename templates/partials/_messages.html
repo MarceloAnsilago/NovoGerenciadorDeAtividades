@@ -1,11 +1,3 @@
-{# partials/_messages.html #}
-{% comment %}
-  Uso:
-    - por padrão (se não passar show_local_messages) exibirá.
-    - para evitar duplicação com a tarja global, incluir com:
-        {% include "partials/_messages.html" with show_local_messages=False only %}
-{% endcomment %}
-
 {% if show_local_messages|default:True and messages %}
   <div class="mb-3">
     {% for message in messages %}
