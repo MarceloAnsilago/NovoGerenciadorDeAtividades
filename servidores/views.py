@@ -1,149 +1,188 @@
 # servidores/views.py
+import logging
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db import IntegrityError
-from django.db.models import Q
-from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
+from django.db.models import Q
 
 from .forms import ServidorForm
 from .models import Servidor
+from core.utils import _get_unidade_atual
 
-
-# servidores/views.py
-
-def _get_unidade_atual(request):
-    """
-    Obtém a unidade atual (prioriza o contexto da sessão).
-    - Session: 'contexto_atual' (usado no core) ou 'unidade_id' (fallback antigo)
-    - Fallback: user.userprofile.unidade (ou aliases)
-    """
-    # 1) Sessão (o que o core usa ao "assumir" unidade)
-    uid = request.session.get("contexto_atual") or request.session.get("unidade_id")
-    if uid:
-        from core.models import No  # import tardio evita circular
-        return No.objects.filter(pk=uid).first()
-
-    # 2) Fallback: perfil do usuário
-    user = request.user
-    for attr in ("userprofile", "profile", "perfil"):
-        obj = getattr(user, attr, None)
-        if obj and getattr(obj, "unidade_id", None):
-            return obj.unidade
-
-    return None
+logger = logging.getLogger(__name__)
 
 
 @login_required
-def lista(request: HttpRequest) -> HttpResponse:
+def lista(request):
     """
-    Mostra o formulário de cadastro e a lista de servidores da unidade atual.
-    POST cria novo servidor na unidade atual.
+    Lista e cria (POST) servidores.
+    - GET: exibe lista + formulário de criação
+    - POST: cria novo servidor (associa à unidade atual, se houver)
     """
     unidade = _get_unidade_atual(request)
-    if not unidade:
-        raise Http404("Unidade atual não definida para o usuário.")
 
-    # Criação
-    if request.method == "POST":
-        form = ServidorForm(request.POST)
-        if form.is_valid():
-            obj = form.save(commit=False)
-            obj.unidade = unidade
-            try:
-                obj.save()
-            except IntegrityError:
-                form.add_error("matricula", "Já existe servidor com esta matrícula nesta unidade.")
-            else:
-                messages.success(request, "Servidor cadastrado com sucesso!")
-                return redirect("servidores:lista")
-    else:
-        form = ServidorForm()
+    # query base e filtros
+    qs = Servidor.objects.all().order_by("nome")
+    if unidade:
+        qs = qs.filter(unidade=unidade)
 
-    # Filtros
-    qs = Servidor.objects.filter(unidade=unidade).order_by("nome")
     q = (request.GET.get("q") or "").strip()
-    status = (request.GET.get("status") or "todos").strip()
+    status = (request.GET.get("status") or "").strip().lower()
 
     if q:
         qs = qs.filter(Q(nome__icontains=q) | Q(matricula__icontains=q) | Q(telefone__icontains=q))
+
     if status == "ativos":
         qs = qs.filter(ativo=True)
     elif status == "inativos":
         qs = qs.filter(ativo=False)
 
-    # Paginação opcional
+    # criação via POST
+    if request.method == "POST":
+        # se não há unidade, prevenir criação (se isso for regra do app)
+        if not unidade:
+            messages.warning(request, "Selecione uma unidade no contexto antes de cadastrar servidores.")
+            return redirect("servidores:lista")
+
+        form = ServidorForm(request.POST)
+        if form.is_valid():
+            serv = form.save(commit=False)
+            # associe o campo de unidade conforme seu modelo (ajuste nome se diferente)
+            if hasattr(serv, "unidade") and serv.unidade is None:
+                serv.unidade = unidade
+            serv.save()
+            messages.success(request, "Servidor cadastrado com sucesso.")
+            return redirect("servidores:lista")
+        else:
+            messages.error(request, "Corrija os erros no formulário antes de salvar.")
+    else:
+        form = ServidorForm()
+
+    # paginação
     paginator = Paginator(qs, 12)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
-    servidores = page_obj.object_list
 
-    ctx = {
+    context = {
         "form": form,
-        "servidores": servidores,
+        "servidores": page_obj.object_list,
         "page_obj": page_obj,
         "unidade": unidade,
         "q": q,
-        "status": status or "todos",
+        "status": status,
     }
-    return render(request, "servidores/lista.html", ctx)
+    return render(request, "servidores/lista.html", context)
 
 
 @login_required
-def editar(request: HttpRequest, pk: int) -> HttpResponse:
+def editar(request, pk: int):
     """
-    Edita um servidor da unidade atual.
+    Edita um servidor.
+    GET: exibe formulário com dados.
+    POST: salva alterações e redireciona para next (ou lista).
     """
     unidade = _get_unidade_atual(request)
-    if not unidade:
-        raise Http404("Unidade atual não definida para o usuário.")
+    serv = get_object_or_404(Servidor, pk=pk)
 
-    servidor = get_object_or_404(Servidor, pk=pk, unidade=unidade)
+    # segurança: se o app exige que só se altere servidores da unidade atual
+    if unidade and getattr(serv, "unidade_id", None) != getattr(unidade, "id", None):
+        messages.warning(request, "Você só pode editar servidores da unidade atual.")
+        return redirect("servidores:lista")
 
     if request.method == "POST":
-        form = ServidorForm(request.POST, instance=servidor)
+        form = ServidorForm(request.POST, instance=serv)
         if form.is_valid():
-            try:
-                form.save()
-            except IntegrityError:
-                form.add_error("matricula", "Já existe servidor com esta matrícula nesta unidade.")
-            else:
-                messages.success(request, "Servidor atualizado com sucesso!")
-                return redirect("servidores:lista")
+            form.save()
+            messages.success(request, "Servidor atualizado com sucesso.")
+            next_url = request.POST.get("next") or "servidores:lista"
+            return redirect(next_url)
+        else:
+            messages.error(request, "Corrija os erros no formulário antes de salvar.")
     else:
-        form = ServidorForm(instance=servidor)
+        form = ServidorForm(instance=serv)
 
-    return render(request, "servidores/editar.html", {"form": form, "servidor": servidor, "unidade": unidade})
-
-
-@login_required
-def ativar(request: HttpRequest, pk: int) -> HttpResponse:
-    """
-    Marca servidor como ativo (GET/POST por simplicidade).
-    """
-    unidade = _get_unidade_atual(request)
-    if not unidade:
-        raise Http404("Unidade atual não definida para o usuário.")
-    servidor = get_object_or_404(Servidor, pk=pk, unidade=unidade)
-    if not servidor.ativo:
-        servidor.ativo = True
-        servidor.save(update_fields=["ativo"])
-        messages.success(request, f"{servidor.nome} foi ativado.")
-    return redirect("servidores:lista")
+    context = {
+        "form": form,
+        "object": serv,
+        "unidade": unidade,
+        "next": request.GET.get("next", request.get_full_path()),
+    }
+    return render(request, "servidores/editar.html", context)
 
 
 @login_required
-def inativar(request: HttpRequest, pk: int) -> HttpResponse:
+@require_POST
+def toggle_ativo(request, pk: int):
     """
-    Marca servidor como inativo (GET/POST por simplicidade).
+    Altera o campo 'ativo' do servidor (toggle) — aceita apenas POST.
+    Retorna para 'next' (se fornecido) ou para a lista.
     """
     unidade = _get_unidade_atual(request)
-    if not unidade:
-        raise Http404("Unidade atual não definida para o usuário.")
-    servidor = get_object_or_404(Servidor, pk=pk, unidade=unidade)
-    if servidor.ativo:
-        servidor.ativo = False
-        servidor.save(update_fields=["ativo"])
-        messages.success(request, f"{servidor.nome} foi inativado.")
-    return redirect("servidores:lista")
+    serv = get_object_or_404(Servidor, pk=pk)
+
+    logger.info("toggle_ativo called for Servidor %s by %s (unidade=%s) method=%s",
+                pk, request.user, getattr(unidade, "id", None), request.method)
+
+    if unidade and getattr(serv, "unidade_id", None) != getattr(unidade, "id", None):
+        messages.warning(request, "Você só pode alterar status de servidores da unidade atual.")
+        return redirect("servidores:lista")
+
+    serv.ativo = not serv.ativo
+    serv.save(update_fields=["ativo"])
+    messages.success(request, f"Servidor {'ativado' if serv.ativo else 'inativado'} com sucesso.")
+    return redirect(request.POST.get("next") or "servidores:lista")
+
+
+@login_required
+@require_POST
+def excluir(request, pk: int):
+    """
+    Excluir servidor — exemplo de ação destrutiva protegida por POST.
+    Use com cuidado; dependendo das regras do seu sistema talvez deva apenas marcar inativo.
+    """
+    unidade = _get_unidade_atual(request)
+    serv = get_object_or_404(Servidor, pk=pk)
+
+    if unidade and getattr(serv, "unidade_id", None) != getattr(unidade, "id", None):
+        messages.warning(request, "Você só pode excluir servidores da unidade atual.")
+        return redirect("servidores:lista")
+
+    nome = serv.nome
+    serv.delete()
+    messages.success(request, f"Servidor {nome} excluído com sucesso.")
+    return redirect(request.POST.get("next") or "servidores:lista")
+@login_required
+@require_POST
+def inativar(request, pk: int):
+    serv = get_object_or_404(Servidor, pk=pk)
+    unidade = _get_unidade_atual(request)
+    if unidade and getattr(serv, "unidade_id", None) != getattr(unidade, "id", None):
+        messages.warning(request, "Você só pode alterar status de servidores da unidade atual.")
+        return redirect("servidores:lista")
+    if not serv.ativo:
+        messages.info(request, f"Servidor {serv.nome} já está inativo.")
+    else:
+        serv.ativo = False
+        serv.save(update_fields=["ativo"])
+        messages.success(request, f"Servidor {serv.nome} inativado com sucesso.")
+    return redirect(request.POST.get("next") or "servidores:lista")
+
+
+@login_required
+@require_POST
+def ativar(request, pk: int):
+    serv = get_object_or_404(Servidor, pk=pk)
+    unidade = _get_unidade_atual(request)
+    if unidade and getattr(serv, "unidade_id", None) != getattr(unidade, "id", None):
+        messages.warning(request, "Você só pode alterar status de servidores da unidade atual.")
+        return redirect("servidores:lista")
+    if serv.ativo:
+        messages.info(request, f"Servidor {serv.nome} já está ativo.")
+    else:
+        serv.ativo = True
+        serv.save(update_fields=["ativo"])
+        messages.success(request, f"Servidor {serv.nome} ativado com sucesso.")
+    return redirect(request.POST.get("next") or "servidores:lista")
