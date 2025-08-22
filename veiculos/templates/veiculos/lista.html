@@ -17,7 +17,7 @@
          icon="bi-truck" %}
   {% endif %}
 
-  {% include "partials/_messages.html" %}
+
 
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-light">
@@ -63,4 +63,35 @@
   </div>
 
 </div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.veiculo-action-form').forEach(form => {
+    form.addEventListener('submit', function (e) {
+      const btn = form.querySelector('button[type="submit"]');
+      if (!btn) return;
+
+      // desativar botão
+      btn.disabled = true;
+      btn.classList.add('disabled');
+
+      // ocultar o ícone original
+      const icon = btn.querySelector('.action-icon');
+      if (icon) icon.classList.add('visually-hidden');
+
+      // adicionar spinner se ainda não tiver
+      if (!btn.querySelector('.btn-spinner')) {
+        const spinner = document.createElement('span');
+        spinner.className = 'btn-spinner spinner-border spinner-border-sm ms-1';
+        spinner.setAttribute('role', 'status');
+        spinner.setAttribute('aria-hidden', 'true');
+        btn.appendChild(spinner);
+      }
+
+      // o formulário seguirá o POST normalmente
+    }, { once: true });
+  });
+});
+</script>
 {% endblock %}

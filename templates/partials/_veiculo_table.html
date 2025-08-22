@@ -1,49 +1,65 @@
 {# veiculos/templates/partials/_veiculo_table.html #}
 <div class="table-responsive">
-  <table class="table table-hover align-middle mb-0">
+  <table class="table align-middle">
     <thead class="table-light">
       <tr>
         <th><i class="bi bi-truck me-1"></i> Veículo</th>
-        <th><i class="bi bi-123 me-1"></i> Placa</th>
-        <th class="text-center"><i class="bi bi-activity me-1"></i> Status</th>
-        <th class="text-end"><i class="bi bi-tools me-1"></i> Ações</th>
+        <th class="text-center"><i class="bi bi-card-text me-1"></i> Placa</th>
+        <th><i class="bi bi-activity me-1"></i> Status</th>
+        <th class="text-end"><i class="bi bi-gear me-1"></i> Ações</th>
       </tr>
     </thead>
     <tbody>
       {% for v in veiculos %}
         <tr>
-          {# Mostra o __str__ do veículo (ex.: "PLACA - MODELO") ou um campo "modelo" se preferir #}
-          <td class="fw-medium">{{ v }}</td>
-          <td>{{ v.placa|default:"—" }}</td>
+          <td>
+            <i class="bi bi-truck text-primary me-2"></i>
+            {{ v.nome }}{% if v.apelido %} ({{ v.apelido }}){% endif %}
+          </td>
 
-          <td class="text-center">
+          {# Placa: ícone + número (sem moldura) #}
+          <td class="text-center align-middle">
+            <span class="d-inline-flex align-items-center gap-2">
+              <i class="bi bi-card-text text-secondary" aria-hidden="true"></i>
+              <span class="fw-medium">{{ v.placa|default:"—" }}</span>
+            </span>
+          </td>
+
+          <td>
             {% if v.ativo %}
-              <span class="badge bg-success">Ativo</span>
+              <span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>Ativo</span>
             {% else %}
-              <span class="badge bg-danger">Inativo</span>
+              <span class="badge bg-danger"><i class="bi bi-x-lg me-1"></i>Inativo</span>
             {% endif %}
           </td>
 
           <td class="text-end">
-            <a class="btn btn-sm btn-warning" href="{% url 'veiculos:editar' v.id %}">
+            <a class="btn btn-sm btn-warning" href="{% url 'veiculos:editar' v.id %}" title="Editar {{ v.nome }}">
               <i class="bi bi-pencil"></i> Editar
             </a>
+
             {% if v.ativo %}
-              <a class="btn btn-sm btn-outline-danger" href="{% url 'veiculos:inativar' v.id %}">
-                <i class="bi bi-x-circle"></i> Inativar
-              </a>
+              <form method="post" action="{% url 'veiculos:inativar' v.id %}" class="d-inline veiculo-action-form">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger veiculo-action-btn" title="Inativar {{ v.nome }}">
+                  <i class="bi bi-x-circle action-icon"></i> Inativar
+                </button>
+              </form>
             {% else %}
-              <a class="btn btn-sm btn-outline-success" href="{% url 'veiculos:ativar' v.id %}">
-                <i class="bi bi-check-circle"></i> Ativar
-              </a>
+              <form method="post" action="{% url 'veiculos:ativar' v.id %}" class="d-inline veiculo-action-form">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn btn-sm btn-outline-success veiculo-action-btn" title="Ativar {{ v.nome }}">
+                  <i class="bi bi-check-circle action-icon"></i> Ativar
+                </button>
+              </form>
             {% endif %}
           </td>
         </tr>
       {% empty %}
         <tr>
-          <td colspan="4" class="text-center text-muted py-4">
-            Nenhum veículo encontrado para esta unidade.
-          </td>
+          <td colspan="4" class="text-center text-muted py-4">Nenhum veículo encontrado.</td>
         </tr>
       {% endfor %}
     </tbody>

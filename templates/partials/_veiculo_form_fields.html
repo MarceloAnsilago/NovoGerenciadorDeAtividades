@@ -1,19 +1,26 @@
-{# templates/partials/_veiculo_form_fields.html #}
+{# veiculos/templates/partials/_veiculo_form_fields.html #}
 {% load widget_tweaks %}
-<div class="row">
-  <div class="col-md-6 mb-3">
-    <label for="{{ form.nome.id_for_label }}" class="form-label">Nome</label>
-    {{ form.nome|add_class:"form-control" }}
-  </div>
-  <div class="col-md-6 mb-3">
-    <label for="{{ form.placa.id_for_label }}" class="form-label">Placa</label>
-    {{ form.placa|add_class:"form-control" }}
-  </div>
-</div>
 
-<div class="form-check mb-3">
-  {{ form.ativo|add_class:"form-check-input" }}
-  <label class="form-check-label" for="{{ form.ativo.id_for_label }}">
-    {{ form.ativo.label }}
-  </label>
+<div class="row g-3">
+  <div class="col-md-6">
+    <label for="{{ form.nome.id_for_label }}" class="form-label">Veículo</label>
+    {% render_field form.nome class="form-control" placeholder="Ex.: Hilux 1" %}
+    <div class="text-danger small">{{ form.nome.errors }}</div>
+  </div>
+
+  <div class="col-md-3">
+    <label for="{{ form.placa.id_for_label }}" class="form-label">Placa</label>
+    {% render_field form.placa class="form-control" placeholder="ABC1234" %}
+    <div class="text-danger small">{{ form.placa.errors }}</div>
+  </div>
+
+  <div class="col-md-3 d-flex align-items-center">
+    <div class="form-check mt-2">
+      {% render_field form.ativo class="form-check-input" id="id_veiculo_ativo" %}
+      <label class="form-check-label" for="id_veiculo_ativo">Ativo</label>
+    </div>
+    <div class="text-danger small w-100">{{ form.ativo.errors }}</div>
+  </div>
+
+  {# se tiver mais campos, coloque aqui #}
 </div>
