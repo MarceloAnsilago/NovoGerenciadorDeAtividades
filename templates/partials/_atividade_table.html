@@ -1,75 +1,74 @@
-{# templates/partials/_atividade_table.html #}
 <div class="table-responsive">
   <table class="table table-hover align-middle mb-0">
     <thead class="table-light">
       <tr>
-        <th><i class="bi bi-clipboard-check me-1"></i> Tarefa</th>
-        <th><i class="bi bi-person-check me-1"></i> Responsável</th>
-        <th><i class="bi bi-calendar-event me-1"></i> Prazo</th>
-        <th class="text-center"><i class="bi bi-activity me-1"></i> Status</th>
+        <th><i class="bi bi-clipboard-check me-1"></i> Título</th>
+        <th><i class="bi bi-diagram-3 me-1"></i> Área</th>
+        <th class="text-center"><i class="bi bi-toggle-on me-1"></i> Status</th>
         <th class="text-end"><i class="bi bi-tools me-1"></i> Ações</th>
       </tr>
     </thead>
     <tbody>
-      {% if page_obj %}
-        {% for a in page_obj.object_list %}
-          <tr>
-            <td class="fw-medium">
-              {% if a.titulo %}{{ a.titulo }}{% else %}{{ a }}{% endif %}
-            </td>
-            <td>{% firstof a.responsavel a.servidor "—" %}</td>
-            <td>
-              {% if a.prazo %}{{ a.prazo|date:"d/m/Y" }}
-              {% elif a.data_limite %}{{ a.data_limite|date:"d/m/Y" }}
-              {% elif a.data %}{{ a.data|date:"d/m/Y" }}
-              {% else %}—{% endif %}
-            </td>
-            <td class="text-center">
-              {% if a.concluida or a.finalizada %}
-                <span class="badge bg-success">Concluída</span>
+      {% for a in page_obj.object_list %}
+        <tr>
+          <td>
+            <i class="bi bi-card-text text-primary me-2"></i> {{ a.titulo }}
+          </td>
+          <td>
+            <i class="bi bi-diagram-3 me-1 text-muted"></i> {{ a.get_area_display }}
+          </td>
+          <td class="text-center">
+            <span class="badge {% if a.ativo %}bg-success{% else %}bg-secondary{% endif %}">
+              {% if a.ativo %}
+                <i class="bi bi-check-lg me-1"></i> Ativa
               {% else %}
-                <span class="badge bg-secondary">{% firstof a.get_status_display a.status "Pendente" %}</span>
+                <i class="bi bi-x-lg me-1"></i> Inativa
               {% endif %}
-            </td>
-            <td class="text-end">
-              {% url 'atividades:editar' a.id as edit_base %}
-              {% url 'atividades:excluir' a.id as delete_base %}
-              {% include "partials/_botoes_acoes.html" %}
-            </td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="5" class="text-center text-muted py-4">Nenhuma atividade encontrada.</td></tr>
-        {% endfor %}
-      {% else %}
-        {% for a in atividades %}
-          <tr>
-            <td class="fw-medium">
-              {% if a.titulo %}{{ a.titulo }}{% else %}{{ a }}{% endif %}
-            </td>
-            <td>{% firstof a.responsavel a.servidor "—" %}</td>
-            <td>
-              {% if a.prazo %}{{ a.prazo|date:"d/m/Y" }}
-              {% elif a.data_limite %}{{ a.data_limite|date:"d/m/Y" }}
-              {% elif a.data %}{{ a.data|date:"d/m/Y" }}
-              {% else %}—{% endif %}
-            </td>
-            <td class="text-center">
-              {% if a.concluida or a.finalizada %}
-                <span class="badge bg-success">Concluída</span>
-              {% else %}
-                <span class="badge bg-secondary">{% firstof a.get_status_display a.status "Pendente" %}</span>
-              {% endif %}
-            </td>
-            <td class="text-end">
-              {% url 'atividades:editar' a.id as edit_base %}
-              {% url 'atividades:excluir' a.id as delete_base %}
-              {% include "partials/_botoes_acoes.html" %}
-            </td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="5" class="text-center text-muted py-4">Nenhuma atividade encontrada.</td></tr>
-        {% endfor %}
-      {% endif %}
+            </span>
+          </td>
+          <td class="text-end">
+            <a href="{% url 'atividades:editar' a.id %}?next={{ request.get_full_path }}"
+               class="btn btn-sm btn-warning me-1" title="Editar {{ a.titulo }}">
+              <i class="bi bi-pencil"></i> Editar
+            </a>
+
+            <form method="post"
+                  action="{% url 'atividades:toggle_ativo' a.id %}"
+                  class="d-inline atividade-action-form"
+                  onsubmit="return confirm('{% if a.ativo %}Inativar{% else %}Ativar{% endif %} esta atividade?');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit"
+                      class="btn btn-sm {% if a.ativo %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+                <i class="bi {% if a.ativo %}bi-x-circle{% else %}bi-check-circle{% endif %} me-1"></i>
+                {% if a.ativo %}Inativar{% else %}Ativar{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="4" class="text-center text-muted py-4">
+            Nenhuma atividade encontrada.
+          </td>
+        </tr>
+      {% endfor %}
     </tbody>
   </table>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.atividade-action-form').forEach(form => {
+      form.addEventListener('submit', function () {
+        const btn = form.querySelector('button[type="submit"]');
+        const icon = btn.querySelector('i');
+        if (btn && icon) {
+          btn.disabled = true;
+          icon.classList.remove('bi-x-circle', 'bi-check-circle');
+          icon.classList.add('spinner-border', 'spinner-border-sm', 'me-1');
+        }
+      }, { once: true });
+    });
+  });
+</script>

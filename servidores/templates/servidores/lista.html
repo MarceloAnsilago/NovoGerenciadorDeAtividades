@@ -1,54 +1,7 @@
-{# servidores/templates/servidores/lista.html #}
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block extra_head %}
-  <style>
-    /* matrícula: apenas ícone + número, sem moldura */
-    .matricula-inline {
-      display: inline-flex;
-      align-items: center;
-      gap: .6rem;
-      min-width: 120px;
-      justify-content: center;
-      padding: 0; /* sem padding/card */
-      background: transparent;
-      border: none;
-      box-shadow: none;
-    }
-
-    .matricula-icon {
-      color: #0d6efd;       /* cor do ícone (azul bootstrap) */
-      font-size: 1.15rem;
-      line-height: 1;
-      /* sem fundo/caixa */
-      background: transparent;
-      padding: 0;
-      margin: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .matricula-value {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
-      color: #0b1a2b;
-      background: transparent;
-      padding: 0;
-      margin: 0;
-      font-size: 0.95rem;
-    }
-
-    /* responsividade */
-    @media (max-width: 576px) {
-      .matricula-inline { min-width: 90px; gap: .4rem; }
-      .matricula-icon { font-size: 1rem; }
-      .matricula-value { font-size: 0.85rem; }
-    }
-  </style>
-{% endblock %}
-
-{% block title %}Servidores da Unidade{% endblock %}
+{% block title %}Atividades da Unidade{% endblock %}
 
 {% block content %}
 <div class="container py-4">
@@ -56,27 +9,39 @@
   {# Cabeçalho via partial #}
   {% url 'core:dashboard' as dash_url %}
   {% if unidade %}
-    {% include "partials/_page_header.html" with title="Servidores" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-people-gear" %}
+    {% include "partials/_page_header.html" with title="Atividades" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-list-task" %}
   {% else %}
-    {% include "partials/_page_header.html" with title="Servidores" back_url=dash_url icon="bi-people-gear" %}
+    {% include "partials/_page_header.html" with title="Atividades" back_url=dash_url icon="bi-list-task" %}
   {% endif %}
 
-  {# Mensagens gerais #}
-  {% include "partials/_messages.html" %}
+  {# Mensagens #}
+ 
 
-  <!-- Card: Cadastro -->
+  <!-- Card: Cadastrar -->
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-light">
-      <strong><i class="bi bi-person-plus me-1"></i> Cadastrar Servidor</strong>
+      <strong><i class="bi bi-list-task me-1"></i> Cadastrar Atividade</strong>
     </div>
-
     <div class="card-body">
       <form method="post" novalidate>
         {% csrf_token %}
-        {{ form.non_field_errors }}
 
-        {# Partial que renderiza os campos do formulário #}
-        {% include "partials/_servidor_form_fields.html" %}
+        {% if form.errors %}
+          <div class="alert alert-danger">
+            <ul class="mb-0">
+              {% for field in form %}
+                {% for error in field.errors %}
+                  <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                {% endfor %}
+              {% endfor %}
+              {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        {% include "partials/_atividade_form_fields.html" %}
 
         <div class="d-flex justify-content-end mt-4">
           <button type="submit" class="btn btn-primary">
@@ -87,150 +52,21 @@
     </div>
   </div>
 
-  <!-- Card: Filtro + Lista -->
+  <!-- Card: Lista -->
   <div class="card shadow-sm">
     <div class="card-header bg-light">
-      <strong><i class="bi bi-list-ul me-1"></i> Lista de Servidores</strong>
+      <strong><i class="bi bi-list-ul me-1"></i> Lista de Atividades</strong>
     </div>
     <div class="card-body">
 
       {# filtros #}
-      <form method="get" class="mb-3">
-        <div class="row g-2">
-          <div class="col-md-6">
-            <label class="form-label" for="id_q">Buscar</label>
-            <input id="id_q" name="q" type="text" class="form-control" placeholder="Nome, matrícula ou telefone"
-                   value="{{ q|default_if_none:'' }}">
-          </div>
-          <div class="col-md-3">
-            <label class="form-label" for="id_status">Status</label>
-            <select id="id_status" name="status" class="form-select">
-              <option value="todos" {% if status == "todos" or not status %}selected{% endif %}>Todos</option>
-              <option value="ativos" {% if status == "ativos" %}selected{% endif %}>Ativos</option>
-              <option value="inativos" {% if status == "inativos" %}selected{% endif %}>Inativos</option>
-            </select>
-          </div>
-          <div class="col-md-3 d-flex align-items-end">
-            <button class="btn btn-outline-primary w-100" type="submit">
-              <i class="bi bi-search me-1"></i> Buscar
-            </button>
-          </div>
-        </div>
-      </form>
+      {% include "partials/_atividade_filters.html" %}
 
       {# tabela #}
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead class="table-light">
-            <tr>
-              <th><i class="bi bi-person-fill me-1"></i> Nome</th>
-              <th><i class="bi bi-telephone me-1"></i> Telefone</th>
-              <th class="text-center"><i class="bi bi-person-badge me-1"></i> Matrícula</th>
-              <th><i class="bi bi-activity me-1"></i> Status</th>
-              <th class="text-end"><i class="bi bi-gear me-1"></i> Ações</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for s in servidores %}
-              <tr>
-                <td>
-                  <i class="bi bi-person-circle text-primary me-2"></i>
-                  {{ s.nome }}
-                </td>
-
-                <td>
-                  <i class="bi bi-telephone me-1"></i>
-                  {{ s.telefone|default:"—" }}
-                </td>
-
-                {# Matrícula: ícone + número (sem moldura) #}
-                <td class="text-center align-middle">
-                  <div class="matricula-inline">
-                    <div class="matricula-icon" aria-hidden="true">
-                      <i class="bi bi-person-badge"></i>
-                    </div>
-                    <div class="matricula-value">
-                      {{ s.matricula|default:"—" }}
-                    </div>
-                  </div>
-                </td>
-
-                <td>
-                  {% if s.ativo %}
-                    <span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>Ativo</span>
-                  {% else %}
-                    <span class="badge bg-danger"><i class="bi bi-x-lg me-1"></i>Inativo</span>
-                  {% endif %}
-                </td>
-
-                <td class="text-end">
-                  <a class="btn btn-sm btn-warning" href="{% url 'servidores:editar' s.id %}" title="Editar {{ s.nome }}" aria-label="Editar">
-                    <i class="bi bi-pencil"></i> Editar
-                  </a>
-
-                  {% if s.ativo %}
-                    <form method="post" action="{% url 'servidores:inativar' s.id %}" class="d-inline servidor-action-form"
-                          onsubmit="return confirm('Inativar este servidor?');">
-                      {% csrf_token %}
-                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                      <button class="btn btn-sm btn-outline-danger" type="submit" title="Inativar {{ s.nome }}" aria-label="Inativar">
-                        <i class="bi bi-x-circle"></i> Inativar
-                      </button>
-                    </form>
-                  {% else %}
-                    <form method="post" action="{% url 'servidores:ativar' s.id %}" class="d-inline servidor-action-form"
-                          onsubmit="return confirm('Ativar este servidor?');">
-                      {% csrf_token %}
-                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                      <button class="btn btn-sm btn-outline-success" type="submit" title="Ativar {{ s.nome }}" aria-label="Ativar">
-                        <i class="bi bi-check-circle"></i> Ativar
-                      </button>
-                    </form>
-                  {% endif %}
-                </td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="5" class="text-center text-muted py-4">
-                  Nenhum servidor encontrado para esta unidade.
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+      {% include "partials/_atividade_table.html" %}
 
       {# paginação #}
-      {% if page_obj %}
-        <nav class="mt-3">
-          <ul class="pagination justify-content-end mb-0">
-            {% if page_obj.has_previous %}
-              <li class="page-item">
-                <a class="page-link" href="?q={{ q }}&status={{ status }}&page={{ page_obj.previous_page_number }}">Anterior</a>
-              </li>
-            {% else %}
-              <li class="page-item disabled">
-                <span class="page-link" tabindex="-1" aria-disabled="true">Anterior</span>
-              </li>
-            {% endif %}
-
-            <li class="page-item disabled">
-              <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-            </li>
-
-            {% if page_obj.has_next %}
-              <li class="page-item">
-                <a class="page-link" href="?q={{ q }}&status={{ status }}&page={{ page_obj.next_page_number }}">Próxima</a>
-              </li>
-            {% else %}
-              <li class="page-item disabled">
-                <span class="page-link" tabindex="-1" aria-disabled="true">Próxima</span>
-              </li>
-            {% endif %}
-          </ul>
-        </nav>
-      {% endif %}
+      {% include "partials/_pagination.html" %}
     </div>
   </div>
 
@@ -239,39 +75,17 @@
 
 {% block extra_js %}
 <script>
-  // máscara simples de telefone (brasileira) e prevenção de double submit
-  function telefoneMask(value) {
-    const nums = (value || '').replace(/\D/g,'');
-    if (nums.length <= 10) { // (00) 0000-0000
-      return nums.replace(/^(\d{2})(\d{0,4})(\d{0,4}).*/, function(_, a, b, c){
-        return a ? `(${a}) ${b}${c? '-'+c: ''}` : '';
-      });
-    } else { // (00) 00000-0000
-      return nums.replace(/^(\d{2})(\d{0,5})(\d{0,4}).*/, function(_, a, b, c){
-        return a ? `(${a}) ${b}${c? '-'+c: ''}` : '';
-      });
-    }
-  }
-
-  document.addEventListener('input', function(e){
-    if (e.target && e.target.classList && e.target.classList.contains('telefone-mask')) {
-      const pos = e.target.selectionStart;
-      const oldLen = e.target.value.length;
-      e.target.value = telefoneMask(e.target.value);
-      const newLen = e.target.value.length;
-      e.target.selectionStart = e.target.selectionEnd = pos + (newLen - oldLen);
-    }
-  });
-
   document.addEventListener('DOMContentLoaded', function () {
-    // desabilita botão após submissão para evitar double-submit
-    document.querySelectorAll('.servidor-action-form').forEach(form => {
+    document.querySelectorAll('.atividade-action-form').forEach(form => {
       form.addEventListener('submit', function () {
         const btn = form.querySelector('button[type="submit"]');
         if (btn) {
           btn.disabled = true;
           const icon = btn.querySelector('i');
-          if (icon) icon.classList.add('me-1','spinner-border','spinner-border-sm');
+          if (icon) {
+            icon.classList.remove('bi-check-circle', 'bi-x-circle');
+            icon.classList.add('spinner-border', 'spinner-border-sm', 'me-1');
+          }
         }
       }, { once: true });
     });
