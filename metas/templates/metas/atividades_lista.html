@@ -1,0 +1,76 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Atividades da Unidade{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  {% url 'core:dashboard' as dash_url %}
+  {% include "partials/_page_header.html" with title="Atividades" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-list-task" %}
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-light">
+      <strong><i class="bi bi-list-task me-1"></i> Atividades Cadastradas</strong>
+    </div>
+
+    <div class="card-body">
+      <!-- Filtros -->
+      <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4">
+          <label class="form-label mb-0">Área</label>
+          <select name="area" class="form-select">
+            <option value="">Todas</option>
+            {% for value, label in areas %}
+              <option value="{{ value }}" {% if value == area_selected %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label mb-0">Buscar</label>
+          <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Título ou descrição">
+        </div>
+
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-outline-primary w-100">
+            <i class="bi bi-search"></i> Filtrar
+          </button>
+        </div>
+      </form>
+
+      <!-- Tabela -->
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Título</th>
+            <th>Descrição</th>
+            <th>Área</th>
+            <th class="text-end">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for atividade in atividades %}
+            <tr>
+              <td>{{ atividade.titulo }}</td>
+              <td>{{ atividade.descricao|default:"—" }}</td>
+              <td>
+                {% if atividade.get_area_display %}
+                  <span class="badge bg-secondary">{{ atividade.get_area_display }}</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <a href="{% url 'metas:definir-meta' atividade.id %}" class="btn btn-sm btn-outline-primary">
+
+                  <i class="bi bi-bullseye"></i> Definir Metas
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="text-center">Nenhuma atividade encontrada.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

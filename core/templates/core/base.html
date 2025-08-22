@@ -304,6 +304,14 @@
         <i class="bi bi-calendar-week"></i> <span>Plantão</span>
       </a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link {% if request.resolver_match.app_name == 'metas' or 'metas' in request.resolver_match.namespaces %}active{% endif %}"
+        href="{% url 'metas:atividades-lista' %}"
+        data-bs-title="Metas"
+        aria-current="{% if request.resolver_match.app_name == 'metas' %}page{% endif %}">
+        <i class="bi bi-bullseye"></i> <span>Metas</span>
+      </a>
+    </li>
 
     {% if request.user.is_superuser %}
       <li class="nav-item mt-3"><div class="nav-section-title">Administração</div></li>

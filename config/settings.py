@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'atividades.apps.AtividadesConfig',
     "descanso",
     'plantao',
+    'metas',
 ]
 
 MIDDLEWARE = [

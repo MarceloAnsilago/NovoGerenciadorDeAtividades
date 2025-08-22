@@ -27,5 +27,5 @@ urlpatterns = [
     path("atividades/", include("atividades.urls")),
     path("descanso/", include("descanso.urls", namespace="descanso")),
     path("plantao/", include("plantao.urls")),
-    
+    path("metas/", include("metas.urls", namespace="metas")),
 ]
