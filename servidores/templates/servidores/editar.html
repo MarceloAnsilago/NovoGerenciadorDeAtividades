@@ -8,19 +8,34 @@
 <div class="container py-4">
 
   {% url 'servidores:lista' as lista_url %}
-   {% include "partials/_page_header.html" with title="Editar Servidor" subtitle=unidade|default_if_none:"" back_url=lista_url icon="bi-pencil-square" %}
+  {# mostra "Unidade atual: Nome" quando há unidade, senão string vazia #}
+  {% if unidade %}
+    {% include "partials/_page_header.html" with title="Editar Servidor" subtitle="Unidade atual: "|add:unidade.nome back_url=lista_url icon="bi-pencil-square" %}
+  {% else %}
+    {% include "partials/_page_header.html" with title="Editar Servidor" subtitle="" back_url=lista_url icon="bi-pencil-square" %}
+  {% endif %}
 
+  {# Mensagens flash (partial recebe controle de exibição se quiser) #}
   {% include "partials/_messages.html" with show_local_messages=False only %}
 
   <div class="card shadow-sm">
     <div class="card-body">
       <form method="post" novalidate>
         {% csrf_token %}
-        {% include "partials/_servidor_form_fields.html" %}
+
+        {# mostra erros de formulário gerais no topo #}
+        {{ form.non_field_errors }}
+        {% include "partials/_servidor_form_fields.html" with form=form %}
+
+        {# mantém redirect de retorno se a view forneceu `next` #}
+        {% if next %}
+          <input type="hidden" name="next" value="{{ next }}">
+        {% endif %}
+
         <div class="d-flex gap-2 justify-content-end mt-4">
           <a href="{{ lista_url }}" class="btn btn-outline-secondary">Cancelar</a>
           <button class="btn btn-primary" type="submit">
-            <i class="bi bi-save"></i> Salvar
+            <i class="bi bi-save me-1" aria-hidden="true"></i> Salvar
           </button>
         </div>
       </form>

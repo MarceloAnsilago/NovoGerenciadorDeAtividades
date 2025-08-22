@@ -2,12 +2,58 @@
 {% extends "core/base.html" %}
 {% load static %}
 
+{% block extra_head %}
+  <style>
+    /* matrícula: apenas ícone + número, sem moldura */
+    .matricula-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: .6rem;
+      min-width: 120px;
+      justify-content: center;
+      padding: 0; /* sem padding/card */
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+
+    .matricula-icon {
+      color: #0d6efd;       /* cor do ícone (azul bootstrap) */
+      font-size: 1.15rem;
+      line-height: 1;
+      /* sem fundo/caixa */
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .matricula-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+      color: #0b1a2b;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    /* responsividade */
+    @media (max-width: 576px) {
+      .matricula-inline { min-width: 90px; gap: .4rem; }
+      .matricula-icon { font-size: 1rem; }
+      .matricula-value { font-size: 0.85rem; }
+    }
+  </style>
+{% endblock %}
+
 {% block title %}Servidores da Unidade{% endblock %}
 
 {% block content %}
 <div class="container py-4">
 
-  {# Cabeçalho via partial (mantém padrão visual) #}
+  {# Cabeçalho via partial #}
   {% url 'core:dashboard' as dash_url %}
   {% if unidade %}
     {% include "partials/_page_header.html" with title="Servidores" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-people-gear" %}
@@ -16,7 +62,7 @@
   {% endif %}
 
   {# Mensagens gerais #}
- 
+  {% include "partials/_messages.html" %}
 
   <!-- Card: Cadastro -->
   <div class="card shadow-sm mb-4">
@@ -29,7 +75,7 @@
         {% csrf_token %}
         {{ form.non_field_errors }}
 
-        {# Partial que renderiza os campos do formulário (apenas uma inclusão) #}
+        {# Partial que renderiza os campos do formulário #}
         {% include "partials/_servidor_form_fields.html" %}
 
         <div class="d-flex justify-content-end mt-4">
@@ -79,7 +125,7 @@
             <tr>
               <th><i class="bi bi-person-fill me-1"></i> Nome</th>
               <th><i class="bi bi-telephone me-1"></i> Telefone</th>
-              <th><i class="bi bi-credit-card-2-front me-1"></i> Matrícula</th>
+              <th class="text-center"><i class="bi bi-person-badge me-1"></i> Matrícula</th>
               <th><i class="bi bi-activity me-1"></i> Status</th>
               <th class="text-end"><i class="bi bi-gear me-1"></i> Ações</th>
             </tr>
@@ -98,9 +144,16 @@
                   {{ s.telefone|default:"—" }}
                 </td>
 
-                <td>
-                  <i class="bi bi-hash me-1"></i>
-                  {{ s.matricula|default:"—" }}
+                {# Matrícula: ícone + número (sem moldura) #}
+                <td class="text-center align-middle">
+                  <div class="matricula-inline">
+                    <div class="matricula-icon" aria-hidden="true">
+                      <i class="bi bi-person-badge"></i>
+                    </div>
+                    <div class="matricula-value">
+                      {{ s.matricula|default:"—" }}
+                    </div>
+                  </div>
                 </td>
 
                 <td>
