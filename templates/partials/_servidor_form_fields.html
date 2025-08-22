@@ -1,27 +1,47 @@
 {# servidores/templates/servidores/partials/_servidor_form_fields.html #}
-{{ form.non_field_errors }}
+
+{% if form.non_field_errors %}
+  <div class="alert alert-danger">
+    {{ form.non_field_errors }}
+  </div>
+{% endif %}
+
 <div class="row g-3">
   <div class="col-md-6">
-    <label for="{{ form.nome.id_for_label }}" class="form-label">Nome</label>
+    <label for="{{ form.nome.id_for_label }}" class="form-label">
+      <i class="bi bi-person-fill me-1"></i> Nome
+    </label>
     {{ form.nome }}
-    <div class="text-danger small">{{ form.nome.errors }}</div>
+    {% if form.nome.help_text %}
+      <div class="form-text">{{ form.nome.help_text }}</div>
+    {% endif %}
+    <div class="text-danger small mt-1">{{ form.nome.errors }}</div>
   </div>
+
   <div class="col-md-3">
-    <label for="{{ form.telefone.id_for_label }}" class="form-label">Telefone</label>
+    <label for="{{ form.telefone.id_for_label }}" class="form-label">
+      <i class="bi bi-telephone me-1"></i> Telefone
+    </label>
     {{ form.telefone }}
     <div class="form-text">Ex.: (11) 91234-5678</div>
-    <div class="text-danger small">{{ form.telefone.errors }}</div>
+    <div class="text-danger small mt-1">{{ form.telefone.errors }}</div>
   </div>
+
   <div class="col-md-3">
-    <label for="{{ form.matricula.id_for_label }}" class="form-label">Matrícula</label>
+    <label for="{{ form.matricula.id_for_label }}" class="form-label">
+      <i class="bi bi-credit-card-2-front me-1"></i> Matrícula
+    </label>
     {{ form.matricula }}
-    <div class="text-danger small">{{ form.matricula.errors }}</div>
+    <div class="text-danger small mt-1">{{ form.matricula.errors }}</div>
   </div>
+
   <div class="col-md-3 d-flex align-items-center">
     <div class="form-check mt-4">
       {{ form.ativo }}
-      <label class="form-check-label" for="{{ form.ativo.id_for_label }}">Ativo</label>
+      <label class="form-check-label ms-2" for="{{ form.ativo.id_for_label }}">
+        <i class="bi bi-toggle-on me-1"></i> Ativo
+      </label>
     </div>
-    <div class="text-danger small w-100">{{ form.ativo.errors }}</div>
+    <div class="text-danger small w-100 ms-2">{{ form.ativo.errors }}</div>
   </div>
 </div>

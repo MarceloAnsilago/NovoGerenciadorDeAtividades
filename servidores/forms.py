@@ -8,7 +8,7 @@ class ServidorForm(forms.ModelForm):
         fields = ["nome", "telefone", "matricula", "ativo"]
         widgets = {
             "nome": forms.TextInput(attrs={"class": "form-control", "placeholder": "Nome completo"}),
-            "telefone": forms.TextInput(attrs={"class": "form-control", "placeholder": "(00) 00000-0000"}),
+            "telefone": forms.TextInput(attrs={"class": "form-control telefone-mask", "placeholder": "(00) 00000-0000"}),
             "matricula": forms.TextInput(attrs={"class": "form-control", "placeholder": "Matrícula"}),
             "ativo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }

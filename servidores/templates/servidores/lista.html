@@ -1,6 +1,6 @@
 {# servidores/templates/servidores/lista.html #}
 {% extends "core/base.html" %}
-{% load static widget_tweaks %}
+{% load static %}
 
 {% block title %}Servidores da Unidade{% endblock %}
 
@@ -16,7 +16,7 @@
   {% endif %}
 
   {# Mensagens gerais #}
-  {% include "partials/_messages.html" %}
+ 
 
   <!-- Card: Cadastro -->
   <div class="card shadow-sm mb-4">
@@ -34,7 +34,7 @@
 
         <div class="d-flex justify-content-end mt-4">
           <button type="submit" class="btn btn-primary">
-            <i class="bi bi-save"></i> Salvar
+            <i class="bi bi-save me-1"></i> Salvar
           </button>
         </div>
       </form>
@@ -66,7 +66,7 @@
           </div>
           <div class="col-md-3 d-flex align-items-end">
             <button class="btn btn-outline-primary w-100" type="submit">
-              <i class="bi bi-search"></i> Buscar
+              <i class="bi bi-search me-1"></i> Buscar
             </button>
           </div>
         </div>
@@ -77,38 +77,51 @@
         <table class="table align-middle">
           <thead class="table-light">
             <tr>
-              <th>Nome</th>
-              <th>Telefone</th>
-              <th>Matrícula</th>
-              <th>Status</th>
-              <th class="text-end">Ações</th>
+              <th><i class="bi bi-person-fill me-1"></i> Nome</th>
+              <th><i class="bi bi-telephone me-1"></i> Telefone</th>
+              <th><i class="bi bi-credit-card-2-front me-1"></i> Matrícula</th>
+              <th><i class="bi bi-activity me-1"></i> Status</th>
+              <th class="text-end"><i class="bi bi-gear me-1"></i> Ações</th>
             </tr>
           </thead>
+
           <tbody>
             {% for s in servidores %}
               <tr>
-                <td class="fw-medium">{{ s.nome }}</td>
-                <td>{{ s.telefone|default:"—" }}</td>
-                <td>{{ s.matricula|default:"—" }}</td>
+                <td>
+                  <i class="bi bi-person-circle text-primary me-2"></i>
+                  {{ s.nome }}
+                </td>
+
+                <td>
+                  <i class="bi bi-telephone me-1"></i>
+                  {{ s.telefone|default:"—" }}
+                </td>
+
+                <td>
+                  <i class="bi bi-hash me-1"></i>
+                  {{ s.matricula|default:"—" }}
+                </td>
+
                 <td>
                   {% if s.ativo %}
-                    <span class="badge bg-success">Ativo</span>
+                    <span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>Ativo</span>
                   {% else %}
-                    <span class="badge bg-danger">Inativo</span>
+                    <span class="badge bg-danger"><i class="bi bi-x-lg me-1"></i>Inativo</span>
                   {% endif %}
                 </td>
+
                 <td class="text-end">
-                  <a class="btn btn-sm btn-warning" href="{% url 'servidores:editar' s.id %}">
+                  <a class="btn btn-sm btn-warning" href="{% url 'servidores:editar' s.id %}" title="Editar {{ s.nome }}" aria-label="Editar">
                     <i class="bi bi-pencil"></i> Editar
                   </a>
 
-                  {# AÇÃO: usar FORM POST (inativar / ativar) para evitar GETs mutantes #}
                   {% if s.ativo %}
                     <form method="post" action="{% url 'servidores:inativar' s.id %}" class="d-inline servidor-action-form"
                           onsubmit="return confirm('Inativar este servidor?');">
                       {% csrf_token %}
                       <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                      <button class="btn btn-sm btn-outline-danger" type="submit" title="Inativar {{ s.nome }}" aria-label="Inativar">
                         <i class="bi bi-x-circle"></i> Inativar
                       </button>
                     </form>
@@ -117,12 +130,11 @@
                           onsubmit="return confirm('Ativar este servidor?');">
                       {% csrf_token %}
                       <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                      <button class="btn btn-sm btn-outline-success" type="submit">
+                      <button class="btn btn-sm btn-outline-success" type="submit" title="Ativar {{ s.nome }}" aria-label="Ativar">
                         <i class="bi bi-check-circle"></i> Ativar
                       </button>
                     </form>
                   {% endif %}
-
                 </td>
               </tr>
             {% empty %}
@@ -174,16 +186,39 @@
 
 {% block extra_js %}
 <script>
+  // máscara simples de telefone (brasileira) e prevenção de double submit
+  function telefoneMask(value) {
+    const nums = (value || '').replace(/\D/g,'');
+    if (nums.length <= 10) { // (00) 0000-0000
+      return nums.replace(/^(\d{2})(\d{0,4})(\d{0,4}).*/, function(_, a, b, c){
+        return a ? `(${a}) ${b}${c? '-'+c: ''}` : '';
+      });
+    } else { // (00) 00000-0000
+      return nums.replace(/^(\d{2})(\d{0,5})(\d{0,4}).*/, function(_, a, b, c){
+        return a ? `(${a}) ${b}${c? '-'+c: ''}` : '';
+      });
+    }
+  }
+
+  document.addEventListener('input', function(e){
+    if (e.target && e.target.classList && e.target.classList.contains('telefone-mask')) {
+      const pos = e.target.selectionStart;
+      const oldLen = e.target.value.length;
+      e.target.value = telefoneMask(e.target.value);
+      const newLen = e.target.value.length;
+      e.target.selectionStart = e.target.selectionEnd = pos + (newLen - oldLen);
+    }
+  });
+
   document.addEventListener('DOMContentLoaded', function () {
-    // Desabilita botão após submissão para evitar double-submit
+    // desabilita botão após submissão para evitar double-submit
     document.querySelectorAll('.servidor-action-form').forEach(form => {
       form.addEventListener('submit', function () {
         const btn = form.querySelector('button[type="submit"]');
         if (btn) {
           btn.disabled = true;
-          // opcional: adicionar spinner no ícone
           const icon = btn.querySelector('i');
-          if (icon) icon.classList.add('me-1', 'spinner-border', 'spinner-border-sm');
+          if (icon) icon.classList.add('me-1','spinner-border','spinner-border-sm');
         }
       }, { once: true });
     });
