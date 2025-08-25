@@ -312,6 +312,14 @@
         <i class="bi bi-bullseye"></i> <span>Metas</span>
       </a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link {% if request.resolver_match.app_name == 'minhas_metas' or 'minhas_metas' in request.resolver_match.namespaces %}active{% endif %}"
+        href="{% url 'minhas_metas:minhas_metas' %}"
+        data-bs-title="Minhas Metas"
+        aria-current="{% if request.resolver_match.app_name == 'minhas_metas' %}page{% endif %}">
+        <i class="bi bi-clipboard-check"></i> <span>Minhas Metas</span>
+      </a>
+    </li>
 
     {% if request.user.is_superuser %}
       <li class="nav-item mt-3"><div class="nav-section-title">Administração</div></li>
