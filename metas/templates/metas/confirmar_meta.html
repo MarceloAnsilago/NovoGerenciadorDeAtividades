@@ -1,0 +1,36 @@
+{% extends "core/base.html" %}
+{% block title %}Confirmar Meta{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  {% url 'metas:atividades-lista' as back_url %}
+  {% include "partials/_page_header.html" with title="Confirmar Meta" subtitle=atividade.nome back_url=back_url icon="bi-bullseye" %}
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h5>Revise os dados antes de salvar</h5>
+
+      <dl class="row">
+        <dt class="col-sm-3">Atividade</dt><dd class="col-sm-9">{{ atividade.nome }}</dd>
+        <dt class="col-sm-3">Data limite</dt><dd class="col-sm-9">{{ cleaned.data_limite|date:"j \\d\\e F \\d\\e Y" }}</dd>
+        <dt class="col-sm-3">Quantidade</dt><dd class="col-sm-9">{{ cleaned.quantidade_alvo }}</dd>
+        <dt class="col-sm-3">Observações</dt><dd class="col-sm-9">{{ cleaned.descricao|default:"—" }}</dd>
+      </dl>
+
+      <form method="post" class="mt-3">
+        {% csrf_token %}
+        {# Hidden fields em formato adequado para o form do Django #}
+        <input type="hidden" name="data_limite" value="{{ cleaned.data_limite|date:'Y-m-d' }}">
+        <input type="hidden" name="quantidade_alvo" value="{{ cleaned.quantidade_alvo }}">
+        <input type="hidden" name="descricao" value="{{ cleaned.descricao|escape }}">
+        <input type="hidden" name="confirm" value="1">
+
+        <button type="submit" class="btn btn-success">
+          <i class="bi bi-check-circle"></i> Confirmar e Salvar Meta
+        </button>
+        <a href="{% url 'metas:definir-meta' atividade.id %}" class="btn btn-secondary ms-2">Voltar e Editar</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

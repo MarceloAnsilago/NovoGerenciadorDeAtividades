@@ -1,0 +1,219 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Atribuir Meta{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  {% url 'metas:metas-unidade' as back_url %}
+  {% include "partials/_page_header.html" with title="Atribuir Meta" subtitle=meta.titulo back_url=back_url icon="bi-list-check" %}
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+
+      <p>Crie a alocação desta meta para a unidade <strong>{{ unidade.nome }}</strong>:</p>
+
+      <!-- Resumo da meta -->
+      <div class="mb-3">
+        <div class="row gx-3 gy-2 align-items-center">
+          <div class="col-auto">
+            <div class="small text-muted">Alvo</div>
+            <div class="fw-bold">{{ meta.quantidade_alvo|default_if_none:"0" }}</div>
+          </div>
+
+          <div class="col-auto">
+            <div class="small text-muted">Já alocado</div>
+            <div class="fw-bold">{{ meta.alocado_total|default_if_none:"0" }}</div>
+          </div>
+
+          <div class="col-auto">
+            <div class="small text-muted">Ainda a alocar (atual)</div>
+            {% if restante is not None %}
+              <div id="remainingCurrent" class="fw-bold">{{ restante }}</div>
+            {% else %}
+              <div id="remainingCurrent" class="fw-bold">Sem limite</div>
+            {% endif %}
+          </div>
+
+          <div class="col-auto">
+            <div class="small text-muted">Após alterações (previsto)</div>
+            <div id="remainingPredicted" class="fw-bold">—</div>
+          </div>
+
+          <div class="col text-end">
+            <button id="expandAll" class="btn btn-sm btn-outline-secondary me-2">Expandir tudo</button>
+            <button id="collapseAll" class="btn btn-sm btn-outline-secondary">Recolher tudo</button>
+          </div>
+        </div>
+
+        <div class="mt-2">
+          <small class="text-muted">Legenda: <strong>As alterações só surtirão efeito após salvar.</strong></small>
+        </div>
+
+        <hr>
+      </div>
+      <!-- /Resumo da meta -->
+
+      {# injetamos meta_info de forma segura para o JS #}
+      {{ meta_info|json_script:"meta-data" }}
+
+      <form method="post" novalidate id="atribuirForm">
+        {% csrf_token %}
+
+        <div class="accordion" id="accordionGrupos">
+          {% for nodo, unidades_data in grupos_with_data %}
+            {% with idx=forloop.counter %}
+            <div class="accordion-item mb-3">
+              <h2 class="accordion-header" id="heading{{ idx }}">
+                <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#collapse{{ idx }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+                        aria-controls="collapse{{ idx }}">
+                  {{ nodo.nome }} <span class="ms-3 text-muted small">({{ unidades_data|length }} unidade(s))</span>
+                </button>
+              </h2>
+
+              <div id="collapse{{ idx }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+                   aria-labelledby="heading{{ idx }}" data-bs-parent="#accordionGrupos">
+                <div class="accordion-body">
+                  <div class="table-responsive">
+                    <table class="table table-borderless align-middle mb-0">
+                      <thead>
+                        <tr>
+                          <th style="width:45%">Unidade</th>
+                          <th style="width:20%">Quantidade</th>
+                          <th style="width:35%">Observação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for item in unidades_data %}
+                          {% with u=item.unidade aloc=item.alocacao %}
+                          <tr>
+                            <td class="align-middle">{{ u.nome }}</td>
+
+                            <td>
+                              <input
+                                type="number"
+                                name="quantity_{{ u.id }}"
+                                min="0"
+                                class="form-control quantity-input"
+                                data-unit-id="{{ u.id }}"
+                                data-existing="{{ aloc.quantidade_alocada|default_if_none:0 }}"
+                                value="{% if item.submitted_qty is not None %}{{ item.submitted_qty }}{% elif aloc %}{{ aloc.quantidade_alocada }}{% else %}0{% endif %}">
+                            </td>
+
+                            <td>
+                              <input
+                                type="text"
+                                name="obs_{{ u.id }}"
+                                class="form-control"
+                                value="{% if item.submitted_obs is not None %}{{ item.submitted_obs }}{% elif aloc %}{{ aloc.observacao }}{% else %}{% endif %}"
+                                placeholder="Observação (opcional)">
+                            </td>
+                          </tr>
+                          {% endwith %}
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endwith %}
+          {% empty %}
+            <div class="alert alert-warning">Nenhuma unidade subordinada encontrada para atribuir nesta unidade.</div>
+          {% endfor %}
+        </div>
+
+        <div class="mt-3">
+          <button type="submit" id="submitBtn" class="btn btn-primary">Atribuir</button>
+          <a href="{{ back_url }}" class="btn btn-secondary ms-2">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  const expandBtn = document.getElementById("expandAll");
+  const collapseBtn = document.getElementById("collapseAll");
+  const accordionItems = document.querySelectorAll('#accordionGrupos .accordion-collapse');
+  const qtyInputs = Array.from(document.querySelectorAll('.quantity-input'));
+  const remainingCurrent = document.getElementById('remainingCurrent');
+  const remainingPredicted = document.getElementById('remainingPredicted');
+  const submitBtn = document.getElementById('submitBtn');
+
+  // lê meta_info de forma segura (json_script)
+  const metaInfoEl = document.getElementById('meta-data');
+  const metaInfo = metaInfoEl ? JSON.parse(metaInfoEl.textContent) : { meta_alvo: 0, meta_alocado_total: 0, existing_for_units: 0 };
+  const metaAlvo = Number(metaInfo.meta_alvo || 0);
+  const metaAlocadoTotal = Number(metaInfo.meta_alocado_total || 0);
+  const existingForUnits = Number(metaInfo.existing_for_units || 0); // USO AGORA: fonte de verdade
+
+  // soma dos valores que o usuário digitou (nas unidades exibidas)
+  function sumEntered() {
+    return qtyInputs.reduce((acc, inp) => {
+      let val = Number(inp.value);
+      if (isNaN(val)) val = 0;
+      return acc + val;
+    }, 0);
+  }
+
+  function computeAndRenderRemaining() {
+    // valor atual (servidor)
+    const currentRemaining = (metaAlvo && metaAlvo > 0) ? (metaAlvo - metaAlocadoTotal) : null;
+    if (currentRemaining === null) {
+      remainingCurrent.textContent = "Sem limite";
+    } else {
+      remainingCurrent.textContent = currentRemaining;
+    }
+
+    // soma digitada pelo usuário
+    const sum = sumEntered();
+
+    // novo total se aplicarmos mudanças: substituímos existingForUnits por sum
+    const newTotal = metaAlocadoTotal - existingForUnits + sum;
+
+    if (!metaAlvo || metaAlvo === 0) {
+      remainingPredicted.textContent = "Sem limite";
+      remainingPredicted.classList.remove("text-danger", "text-success");
+      submitBtn.disabled = false;
+    } else {
+      const predicted = metaAlvo - newTotal;
+      remainingPredicted.textContent = predicted;
+      if (predicted < 0) {
+        remainingPredicted.classList.add("text-danger");
+        remainingPredicted.classList.remove("text-success");
+        submitBtn.disabled = true;
+      } else {
+        remainingPredicted.classList.remove("text-danger");
+        remainingPredicted.classList.add("text-success");
+        submitBtn.disabled = false;
+      }
+    }
+  }
+
+  // listeners para inputs
+  qtyInputs.forEach(inp => inp.addEventListener('input', computeAndRenderRemaining));
+
+  // expand / collapse all
+  expandBtn.addEventListener("click", function(e){
+    e.preventDefault();
+    accordionItems.forEach(item => {
+      const bs = bootstrap.Collapse.getOrCreateInstance(item);
+      bs.show();
+    });
+  });
+
+  collapseBtn.addEventListener("click", function(e){
+    e.preventDefault();
+    accordionItems.forEach(item => {
+      const bs = bootstrap.Collapse.getOrCreateInstance(item);
+      bs.hide();
+    });
+  });
+
+  // cálculo inicial
+  computeAndRenderRemaining();
+});
+</script>
+{% endblock %}

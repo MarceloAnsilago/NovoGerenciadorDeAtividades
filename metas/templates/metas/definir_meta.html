@@ -8,7 +8,12 @@
   {% url 'metas:atividades-lista' as back_url %}
   {% include "partials/_page_header.html" with title="Definir Meta" subtitle=atividade.titulo back_url=back_url icon="bi-bullseye" %}
 
-  <div class="card shadow-sm">
+  <!-- Card: Formulário de criação -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+      <strong><i class="bi bi-bullseye me-1"></i> Nova Meta</strong>
+    </div>
+
     <div class="card-body">
       <form method="post" novalidate>
         {% csrf_token %}
@@ -59,5 +64,87 @@
       </form>
     </div>
   </div>
+  <!-- /Card: Formulário -->
+
+  <!-- Card: Lista de Metas da atividade -->
+  <div class="card shadow-sm">
+    <div class="card-header bg-light d-flex align-items-center justify-content-between">
+      <div>
+        <strong><i class="bi bi-list-ul me-1"></i> Metas criadas para esta atividade</strong>
+        <div class="small text-muted">Atividade: <strong>{{ atividade.titulo }}</strong></div>
+      </div>
+      <div class="small text-muted">{{ metas_atividade.count }} encontrada(s)</div>
+    </div>
+
+    <div class="card-body">
+      {% if metas_atividade %}
+        <div class="table-responsive">
+          <table class="table table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Unidade criadora</th>
+                <th>Prazo</th>
+                <th>Alvo</th>
+                <th>Realizado</th>
+                <th>% Execução</th>
+                <th>Status</th>
+                <th class="text-end">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in metas_atividade %}
+                <tr>
+                  <td>{{ m.titulo }}</td>
+                  <td>{{ m.unidade_criadora.nome }}</td>
+                  <td>{% if m.data_limite %}{{ m.data_limite|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                  <td>{{ m.quantidade_alvo }}</td>
+                  <td>{{ m.realizado_total }}</td>
+                  <td>{{ m.percentual_execucao|floatformat:1 }}%</td>
+                  <td>
+                    {% if m.concluida %}
+                      <span class="badge bg-success">Concluída</span>
+                    {% elif m.atrasada %}
+                      <span class="badge bg-danger">Atrasada</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark">Em andamento</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <a href="{% url 'metas:editar' m.id %}" class="btn btn-sm btn-outline-warning me-1" title="Editar">
+                      <i class="bi bi-pencil-square"></i> Editar
+                    </a>
+
+                    {# Form para encerrar/inativar a meta (POST) #}
+                    <form method="post" action="{% url 'metas:toggle_encerrada' m.id %}" class="d-inline">
+                      {% csrf_token %}
+                      {% if not m.encerrada %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Encerrar meta" onclick="return confirm('Tem certeza que deseja encerrar esta meta?')">
+                          <i class="bi bi-x-circle"></i> Encerrar
+                        </button>
+                      {% else %}
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Reabrir meta" onclick="return confirm('Reabrir a meta?')">
+                          <i class="bi bi-arrow-clockwise"></i> Reabrir
+                        </button>
+                      {% endif %}
+                    </form>
+
+                    {# Link rápido para abrir a tela de atribuição desta meta #}
+                    <a href="{% url 'metas:atribuir-meta' m.id %}" class="btn btn-sm btn-outline-primary ms-1" title="Atribuir">
+                      <i class="bi bi-list-check"></i>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center py-4 text-muted">Nenhuma meta criada para esta atividade.</div>
+      {% endif %}
+    </div>
+  </div>
+  <!-- /Card: Lista de Metas -->
+
 </div>
 {% endblock %}
