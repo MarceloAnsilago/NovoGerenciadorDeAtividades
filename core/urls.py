@@ -1,12 +1,11 @@
-import core.views as views
-from .views import assumir_unidade
-from .views import voltar_contexto
-from django.urls import path, include
+# core/urls.py
+from django.urls import path
+from . import views
+
 app_name = "core"
-from .views import DashboardView
-from .views import excluir_perfil
+
 urlpatterns = [
-    path("", DashboardView.as_view(), name="dashboard"),
+    path("", views.DashboardView.as_view(), name="dashboard"),
     path("estrutura/", views.admin_arvore, name="admin_arvore"),
     path("perfis/", views.perfis, name="perfis"),
     path("perfis/criar/", views.criar_perfil, name="criar_perfil"),
@@ -20,17 +19,15 @@ urlpatterns = [
     path("nos/mover/<int:pk>/", views.nos_mover, name="nos_mover"),
     path("nos/deletar/<int:pk>/", views.nos_deletar, name="nos_deletar"),
 
-    # Adiciona aqui a rota de primeiro acesso
+    # Primeiro acesso
     path("primeiro-acesso/", views.primeiro_acesso_token_view, name="primeiro_acesso_token"),
     path("primeiro-acesso/trocar/", views.trocar_senha_primeiro_acesso, name="trocar_senha_primeiro_acesso"),
-    path("assumir-unidade/<int:id>/", views.assumir_unidade, name="assumir_unidade"),
-    path('voltar-contexto/', views.voltar_contexto, name='voltar_contexto'),
 
-    path("perfis/<int:user_id>/excluir/", excluir_perfil, name="excluir_perfil"),
+    # assumir unidade (note o nome do parâmetro: unidade_id)
+    path("assumir-unidade/<int:unidade_id>/", views.assumir_unidade, name="assumir_unidade"),
+
+    path("voltar-contexto/", views.voltar_contexto, name="voltar_contexto"),
+
+    path("perfis/<int:user_id>/excluir/", views.excluir_perfil, name="excluir_perfil"),
     path("perfis/<int:user_id>/redefinir-senha/", views.redefinir_senha, name="redefinir_senha"),
-  
-
-
-  
-
 ]

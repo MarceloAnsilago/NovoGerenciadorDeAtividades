@@ -1,4 +1,5 @@
 {% load static %}
+{% load unidade_tags %}
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -192,20 +193,14 @@
             </li>
           {% endif %}
 
+          <!-- dentro da navbar -->
           {% if perms.core.assumir_unidade and unidades_disponiveis %}
             <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle btn btn-sm btn-outline-light" href="#" role="button" data-bs-toggle="dropdown">
+              <a class="nav-link dropdown-toggle btn btn-sm btn-outline-light" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 Trocar unidade
               </a>
               <ul class="dropdown-menu dropdown-menu-end">
-                {% for u in unidades_disponiveis %}
-                  <li>
-                    <a class="dropdown-item {% if u.id == request.session.contexto_atual %}active disabled{% endif %}"
-                      href="{% if u.id != request.session.contexto_atual %}{% url 'core:assumir_unidade' u.id %}{% else %}#{% endif %}">
-                      {{ u.nome }} {% if u.id == request.session.contexto_atual %}(Atual){% endif %}
-                    </a>
-                  </li>
-                {% endfor %}
+                {% unidade_tree unidades_disponiveis contexto_atual=request.session.contexto_atual %}
               </ul>
             </li>
           {% endif %}

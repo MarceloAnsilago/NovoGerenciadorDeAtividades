@@ -1,0 +1,22 @@
+{# core/templates/core/unidade_dropdown_item.html #}
+<ul class="list-unstyled ps-0 mb-0">
+  {% for unidade in unidades %}
+    <li class="mb-0">
+      <a class="dropdown-item {% if unidade.id == contexto_atual %}active disabled{% endif %}"
+         href="{% url 'core:assumir_unidade' unidade.id %}{% if request %}?next={{ request.get_full_path|urlencode }}{% endif %}">
+        {% if unidade.children %}
+          <i class="bi bi-folder-fill me-2"></i>
+        {% else %}
+          <i class="bi bi-file-earmark-text me-2"></i>
+        {% endif %}
+        {{ unidade.nome }} {% if unidade.id == contexto_atual %}<small class="text-muted">(Atual)</small>{% endif %}
+      </a>
+
+      {% if unidade.children %}
+        <div class="ms-3">
+          {% include "core/unidade_dropdown_item.html" with unidades=unidade.children contexto_atual=contexto_atual %}
+        </div>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>

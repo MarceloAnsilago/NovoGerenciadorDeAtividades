@@ -1,27 +1,25 @@
 # core/views.py
 
+import random
+import string
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required, user_passes_test, permission_required
-from django.contrib.auth import authenticate, logout, login as auth_login
+from django.contrib.auth import authenticate, logout, login as auth_login, get_user_model
 from django.contrib.auth.forms import SetPasswordForm
-from django.contrib.auth import get_user_model
-from django.db import transaction, IntegrityError
-
-from .models import No as Unidade, No, UserProfile  # No e alias Unidade
-from .forms import UserProfileForm
-
-from django.contrib.auth import get_user_model
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib.auth.models import Group
 from django.views.generic import TemplateView
+from django.urls import reverse
 
-import secrets
-import string
-import random
+from .models import No, UserProfile  # No (Unidade) e UserProfile
+from .models import No as Unidade
+# from .forms import UserProfileForm  # removido: não utilizado
 
+# Inicializa o modelo de usuário
 User = get_user_model()
 
 # ============ DASHBOARD ============
@@ -39,10 +37,12 @@ def admin_arvore(request):
     tem_unidades = Unidade.objects.exists()
     return render(request, "core/admin_arvore.html", {"tem_unidades": tem_unidades})
 
+
 @login_required
 def nos_list(request):
     dados = [no.to_jstree() for no in Unidade.objects.all()]
     return JsonResponse(dados, safe=False)
+
 
 @require_POST
 @login_required
@@ -53,6 +53,7 @@ def nos_criar(request):
     parent = Unidade.objects.filter(id=parent_id).first() if parent_id else None
     no = Unidade.objects.create(nome=nome, parent=parent)
     return JsonResponse(no.to_jstree())
+
 
 @require_POST
 @login_required
@@ -66,6 +67,7 @@ def nos_renomear(request, pk):
     no.save()
     return JsonResponse({'status': 'ok'})
 
+
 @require_POST
 @login_required
 @user_passes_test(lambda u: u.is_staff)
@@ -76,6 +78,7 @@ def nos_mover(request, pk):
     no.parent = novo_parent
     no.save()
     return JsonResponse({'status': 'ok'})
+
 
 @require_POST
 @login_required
@@ -90,9 +93,9 @@ def nos_deletar(request, pk):
 
 @login_required
 def perfis(request):
-    # Liste as raízes; o include renderiza filhos
     unidades = No.objects.select_related('parent').all().order_by('parent_id', 'nome')
     return render(request, 'core/perfis.html', {'unidades': unidades})
+
 
 @login_required
 @permission_required('core.add_userprofile', raise_exception=True)
@@ -138,29 +141,24 @@ def criar_perfil(request):
     except Exception as e:
         return JsonResponse({"status": "erro", "erro": str(e)}, status=500)
 
+
 @require_POST
 @login_required
 @permission_required('core.add_userprofile', raise_exception=True)
 def excluir_perfil(request, user_id):
-   
-
     user = get_object_or_404(User, id=user_id)
-  
 
     try:
         user.delete()
-     
         return JsonResponse({"status": "excluido"})
     except Exception as e:
-       
         try:
             user.is_active = False
             user.save()
-          
             return JsonResponse({"status": "inativado"})
         except Exception as e2:
-           
             return JsonResponse({"status": "erro", "erro": str(e2)}, status=500)
+
 
 @require_POST
 @login_required
@@ -190,7 +188,7 @@ def redefinir_senha(request, user_id):
 
 # ============ PRIMEIRO ACESSO / TROCA DE SENHA ============
 
-@login_required  # opcional; se for público remova
+@login_required
 def primeiro_acesso_token_view(request):
     context = {}
     if request.method == 'POST':
@@ -206,6 +204,7 @@ def primeiro_acesso_token_view(request):
         except User.DoesNotExist:
             context['erro'] = "Usuário não encontrado."
     return render(request, 'primeiro_acesso_verificar.html', context)
+
 
 def trocar_senha_primeiro_acesso(request):
     user_id = request.session.get('troca_user_id')
@@ -263,6 +262,7 @@ def login_view(request):
 
     return render(request, "core/login.html")
 
+
 def logout_view(request):
     logout(request)
     messages.success(request, "Você saiu da sessão.")
@@ -273,12 +273,18 @@ def logout_view(request):
 
 @login_required
 @permission_required('core.assumir_unidade', raise_exception=True)
-def assumir_unidade(request, id):
-    unidade = get_object_or_404(Unidade, id=id)
+def assumir_unidade(request, unidade_id=None, id=None):
+    pk = unidade_id or id
+    unidade = get_object_or_404(No, pk=pk)
     request.session['contexto_atual'] = unidade.id
     request.session['contexto_nome'] = unidade.nome
-    messages.success(request, f"Contexto alterado para: {unidade.nome}")
-    return redirect(request.META.get('HTTP_REFERER', 'core:dashboard'))
+    messages.success(request, f'Unidade alterada para: {unidade.nome}')
+
+    next_url = request.GET.get('next')
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        return redirect(next_url)
+    return redirect(reverse('core:dashboard'))
+
 
 @login_required
 def voltar_contexto(request):
@@ -293,10 +299,9 @@ class DashboardView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        User = get_user_model()
 
         total_usuarios = User.objects.count()
-        total_perfis = Group.objects.count()       # ou seu modelo de perfil, se tiver
+        total_perfis = Group.objects.count()
         total_nos = No.objects.count()
 
         ctx["metrics"] = [
@@ -306,7 +311,7 @@ class DashboardView(TemplateView):
                 "icon": "bi-people",
                 "bg": "bg-primary-subtle",
                 "fg": "text-primary",
-                "link_name": "core:perfis",          # ✅ EXISTE
+                "link_name": "core:perfis",
             },
             {
                 "label": "Perfis",
@@ -314,7 +319,7 @@ class DashboardView(TemplateView):
                 "icon": "bi-person-badge",
                 "bg": "bg-success-subtle",
                 "fg": "text-success",
-                "link_name": "core:perfis",          # ✅ EXISTE
+                "link_name": "core:perfis",
             },
             {
                 "label": "Unidades / Estrutura",
@@ -322,7 +327,7 @@ class DashboardView(TemplateView):
                 "icon": "bi-diagram-3",
                 "bg": "bg-warning-subtle",
                 "fg": "text-warning",
-                "link_name": "core:admin_arvore",    # ✅ EXISTE
+                "link_name": "core:admin_arvore",
             },
         ]
 
