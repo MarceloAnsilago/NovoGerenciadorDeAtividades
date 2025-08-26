@@ -9,6 +9,19 @@ from .models import Servidor
 from .forms import ServidorForm
 from core.utils import _get_unidade_atual  # seu util
 
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.core.paginator import Paginator
+from django.views.decorators.http import require_POST
+from django.db.models import Q
+from django.db import transaction, IntegrityError
+
+from .models import Servidor
+from .forms import ServidorForm
+from core.utils import _get_unidade_atual  # seu util
+
+
 @login_required
 def lista(request):
     unidade = _get_unidade_atual(request)
@@ -27,27 +40,59 @@ def lista(request):
 
     # POST = criar
     if request.method == "POST":
+        # exige que exista unidade no contexto
         if not unidade:
             messages.warning(request, "Selecione uma unidade antes de cadastrar.")
             return redirect("servidores:lista")
+
         form = ServidorForm(request.POST)
         if form.is_valid():
+            # salva commit=False para garantir atribuições obrigatórias (unidade etc.)
             serv = form.save(commit=False)
-            if hasattr(serv, "unidade") and serv.unidade is None:
+
+            # Preferência: se o form tem campo 'unidade' e o usuário selecionou um valor válido,
+            # respeitamos; caso contrário, forçamos a unidade atual do contexto.
+            selected_unidade = None
+            try:
+                # cleaned_data existe apenas após form.is_valid(), então é seguro
+                selected_unidade = form.cleaned_data.get("unidade")
+            except Exception:
+                selected_unidade = None
+
+            if selected_unidade:
+                serv.unidade = selected_unidade
+            else:
+                # força a unidade do contexto (impede unidade=NULL)
                 serv.unidade = unidade
-            serv.save()
+
+            # salva dentro de transação e captura erro de integridade para mensagem amigável
+            try:
+                with transaction.atomic():
+                    serv.save()
+            except IntegrityError as exc:
+                # log opcional: print(exc) ou logger.exception(exc)
+                messages.error(request, "Erro ao salvar o servidor: problema de integridade. Verifique os dados e tente novamente.")
+                return redirect("servidores:lista")
+
             messages.success(request, "Servidor cadastrado com sucesso.")
             return redirect("servidores:lista")
         else:
             messages.error(request, "Corrija os erros do formulário.")
     else:
+        # GET -> instanciar form: podemos ocultar o campo 'unidade' na criação para evitar confusão
         form = ServidorForm()
+        # opcional: ocultar o campo unidade para criação (se desejar forçar o contexto)
+        # try:
+        #     form.fields.pop("unidade", None)
+        # except Exception:
+        #     pass
 
     paginator = Paginator(qs, 12)
     page_obj = paginator.get_page(request.GET.get("page"))
     context = {"form": form, "servidores": page_obj.object_list, "page_obj": page_obj,
                "unidade": unidade, "q": q, "status": status}
     return render(request, "servidores/lista.html", context)
+
 
 @login_required
 def editar(request, pk):

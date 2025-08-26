@@ -2,8 +2,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.core.paginator import Paginator
+from django.db import transaction
 
 from core.utils import get_unidade_atual
 from core.models import No
@@ -16,9 +17,18 @@ from .forms import MetaForm
 @login_required
 def metas_unidade_view(request):
     unidade = get_unidade_atual(request)
+    if not unidade:
+        messages.error(request, "Selecione uma unidade antes de ver as metas.")
+        return redirect("core:dashboard")
+
     atividade_id = request.GET.get('atividade')
 
-    alocacoes = MetaAlocacao.objects.select_related('meta', 'meta__atividade').filter(unidade=unidade)
+    # buscar alocações já relacionadas à unidade atual (com meta e atividade)
+    alocacoes = (
+        MetaAlocacao.objects.select_related('meta', 'meta__atividade')
+        .filter(unidade=unidade)
+        .order_by('meta__data_limite', 'meta__titulo')
+    )
 
     if atividade_id:
         alocacoes = alocacoes.filter(meta__atividade__id=atividade_id)
@@ -71,6 +81,10 @@ def atividades_lista_view(request):
 @login_required
 def definir_meta_view(request, atividade_id):
     unidade = get_unidade_atual(request)
+    if not unidade:
+        messages.error(request, "Selecione uma unidade antes de criar uma meta.")
+        return redirect("core:dashboard")
+
     atividade = get_object_or_404(Atividade, pk=atividade_id)
 
     # Metas já criadas para esta atividade (lista para o card abaixo)
@@ -86,6 +100,8 @@ def definir_meta_view(request, atividade_id):
             meta.save()
             messages.success(request, "Meta criada com sucesso. Agora atribua quantidades.")
             return redirect("metas:atribuir-meta", meta_id=meta.id)
+        else:
+            messages.error(request, "Corrija os erros do formulário.")
     else:
         form = MetaForm()
 
@@ -96,14 +112,17 @@ def definir_meta_view(request, atividade_id):
         "metas_atividade": metas_atividade,
     })
 
+
 @login_required
 def atribuir_meta_view(request, meta_id):
     """
     Tela / fluxo para criar/editar MetaAlocacao para as unidades filhas do usuário.
-    Passa para o template também `meta_info.existing_for_units` (soma das alocações
-    apenas para as unidades exibidas) para cálculo coerente no cliente.
     """
     unidade = get_unidade_atual(request)
+    if not unidade:
+        messages.error(request, "Selecione uma unidade antes de atribuir metas.")
+        return redirect("core:dashboard")
+
     meta = get_object_or_404(Meta, pk=meta_id)
 
     # montar grupos: filhos diretos da unidade atual (ex.: supervisores -> unidades)
@@ -117,13 +136,17 @@ def atribuir_meta_view(request, meta_id):
             grupos.append((nodo, filhos))
             unidades_atribuiveis.extend(filhos)
         else:
-            # caso o nó não tenha filhos, consideramos ele mesmo uma unidade atribuível
             grupos.append((nodo, [nodo]))
             unidades_atribuiveis.append(nodo)
 
+    # se não tiver unidades atribuiveis, informar e redirecionar
+    if not unidades_atribuiveis:
+        messages.info(request, "Não há unidades filhas para atribuir metas a partir da unidade atual.")
+        return redirect("metas:metas-unidade")
+
     # carregar alocações existentes apenas para as unidades exibidas
     unidades_pks = [u.pk for u in unidades_atribuiveis]
-    aloc_qs = MetaAlocacao.objects.filter(meta=meta, unidade__in=unidades_pks)
+    aloc_qs = MetaAlocacao.objects.filter(meta=meta, unidade__in=unidades_pks).select_related('unidade')
     aloc_map = {a.unidade_id: a for a in aloc_qs}
     existing_for_units = sum(a.quantidade_alocada for a in aloc_qs)  # soma só p/ unidades da tela
 
@@ -132,11 +155,11 @@ def atribuir_meta_view(request, meta_id):
     if request.method == "POST":
         total_submitted = 0
         for u in unidades_atribuiveis:
-            raw_q = request.POST.get(f"quantity_{u.id}", "").strip()
-            raw_obs = request.POST.get(f"obs_{u.id}", "").strip()
+            raw_q = (request.POST.get(f"quantity_{u.id}", "") or "").strip()
+            raw_obs = (request.POST.get(f"obs_{u.id}", "") or "").strip()
             try:
                 qty = int(raw_q) if raw_q != "" else 0
-            except ValueError:
+            except (ValueError, TypeError):
                 qty = 0
             submitted_values[u.id] = {"qty": qty, "obs": raw_obs}
             total_submitted += qty
@@ -151,6 +174,7 @@ def atribuir_meta_view(request, meta_id):
                 request,
                 f"A soma das alocações ({new_total_alocado}) excede o alvo ({meta.quantidade_alvo}). Ajuste as quantidades."
             )
+
             # reconstroi grupos_with_data com submitted_values para re-render
             grupos_with_data = []
             for nodo, unidades in grupos:
@@ -181,34 +205,35 @@ def atribuir_meta_view(request, meta_id):
                 "restante": restante,
             })
 
-        # aplicar alterações (criar/atualizar/deletar)
+        # aplicar alterações (criar/atualizar/deletar) em transação
         created = updated = deleted = 0
-        for u in unidades_atribuiveis:
-            sub = submitted_values.get(u.id, {"qty": 0, "obs": ""})
-            qty = sub["qty"]
-            obs = sub["obs"] or ""
-            existing = aloc_map.get(u.id)
+        with transaction.atomic():
+            for u in unidades_atribuiveis:
+                sub = submitted_values.get(u.id, {"qty": 0, "obs": ""})
+                qty = sub["qty"]
+                obs = sub["obs"] or ""
+                existing = aloc_map.get(u.id)
 
-            if qty > 0:
-                if existing:
-                    if existing.quantidade_alocada != qty or (existing.observacao or "") != obs:
-                        existing.quantidade_alocada = qty
-                        existing.observacao = obs
-                        existing.save(update_fields=["quantidade_alocada", "observacao"])
-                        updated += 1
+                if qty > 0:
+                    if existing:
+                        if existing.quantidade_alocada != qty or (existing.observacao or "") != obs:
+                            existing.quantidade_alocada = qty
+                            existing.observacao = obs
+                            existing.save(update_fields=["quantidade_alocada", "observacao"])
+                            updated += 1
+                    else:
+                        MetaAlocacao.objects.create(
+                            meta=meta,
+                            unidade=u,
+                            quantidade_alocada=qty,
+                            atribuida_por=request.user,
+                            observacao=obs,
+                        )
+                        created += 1
                 else:
-                    MetaAlocacao.objects.create(
-                        meta=meta,
-                        unidade=u,
-                        quantidade_alocada=qty,
-                        atribuida_por=request.user,
-                        observacao=obs,
-                    )
-                    created += 1
-            else:
-                if existing:
-                    existing.delete()
-                    deleted += 1
+                    if existing:
+                        existing.delete()
+                        deleted += 1
 
         msg_parts = []
         if created: msg_parts.append(f"{created} criada(s)")
@@ -271,8 +296,9 @@ def editar_meta_view(request, meta_id):
         if form.is_valid():
             form.save()
             messages.success(request, "Meta atualizada com sucesso.")
-            # redirecionar para lista de metas da unidade (ou para página anterior)
             return redirect("metas:metas-unidade")
+        else:
+            messages.error(request, "Corrija os erros do formulário.")
     else:
         form = MetaForm(instance=meta)
 
@@ -305,5 +331,4 @@ def toggle_encerrada_view(request, meta_id):
 
     # tenta voltar para a página anterior
     next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "metas:metas-unidade"
-    # se for uma URL completa, redireciona; se for name, redireciona pelo nome
     return redirect(next_url)

@@ -1,24 +1,19 @@
-from django.db import models
-from django.db.models import Sum, CheckConstraint, Q
-from django.utils import timezone
-from core.models import No as Unidade
+# metas/models.py
 from django.conf import settings
+from django.db import models
+from django.db.models import Sum, Q, CheckConstraint
+from django.utils import timezone
 
+# usar o valor de AUTH_USER_MODEL (string) é ok ao passar para ForeignKey
 User = settings.AUTH_USER_MODEL
+
+from core.models import No as Unidade  # assume que core está correto e importável
 
 
 class Meta(models.Model):
-    """
-    A 'meta' é o objetivo-mãe (ex.: 'Vacinar 1.000 bovinos até 30/09').
-    Ela nasce em uma unidade (criadora/dona), define prazo e,
-    OPCIONALMENTE, referencia uma atividade definida no app `atividades`.
-    A distribuição para unidades acontece em MetaAlocacao.
-    """
     unidade_criadora = models.ForeignKey(
         Unidade, on_delete=models.PROTECT, related_name="metas_criadas"
     )
-    # Referência para o model Atividade do app `atividades`.
-    # Usamos string reference para evitar import circular.
     atividade = models.ForeignKey(
         "atividades.Atividade",
         on_delete=models.SET_NULL,
@@ -44,19 +39,54 @@ class Meta(models.Model):
         verbose_name_plural = "Metas"
 
     def __str__(self):
-        return self.titulo
+        return self.display_titulo
 
-    # ---- Agregações úteis ----
+    @property
+    def display_titulo(self):
+        t = self.titulo
+        if t and str(t).strip():
+            return str(t).strip()
+        atividade = getattr(self, "atividade", None)
+        if atividade:
+            return getattr(atividade, "titulo", None) or getattr(atividade, "nome", None) or "(sem título)"
+        return "(sem título)"
+
+    def save(self, *args, **kwargs):
+        # normaliza título e tenta preencher a partir da atividade se estiver vazio
+        if self.titulo is not None:
+            self.titulo = str(self.titulo).strip()
+        if not self.titulo:
+            atividade = getattr(self, "atividade", None)
+            if atividade:
+                possible = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
+                if possible:
+                    self.titulo = str(possible).strip()
+        super().save(*args, **kwargs)
+
     @property
     def alocado_total(self) -> int:
         return self.alocacoes.aggregate(total=Sum("quantidade_alocada"))["total"] or 0
 
     @property
     def realizado_total(self) -> int:
-        return (
-            ProgressoMeta.objects.filter(alocacao__meta=self)
-            .aggregate(total=Sum("quantidade"))["total"] or 0
-        )
+        """
+        Soma todo o progresso ligado às alocações desta meta de forma segura:
+        - tenta agregação direta via related lookups;
+        - em caso de erro (cenários raros) faz fallback iterativo.
+        """
+        try:
+            total = self.alocacoes.aggregate(total=Sum("progresso__quantidade"))["total"]
+            return total or 0
+        except Exception:
+            # fallback mais robusto
+            try:
+                total = 0
+                for al in self.alocacoes.all():
+                    t = al.progresso.aggregate(total=Sum("quantidade"))["total"] or 0
+                    total += t
+                return total
+            except Exception:
+                return 0
 
     @property
     def percentual_execucao(self) -> float:
@@ -71,15 +101,10 @@ class Meta(models.Model):
 
     @property
     def concluida(self) -> bool:
-        """Concluída quando realizado_total >= quantidade_alvo ou quando encerrada manualmente."""
         return self.encerrada or (self.quantidade_alvo and self.realizado_total >= self.quantidade_alvo)
 
 
 class MetaAlocacao(models.Model):
-    """
-    Uma 'alocação' representa a atribuição de parte (ou todo) da meta a uma unidade específica.
-    Suporta redistribuição em cadeia via parent (ex.: gerente -> supervisão -> unidade).
-    """
     meta = models.ForeignKey(Meta, on_delete=models.CASCADE, related_name="alocacoes")
     unidade = models.ForeignKey(Unidade, on_delete=models.PROTECT, related_name="metas_recebidas")
     quantidade_alocada = models.PositiveIntegerField()
@@ -99,7 +124,9 @@ class MetaAlocacao(models.Model):
         verbose_name_plural = "Alocações de Metas"
 
     def __str__(self):
-        return f"{self.meta.titulo} -> {self.unidade.nome} ({self.quantidade_alocada})"
+        # tolerante se meta.titulo vazio
+        titulo = getattr(self.meta, "display_titulo", getattr(self.meta, "titulo", "(sem título)"))
+        return f"{titulo} -> {self.unidade.nome} ({self.quantidade_alocada})"
 
     @property
     def realizado(self) -> int:
@@ -118,9 +145,6 @@ class MetaAlocacao(models.Model):
 
 
 class ProgressoMeta(models.Model):
-    """
-    Lançamentos de execução realizados pela unidade alocada.
-    """
     alocacao = models.ForeignKey(MetaAlocacao, on_delete=models.CASCADE, related_name="progresso")
     data = models.DateField(default=timezone.localdate)
     quantidade = models.PositiveIntegerField()
@@ -141,4 +165,5 @@ class ProgressoMeta(models.Model):
         verbose_name_plural = "Progresso de Metas"
 
     def __str__(self):
-        return f"{self.alocacao.unidade.nome} +{self.quantidade} em {self.data}"
+        unidade_nome = getattr(self.alocacao, "unidade", None)
+        return f"{unidade_nome.nome if unidade_nome else '—'} +{self.quantidade} em {self.data}"
