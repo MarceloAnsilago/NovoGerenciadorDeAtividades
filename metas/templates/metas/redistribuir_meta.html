@@ -1,0 +1,49 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Redistribuir Meta{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  {% include "partials/_page_header.html" with title="Redistribuir Meta" subtitle=meta.titulo back_url=back_url icon="bi-arrow-left-square" %}
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <p>Redistribuir a alocação de <strong>{{ parent_aloc.unidade.nome }}</strong>: <strong>{{ parent_aloc.quantidade_alocada }}</strong></p>
+      <p>Disponível para redistribuir: <strong>{{ parent_available }}</strong></p>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="table-responsive">
+          <table class="table table-borderless align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Unidade</th>
+                <th style="width:20%">Quantidade</th>
+                <th style="width:40%">Observação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in filhos %}
+                <tr>
+                  <td class="align-middle">{{ f.unidade.nome }}</td>
+                  <td>
+                    <input type="number" name="qty_child_{{ f.unidade.id }}" min="0"
+                           class="form-control" value="{{ f.existing_qty }}">
+                  </td>
+                  <td>
+                    <input type="text" name="obs_child_{{ f.unidade.id }}" class="form-control"
+                           value="{{ f.existing_obs }}" placeholder="Observação (opcional)">
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-3">
+          <button type="submit" class="btn btn-primary">Salvar redistribuições</button>
+          <a href="{% url 'metas:metas-unidade' %}" class="btn btn-secondary ms-2">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

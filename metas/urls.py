@@ -23,4 +23,6 @@ urlpatterns = [
 
     # atribuir quantidades para uma meta
     path("atribuir/<int:meta_id>/", views.atribuir_meta_view, name="atribuir-meta"),
+
+    path("meta/<int:meta_id>/redistribuir/<int:parent_aloc_id>/", views.redistribuir_meta_view, name="redistribuir-meta"),
 ]

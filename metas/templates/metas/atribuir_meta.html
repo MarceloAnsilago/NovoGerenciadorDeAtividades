@@ -56,18 +56,52 @@
       {# injetamos meta_info de forma segura para o JS #}
       {{ meta_info|json_script:"meta-data" }}
 
+      {# ===== CSS local para destacar hierarquia (pode mover para arquivo global) ===== #}
+      <style>
+      /* destaque do nodo (supervisor/gerente) */
+      .nodo-row {
+        background-color: #f5fbff;
+        border-left: 4px solid #0d6efd;
+      }
+      .child-row .unidade-cell {
+        padding-left: 1.6rem;
+        color: #333;
+      }
+      .nodo-row .unidade-cell {
+        padding-left: 0.6rem;
+      }
+
+      /* ícones */
+      .unidade-cell i.bi { font-size: 1.05rem; vertical-align: middle; }
+
+      /* badge pequeno para indicar 'Supervisor' e total do grupo */
+      .unidade-badge { font-size: 0.7rem; padding: 0.25rem 0.4rem; vertical-align: middle; }
+      .group-total-badge { font-size: 0.75rem; padding: 0.25rem 0.45rem; vertical-align: middle; }
+
+      /* highlight quando algum filho tem valor */
+      .nodo-row.highlighted {
+        box-shadow: 0 0 0 .25rem rgba(13,110,253, 0.06);
+      }
+
+      /* limpeza visual */
+      .table .align-middle { vertical-align: middle; }
+      </style>
+
       <form method="post" novalidate id="atribuirForm">
         {% csrf_token %}
 
         <div class="accordion" id="accordionGrupos">
           {% for nodo, unidades_data in grupos_with_data %}
             {% with idx=forloop.counter %}
-            <div class="accordion-item mb-3">
+            <div class="accordion-item mb-3" data-idx="{{ idx }}">
               <h2 class="accordion-header" id="heading{{ idx }}">
                 <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button"
                         data-bs-toggle="collapse" data-bs-target="#collapse{{ idx }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
                         aria-controls="collapse{{ idx }}">
-                  {{ nodo.nome }} <span class="ms-3 text-muted small">({{ unidades_data|length }} unidade(s))</span>
+                  {{ nodo.nome }}
+                  <span class="ms-3 text-muted small">({{ unidades_data|length }} unidade(s))</span>
+                  <!-- badge de total do grupo (atualizado por JS) -->
+                  <span class="badge bg-light text-dark ms-3 group-total-badge" data-group-idx="{{ idx }}">0</span>
                 </button>
               </h2>
 
@@ -86,8 +120,26 @@
                       <tbody>
                         {% for item in unidades_data %}
                           {% with u=item.unidade aloc=item.alocacao %}
-                          <tr>
-                            <td class="align-middle">{{ u.nome }}</td>
+                          {# detecta se esta linha é o nodo (supervisor) #}
+                          <tr class="{% if u.pk == nodo.pk %}nodo-row{% else %}child-row{% endif %}">
+                            <td class="align-middle unidade-cell">
+                              {% if u.pk == nodo.pk %}
+                                {# ícone supervisor (Bootstrap Icons) #}
+                                <i class="bi bi-folder-fill text-primary me-2" aria-hidden="true"></i>
+                                <strong>{{ u.nome }}</strong>
+                                <span class="badge bg-secondary unidade-badge ms-2">Supervisor</span>
+
+                                {# botão Redistribuir aparece quando há alocação existente neste nodo #}
+                                {% if aloc and aloc.quantidade_alocada %}
+                                  <a href="{% url 'metas:redistribuir-meta' meta.id aloc.id %}" class="btn btn-sm btn-outline-primary ms-3">
+                                    Redistribuir para filhos
+                                  </a>
+                                {% endif %}
+                              {% else %}
+                                <i class="bi bi-file-earmark-text text-muted me-2" aria-hidden="true"></i>
+                                {{ u.nome }}
+                              {% endif %}
+                            </td>
 
                             <td>
                               <input
@@ -97,6 +149,7 @@
                                 class="form-control quantity-input"
                                 data-unit-id="{{ u.id }}"
                                 data-existing="{{ aloc.quantidade_alocada|default_if_none:0 }}"
+                                data-group-idx="{{ idx }}"
                                 value="{% if item.submitted_qty is not None %}{{ item.submitted_qty }}{% elif aloc %}{{ aloc.quantidade_alocada }}{% else %}0{% endif %}">
                             </td>
 
@@ -132,6 +185,7 @@
   </div>
 </div>
 
+{# ===== JS ===== #}
 <script>
 document.addEventListener("DOMContentLoaded", function(){
   const expandBtn = document.getElementById("expandAll");
@@ -147,15 +201,52 @@ document.addEventListener("DOMContentLoaded", function(){
   const metaInfo = metaInfoEl ? JSON.parse(metaInfoEl.textContent) : { meta_alvo: 0, meta_alocado_total: 0, existing_for_units: 0 };
   const metaAlvo = Number(metaInfo.meta_alvo || 0);
   const metaAlocadoTotal = Number(metaInfo.meta_alocado_total || 0);
-  const existingForUnits = Number(metaInfo.existing_for_units || 0); // USO AGORA: fonte de verdade
+  const existingForUnits = Number(metaInfo.existing_for_units || 0); // soma apenas das unidades da tela (server)
 
-  // soma dos valores que o usuário digitou (nas unidades exibidas)
+  // agrupa inputs por group index (data-group-idx)
+  const groupsMap = {};
+  qtyInputs.forEach(inp => {
+    const g = inp.dataset.groupIdx || "0";
+    if (!groupsMap[g]) groupsMap[g] = [];
+    groupsMap[g].push(inp);
+  });
+
+  // helpers
+  function sumInputs(list) {
+    return list.reduce((acc, inp) => {
+      let v = Number(inp.value);
+      if (isNaN(v)) v = 0;
+      return acc + v;
+    }, 0);
+  }
+
   function sumEntered() {
     return qtyInputs.reduce((acc, inp) => {
       let val = Number(inp.value);
       if (isNaN(val)) val = 0;
       return acc + val;
     }, 0);
+  }
+
+  // atualiza badges e destaque por grupo
+  function refreshGroupsUI() {
+    Object.keys(groupsMap).forEach(gidx => {
+      const inputs = groupsMap[gidx];
+      const total = sumInputs(inputs);
+      // atualiza badge
+      const badge = document.querySelector('.group-total-badge[data-group-idx="'+gidx+'"]');
+      if (badge) badge.textContent = total;
+
+      // encontra o accordion-item correspondente (data-idx no .accordion-item)
+      const accordionItem = document.querySelector('.accordion-item[data-idx="'+gidx+'"]');
+      if (accordionItem) {
+        // a linha do nodo (supervisor) dentro do accordion item
+        const nodoRow = accordionItem.querySelector('.nodo-row');
+        if (nodoRow) {
+          nodoRow.classList.toggle('highlighted', total > 0);
+        }
+      }
+    });
   }
 
   function computeAndRenderRemaining() {
@@ -190,6 +281,9 @@ document.addEventListener("DOMContentLoaded", function(){
         submitBtn.disabled = false;
       }
     }
+
+    // atualização visual de grupos
+    refreshGroupsUI();
   }
 
   // listeners para inputs
@@ -214,6 +308,9 @@ document.addEventListener("DOMContentLoaded", function(){
 
   // cálculo inicial
   computeAndRenderRemaining();
+
+  // também atualiza badges caso valores default (carregados do servidor) já existam
+  refreshGroupsUI();
 });
 </script>
 {% endblock %}

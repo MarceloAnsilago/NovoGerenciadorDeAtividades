@@ -12,7 +12,7 @@ from atividades.models import Atividade
 
 from .models import Meta, MetaAlocacao
 from .forms import MetaForm
-
+from django.http import HttpResponseForbidden
 
 @login_required
 def metas_unidade_view(request):
@@ -117,6 +117,11 @@ def definir_meta_view(request, atividade_id):
 def atribuir_meta_view(request, meta_id):
     """
     Tela / fluxo para criar/editar MetaAlocacao para as unidades filhas do usuário.
+    Nesta versão:
+    - cada 'nodo' (ex.: supervisor) aparece como primeira linha do seu grupo,
+      seguido das unidades filhas (assim o supervisor pode receber alocação).
+    - a própria unidade atual (ex.: gerente) é também adicionada como primeiro grupo,
+      permitindo que o gerente receba a meta diretamente.
     """
     unidade = get_unidade_atual(request)
     if not unidade:
@@ -127,22 +132,37 @@ def atribuir_meta_view(request, meta_id):
 
     # montar grupos: filhos diretos da unidade atual (ex.: supervisores -> unidades)
     grupos = []
+    # filhos diretos (nodos) — ex.: supervisores
     filhos_diretos = No.objects.filter(parent=unidade).order_by("nome")
     unidades_atribuiveis = []
 
+    # Para cada nodo: incluir o próprio nodo (supervisor) como primeira unidade do grupo,
+    # seguido das suas unidades filhas (se existirem).
     for nodo in filhos_diretos:
         filhos = list(nodo.filhos.all().order_by("nome"))
         if filhos:
-            grupos.append((nodo, filhos))
+            # unidade_do_grupo: [nodo, filho1, filho2, ...]
+            unidades_do_grupo = [nodo] + filhos
+            grupos.append((nodo, unidades_do_grupo))
+
+            # manter unidades_atribuiveis: supervisor primeiro, depois filhos
+            unidades_atribuiveis.append(nodo)
             unidades_atribuiveis.extend(filhos)
         else:
+            # nodo sem filhos: apresentamos apenas o nodo
             grupos.append((nodo, [nodo]))
             unidades_atribuiveis.append(nodo)
 
-    # se não tiver unidades atribuiveis, informar e redirecionar
-    if not unidades_atribuiveis:
-        messages.info(request, "Não há unidades filhas para atribuir metas a partir da unidade atual.")
-        return redirect("metas:metas-unidade")
+    # Adiciona a própria unidade atual (ex.: GERENTE) como grupo no topo se ainda não estiver presente.
+    # Isso permite que a unidade principal receba alocação.
+    if unidade:
+        already_present = any(getattr(nodo, "pk", None) == getattr(unidade, "pk", None) for nodo, _ in grupos)
+        if not already_present:
+            grupos.insert(0, (unidade, [unidade]))
+
+        # garante que unidades_atribuiveis também contenha a própria unidade (sem duplicar)
+        if not any(getattr(u, "pk", None) == getattr(unidade, "pk", None) for u in unidades_atribuiveis):
+            unidades_atribuiveis.insert(0, unidade)
 
     # carregar alocações existentes apenas para as unidades exibidas
     unidades_pks = [u.pk for u in unidades_atribuiveis]
@@ -332,3 +352,125 @@ def toggle_encerrada_view(request, meta_id):
     # tenta voltar para a página anterior
     next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "metas:metas-unidade"
     return redirect(next_url)
+
+@login_required
+def redistribuir_meta_view(request, meta_id, parent_aloc_id):
+    """
+    Redistribui uma MetaAlocacao (parent) para os filhos da unidade dona dessa alocacao.
+    Só permite se a unidade atual for a mesma da alocacao (ou superuser).
+    """
+    unidade = get_unidade_atual(request)
+    if not unidade:
+        messages.error(request, "Selecione uma unidade antes de redistribuir metas.")
+        return redirect("core:dashboard")
+
+    meta = get_object_or_404(Meta, pk=meta_id)
+    parent_aloc = get_object_or_404(MetaAlocacao.objects.select_related('unidade'), pk=parent_aloc_id, meta=meta)
+
+    parent_unidade = parent_aloc.unidade
+
+    # Permissão básica: só a unidade dona da alocação (ou superuser) pode redistribuir
+    if unidade.id != parent_unidade.id and not request.user.is_superuser:
+        return HttpResponseForbidden("Você não tem permissão para redistribuir esta alocação.")
+
+    # filhos da unidade (destinos potenciais)
+    filhos = list(parent_unidade.filhos.all().order_by("nome"))
+    if not filhos:
+        messages.info(request, "Esta unidade não possui filhos para redistribuir.")
+        return redirect("metas:metas-unidade")
+
+    # alocações já existentes que têm parent=parent_aloc
+    child_alocs_qs = MetaAlocacao.objects.filter(meta=meta, parent=parent_aloc).select_related('unidade')
+    child_alocs_map = {a.unidade_id: a for a in child_alocs_qs}
+    existing_total = sum(a.quantidade_alocada for a in child_alocs_qs)  # já redistribuído
+
+    if request.method == "POST":
+        submitted = {}
+        total_submitted = 0
+        for f in filhos:
+            raw_q = (request.POST.get(f"qty_child_{f.id}", "") or "").strip()
+            raw_obs = (request.POST.get(f"obs_child_{f.id}", "") or "").strip()
+            try:
+                qty = int(raw_q) if raw_q != "" else 0
+            except (ValueError, TypeError):
+                qty = 0
+            submitted[f.id] = {"qty": qty, "obs": raw_obs}
+            total_submitted += qty
+
+        # validação: não redistribuir mais do que o disponível no parent
+        parent_available = parent_aloc.quantidade_alocada or 0
+        if total_submitted > parent_available:
+            messages.error(request,
+                f"A soma das redistribuições ({total_submitted}) excede a alocação disponível ({parent_available}). Ajuste as quantidades.")
+            # re-render com submitted values
+            return render(request, "metas/redistribuir_meta.html", {
+                "meta": meta,
+                "parent_aloc": parent_aloc,
+                "filhos": filhos,
+                "submitted": submitted,
+                "existing_total": existing_total,
+                "parent_available": parent_available,
+            })
+
+        # aplicar alterações em transação: criar/atualizar/deletar child alocações com parent=parent_aloc
+        created = updated = deleted = 0
+        with transaction.atomic():
+            for f in filhos:
+                sub = submitted.get(f.id, {"qty": 0, "obs": ""})
+                qty = sub["qty"]
+                obs = sub["obs"] or ""
+                existing = child_alocs_map.get(f.id)
+
+                if qty > 0:
+                    if existing:
+                        if existing.quantidade_alocada != qty or (existing.observacao or "") != obs:
+                            existing.quantidade_alocada = qty
+                            existing.observacao = obs
+                            existing.save(update_fields=["quantidade_alocada", "observacao"])
+                            updated += 1
+                    else:
+                        MetaAlocacao.objects.create(
+                            meta=meta,
+                            unidade=f,
+                            quantidade_alocada=qty,
+                            parent=parent_aloc,
+                            atribuida_por=request.user,
+                            observacao=obs,
+                        )
+                        created += 1
+                else:
+                    if existing:
+                        existing.delete()
+                        deleted += 1
+
+        msg_parts = []
+        if created: msg_parts.append(f"{created} criada(s)")
+        if updated: msg_parts.append(f"{updated} atualizada(s)")
+        if deleted: msg_parts.append(f"{deleted} removida(s)")
+        if msg_parts:
+            messages.success(request, "Redistribuições: " + ", ".join(msg_parts) + ".")
+        else:
+            messages.info(request, "Nenhuma alteração nas redistribuições.")
+
+        return redirect("metas:metas-unidade")
+
+    # GET -> render do formulário com os valores atuais (usamos existing se não houver submitted)
+    # preparar dados por filho
+    filhos_data = []
+    for f in filhos:
+        existing = child_alocs_map.get(f.id)
+        filhos_data.append({
+            "unidade": f,
+            "existing": existing,
+            "existing_qty": existing.quantidade_alocada if existing else 0,
+            "existing_obs": existing.observacao if existing else "",
+        })
+
+    parent_available = parent_aloc.quantidade_alocada or 0
+    return render(request, "metas/redistribuir_meta.html", {
+        "meta": meta,
+        "parent_aloc": parent_aloc,
+        "filhos": filhos_data,
+        "existing_total": existing_total,
+        "parent_available": parent_available,
+    })
