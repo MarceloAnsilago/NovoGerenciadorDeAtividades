@@ -131,11 +131,13 @@
 
                                 {# botão Redistribuir aparece quando há alocação existente neste nodo #}
                                 {% if aloc and aloc.quantidade_alocada %}
-                                  <a href="{% url 'metas:redistribuir-meta' meta.id aloc.id %}" class="btn btn-sm btn-outline-primary ms-3">
-                                    Redistribuir para filhos
-                                  </a>
+                                  {% if unidade_atual.id == u.id or request.user.is_superuser %}
+                                    <a href="{% url 'metas:redistribuir-meta' meta.id aloc.id %}" class="btn btn-sm btn-outline-primary ms-3">
+                                      Redistribuir para filhos
+                                    </a>
+                                  {% endif %}
                                 {% endif %}
-                              {% else %}
+                            {% else %}
                                 <i class="bi bi-file-earmark-text text-muted me-2" aria-hidden="true"></i>
                                 {{ u.nome }}
                               {% endif %}

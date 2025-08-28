@@ -13,6 +13,7 @@ from atividades.models import Atividade
 from .models import Meta, MetaAlocacao
 from .forms import MetaForm
 from django.http import HttpResponseForbidden
+from django.db.models.functions import ExtractYear
 
 @login_required
 def metas_unidade_view(request):
@@ -80,36 +81,44 @@ def atividades_lista_view(request):
 
 @login_required
 def definir_meta_view(request, atividade_id):
-    unidade = get_unidade_atual(request)
-    if not unidade:
-        messages.error(request, "Selecione uma unidade antes de criar uma meta.")
-        return redirect("core:dashboard")
+    atividade = get_object_or_404(Atividade, id=atividade_id)
 
-    atividade = get_object_or_404(Atividade, pk=atividade_id)
+    # Anos únicos baseados na data_limite
+    anos_disponiveis = (
+        Meta.objects.filter(atividade=atividade, data_limite__isnull=False)
+        .annotate(ano=ExtractYear("data_limite"))
+        .values_list("ano", flat=True)
+        .distinct()
+        .order_by("-ano")
+    )
 
-    # Metas já criadas para esta atividade (lista para o card abaixo)
-    metas_atividade = Meta.objects.filter(atividade=atividade).order_by("-criado_em")
+    ano_selecionado = request.GET.get("ano")
+    status_selecionado = request.GET.get("status")
 
-    if request.method == "POST":
-        form = MetaForm(request.POST)
-        if form.is_valid():
-            meta = form.save(commit=False)
-            meta.atividade = atividade
-            meta.unidade_criadora = unidade
-            meta.criado_por = request.user
-            meta.save()
-            messages.success(request, "Meta criada com sucesso. Agora atribua quantidades.")
-            return redirect("metas:atribuir-meta", meta_id=meta.id)
-        else:
-            messages.error(request, "Corrija os erros do formulário.")
-    else:
-        form = MetaForm()
+    metas_atividade = Meta.objects.filter(atividade=atividade)
+
+    # Filtro por ano (direto no banco)
+    if ano_selecionado:
+        metas_atividade = metas_atividade.filter(data_limite__year=ano_selecionado)
+
+    # Filtro por status (em memória, pois são propriedades)
+    metas_atividade = list(metas_atividade)  # Força execução da query
+    if status_selecionado == "concluida":
+        metas_atividade = [m for m in metas_atividade if m.concluida]
+    elif status_selecionado == "atrasada":
+        metas_atividade = [m for m in metas_atividade if m.atrasada and not m.concluida]
+    elif status_selecionado == "andamento":
+        metas_atividade = [m for m in metas_atividade if not m.atrasada and not m.concluida]
+
+    form = MetaForm(request.POST or None)
 
     return render(request, "metas/definir_meta.html", {
         "atividade": atividade,
         "form": form,
-        "unidade": unidade,
         "metas_atividade": metas_atividade,
+        "anos_disponiveis": anos_disponiveis,
+        "ano_selecionado": ano_selecionado,
+        "status_selecionado": status_selecionado,
     })
 
 
@@ -220,11 +229,11 @@ def atribuir_meta_view(request, meta_id):
             return render(request, "metas/atribuir_meta.html", {
                 "meta": meta,
                 "unidade": unidade,
+                "unidade_atual": unidade,  # <- aqui
                 "grupos_with_data": grupos_with_data,
                 "meta_info": meta_info,
                 "restante": restante,
             })
-
         # aplicar alterações (criar/atualizar/deletar) em transação
         created = updated = deleted = 0
         with transaction.atomic():
@@ -474,3 +483,4 @@ def redistribuir_meta_view(request, meta_id, parent_aloc_id):
         "existing_total": existing_total,
         "parent_available": parent_available,
     })
+

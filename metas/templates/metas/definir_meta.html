@@ -18,7 +18,6 @@
       <form method="post" novalidate>
         {% csrf_token %}
 
-        {# Exibir erros de validação #}
         {% if form.errors %}
           <div class="alert alert-danger">
             <ul class="mb-0">
@@ -35,25 +34,21 @@
         {% endif %}
 
         <div class="row g-3">
-          <!-- Data limite -->
           <div class="col-md-6">
             <label for="{{ form.data_limite.id_for_label }}" class="form-label">Data limite</label>
             {{ form.data_limite }}
           </div>
 
-          <!-- Quantidade -->
           <div class="col-md-6">
             <label for="{{ form.quantidade_alvo.id_for_label }}" class="form-label">Quantidade</label>
             {{ form.quantidade_alvo }}
           </div>
 
-          <!-- Observações -->
           <div class="col-12">
             <label for="{{ form.descricao.id_for_label }}" class="form-label">Observações</label>
             {{ form.descricao }}
           </div>
 
-          <!-- Botões -->
           <div class="col-12 mt-3">
             <button type="submit" class="btn btn-success">
               <i class="bi bi-check-circle"></i> Salvar Meta
@@ -77,6 +72,32 @@
     </div>
 
     <div class="card-body">
+      <!-- Filtro por ano -->
+      <form method="get" class="mb-3">
+        <div class="row g-2 align-items-end">
+          <div class="col-auto">
+            <label for="ano" class="form-label mb-0">Filtrar por ano:</label>
+            <select name="ano" id="ano" class="form-select" onchange="this.form.submit()">
+              <option value="">Todos os anos</option>
+              {% for y in anos_disponiveis %}
+                <option value="{{ y }}" {% if y|stringformat:"s" == ano_selecionado %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-auto">
+            <label for="status" class="form-label mb-0">Filtrar por status:</label>
+            <select name="status" id="status" class="form-select" onchange="this.form.submit()">
+              <option value="">Todos os status</option>
+              <option value="andamento" {% if status_selecionado == 'andamento' %}selected{% endif %}>Em andamento</option>
+              <option value="concluida" {% if status_selecionado == 'concluida' %}selected{% endif %}>Concluída</option>
+              <option value="atrasada" {% if status_selecionado == 'atrasada' %}selected{% endif %}>Atrasada</option>
+            </select>
+          </div>
+        </div>
+      </form>
+
+
       {% if metas_atividade %}
         <div class="table-responsive">
           <table class="table table-striped align-middle mb-0">
@@ -111,11 +132,6 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
-                    <a href="{% url 'metas:editar' m.id %}" class="btn btn-sm btn-outline-warning me-1" title="Editar">
-                      <i class="bi bi-pencil-square"></i> Editar
-                    </a>
-
-                    {# Form para encerrar/inativar a meta (POST) #}
                     <form method="post" action="{% url 'metas:toggle_encerrada' m.id %}" class="d-inline">
                       {% csrf_token %}
                       {% if not m.encerrada %}
@@ -129,9 +145,8 @@
                       {% endif %}
                     </form>
 
-                    {# Link rápido para abrir a tela de atribuição desta meta #}
                     <a href="{% url 'metas:atribuir-meta' m.id %}" class="btn btn-sm btn-outline-primary ms-1" title="Atribuir">
-                      <i class="bi bi-list-check"></i>
+                      <i class="bi bi-list-check"></i> Atribuir Meta / Editar
                     </a>
                   </td>
                 </tr>

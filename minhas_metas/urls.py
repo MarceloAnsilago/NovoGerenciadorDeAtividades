@@ -1,10 +1,10 @@
+# minhas_metas/urls.py
 from django.urls import path
-from .views import minhas_metas_view
+from . import views
 
-app_name = 'minhas_metas'
-
-
+app_name = "minhas_metas"
 
 urlpatterns = [
-    path('', minhas_metas_view, name='minhas_metas'),  # ou o nome que você preferir
+    path("", views.minhas_metas_view, name="lista"),
+    path("", views.minhas_metas_view, name="minhas_metas"),  # alias p/ {% url 'minhas_metas' %}
 ]

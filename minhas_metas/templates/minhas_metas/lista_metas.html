@@ -5,11 +5,20 @@
 
 {% block content %}
 <div class="container py-4">
-  <h1 class="mb-4">Minhas Metas</h1>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Minhas Metas</h1>
+    {# exemplo de filtro opcional por atividade via GET #}
+    <form method="get" class="d-flex" style="gap:.5rem;">
+      <input type="text" name="atividade" value="{{ request.GET.atividade }}" class="form-control form-control-sm" placeholder="ID da atividade (opcional)">
+      <button class="btn btn-sm btn-outline-secondary">Filtrar</button>
+    </form>
+  </div>
 
   <div class="card shadow-sm">
     <div class="list-group list-group-flush">
-      {% for meta in metas %}
+
+      {% for aloc in alocacoes %}
+        {% with meta=aloc.meta %}
         <div class="list-group-item">
           <div class="d-flex align-items-start justify-content-between">
             <div class="me-3">
@@ -18,42 +27,63 @@
 
             <div class="flex-grow-1">
               <div class="d-flex justify-content-between align-items-start">
-                <div>
-                  <h5 class="mb-1">{{ meta.display_titulo }}</h5>
+                <div class="pe-3">
+                  <h5 class="mb-1">{{ meta.display_titulo|default:meta.titulo }}</h5>
+
                   {% if meta.descricao %}
                     <p class="mb-1 text-muted">{{ meta.descricao }}</p>
                   {% endif %}
-                  <small class="text-secondary">
-                    ID: {{ meta.id }} —
+
+                  <small class="text-secondary d-block">
+                    ID Meta: {{ meta.id }} —
                     Criada por: {{ meta.criado_por.username }} —
                     Unidade criadora: {{ meta.unidade_criadora.nome }}
                   </small>
+
+                  {% if meta.atividade %}
+                    <small class="text-secondary d-block">
+                      Atividade: {{ meta.atividade.titulo }} (ID: {{ meta.atividade.id }})
+                    </small>
+                  {% endif %}
                 </div>
 
                 <div class="text-end ms-3">
                   {% if meta.data_limite %}
                     <div class="small text-muted mb-1">
                       <i class="bi bi-calendar-event me-1"></i>
-                      Data limite: {{ meta.data_limite|date:"j \\d\\e F \\d\\e Y" }}
+                      Data limite: {{ meta.data_limite|date:"d/m/Y" }}
                     </div>
                   {% endif %}
+
                   <div class="small">Alocado total: <strong>{{ meta.alocado_total }}</strong></div>
                   <div class="small">Executado: <strong>{{ meta.realizado_total }}</strong></div>
-                  {% if meta.alocacoes_para_unidade %}
-                    <div class="small mt-1 text-muted">
-                      Alocado nesta unidade: <strong>{{ meta.alocacoes_para_unidade.0.quantidade_alocada }}</strong>
-                    </div>
+                  <div class="small mt-1 text-muted">
+                    Alocado nesta unidade: <strong>{{ aloc.quantidade_alocada }}</strong>
+                  </div>
+
+                  {# mostra o botão só se há alocação (>0) #}
+                  {% if aloc.quantidade_alocada %}
+                    {% if tem_filhos or request.user.is_superuser %}
+                      <div class="mt-2">
+                        <a href="{% url 'metas:atribuir-meta' meta.id %}" class="btn btn-sm btn-outline-primary">
+                          Atribuir / Redistribuir
+                        </a>
+                      </div>
+                    {% endif %}
                   {% endif %}
                 </div>
               </div>
             </div>
+
           </div>
         </div>
+        {% endwith %}
       {% empty %}
         <div class="list-group-item text-muted">
           Não há metas atribuídas à sua unidade.
         </div>
       {% endfor %}
+
     </div>
   </div>
 </div>
