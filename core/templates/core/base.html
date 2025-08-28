@@ -315,6 +315,14 @@
         <i class="bi bi-clipboard-check"></i> <span>Minhas Metas</span>
       </a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link {% if request.resolver_match.app_name == 'programar_atividades' %}active{% endif %}"
+        href="{% url 'programar_atividades:calendar' %}"
+        data-bs-title="Programar Atividades">
+        <i class="bi bi-calendar-event"></i> <span>Programar Atividades</span>
+      </a>
+    </li>
+
 
     {% if request.user.is_superuser %}
       <li class="nav-item mt-3"><div class="nav-section-title">Administração</div></li>

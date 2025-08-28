@@ -28,7 +28,8 @@ INSTALLED_APPS = [
     "descanso",
     'plantao',
     'metas',
-    'minhas_metas'
+    'minhas_metas',
+    'programar_atividades',
 ]
 
 MIDDLEWARE = [

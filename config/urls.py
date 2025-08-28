@@ -29,4 +29,6 @@ urlpatterns = [
     path("plantao/", include("plantao.urls")),
     path("metas/", include("metas.urls", namespace="metas")),
     path('minhas-metas/', include('minhas_metas.urls', namespace='minhas_metas')),
+    path('calendar/', include(('programar_atividades.urls', 'programar_atividades'),
+                              namespace='programar_atividades')),
 ]

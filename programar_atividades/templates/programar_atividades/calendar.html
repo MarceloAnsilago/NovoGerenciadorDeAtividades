@@ -1,0 +1,58 @@
+{% extends "core/base.html" %}
+
+{% block extra_head %}
+  {# FullCalendar v6 — bundle global correto #}
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+  <style>
+    #calendar { max-width: 1100px; margin: 24px auto; min-height: 520px; background: #fff; padding: 8px; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="container my-4">
+    <h1>Programar Atividades</h1>
+    <div id="calendar" class="mt-4"></div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales-all.global.min.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const el = document.getElementById('calendar');
+      if (!el) return;
+
+      const calendar = new FullCalendar.Calendar(el, {
+        locale: 'pt-br',
+        firstDay: 1,
+        timeZone: 'local',
+
+        // Mantém só navegação e "Hoje"; remove os botões de mudar de visão
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: ''                 // <- sem month/week/day
+        },
+
+        // Exibe somente o mês
+        initialView: 'dayGridMonth',
+
+        // Tradução/override explícito (mesmo com locale)
+        buttonText: {
+          today: 'Hoje',
+          month: 'Mês',
+          week: 'Semana',
+          day: 'Dia'
+        },
+
+        height: 'auto',
+        events: '{% url "programar_atividades:events_feed" %}',
+        dateClick: (info) => alert('Data: ' + info.dateStr)
+      });
+
+      calendar.render();
+    });
+  </script>
+{% endblock %}
