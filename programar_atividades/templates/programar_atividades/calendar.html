@@ -14,45 +14,6 @@
       background: #fff;
       padding: 8px;
     }
-
-    /* === Custom Offcanvas dentro do layout === */
-    .offcanvas-custom {
-      position: absolute;
-      top: 0;
-      left: 0;
-      height: 100%;
-      width: 320px;
-      background-color: #fff;
-      box-shadow: 4px 0 12px rgba(0,0,0,0.1);
-      z-index: 10;  /* menor que navbar/sidebar */
-      transform: translateX(-100%);
-      transition: transform 0.3s ease;
-    }
-
-    .offcanvas-custom.show {
-      transform: translateX(0);
-    }
-
-    .offcanvas-custom-header {
-      padding: 16px;
-      border-bottom: 1px solid #ddd;
-      background-color: #f8f9fa;
-    }
-
-    .offcanvas-custom-body {
-      padding: 16px;
-      overflow-y: auto;
-      height: calc(100% - 72px);
-    }
-
-    /* Ajusta offcanvas caso sidebar esteja recolhida */
-    .content.expanded .offcanvas-custom {
-      left: 70px; /* mesma largura da sidebar recolhida */
-    }
-
-    .content:not(.expanded) .offcanvas-custom {
-      left: 260px; /* largura da sidebar normal */
-    }
   </style>
 {% endblock %}
 
@@ -62,27 +23,31 @@
     <div id="calendar" class="mt-4"></div>
   </div>
 
-  <!-- ✅ Offcanvas Customizado DENTRO do .content -->
-  <div id="offcanvasAtividade" class="offcanvas-custom">
-    <div class="offcanvas-custom-header d-flex justify-content-between align-items-center">
-      <h5 class="mb-0">Nova Atividade</h5>
-      <button type="button" class="btn-close" id="fecharOffcanvas"></button>
-    </div>
-    <div class="offcanvas-custom-body">
-      <form id="formAtividade">
-        <div class="mb-3">
-          <label for="dataAtividade" class="form-label">Data</label>
-          <input type="text" class="form-control" id="dataAtividade" name="data" readonly>
+  <!-- ✅ Modal de Nova Atividade -->
+  <div class="modal fade" id="modalAtividade" tabindex="-1" aria-labelledby="modalAtividadeLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalAtividadeLabel">Nova Atividade</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
         </div>
-        <div class="mb-3">
-          <label for="descricaoAtividade" class="form-label">Descrição</label>
-          <input type="text" class="form-control" id="descricaoAtividade" name="descricao" required>
+        <div class="modal-body">
+          <form id="formAtividade">
+            <div class="mb-3">
+              <label for="dataAtividade" class="form-label">Data</label>
+              <input type="text" class="form-control" id="dataAtividade" name="data" readonly>
+            </div>
+            <div class="mb-3">
+              <label for="descricaoAtividade" class="form-label">Descrição</label>
+              <input type="text" class="form-control" id="descricaoAtividade" name="descricao" required>
+            </div>
+          </form>
         </div>
-        <div class="d-flex justify-content-between">
-          <button type="button" class="btn btn-outline-secondary" id="cancelarOffcanvas">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Salvar</button>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" form="formAtividade" class="btn btn-primary">Salvar</button>
         </div>
-      </form>
+      </div>
     </div>
   </div>
 {% endblock %}
@@ -93,11 +58,44 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales-all.global.min.js"></script>
 
-  <!-- URL de feed de eventos -->
+  <!-- URL de eventos para o calendário -->
   <script>
     window.calendarFeedURL = "{% url 'programar_atividades:events_feed' %}";
   </script>
 
-  <!-- Seu script principal -->
-  <script src="{% static 'js/calendar.js' %}"></script>
+  <!-- Lógica do calendário e modal -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const calendarEl = document.getElementById('calendar');
+      const dataInput = document.getElementById('dataAtividade');
+      const modalEl = document.getElementById('modalAtividade');
+      const modal = new bootstrap.Modal(modalEl);
+
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        locale: 'pt-br',
+        initialView: 'dayGridMonth',
+        firstDay: 1,
+        timeZone: 'local',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: ''
+        },
+        buttonText: {
+          today: 'Hoje',
+          month: 'Mês',
+          week: 'Semana',
+          day: 'Dia'
+        },
+        height: 'auto',
+        events: window.calendarFeedURL,
+        dateClick: function (info) {
+          dataInput.value = info.dateStr;
+          modal.show();
+        }
+      });
+
+      calendar.render();
+    });
+  </script>
 {% endblock %}
