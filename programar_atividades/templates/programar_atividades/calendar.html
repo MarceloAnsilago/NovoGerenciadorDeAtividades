@@ -542,10 +542,14 @@
       buttonText:{ today:'Hoje', month:'Mês', week:'Semana', day:'Dia' },
       height:'auto',
       events: window.calendarFeedURL,
+      
       dateClick(info){
         inputData.value = info.dateStr;
         const dataBR = info.date.toLocaleDateString('pt-BR',{timeZone:'UTC'});
-        tituloModal.textContent = `Programar atividades para o dia ${dataBR}`;
+        tituloModal.innerHTML = `
+          <i class="bi bi-calendar-event text-primary me-2"></i>
+          Programar atividades para o dia ${dataBR}
+        `;
         loadMetas();
         loadServidores(info.dateStr);
         bootstrap.Modal.getOrCreateInstance(modalEl).show();
