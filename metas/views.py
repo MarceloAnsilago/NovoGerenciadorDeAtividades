@@ -78,10 +78,10 @@ def atividades_lista_view(request):
         "q": q,
     })
 
-
 @login_required
 def definir_meta_view(request, atividade_id):
     atividade = get_object_or_404(Atividade, id=atividade_id)
+    unidade = get_unidade_atual(request)
 
     # Anos únicos baseados na data_limite
     anos_disponiveis = (
@@ -96,13 +96,9 @@ def definir_meta_view(request, atividade_id):
     status_selecionado = request.GET.get("status")
 
     metas_atividade = Meta.objects.filter(atividade=atividade)
-
-    # Filtro por ano (direto no banco)
     if ano_selecionado:
         metas_atividade = metas_atividade.filter(data_limite__year=ano_selecionado)
-
-    # Filtro por status (em memória, pois são propriedades)
-    metas_atividade = list(metas_atividade)  # Força execução da query
+    metas_atividade = list(metas_atividade)
     if status_selecionado == "concluida":
         metas_atividade = [m for m in metas_atividade if m.concluida]
     elif status_selecionado == "atrasada":
@@ -110,7 +106,25 @@ def definir_meta_view(request, atividade_id):
     elif status_selecionado == "andamento":
         metas_atividade = [m for m in metas_atividade if not m.atrasada and not m.concluida]
 
-    form = MetaForm(request.POST or None)
+    # --- TRATAMENTO DE POST (CRIAR META) ---
+    if request.method == "POST":
+        form = MetaForm(request.POST)
+        if form.is_valid():
+            meta = form.save(commit=False)
+            # garanta os campos de vínculo:
+            meta.atividade = atividade
+            if unidade and hasattr(meta, "unidade_criadora_id"):
+                meta.unidade_criadora = unidade
+            if hasattr(meta, "criado_por_id"):
+                meta.criado_por = request.user
+            meta.save()
+            messages.success(request, "Meta criada com sucesso.")
+            return redirect("metas:metas-unidade")
+        else:
+            messages.error(request, "Corrija os erros do formulário.")
+    else:
+        # GET: form vazio (sem expor 'atividade' no form)
+        form = MetaForm()
 
     return render(request, "metas/definir_meta.html", {
         "atividade": atividade,
@@ -120,7 +134,6 @@ def definir_meta_view(request, atividade_id):
         "ano_selecionado": ano_selecionado,
         "status_selecionado": status_selecionado,
     })
-
 
 @login_required
 def atribuir_meta_view(request, meta_id):
