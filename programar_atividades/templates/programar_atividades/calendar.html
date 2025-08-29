@@ -6,16 +6,49 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     #calendar { max-width: 1100px; margin: 24px auto; min-height: 520px; background: #fff; padding: 8px; }
-    .metas-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
-    .meta-card { border:1px solid #e3e6ef; border-radius:.6rem; padding:12px 14px; background:#fff; cursor:pointer; transition:.15s; display:flex; gap:6px; flex-direction:column; text-align:left; }
-    .meta-card:hover { box-shadow:0 4px 18px rgba(2,6,23,.08); border-color:#cfd6e4; }
-    .meta-card.selected { border-color:#0d6efd; box-shadow:0 0 0 3px rgba(13,110,253,.15); }
-    .meta-title { font-weight:600; }
-    .meta-sub { font-size:.9rem; color:#6c757d; }
-    .meta-badge { font-size:.75rem; }
-    .meta-small { font-size:.875rem; color:#6c757d; }
-    .meta-progress .progress { height:6px; }
-    .meta-progress .summary { font-size:.8rem; color:#6c757d; }
+
+    .metas-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 14px;
+    }
+
+    .meta-card {
+      border: 1px solid #e3e6ef;
+      border-radius: .6rem;
+      padding: 12px 14px;
+      background: #fff;
+      cursor: pointer;
+      transition: .15s;
+      display: flex;
+      gap: 6px;
+      flex-direction: column;
+      text-align: left;
+    }
+
+    .meta-card:hover {
+      box-shadow: 0 4px 18px rgba(2,6,23,.08);
+      border-color: #cfd6e4;
+    }
+
+    .meta-card.selected {
+      border-color: #0d6efd;
+      box-shadow: 0 0 0 3px rgba(13,110,253,.15);
+    }
+
+    .meta-title { font-weight: 600; }
+    .meta-sub { font-size: .9rem; color: #6c757d; }
+    .meta-badge { font-size: .75rem; }
+    .meta-small { font-size: .875rem; color: #6c757d; }
+    .meta-progress .progress { height: 6px; }
+    .meta-progress .summary { font-size: .8rem; color: #6c757d; }
+
+    .draggable-servidor {
+      cursor: grab;
+      user-select: none;
+      border-radius: 4px;
+      display: inline-block;
+    }
   </style>
 {% endblock %}
 
@@ -36,17 +69,37 @@
         <div class="modal-body">
           <form id="formAtividade">
             <input type="hidden" id="dataAtividade" name="data">
+
+            <!-- Metas -->
             <div class="mb-2">
               <label class="form-label">Escolha a meta</label>
               <div id="metasGrid" class="metas-grid"></div>
               <input type="hidden" id="metaId" name="meta_id">
             </div>
-            <div class="mt-3">
-              <label for="descricaoAtividade" class="form-label">Descrição</label>
-              <input type="text" class="form-control" id="descricaoAtividade" name="descricao" placeholder="Descreva a atividade..." required>
+
+            <!-- Servidores -->
+            <hr class="my-4">
+            <div class="row">
+              <div class="col-md-6">
+                <h6 class="fw-bold">Servidores disponíveis</h6>
+                <div id="servidoresLivres" class="d-flex flex-wrap gap-2"></div>
+              </div>
+              <div class="col-md-6">
+                <h6 class="fw-bold">Servidores impedidos</h6>
+                <table class="table table-sm table-bordered align-middle" id="tabelaImpedidos">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Nome</th>
+                      <th>Telefone</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
             </div>
           </form>
         </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" form="formAtividade" id="btnSalvar" class="btn btn-primary" disabled>Salvar</button>
@@ -69,8 +122,6 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      console.log('🟢 DOM pronto, iniciando calendário…');
-
       const calendarEl   = document.getElementById('calendar');
       const modalEl      = document.getElementById('modalAtividade');
       const tituloModal  = document.getElementById('modalAtividadeLabel');
@@ -79,20 +130,13 @@
       const hiddenMetaId = document.getElementById('metaId');
       const btnSalvar    = document.getElementById('btnSalvar');
 
-      if (!calendarEl) { console.error('❌ #calendar não encontrado'); return; }
-      if (!FullCalendar) { console.error('❌ FullCalendar não carregado'); return; }
+      if (!calendarEl) return;
 
-      // helper UI
       const setSalvarEnabled = (on) => btnSalvar.disabled = !on;
-
 
       function renderMetas(metas) {
         if (!metas || metas.length === 0) {
-          metasGrid.innerHTML = `
-            <div class="alert alert-light border d-flex align-items-center" role="alert">
-              <i class="bi bi-inbox me-2"></i>
-              Nenhuma meta disponível.
-            </div>`;
+          metasGrid.innerHTML = `<div class="alert alert-light border">Nenhuma meta disponível.</div>`;
           setSalvarEnabled(false);
           hiddenMetaId.value = "";
           return;
@@ -101,25 +145,15 @@
         metasGrid.innerHTML = metas.map(m => {
           const exec = Number(m.executado_unidade ?? 0);
           const aloc = Number(m.alocado_unidade ?? 0);
-
-          // progresso APENAS sobre alocado na unidade
           const perc = aloc > 0 ? Math.min(100, Math.round((exec / aloc) * 100)) : 0;
 
           return `
             <button type="button" class="meta-card" data-id="${m.id}">
-              <!-- título da meta -->
               <span class="meta-title">${m.nome}</span>
-
-              <!-- REMOVIDO: subtítulo/atividade para compactar -->
-              <!-- (linha com m.atividade_nome foi intencionalmente omitida) -->
-
-              <!-- alocado na unidade -->
               <div class="meta-small">
                 <i class="bi bi-box-seam me-1"></i>
                 Alocado nesta unidade: <b>${aloc}</b>
               </div>
-
-              <!-- barra de progresso: Executado (unidade) / Alocado (unidade) -->
               ${aloc > 0 ? `
                 <div class="meta-progress mt-1">
                   <div class="d-flex justify-content-between summary mb-1">
@@ -127,9 +161,8 @@
                     <span><b>${exec}</b> / ${aloc}</span>
                   </div>
                   <div class="progress">
-                    <div class="progress-bar bg-primary" role="progressbar"
-                        style="width:${perc}%"
-                        aria-valuenow="${perc}" aria-valuemin="0" aria-valuemax="100"></div>
+                    <div class="progress-bar bg-primary" role="progressbar" style="width:${perc}%"
+                      aria-valuenow="${perc}" aria-valuemin="0" aria-valuemax="100"></div>
                   </div>
                 </div>
               ` : `
@@ -137,7 +170,6 @@
                   <i class="bi bi-graph-up-arrow me-1"></i>Sem alocação nesta unidade
                 </div>
               `}
-
               ${m.data_limite ? `
                 <span class="badge bg-light text-dark meta-badge mt-1">
                   <i class="bi bi-calendar-event me-1"></i>
@@ -147,7 +179,6 @@
           `;
         }).join('');
 
-        // seleção do card
         metasGrid.querySelectorAll('.meta-card').forEach(card => {
           card.addEventListener('click', () => {
             metasGrid.querySelectorAll('.meta-card').forEach(c => c.classList.remove('selected'));
@@ -162,13 +193,12 @@
       }
 
       function loadMetas() {
-        metasGrid.innerHTML = `
-          <div class="placeholder-glow">
-            <span class="placeholder col-12 mb-2"></span>
-            <span class="placeholder col-12 mb-2"></span>
-            <span class="placeholder col-12 mb-2"></span>
-          </div>`;
-        fetch(window.metasURL, { headers: {'X-Requested-With':'XMLHttpRequest'} })
+        metasGrid.innerHTML = `<div class="placeholder-glow">
+          <span class="placeholder col-12 mb-2"></span>
+          <span class="placeholder col-12 mb-2"></span>
+        </div>`;
+
+        fetch(window.metasURL, { headers: {'X-Requested-With': 'XMLHttpRequest'} })
           .then(r => r.json())
           .then(({metas}) => renderMetas(metas))
           .catch(err => {
@@ -177,7 +207,48 @@
           });
       }
 
-      // cria o calendário
+      function loadServidores(dataStr) {
+        const livresDiv = document.getElementById('servidoresLivres');
+        const tabelaBody = document.querySelector('#tabelaImpedidos tbody');
+
+        livresDiv.innerHTML = '<span class="text-muted">Carregando...</span>';
+        tabelaBody.innerHTML = '';
+
+        fetch(`/programar_atividades/ajax/servidores/?data=${dataStr}`, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+          .then(r => r.json())
+          .then(({ livres, impedidos }) => {
+            livresDiv.innerHTML = '';
+            if (livres.length === 0) {
+              livresDiv.innerHTML = '<span class="text-muted">Nenhum servidor livre.</span>';
+            } else {
+              livres.forEach(s => {
+                const el = document.createElement('span');
+                el.className = 'badge bg-primary text-light p-2 draggable-servidor';
+                el.setAttribute('data-id', s.id);
+                el.textContent = s.nome;
+                livresDiv.appendChild(el);
+              });
+            }
+
+            if (impedidos.length === 0) {
+              tabelaBody.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhum impedido.</td></tr>';
+            } else {
+              impedidos.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${s.nome}</td><td>${s.telefone || '-'}</td>`;
+                tabelaBody.appendChild(tr);
+              });
+            }
+          })
+          .catch(err => {
+            console.error('Erro ao carregar servidores:', err);
+            livresDiv.innerHTML = '<span class="text-danger">Erro ao carregar servidores.</span>';
+            tabelaBody.innerHTML = '';
+          });
+      }
+
       const calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'pt-br',
         timeZone: 'local',
@@ -188,15 +259,13 @@
         height: 'auto',
         events: window.calendarFeedURL,
         dateClick(info) {
-          console.log('📅 dateClick', info.dateStr, info);
           inputData.value = info.dateStr;
-
           const dataBR = info.date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-          if (tituloModal) tituloModal.textContent = `Programar atividades para o dia ${dataBR}`;
+          tituloModal.textContent = `Programar atividades para o dia ${dataBR}`;
 
           loadMetas();
+          loadServidores(info.dateStr); // ✅ agora sim está no lugar certo
 
-          // exibe modal ou alerta de fallback
           if (window.bootstrap?.Modal) {
             const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
             modal.show();
@@ -208,14 +277,13 @@
 
       calendar.render();
 
-      // Submit (placeholder)
       document.getElementById('formAtividade').addEventListener('submit', (e) => {
         e.preventDefault();
         if (!hiddenMetaId.value) return;
         const payload = {
           data: inputData.value,
           meta_id: hiddenMetaId.value,
-          descricao: document.getElementById('descricaoAtividade').value,
+         
         };
         console.log('➡️ Enviar para backend:', payload);
         bootstrap.Modal.getInstance(modalEl).hide();

@@ -10,6 +10,16 @@ from core.utils import get_unidade_atual
 from metas.models import MetaAlocacao
 from decimal import Decimal
 
+from django.http import JsonResponse
+from datetime import datetime
+from core.utils import get_unidade_atual_id
+from servidores.models import Servidor
+from plantao.models import Plantao
+from descanso.models import Descanso
+
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_GET
+
 @login_required
 def calendar_view(request):
     """Renderiza a tela do calendário."""
@@ -179,3 +189,53 @@ def metas_disponiveis(request):
     metas = list(bucket.values())
     metas.sort(key=lambda x: x["nome"].lower())
     return JsonResponse({"metas": metas})
+
+
+@require_GET
+@login_required
+def servidores_disponiveis_para_data(request):
+    from datetime import datetime
+    from core.utils import get_unidade_atual_id
+    from servidores.models import Servidor
+    from descanso.models import Descanso
+    from django.http import JsonResponse
+
+    data_str = request.GET.get("data")
+    if not data_str:
+        return JsonResponse({"erro": "Data não informada"}, status=400)
+
+    try:
+        data = datetime.strptime(data_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"erro": "Formato inválido da data"}, status=400)
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"erro": "Unidade não definida"}, status=400)
+
+    todos = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).order_by("nome")
+
+    descansando_ids = set(
+        Descanso.objects
+            .filter(
+                servidor__unidade_id=unidade_id,
+                data_inicio__lte=data,
+                data_fim__gte=data
+            )
+            .values_list("servidor_id", flat=True)
+    )
+
+    livres = todos.exclude(id__in=descansando_ids)
+    impedidos = todos.filter(id__in=descansando_ids)
+
+    def map_servidor(s):
+        return {
+            "id": s.id,
+            "nome": s.nome,
+            "telefone": s.telefone or s.celular or "",
+        }
+
+    return JsonResponse({
+        "livres": [map_servidor(s) for s in livres],
+        "impedidos": [map_servidor(s) for s in impedidos],
+    })
