@@ -2,18 +2,20 @@
 {% load static %}
 
 {% block extra_head %}
-  <!-- FullCalendar + Bootstrap 5 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
   <style>
-    #calendar {
-      max-width: 1100px;
-      margin: 24px auto;
-      min-height: 520px;
-      background: #fff;
-      padding: 8px;
-    }
+    #calendar { max-width: 1100px; margin: 24px auto; min-height: 520px; background: #fff; padding: 8px; }
+    .metas-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+    .meta-card { border:1px solid #e3e6ef; border-radius:.6rem; padding:12px 14px; background:#fff; cursor:pointer; transition:.15s; display:flex; gap:6px; flex-direction:column; text-align:left; }
+    .meta-card:hover { box-shadow:0 4px 18px rgba(2,6,23,.08); border-color:#cfd6e4; }
+    .meta-card.selected { border-color:#0d6efd; box-shadow:0 0 0 3px rgba(13,110,253,.15); }
+    .meta-title { font-weight:600; }
+    .meta-sub { font-size:.9rem; color:#6c757d; }
+    .meta-badge { font-size:.75rem; }
+    .meta-small { font-size:.875rem; color:#6c757d; }
+    .meta-progress .progress { height:6px; }
+    .meta-progress .summary { font-size:.8rem; color:#6c757d; }
   </style>
 {% endblock %}
 
@@ -23,29 +25,31 @@
     <div id="calendar" class="mt-4"></div>
   </div>
 
-  <!-- ✅ Modal de Nova Atividade -->
+  <!-- Modal -->
   <div class="modal fade" id="modalAtividade" tabindex="-1" aria-labelledby="modalAtividadeLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="modalAtividadeLabel">Nova Atividade</h5>
+          <h5 class="modal-title text-center w-100" id="modalAtividadeLabel">Programar atividades</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
         </div>
         <div class="modal-body">
           <form id="formAtividade">
-            <div class="mb-3">
-              <label for="dataAtividade" class="form-label">Data</label>
-              <input type="text" class="form-control" id="dataAtividade" name="data" readonly>
+            <input type="hidden" id="dataAtividade" name="data">
+            <div class="mb-2">
+              <label class="form-label">Escolha a meta</label>
+              <div id="metasGrid" class="metas-grid"></div>
+              <input type="hidden" id="metaId" name="meta_id">
             </div>
-            <div class="mb-3">
+            <div class="mt-3">
               <label for="descricaoAtividade" class="form-label">Descrição</label>
-              <input type="text" class="form-control" id="descricaoAtividade" name="descricao" required>
+              <input type="text" class="form-control" id="descricaoAtividade" name="descricao" placeholder="Descreva a atividade..." required>
             </div>
           </form>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" form="formAtividade" class="btn btn-primary">Salvar</button>
+          <button type="submit" form="formAtividade" id="btnSalvar" class="btn btn-primary" disabled>Salvar</button>
         </div>
       </div>
     </div>
@@ -53,49 +57,169 @@
 {% endblock %}
 
 {% block extra_js %}
-  <!-- Bootstrap + FullCalendar JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales-all.global.min.js"></script>
 
-  <!-- URL de eventos para o calendário -->
   <script>
+    // endpoints
     window.calendarFeedURL = "{% url 'programar_atividades:events_feed' %}";
+    window.metasURL        = "{% url 'programar_atividades:metas_disponiveis' %}";
   </script>
 
-  <!-- Lógica do calendário e modal -->
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      const calendarEl = document.getElementById('calendar');
-      const dataInput = document.getElementById('dataAtividade');
-      const modalEl = document.getElementById('modalAtividade');
-      const modal = new bootstrap.Modal(modalEl);
+      console.log('🟢 DOM pronto, iniciando calendário…');
 
+      const calendarEl   = document.getElementById('calendar');
+      const modalEl      = document.getElementById('modalAtividade');
+      const tituloModal  = document.getElementById('modalAtividadeLabel');
+      const inputData    = document.getElementById('dataAtividade');
+      const metasGrid    = document.getElementById('metasGrid');
+      const hiddenMetaId = document.getElementById('metaId');
+      const btnSalvar    = document.getElementById('btnSalvar');
+
+      if (!calendarEl) { console.error('❌ #calendar não encontrado'); return; }
+      if (!FullCalendar) { console.error('❌ FullCalendar não carregado'); return; }
+
+      // helper UI
+      const setSalvarEnabled = (on) => btnSalvar.disabled = !on;
+
+
+      function renderMetas(metas) {
+        if (!metas || metas.length === 0) {
+          metasGrid.innerHTML = `
+            <div class="alert alert-light border d-flex align-items-center" role="alert">
+              <i class="bi bi-inbox me-2"></i>
+              Nenhuma meta disponível.
+            </div>`;
+          setSalvarEnabled(false);
+          hiddenMetaId.value = "";
+          return;
+        }
+
+        metasGrid.innerHTML = metas.map(m => {
+          const exec = Number(m.executado_unidade ?? 0);
+          const aloc = Number(m.alocado_unidade ?? 0);
+
+          // progresso APENAS sobre alocado na unidade
+          const perc = aloc > 0 ? Math.min(100, Math.round((exec / aloc) * 100)) : 0;
+
+          return `
+            <button type="button" class="meta-card" data-id="${m.id}">
+              <!-- título da meta -->
+              <span class="meta-title">${m.nome}</span>
+
+              <!-- REMOVIDO: subtítulo/atividade para compactar -->
+              <!-- (linha com m.atividade_nome foi intencionalmente omitida) -->
+
+              <!-- alocado na unidade -->
+              <div class="meta-small">
+                <i class="bi bi-box-seam me-1"></i>
+                Alocado nesta unidade: <b>${aloc}</b>
+              </div>
+
+              <!-- barra de progresso: Executado (unidade) / Alocado (unidade) -->
+              ${aloc > 0 ? `
+                <div class="meta-progress mt-1">
+                  <div class="d-flex justify-content-between summary mb-1">
+                    <span><i class="bi bi-graph-up-arrow me-1"></i>Executado (unidade)</span>
+                    <span><b>${exec}</b> / ${aloc}</span>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-primary" role="progressbar"
+                        style="width:${perc}%"
+                        aria-valuenow="${perc}" aria-valuemin="0" aria-valuemax="100"></div>
+                  </div>
+                </div>
+              ` : `
+                <div class="meta-small text-muted">
+                  <i class="bi bi-graph-up-arrow me-1"></i>Sem alocação nesta unidade
+                </div>
+              `}
+
+              ${m.data_limite ? `
+                <span class="badge bg-light text-dark meta-badge mt-1">
+                  <i class="bi bi-calendar-event me-1"></i>
+                  até ${new Date(m.data_limite).toLocaleDateString('pt-BR')}
+                </span>` : ''}
+            </button>
+          `;
+        }).join('');
+
+        // seleção do card
+        metasGrid.querySelectorAll('.meta-card').forEach(card => {
+          card.addEventListener('click', () => {
+            metasGrid.querySelectorAll('.meta-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            hiddenMetaId.value = card.dataset.id;
+            setSalvarEnabled(true);
+          });
+        });
+
+        hiddenMetaId.value = "";
+        setSalvarEnabled(false);
+      }
+
+      function loadMetas() {
+        metasGrid.innerHTML = `
+          <div class="placeholder-glow">
+            <span class="placeholder col-12 mb-2"></span>
+            <span class="placeholder col-12 mb-2"></span>
+            <span class="placeholder col-12 mb-2"></span>
+          </div>`;
+        fetch(window.metasURL, { headers: {'X-Requested-With':'XMLHttpRequest'} })
+          .then(r => r.json())
+          .then(({metas}) => renderMetas(metas))
+          .catch(err => {
+            console.error('Erro ao carregar metas', err);
+            metasGrid.innerHTML = `<div class="alert alert-danger">Erro ao carregar metas.</div>`;
+          });
+      }
+
+      // cria o calendário
       const calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'pt-br',
-        initialView: 'dayGridMonth',
-        firstDay: 1,
         timeZone: 'local',
-        headerToolbar: {
-          left: 'prev,next today',
-          center: 'title',
-          right: ''
-        },
-        buttonText: {
-          today: 'Hoje',
-          month: 'Mês',
-          week: 'Semana',
-          day: 'Dia'
-        },
+        firstDay: 1,
+        initialView: 'dayGridMonth',
+        headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+        buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia' },
         height: 'auto',
         events: window.calendarFeedURL,
-        dateClick: function (info) {
-          dataInput.value = info.dateStr;
-          modal.show();
+        dateClick(info) {
+          console.log('📅 dateClick', info.dateStr, info);
+          inputData.value = info.dateStr;
+
+          const dataBR = info.date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+          if (tituloModal) tituloModal.textContent = `Programar atividades para o dia ${dataBR}`;
+
+          loadMetas();
+
+          // exibe modal ou alerta de fallback
+          if (window.bootstrap?.Modal) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+          } else {
+            alert('Data: ' + info.dateStr);
+          }
         }
       });
 
       calendar.render();
+
+      // Submit (placeholder)
+      document.getElementById('formAtividade').addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!hiddenMetaId.value) return;
+        const payload = {
+          data: inputData.value,
+          meta_id: hiddenMetaId.value,
+          descricao: document.getElementById('descricaoAtividade').value,
+        };
+        console.log('➡️ Enviar para backend:', payload);
+        bootstrap.Modal.getInstance(modalEl).hide();
+      });
     });
   </script>
 {% endblock %}
