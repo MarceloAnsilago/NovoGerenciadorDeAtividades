@@ -4,189 +4,158 @@
 {% block extra_head %}
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
   <style>
-    #calendar {
-      max-width: 1100px; margin: 24px auto; min-height: 520px;
-      background: #fff; padding: 8px;
+    #calendar{max-width:1100px;margin:24px auto;min-height:520px;background:#fff;padding:8px}
+
+    /* -------- Metas (topo) -------- */
+    .metas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+    .meta-card{
+      border:1px solid #e3e6ef;border-radius:.8rem;padding:14px;background:#fff;
+      display:flex;flex-direction:column;gap:8px;transition:.15s;cursor:pointer;
+    }
+    .meta-card:hover{box-shadow:0 4px 18px rgba(2,6,23,.08);border-color:#cfd6e4;background:#fbfdff}
+    .meta-card.selected{border-color:#0d6efd;box-shadow:0 0 0 3px rgba(13,110,253,.15)}
+    .meta-head{display:flex;align-items:center;gap:.5rem}
+    .meta-head .icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem;background:#eef5ff;color:#0d6efd}
+    .meta-title{font-weight:700;margin:0}
+    .meta-sep{height:1px;background:#eef1f5}
+    .meta-small{font-size:.875rem;color:#6c757d}
+    .meta-progress .progress{height:6px}
+    .meta-progress .summary{font-size:.8rem;color:#6c757d}
+
+    /* -------- Linha principal -------- */
+    .cards-row{display:grid;grid-template-columns:340px 340px 1fr;gap:16px;overflow-x:auto;padding-bottom:4px}
+    @media (max-width:991.98px){.cards-row{grid-template-columns:1fr}}
+    .servidor-cardbox{min-width:340px;max-width:340px}
+    #metaCardsContainer{display:flex;gap:16px;min-width:340px}
+    #metaCardsContainer .servidor-cardbox{min-width:340px;max-width:340px}
+
+    .servidor-cardbox .card-header{background:#f8fafc;border-bottom-color:#e9edf3}
+    .servidor-cardbox .card-body{padding:12px}
+    .servidores-grid{display:grid;grid-template-columns:1fr;gap:10px}
+
+    /* -------- Itens de servidor -------- */
+    .servidor-card{
+      border:1px solid #e3e6ef;border-radius:.6rem;padding:8px 10px;background:#fff;
+      display:flex;align-items:center;justify-content:center;min-height:38px;font-weight:600;color:#1f2937;
+      position:relative;transition:.15s;cursor:grab;user-select:none;
+    }
+    .servidor-card:active{cursor:grabbing}
+    .servidor-card:hover{box-shadow:0 4px 18px rgba(2,6,23,.08);border-color:#cfd6e4;background:#f9fbff}
+
+    .srv-count-badge{
+      position:absolute;top:-8px;right:-8px;background:#0d6efd;color:#fff;border-radius:999px;
+      font-size:.7rem;padding:2px 6px;line-height:1;display:none;pointer-events:none;
+    }
+    .servidor-card.has-count .srv-count-badge{display:inline-block}
+
+    /* Chips dentro das metas */
+    .servidor-chip{border:1px solid #e3e6ef;border-radius:.6rem;padding:6px 10px;background:#fff;display:flex;align-items:center;gap:10px;min-height:36px;font-weight:600;color:#1f2937}
+    .servidor-chip .chip-name{flex:1;text-align:center}
+    .servidor-chip .chip-remove{border:0;background:#f1f3f5;color:#333;border-radius:.35rem;padding:2px 8px;font-weight:700;cursor:pointer}
+    .servidor-chip .chip-remove:hover{background:#e9ecef}
+
+    /* Dropzones */
+    .dropzone{min-height:42px;border:2px dashed transparent;border-radius:.5rem;transition:border-color .15s,background-color .15s}
+
+    /* Destaque o CARD INTEIRO da meta quando estiver como alvo de drop */
+    .servidor-cardbox[data-meta-id].dz-hover{
+      outline:2px dashed #0d6efd; outline-offset:-4px; background:#eef5ff;
     }
 
-    /* === Cards de METAS === */
-    .metas-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 14px;
-    }
-    .meta-card {
-      border: 1px solid #e3e6ef; border-radius: .6rem; padding: 12px 14px;
-      background: #fff; cursor: pointer; transition: .15s;
-      display: flex; gap: 6px; flex-direction: column; text-align: left;
-    }
-    .meta-card:hover { box-shadow: 0 4px 18px rgba(2,6,23,.08); border-color: #cfd6e4; }
-    .meta-card.selected { border-color:#0d6efd; box-shadow:0 0 0 3px rgba(13,110,253,.15); }
-    .meta-title { font-weight: 600; }
-    .meta-small { font-size: .875rem; color:#6c757d; }
-    .meta-badge { font-size: .75rem; }
-    .meta-progress .progress { height: 6px; }
-    .meta-progress .summary { font-size:.8rem; color:#6c757d; }
+    .servidor-card.dragging{opacity:.7;transform:scale(.98)}
 
-    /* === Card box dos SERVIDORES DISPONÍVEIS === */
-    .servidor-cardbox .card-header {
-      background: #f8fafc;
-      border-bottom-color: #e9edf3;
-    }
-    .servidor-cardbox .card-body {
-      padding: 14px;
-    }
-
-    /* mesma grade dos cards de metas */
-    .servidores-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 14px;
-      margin-top: 4px;
-    }
-
-    /* cada servidor em “pill/card” */
-    .servidor-card {
-      border: 1px solid #e3e6ef; border-radius: .6rem;
-      padding: 10px 12px; background: #fff;
-      display:flex; align-items:center; justify-content:center;
-      font-weight: 600; color:#1f2937; text-align:center;
-      cursor: pointer; transition:.15s;
-    }
-    .servidor-card:hover {
-      box-shadow:0 4px 18px rgba(2,6,23,.08);
-      border-color:#cfd6e4; background:#f9fbff;
-    }
-
-        /* Linha que contém os dois cards lado a lado */
-    .cards-row {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 16px;
-    }
-    @media (min-width: 992px) { /* >= lg */
-      .cards-row { grid-template-columns: 1fr 1fr; } /* dois cards lado a lado */
-    }
-
-    /* card container reaproveitado */
-    .servidor-cardbox .card-header {
-      background: #f8fafc;
-      border-bottom-color: #e9edf3;
-    }
-    .servidor-cardbox .card-body { padding: 12px; }
-
-    /* lista dentro de cada card: 1 coluna */
-    .servidores-grid {
-      display: grid;
-      grid-template-columns: 1fr;   /* ÚNICA COLUNA */
-      gap: 10px;
-    }
-
-    /* item menor e compacto */
-    .servidor-card {
-      border: 1px solid #e3e6ef; border-radius: .6rem;
-      padding: 8px 10px; background: #fff;
-      display:flex; align-items:center; justify-content:center;
-      font-weight: 600; color:#1f2937; text-align:center;
-      cursor: pointer; transition:.15s;
-      min-height: 38px;
-    }
-    .servidor-card:hover {
-      box-shadow:0 4px 18px rgba(2,6,23,.08);
-      border-color:#cfd6e4; background:#f9fbff;
-    }
+    /* Header bonito do card de meta (direita) */
+    .meta-header-title{display:flex;align-items:center;gap:.5rem}
+    .meta-header-sep{height:1px;background:#e9edf3;margin-top:6px}
   </style>
 {% endblock %}
 
+
 {% block content %}
-<div class="container my-4">
-  <h1>Programar Atividades</h1>
-  <div id="calendar" class="mt-4"></div>
-</div>
+  <div class="container my-4">
+    <h1>Programar Atividades</h1>
+    <div id="calendar" class="mt-4"></div>
+  </div>
 
-<!-- MODAL -->
-<div class="modal fade" id="modalAtividade" tabindex="-1" aria-labelledby="modalAtividadeLabel" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title text-center w-100" id="modalAtividadeLabel">Programar atividades</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-      </div>
+  <div class="modal fade" id="modalAtividade" tabindex="-1" aria-labelledby="modalAtividadeLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-center w-100" id="modalAtividadeLabel">Programar atividades</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
 
-      <div class="modal-body">
-        <form id="formAtividade">
-          <input type="hidden" id="dataAtividade" name="data">
-          <input type="hidden" id="metaId" name="meta_id">
+        <div class="modal-body">
+          <form id="formAtividade">
+            <input type="hidden" id="dataAtividade" name="data">
+            <input type="hidden" id="metaId" name="meta_id">
 
-          <!-- METAS -->
-          <div class="mb-2">
-            <label class="form-label">Escolha a meta</label>
-            <div id="metasGrid" class="metas-grid"></div>
-          </div>
-
-          <hr class="my-4">
-
-          <!-- CARD: Servidores disponíveis -->
-          <div class="cards-row mb-3">
-
-            <!-- CARD: Expediente administrativo (ESQUERDA) -->
-            <div class="card shadow-sm servidor-cardbox">
-              <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="fw-semibold">Expediente administrativo</span>
-                <span class="badge bg-secondary" id="countExpedienteAdmin">0</span>
-              </div>
-              <div class="card-body">
-                <div id="expedienteAdmin" class="servidores-grid"></div>
-              </div>
+            <!-- METAS -->
+            <div class="mb-2">
+              <label class="form-label">Escolha a meta</label>
+              <div id="metasGrid" class="metas-grid"></div>
             </div>
 
-            <!-- CARD: Servidores disponíveis (DIREITA) -->
-            <div class="card shadow-sm servidor-cardbox">
-              <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="fw-semibold">Servidores disponíveis</span>
-                <span class="badge bg-secondary" id="countServidoresLivres">0</span>
+            <hr class="my-4">
+
+            <div class="cards-row mb-3">
+              <!-- expediente -->
+              <div class="card shadow-sm servidor-cardbox">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold">Expediente administrativo</span>
+                  <span class="badge bg-secondary" id="countExpedienteAdmin">0</span>
+                </div>
+                <div class="card-body">
+                  <div id="expedienteAdmin" class="servidores-grid"></div>
+                </div>
               </div>
-              <div class="card-body">
-                <div id="servidoresLivres" class="servidores-grid"></div>
+
+              <!-- disponíveis -->
+              <div class="card shadow-sm servidor-cardbox">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold">Servidores disponíveis</span>
+                  <span class="badge bg-secondary" id="countServidoresLivres">0</span>
+                </div>
+                <div class="card-body">
+                  <div id="servidoresLivres" class="servidores-grid"></div>
+                </div>
               </div>
+
+              <!-- coluna de metas -->
+              <div id="metaCardsContainer"></div>
             </div>
 
-          </div>
-          <!-- CARD: Servidores impedidos -->
-          <div class="mt-3">
-            <div class="card shadow-sm servidor-cardbox">
-              <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="fw-semibold">Servidores impedidos</span>
-                <span class="badge bg-secondary" id="countServidoresImpedidos">0</span>
-              </div>
-              <div class="card-body">
-                <div class="table-responsive">
-                  <table class="table table-sm table-striped align-middle mb-0" id="tabelaImpedidos">
-                    <thead class="table-light">
-                      <tr>
-                        <th>Nome</th>
-                        <th>Motivo</th>
-                      </tr>
-                    </thead>
-                    <tbody></tbody>
-                  </table>
+            <!-- impedidos -->
+            <div class="mt-3">
+              <div class="card shadow-sm" style="max-width:100%;min-width:unset;">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold">Servidores impedidos</span>
+                  <span class="badge bg-secondary" id="countServidoresImpedidos">0</span>
+                </div>
+                <div class="card-body">
+                  <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle mb-0" id="tabelaImpedidos">
+                      <thead class="table-light"><tr><th>Nome</th><th>Motivo</th></tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-        </form>
-      </div>
+          </form>
+        </div>
 
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" form="formAtividade" id="btnSalvar" class="btn btn-primary" disabled>Salvar</button>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" form="formAtividade" id="btnSalvar" class="btn btn-primary" disabled>Salvar</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -195,197 +164,322 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales-all.global.min.js"></script>
 
   <script>
-    // Endpoints Django
     window.calendarFeedURL = "{% url 'programar_atividades:events_feed' %}";
     window.metasURL        = "{% url 'programar_atividades:metas_disponiveis' %}";
     window.servidoresURL   = "{% url 'programar_atividades:servidores_para_data' %}";
   </script>
 
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const calendarEl   = document.getElementById('calendar');
-      const modalEl      = document.getElementById('modalAtividade');
-      const tituloModal  = document.getElementById('modalAtividadeLabel');
-      const inputData    = document.getElementById('dataAtividade');
-      const metasGrid    = document.getElementById('metasGrid');
-      const hiddenMetaId = document.getElementById('metaId');
-      const btnSalvar    = document.getElementById('btnSalvar');
+  document.addEventListener('DOMContentLoaded', () => {
+    const calendarEl   = document.getElementById('calendar');
+    const modalEl      = document.getElementById('modalAtividade');
+    const tituloModal  = document.getElementById('modalAtividadeLabel');
+    const inputData    = document.getElementById('dataAtividade');
+    const metasGrid    = document.getElementById('metasGrid');
+    const hiddenMetaId = document.getElementById('metaId');
+    const btnSalvar    = document.getElementById('btnSalvar');
+    const metaCardsContainer = document.getElementById('metaCardsContainer');
 
-      const setSalvarEnabled = (on) => btnSalvar.disabled = !on;
+    const setSalvarEnabled = (on) => btnSalvar.disabled = !on;
 
-      function renderMetas(metas) {
-        if (!metas || metas.length === 0) {
-          metasGrid.innerHTML = `<div class="alert alert-light border">Nenhuma meta disponível.</div>`;
-          setSalvarEnabled(false);
-          hiddenMetaId.value = "";
-          return;
-        }
+    const allocations = {};    // sid -> total em todas as metas
+    const servidoresData = []; // cache de servidores (id, nome, ...)
+    const findSrv = sid => servidoresData.find(s => String(s.id) === String(sid));
+    const DRAG = { id:null };  // fallback universal
 
-        metasGrid.innerHTML = metas.map(m => {
-          const exec = Number(m.executado_unidade ?? 0);
-          const aloc = Number(m.alocado_unidade ?? 0);
-          const perc = aloc > 0 ? Math.min(100, Math.round((exec / aloc) * 100)) : 0;
+    const getMetaCard = (el) => el.closest('[data-meta-id]');
 
-          return `
-            <button type="button" class="meta-card" data-id="${m.id}">
-              <span class="meta-title">${m.nome}</span>
-              <div class="meta-small">
-                <i class="bi bi-box-seam me-1"></i>
-                Alocado nesta unidade: <b>${aloc}</b>
-              </div>
-              ${aloc > 0 ? `
-                <div class="meta-progress mt-1">
-                  <div class="d-flex justify-content-between summary mb-1">
-                    <span><i class="bi bi-graph-up-arrow me-1"></i>Executado (unidade)</span>
-                    <span><b>${exec}</b> / ${aloc}</span>
-                  </div>
-                  <div class="progress">
-                    <div class="progress-bar bg-primary" role="progressbar" style="width:${perc}%"></div>
-                  </div>
-                </div>
-              ` : `
-                <div class="meta-small text-muted">
-                  <i class="bi bi-graph-up-arrow me-1"></i>Sem alocação nesta unidade
-                </div>
-              `}
-              ${m.data_limite ? `
-                <span class="badge bg-light text-dark meta-badge mt-1">
-                  <i class="bi bi-calendar-event me-1"></i>
-                  até ${new Date(m.data_limite).toLocaleDateString('pt-BR')}
-                </span>` : ''}
-            </button>
-          `;
-        }).join('');
+    /* ---------- UI helpers ---------- */
+    function updateCounts() {
+      const countLivres = document.getElementById('countServidoresLivres');
+      const countExp    = document.getElementById('countExpedienteAdmin');
+      const countImp    = document.getElementById('countServidoresImpedidos');
 
-        metasGrid.querySelectorAll('.meta-card').forEach(card => {
-          card.addEventListener('click', () => {
-            metasGrid.querySelectorAll('.meta-card').forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            hiddenMetaId.value = card.dataset.id;
-            setSalvarEnabled(true);
-          });
+      if (countLivres) countLivres.textContent = String(document.querySelectorAll('#servidoresLivres .servidor-card').length);
+      if (countExp)    countExp.textContent    = String(document.querySelectorAll('#expedienteAdmin .servidor-card').length);
+      if (countImp)    countImp.textContent    = String(document.querySelectorAll('#tabelaImpedidos tbody tr').length || 0);
+
+      metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
+        card.querySelector('.count-meta').textContent =
+          String(card.querySelectorAll('.servidor-chip').length);
+      });
+
+      document.querySelectorAll('#servidoresLivres .servidor-card').forEach(el => {
+        const n = allocations[el.dataset.id] || 0;
+        const b = el.querySelector('.srv-count-badge');
+        if (n > 0) { el.classList.add('has-count'); b.textContent = n; }
+        else       { el.classList.remove('has-count'); b.textContent = ''; }
+      });
+    }
+
+    function makeDisponivelCard(s) {
+      const el = document.createElement('div');
+      el.className = 'servidor-card';
+      el.id = `srv-${s.id}`;       // ID visual (não usado no DnD)
+      el.dataset.id = s.id;        // ID lógico do servidor (usado no DnD)
+      el.textContent = s.nome;
+      el.setAttribute('draggable','true');
+      const badge = document.createElement('span');
+      badge.className='srv-count-badge';
+      el.appendChild(badge);
+      return el;
+    }
+
+    function makeMetaChip(srv) {
+      const chip = document.createElement('div');
+      chip.className = 'servidor-chip';
+      chip.dataset.id = srv.id;
+      chip.innerHTML = `
+        <span class="chip-name">${srv.nome}</span>
+        <button type="button" class="chip-remove" title="Remover">&times;</button>`;
+      chip.querySelector('.chip-remove').addEventListener('click', () => {
+        chip.remove();
+        const sid = String(srv.id);
+        allocations[sid] = Math.max(0, (allocations[sid] || 0) - 1);
+        updateCounts();
+      });
+      return chip;
+    }
+
+    function ensureMetaCard(metaId, metaTitle) {
+      let card = metaCardsContainer.querySelector(`[data-meta-id="${metaId}"]`);
+      if (card) { card.querySelector('.meta-title-text').textContent = metaTitle; return card; }
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'card shadow-sm servidor-cardbox';
+      wrapper.dataset.metaId = metaId;
+      wrapper.innerHTML = `
+        <div class="card-header">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="meta-header-title">
+              <span class="icon"><i class="bi bi-clipboard2-check"></i></span>
+              <span class="fw-semibold meta-title-text">${metaTitle}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-primary count-meta">0</span>
+              <button type="button" class="btn btn-sm btn-outline-secondary meta-close" title="Fechar">&times;</button>
+            </div>
+          </div>
+          <div class="meta-header-sep"></div>
+        </div>
+        <div class="card-body">
+          <div class="servidores-grid meta-dropzone dropzone"></div>
+        </div>`;
+      wrapper.querySelector('.meta-close').addEventListener('click', () => {
+        // Remove todos os chips e ajusta contadores
+        wrapper.querySelectorAll('.servidor-chip').forEach(ch => {
+          const sid = ch.dataset.id;
+          ch.remove();
+          allocations[sid] = Math.max(0,(allocations[sid]||0)-1);
         });
+        wrapper.remove();
+        updateCounts();
+      });
 
-        hiddenMetaId.value = "";
-        setSalvarEnabled(false);
+      metaCardsContainer.appendChild(wrapper);
+      updateCounts();
+      return wrapper;
+    }
+
+    const cardTitle = (metaId) =>
+      metasGrid.querySelector(`.meta-card[data-id="${metaId}"] .meta-title`)?.textContent?.trim() || 'Atividade';
+
+    function addToMeta(serverId, metaId) {
+      const sid = String(serverId);
+      const srv = findSrv(sid);
+      if (!srv) return;
+
+      const card = ensureMetaCard(metaId, cardTitle(metaId));
+      card.querySelector('.meta-dropzone').appendChild(makeMetaChip(srv));
+
+      allocations[sid] = (allocations[sid] || 0) + 1;
+      updateCounts();
+    }
+
+    /* ====== Drag & Drop ====== */
+
+    // Evita que arquivos soltos naveguem fora das zonas
+    window.addEventListener('dragover', e => e.preventDefault());
+    window.addEventListener('drop',     e => e.preventDefault());
+
+    // Drag em "Servidores disponíveis" -> gravamos o SID
+    document.addEventListener('dragstart', (e) => {
+      const card = e.target.closest('#servidoresLivres .servidor-card');
+      if (!card) return;
+
+      const sid = card.dataset.id;
+      DRAG.id = sid;
+
+      if (e.dataTransfer) {
+        e.dataTransfer.setData('application/x-sid', sid);
+        e.dataTransfer.setData('text/plain', `sid:${sid}`); // fallback texto
+        e.dataTransfer.effectAllowed = 'copy';
       }
 
-      function loadMetas() {
-        metasGrid.innerHTML = `
-          <div class="placeholder-glow">
-            <span class="placeholder col-12 mb-2"></span>
-            <span class="placeholder col-12 mb-2"></span>
-          </div>`;
-        fetch(window.metasURL, { headers: {'X-Requested-With':'XMLHttpRequest'} })
-          .then(r => r.json())
-          .then(({metas}) => renderMetas(metas))
-          .catch(err => {
-            console.error('Erro ao carregar metas', err);
-            metasGrid.innerHTML = `<div class="alert alert-danger">Erro ao carregar metas.</div>`;
-          });
+      card.classList.add('dragging');
+    }, true);
+
+    document.addEventListener('dragend', (e) => {
+      const card = e.target.closest('#servidoresLivres .servidor-card');
+      if (card) card.classList.remove('dragging');
+      DRAG.id = null;
+    }, true);
+
+    // ACEITA DROP NO CARD INTEIRO DA META
+    metaCardsContainer.addEventListener('dragover', (e) => {
+      const card = getMetaCard(e.target);
+      if (!card) return;
+      e.preventDefault(); // essencial para permitir o drop
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      card.classList.add('dz-hover');
+    }, true);
+
+    metaCardsContainer.addEventListener('dragleave', (e) => {
+      const card = getMetaCard(e.target);
+      if (!card) return;
+      card.classList.remove('dz-hover');
+    }, true);
+
+    metaCardsContainer.addEventListener('drop', (e) => {
+      const card = getMetaCard(e.target);
+      if (!card) return;
+      e.preventDefault();
+      card.classList.remove('dz-hover');
+
+      // lê SID do dataTransfer
+      let sid = e.dataTransfer?.getData('application/x-sid');
+      if (!sid) {
+        const txt = e.dataTransfer?.getData('text/plain') || '';
+        if (txt.startsWith('sid:')) sid = txt.slice(4);
       }
+      if (!sid) sid = DRAG.id;
 
-      function loadServidores(dataStr) {
-        const livresDiv   = document.getElementById('servidoresLivres');
-        const expDiv      = document.getElementById('expedienteAdmin');
-        const tabelaBody  = document.querySelector('#tabelaImpedidos tbody');
-        const countLivres = document.getElementById('countServidoresLivres');
-        const countExp    = document.getElementById('countExpedienteAdmin');
+      if (!sid) return;
+      addToMeta(sid, card.dataset.metaId);
+    }, true);
 
-        livresDiv.innerHTML  = '<span class="text-muted">Carregando...</span>';
-        if (expDiv) expDiv.innerHTML = '';
-        tabelaBody.innerHTML = '';
-        if (countLivres) countLivres.textContent = '0';
-        if (countExp)    countExp.textContent    = '0';
+    /* ---------- Metas ---------- */
+    function renderMetas(metas) {
+      if (!metas || metas.length === 0) {
+        metasGrid.innerHTML = `<div class="alert alert-light border">Nenhuma meta disponível.</div>`;
+        setSalvarEnabled(false); hiddenMetaId.value = ""; return;
+      }
+      metasGrid.innerHTML = metas.map(m => {
+        const exec = Number(m.executado_unidade ?? 0);
+        const aloc = Number(m.alocado_unidade ?? 0);
+        const perc = aloc > 0 ? Math.min(100, Math.round((exec / aloc) * 100)) : 0;
+        return `
+          <button type="button" class="meta-card" data-id="${m.id}">
+            <div class="meta-head">
+              <span class="icon"><i class="bi bi-flag"></i></span>
+              <h6 class="meta-title">${m.nome}</h6>
+            </div>
+            <div class="meta-sep"></div>
+            <div class="meta-small">Alocado nesta unidade: <b>${aloc}</b></div>
+            <div class="meta-progress mt-1">
+              <div class="d-flex justify-content-between summary mb-1">
+                <span>Executado (unidade)</span><span><b>${exec}</b> / ${aloc}</span>
+              </div>
+              <div class="progress"><div class="progress-bar bg-primary" style="width:${perc}%"></div></div>
+            </div>
+          </button>`;
+      }).join('');
 
-        fetch(`${window.servidoresURL}?data=${dataStr}`, {
-          headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(r => r.json())
-        .then(({ livres, impedidos }) => {
-          // helper p/ montar card de servidor
-          const makeCard = (s) => {
-            const card = document.createElement('div');
-            card.className = 'servidor-card';
-            card.dataset.id = s.id;
-            card.textContent = s.nome;
-            return card;
-          };
+      metasGrid.querySelectorAll('.meta-card').forEach(card => {
+        card.addEventListener('click', () => {
+          metasGrid.querySelectorAll('.meta-card').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+          hiddenMetaId.value = card.dataset.id;
+          setSalvarEnabled(true);
+          ensureMetaCard(card.dataset.id, card.querySelector('.meta-title').textContent.trim());
+        });
+      });
 
-          // preencher DISPONÍVEIS (direita)
+      hiddenMetaId.value = ""; setSalvarEnabled(false);
+    }
+
+    function loadMetas() {
+      metasGrid.innerHTML = `<div class="placeholder-glow"><span class="placeholder col-12 mb-2"></span></div>`;
+      fetch(window.metasURL, { headers:{'X-Requested-With':'XMLHttpRequest'} })
+        .then(r=>r.json()).then(({metas})=>renderMetas(metas))
+        .catch(()=>{ metasGrid.innerHTML=`<div class="alert alert-danger">Erro ao carregar metas.</div>`; });
+    }
+
+    /* ---------- Servidores ---------- */
+    function loadServidores(dateStr) {
+      const expDiv     = document.getElementById('expedienteAdmin');
+      const tbodyImp   = document.querySelector('#tabelaImpedidos tbody');
+      const livresDiv  = document.getElementById('servidoresLivres');
+
+      Object.keys(allocations).forEach(k => delete allocations[k]);
+      servidoresData.length = 0;
+      metaCardsContainer.innerHTML = '';
+      livresDiv.innerHTML = '<span class="text-muted">Carregando...</span>';
+      expDiv.innerHTML = ''; tbodyImp.innerHTML = '';
+
+      fetch(`${window.servidoresURL}?data=${dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} })
+        .then(r=>r.json())
+        .then(({livres, impedidos})=>{
           livresDiv.innerHTML = '';
-          if (!livres || livres.length === 0) {
+          (livres||[]).forEach(s=>{ servidoresData.push(s); allocations[String(s.id)]=0; });
+
+          if (!livres || livres.length===0) {
             livresDiv.innerHTML = '<div class="alert alert-light border mb-0">Nenhum servidor livre.</div>';
-            if (countLivres) countLivres.textContent = '0';
+            expDiv.innerHTML    = '<div class="alert alert-light border mb-0">Sem servidores.</div>';
           } else {
-            livres.forEach(s => livresDiv.appendChild(makeCard(s)));
-            if (countLivres) countLivres.textContent = String(livres.length);
-          }
-
-          // preencher EXPEDIENTE (esquerda) com a MESMA lista inicial
-          if (expDiv) {
-            expDiv.innerHTML = '';
-            if (!livres || livres.length === 0) {
-              expDiv.innerHTML = '<div class="alert alert-light border mb-0">Sem servidores.</div>';
-              if (countExp) countExp.textContent = '0';
-            } else {
-              livres.forEach(s => expDiv.appendChild(makeCard(s)));
-              if (countExp) countExp.textContent = String(livres.length);
-            }
-          }
-
-          // IMPEDIDOS (tabela com motivo)
-          if (!impedidos || impedidos.length === 0) {
-            tabelaBody.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhum impedido.</td></tr>';
-          } else {
-            tabelaBody.innerHTML = '';
-            impedidos.forEach(s => {
-              const tr = document.createElement('tr');
-              tr.innerHTML = `<td>${s.nome}</td><td>${s.motivo || 'Descanso'}</td>`;
-              tabelaBody.appendChild(tr);
+            livres.forEach(s => livresDiv.appendChild(makeDisponivelCard(s)));
+            // opcional: listar "espelho" no expediente
+            livres.forEach(s => {
+              const el = document.createElement('div');
+              el.className='servidor-card'; el.dataset.id=s.id; el.textContent=s.nome;
+              expDiv.appendChild(el);
             });
           }
+
+          if (!impedidos || impedidos.length===0) {
+            tbodyImp.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhum impedido.</td></tr>';
+          } else {
+            tbodyImp.innerHTML = impedidos.map(s=>`<tr><td>${s.nome}</td><td>${s.motivo||'Descanso'}</td></tr>`).join('');
+          }
+
+          updateCounts();
         })
-        .catch(err => {
-          console.error('Erro ao carregar servidores:', err);
+        .catch(()=>{
           livresDiv.innerHTML = '<span class="text-danger">Erro ao carregar.</span>';
-          if (expDiv) expDiv.innerHTML = '';
-          tabelaBody.innerHTML = '';
-          if (countLivres) countLivres.textContent = '0';
-          if (countExp) countExp.textContent = '0';
+          updateCounts();
         });
+    }
+
+    /* ---------- Calendar ---------- */
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+      locale:'pt-br', timeZone:'local', firstDay:1, initialView:'dayGridMonth',
+      headerToolbar:{ left:'prev,next today', center:'title', right:'' },
+      buttonText:{ today:'Hoje', month:'Mês', week:'Semana', day:'Dia' },
+      height:'auto',
+      events: window.calendarFeedURL,
+      dateClick(info){
+        inputData.value = info.dateStr;
+        const dataBR = info.date.toLocaleDateString('pt-BR',{timeZone:'UTC'});
+        tituloModal.textContent = `Programar atividades para o dia ${dataBR}`;
+        loadMetas();
+        loadServidores(info.dateStr);
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
       }
-
-      // Calendário
-      const calendar = new FullCalendar.Calendar(calendarEl, {
-        locale: 'pt-br',
-        timeZone: 'local',
-        firstDay: 1,
-        initialView: 'dayGridMonth',
-        headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-        buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia' },
-        height: 'auto',
-        events: window.calendarFeedURL,
-        dateClick(info) {
-          inputData.value = info.dateStr;
-          const dataBR = info.date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-          tituloModal.textContent = `Programar atividades para o dia ${dataBR}`;
-          loadMetas();
-          loadServidores(info.dateStr);
-          bootstrap.Modal.getOrCreateInstance(modalEl).show();
-        }
-      });
-
-      calendar.render();
-
-      // submit placeholder
-      document.getElementById('formAtividade').addEventListener('submit', (e) => {
-        e.preventDefault();
-        if (!hiddenMetaId.value) return;
-        const payload = { data: inputData.value, meta_id: hiddenMetaId.value };
-        console.log('➡️ Enviar para backend:', payload);
-        bootstrap.Modal.getInstance(modalEl).hide();
-      });
     });
+    calendar.render();
+
+    /* ---------- Submit placeholder ---------- */
+    document.getElementById('formAtividade').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const metasPayload = {};
+      metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card=>{
+        metasPayload[card.dataset.metaId] =
+          Array.from(card.querySelectorAll('.servidor-chip')).map(ch=>ch.dataset.id);
+      });
+      const payload = { data: inputData.value, metas: metasPayload };
+      console.log('➡️ Enviar para backend:', payload);
+      bootstrap.Modal.getInstance(modalEl).hide();
+    });
+  });
   </script>
 {% endblock %}
