@@ -191,19 +191,21 @@ def metas_disponiveis(request):
     return JsonResponse({"metas": metas})
 
 
+# programar_atividades/views.py
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_GET
+from datetime import datetime
+from core.utils import get_unidade_atual_id
+from servidores.models import Servidor
+from descanso.models import Descanso
+
 @require_GET
 @login_required
 def servidores_disponiveis_para_data(request):
-    from datetime import datetime
-    from core.utils import get_unidade_atual_id
-    from servidores.models import Servidor
-    from descanso.models import Descanso
-    from django.http import JsonResponse
-
     data_str = request.GET.get("data")
     if not data_str:
         return JsonResponse({"erro": "Data não informada"}, status=400)
-
     try:
         data = datetime.strptime(data_str, "%Y-%m-%d").date()
     except ValueError:
@@ -215,27 +217,24 @@ def servidores_disponiveis_para_data(request):
 
     todos = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).order_by("nome")
 
-    descansando_ids = set(
-        Descanso.objects
-            .filter(
-                servidor__unidade_id=unidade_id,
-                data_inicio__lte=data,
-                data_fim__gte=data
-            )
-            .values_list("servidor_id", flat=True)
-    )
+    # descansos que pegam a data -> gerar mapa servidor_id -> motivo (tipo)
+    descansos_qs = (Descanso.objects
+        .filter(servidor__unidade_id=unidade_id, data_inicio__lte=data, data_fim__gte=data)
+        .select_related("servidor"))
 
-    livres = todos.exclude(id__in=descansando_ids)
-    impedidos = todos.filter(id__in=descansando_ids)
+    motivo_map = {}
+    for d in descansos_qs:
+        # usa get_tipo_display() se existir, senão o campo tipo cru
+        motivo_map[d.servidor_id] = getattr(d, "get_tipo_display", lambda: getattr(d, "tipo", "Descanso"))()
 
-    def map_servidor(s):
-        return {
-            "id": s.id,
-            "nome": s.nome,
-            "telefone": s.telefone or s.celular or "",
-        }
+    impedidos_ids = set(motivo_map.keys())
+    livres_qs   = todos.exclude(id__in=impedidos_ids)
+    impedidos_qs = todos.filter(id__in=impedidos_ids)
+
+    def map_servidor(s, motivo=None):
+        return {"id": s.id, "nome": s.nome, "motivo": motivo or "Descanso"}
 
     return JsonResponse({
-        "livres": [map_servidor(s) for s in livres],
-        "impedidos": [map_servidor(s) for s in impedidos],
+        "livres":   [map_servidor(s) for s in livres_qs],
+        "impedidos":[map_servidor(s, motivo_map.get(s.id)) for s in impedidos_qs],
     })

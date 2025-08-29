@@ -4,109 +4,189 @@
 {% block extra_head %}
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    #calendar { max-width: 1100px; margin: 24px auto; min-height: 520px; background: #fff; padding: 8px; }
 
+  <style>
+    #calendar {
+      max-width: 1100px; margin: 24px auto; min-height: 520px;
+      background: #fff; padding: 8px;
+    }
+
+    /* === Cards de METAS === */
     .metas-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 14px;
     }
-
     .meta-card {
-      border: 1px solid #e3e6ef;
-      border-radius: .6rem;
-      padding: 12px 14px;
-      background: #fff;
-      cursor: pointer;
-      transition: .15s;
-      display: flex;
-      gap: 6px;
-      flex-direction: column;
-      text-align: left;
+      border: 1px solid #e3e6ef; border-radius: .6rem; padding: 12px 14px;
+      background: #fff; cursor: pointer; transition: .15s;
+      display: flex; gap: 6px; flex-direction: column; text-align: left;
     }
-
-    .meta-card:hover {
-      box-shadow: 0 4px 18px rgba(2,6,23,.08);
-      border-color: #cfd6e4;
-    }
-
-    .meta-card.selected {
-      border-color: #0d6efd;
-      box-shadow: 0 0 0 3px rgba(13,110,253,.15);
-    }
-
+    .meta-card:hover { box-shadow: 0 4px 18px rgba(2,6,23,.08); border-color: #cfd6e4; }
+    .meta-card.selected { border-color:#0d6efd; box-shadow:0 0 0 3px rgba(13,110,253,.15); }
     .meta-title { font-weight: 600; }
-    .meta-sub { font-size: .9rem; color: #6c757d; }
+    .meta-small { font-size: .875rem; color:#6c757d; }
     .meta-badge { font-size: .75rem; }
-    .meta-small { font-size: .875rem; color: #6c757d; }
     .meta-progress .progress { height: 6px; }
-    .meta-progress .summary { font-size: .8rem; color: #6c757d; }
+    .meta-progress .summary { font-size:.8rem; color:#6c757d; }
 
-    .draggable-servidor {
-      cursor: grab;
-      user-select: none;
-      border-radius: 4px;
-      display: inline-block;
+    /* === Card box dos SERVIDORES DISPONÍVEIS === */
+    .servidor-cardbox .card-header {
+      background: #f8fafc;
+      border-bottom-color: #e9edf3;
+    }
+    .servidor-cardbox .card-body {
+      padding: 14px;
+    }
+
+    /* mesma grade dos cards de metas */
+    .servidores-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 14px;
+      margin-top: 4px;
+    }
+
+    /* cada servidor em “pill/card” */
+    .servidor-card {
+      border: 1px solid #e3e6ef; border-radius: .6rem;
+      padding: 10px 12px; background: #fff;
+      display:flex; align-items:center; justify-content:center;
+      font-weight: 600; color:#1f2937; text-align:center;
+      cursor: pointer; transition:.15s;
+    }
+    .servidor-card:hover {
+      box-shadow:0 4px 18px rgba(2,6,23,.08);
+      border-color:#cfd6e4; background:#f9fbff;
+    }
+
+        /* Linha que contém os dois cards lado a lado */
+    .cards-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    @media (min-width: 992px) { /* >= lg */
+      .cards-row { grid-template-columns: 1fr 1fr; } /* dois cards lado a lado */
+    }
+
+    /* card container reaproveitado */
+    .servidor-cardbox .card-header {
+      background: #f8fafc;
+      border-bottom-color: #e9edf3;
+    }
+    .servidor-cardbox .card-body { padding: 12px; }
+
+    /* lista dentro de cada card: 1 coluna */
+    .servidores-grid {
+      display: grid;
+      grid-template-columns: 1fr;   /* ÚNICA COLUNA */
+      gap: 10px;
+    }
+
+    /* item menor e compacto */
+    .servidor-card {
+      border: 1px solid #e3e6ef; border-radius: .6rem;
+      padding: 8px 10px; background: #fff;
+      display:flex; align-items:center; justify-content:center;
+      font-weight: 600; color:#1f2937; text-align:center;
+      cursor: pointer; transition:.15s;
+      min-height: 38px;
+    }
+    .servidor-card:hover {
+      box-shadow:0 4px 18px rgba(2,6,23,.08);
+      border-color:#cfd6e4; background:#f9fbff;
     }
   </style>
 {% endblock %}
 
 {% block content %}
-  <div class="container my-4">
-    <h1>Programar Atividades</h1>
-    <div id="calendar" class="mt-4"></div>
-  </div>
+<div class="container my-4">
+  <h1>Programar Atividades</h1>
+  <div id="calendar" class="mt-4"></div>
+</div>
 
-  <!-- Modal -->
-  <div class="modal fade" id="modalAtividade" tabindex="-1" aria-labelledby="modalAtividadeLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title text-center w-100" id="modalAtividadeLabel">Programar atividades</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-        </div>
-        <div class="modal-body">
-          <form id="formAtividade">
-            <input type="hidden" id="dataAtividade" name="data">
+<!-- MODAL -->
+<div class="modal fade" id="modalAtividade" tabindex="-1" aria-labelledby="modalAtividadeLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-center w-100" id="modalAtividadeLabel">Programar atividades</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
 
-            <!-- Metas -->
-            <div class="mb-2">
-              <label class="form-label">Escolha a meta</label>
-              <div id="metasGrid" class="metas-grid"></div>
-              <input type="hidden" id="metaId" name="meta_id">
-            </div>
+      <div class="modal-body">
+        <form id="formAtividade">
+          <input type="hidden" id="dataAtividade" name="data">
+          <input type="hidden" id="metaId" name="meta_id">
 
-            <!-- Servidores -->
-            <hr class="my-4">
-            <div class="row">
-              <div class="col-md-6">
-                <h6 class="fw-bold">Servidores disponíveis</h6>
-                <div id="servidoresLivres" class="d-flex flex-wrap gap-2"></div>
+          <!-- METAS -->
+          <div class="mb-2">
+            <label class="form-label">Escolha a meta</label>
+            <div id="metasGrid" class="metas-grid"></div>
+          </div>
+
+          <hr class="my-4">
+
+          <!-- CARD: Servidores disponíveis -->
+          <div class="cards-row mb-3">
+
+            <!-- CARD: Expediente administrativo (ESQUERDA) -->
+            <div class="card shadow-sm servidor-cardbox">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Expediente administrativo</span>
+                <span class="badge bg-secondary" id="countExpedienteAdmin">0</span>
               </div>
-              <div class="col-md-6">
-                <h6 class="fw-bold">Servidores impedidos</h6>
-                <table class="table table-sm table-bordered align-middle" id="tabelaImpedidos">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Nome</th>
-                      <th>Telefone</th>
-                    </tr>
-                  </thead>
-                  <tbody></tbody>
-                </table>
+              <div class="card-body">
+                <div id="expedienteAdmin" class="servidores-grid"></div>
               </div>
             </div>
-          </form>
-        </div>
 
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" form="formAtividade" id="btnSalvar" class="btn btn-primary" disabled>Salvar</button>
-        </div>
+            <!-- CARD: Servidores disponíveis (DIREITA) -->
+            <div class="card shadow-sm servidor-cardbox">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Servidores disponíveis</span>
+                <span class="badge bg-secondary" id="countServidoresLivres">0</span>
+              </div>
+              <div class="card-body">
+                <div id="servidoresLivres" class="servidores-grid"></div>
+              </div>
+            </div>
+
+          </div>
+          <!-- CARD: Servidores impedidos -->
+          <div class="mt-3">
+            <div class="card shadow-sm servidor-cardbox">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Servidores impedidos</span>
+                <span class="badge bg-secondary" id="countServidoresImpedidos">0</span>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-sm table-striped align-middle mb-0" id="tabelaImpedidos">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Nome</th>
+                        <th>Motivo</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" form="formAtividade" id="btnSalvar" class="btn btn-primary" disabled>Salvar</button>
       </div>
     </div>
   </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -115,9 +195,10 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales-all.global.min.js"></script>
 
   <script>
-    // endpoints
+    // Endpoints Django
     window.calendarFeedURL = "{% url 'programar_atividades:events_feed' %}";
     window.metasURL        = "{% url 'programar_atividades:metas_disponiveis' %}";
+    window.servidoresURL   = "{% url 'programar_atividades:servidores_para_data' %}";
   </script>
 
   <script>
@@ -129,8 +210,6 @@
       const metasGrid    = document.getElementById('metasGrid');
       const hiddenMetaId = document.getElementById('metaId');
       const btnSalvar    = document.getElementById('btnSalvar');
-
-      if (!calendarEl) return;
 
       const setSalvarEnabled = (on) => btnSalvar.disabled = !on;
 
@@ -161,8 +240,7 @@
                     <span><b>${exec}</b> / ${aloc}</span>
                   </div>
                   <div class="progress">
-                    <div class="progress-bar bg-primary" role="progressbar" style="width:${perc}%"
-                      aria-valuenow="${perc}" aria-valuemin="0" aria-valuemax="100"></div>
+                    <div class="progress-bar bg-primary" role="progressbar" style="width:${perc}%"></div>
                   </div>
                 </div>
               ` : `
@@ -193,12 +271,12 @@
       }
 
       function loadMetas() {
-        metasGrid.innerHTML = `<div class="placeholder-glow">
-          <span class="placeholder col-12 mb-2"></span>
-          <span class="placeholder col-12 mb-2"></span>
-        </div>`;
-
-        fetch(window.metasURL, { headers: {'X-Requested-With': 'XMLHttpRequest'} })
+        metasGrid.innerHTML = `
+          <div class="placeholder-glow">
+            <span class="placeholder col-12 mb-2"></span>
+            <span class="placeholder col-12 mb-2"></span>
+          </div>`;
+        fetch(window.metasURL, { headers: {'X-Requested-With':'XMLHttpRequest'} })
           .then(r => r.json())
           .then(({metas}) => renderMetas(metas))
           .catch(err => {
@@ -208,47 +286,77 @@
       }
 
       function loadServidores(dataStr) {
-        const livresDiv = document.getElementById('servidoresLivres');
-        const tabelaBody = document.querySelector('#tabelaImpedidos tbody');
+        const livresDiv   = document.getElementById('servidoresLivres');
+        const expDiv      = document.getElementById('expedienteAdmin');
+        const tabelaBody  = document.querySelector('#tabelaImpedidos tbody');
+        const countLivres = document.getElementById('countServidoresLivres');
+        const countExp    = document.getElementById('countExpedienteAdmin');
 
-        livresDiv.innerHTML = '<span class="text-muted">Carregando...</span>';
+        livresDiv.innerHTML  = '<span class="text-muted">Carregando...</span>';
+        if (expDiv) expDiv.innerHTML = '';
         tabelaBody.innerHTML = '';
+        if (countLivres) countLivres.textContent = '0';
+        if (countExp)    countExp.textContent    = '0';
 
-        fetch(`/programar_atividades/ajax/servidores/?data=${dataStr}`, {
+        fetch(`${window.servidoresURL}?data=${dataStr}`, {
           headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
-          .then(r => r.json())
-          .then(({ livres, impedidos }) => {
-            livresDiv.innerHTML = '';
-            if (livres.length === 0) {
-              livresDiv.innerHTML = '<span class="text-muted">Nenhum servidor livre.</span>';
-            } else {
-              livres.forEach(s => {
-                const el = document.createElement('span');
-                el.className = 'badge bg-primary text-light p-2 draggable-servidor';
-                el.setAttribute('data-id', s.id);
-                el.textContent = s.nome;
-                livresDiv.appendChild(el);
-              });
-            }
+        .then(r => r.json())
+        .then(({ livres, impedidos }) => {
+          // helper p/ montar card de servidor
+          const makeCard = (s) => {
+            const card = document.createElement('div');
+            card.className = 'servidor-card';
+            card.dataset.id = s.id;
+            card.textContent = s.nome;
+            return card;
+          };
 
-            if (impedidos.length === 0) {
-              tabelaBody.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhum impedido.</td></tr>';
+          // preencher DISPONÍVEIS (direita)
+          livresDiv.innerHTML = '';
+          if (!livres || livres.length === 0) {
+            livresDiv.innerHTML = '<div class="alert alert-light border mb-0">Nenhum servidor livre.</div>';
+            if (countLivres) countLivres.textContent = '0';
+          } else {
+            livres.forEach(s => livresDiv.appendChild(makeCard(s)));
+            if (countLivres) countLivres.textContent = String(livres.length);
+          }
+
+          // preencher EXPEDIENTE (esquerda) com a MESMA lista inicial
+          if (expDiv) {
+            expDiv.innerHTML = '';
+            if (!livres || livres.length === 0) {
+              expDiv.innerHTML = '<div class="alert alert-light border mb-0">Sem servidores.</div>';
+              if (countExp) countExp.textContent = '0';
             } else {
-              impedidos.forEach(s => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${s.nome}</td><td>${s.telefone || '-'}</td>`;
-                tabelaBody.appendChild(tr);
-              });
+              livres.forEach(s => expDiv.appendChild(makeCard(s)));
+              if (countExp) countExp.textContent = String(livres.length);
             }
-          })
-          .catch(err => {
-            console.error('Erro ao carregar servidores:', err);
-            livresDiv.innerHTML = '<span class="text-danger">Erro ao carregar servidores.</span>';
+          }
+
+          // IMPEDIDOS (tabela com motivo)
+          if (!impedidos || impedidos.length === 0) {
+            tabelaBody.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhum impedido.</td></tr>';
+          } else {
             tabelaBody.innerHTML = '';
-          });
+            impedidos.forEach(s => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `<td>${s.nome}</td><td>${s.motivo || 'Descanso'}</td>`;
+              tabelaBody.appendChild(tr);
+            });
+          }
+        })
+        .catch(err => {
+          console.error('Erro ao carregar servidores:', err);
+          livresDiv.innerHTML = '<span class="text-danger">Erro ao carregar.</span>';
+          if (expDiv) expDiv.innerHTML = '';
+          tabelaBody.innerHTML = '';
+          if (countLivres) countLivres.textContent = '0';
+          if (countExp) countExp.textContent = '0';
+        });
       }
 
+      // Calendário
       const calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'pt-br',
         timeZone: 'local',
@@ -262,29 +370,19 @@
           inputData.value = info.dateStr;
           const dataBR = info.date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
           tituloModal.textContent = `Programar atividades para o dia ${dataBR}`;
-
           loadMetas();
-          loadServidores(info.dateStr); // ✅ agora sim está no lugar certo
-
-          if (window.bootstrap?.Modal) {
-            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-            modal.show();
-          } else {
-            alert('Data: ' + info.dateStr);
-          }
+          loadServidores(info.dateStr);
+          bootstrap.Modal.getOrCreateInstance(modalEl).show();
         }
       });
 
       calendar.render();
 
+      // submit placeholder
       document.getElementById('formAtividade').addEventListener('submit', (e) => {
         e.preventDefault();
         if (!hiddenMetaId.value) return;
-        const payload = {
-          data: inputData.value,
-          meta_id: hiddenMetaId.value,
-         
-        };
+        const payload = { data: inputData.value, meta_id: hiddenMetaId.value };
         console.log('➡️ Enviar para backend:', payload);
         bootstrap.Modal.getInstance(modalEl).hide();
       });
