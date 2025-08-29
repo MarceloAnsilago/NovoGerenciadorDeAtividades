@@ -12,7 +12,7 @@
     /* -------- Metas (topo) -------- */
     .metas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
     .meta-card{
-      border:1px solid #e3e6ef;border-radius:.8rem;padding:14px;background:#fff;
+      border:1px solid #e3e6ef;border-radius:.6rem;padding:14px;background:#fff;
       display:flex;flex-direction:column;gap:8px;transition:.15s;cursor:pointer;
     }
     .meta-card:hover{box-shadow:0 4px 18px rgba(2,6,23,.08);border-color:#cfd6e4;background:#fbfdff}
@@ -36,26 +36,55 @@
     .servidor-cardbox .card-body{padding:12px}
     .servidores-grid{display:grid;grid-template-columns:1fr;gap:10px}
 
-    /* -------- Itens de servidor -------- */
+    /* -------- Itens de servidor (quadrados) -------- */
     .servidor-card{
-      border:1px solid #e3e6ef;border-radius:.6rem;padding:8px 10px;background:#fff;
-      display:flex;align-items:center;justify-content:center;min-height:38px;font-weight:600;color:#1f2937;
-      position:relative;transition:.15s;cursor:grab;user-select:none;
+      display:flex; align-items:center; gap:.625rem;
+      padding:10px 14px;
+      border:1px solid #e8ecf2;
+      background:#f9fbff;
+      border-radius:.6rem;
+      color:#1f2937; font-weight:600;
+      min-height:40px;
+      cursor:grab; user-select:none;
+      transition:box-shadow .15s, transform .05s, background .15s, border-color .15s;
     }
-    .servidor-card:active{cursor:grabbing}
-    .servidor-card:hover{box-shadow:0 4px 18px rgba(2,6,23,.08);border-color:#cfd6e4;background:#f9fbff}
+    .servidor-card:hover{ background:#f6f9ff; border-color:#dfe6ef; box-shadow:0 2px 10px rgba(2,6,23,.05); }
+    .servidor-card:active{ cursor:grabbing; transform:scale(.99); }
+    .servidor-card.dragging{ opacity:.8; box-shadow:0 4px 16px rgba(2,6,23,.12); }
+
+    .servidor-card .srv-icon{
+      width:22px; height:22px; border-radius:999px;
+      display:inline-flex; align-items:center; justify-content:center;
+      background:#e8f1ff; color:#0d6efd; font-size:12px; flex:0 0 22px;
+      box-shadow:inset 0 0 0 2px #cfe2ff;
+    }
+    .servidor-card .srv-name{ flex:1; text-align:center; letter-spacing:.3px; }
 
     .srv-count-badge{
-      position:absolute;top:-8px;right:-8px;background:#0d6efd;color:#fff;border-radius:999px;
-      font-size:.7rem;padding:2px 6px;line-height:1;display:none;pointer-events:none;
+      margin-left:auto;
+      background:#0d6efd; color:#fff;
+      border-radius:999px; font-size:.7rem; padding:2px 6px; line-height:1;
+      display:none;
     }
-    .servidor-card.has-count .srv-count-badge{display:inline-block}
+    .servidor-card.has-count .srv-count-badge{ display:inline-block; }
 
-    /* Chips dentro das metas */
-    .servidor-chip{border:1px solid #e3e6ef;border-radius:.6rem;padding:6px 10px;background:#fff;display:flex;align-items:center;gap:10px;min-height:36px;font-weight:600;color:#1f2937}
-    .servidor-chip .chip-name{flex:1;text-align:center}
-    .servidor-chip .chip-remove{border:0;background:#f1f3f5;color:#333;border-radius:.35rem;padding:2px 8px;font-weight:700;cursor:pointer}
-    .servidor-chip .chip-remove:hover{background:#e9ecef}
+    /* Chips dentro das metas (quadrados + ícone) */
+    .servidor-chip{
+      display:flex; align-items:center; gap:.625rem;
+      border:1px solid #e8ecf2; background:#fff; border-radius:.6rem;
+      padding:8px 12px; min-height:36px; font-weight:600; color:#1f2937;
+    }
+    .servidor-chip .chip-icon{
+      width:20px; height:20px; border-radius:999px;
+      display:inline-flex; align-items:center; justify-content:center;
+      background:#e8f1ff; color:#0d6efd; font-size:11px; flex:0 0 20px;
+      box-shadow:inset 0 0 0 2px #cfe2ff;
+    }
+    .servidor-chip .chip-name{ flex:1; text-align:center; letter-spacing:.3px; }
+    .servidor-chip .chip-remove{
+      border:0; background:#f1f3f5; color:#333; border-radius:.5rem; padding:2px 8px; font-weight:700; cursor:pointer;
+    }
+    .servidor-chip .chip-remove:hover{ background:#e9ecef; }
 
     /* Dropzones */
     .dropzone{min-height:42px;border:2px dashed transparent;border-radius:.5rem;transition:border-color .15s,background-color .15s}
@@ -65,11 +94,14 @@
       outline:2px dashed #0d6efd; outline-offset:-4px; background:#eef5ff;
     }
 
-    .servidor-card.dragging{opacity:.7;transform:scale(.98)}
-
     /* Header bonito do card de meta (direita) */
     .meta-header-title{display:flex;align-items:center;gap:.5rem}
     .meta-header-sep{height:1px;background:#e9edf3;margin-top:6px}
+
+    /* Linha "Data limite" dentro do card de meta */
+    .meta-date{display:flex;align-items:center;gap:.5rem;font-size:.9rem;color:#495057;margin-top:.35rem}
+    .meta-date i{color:#0d6efd}
+    .meta-date strong{color:#111827}
   </style>
 {% endblock %}
 
@@ -183,9 +215,9 @@
     const setSalvarEnabled = (on) => btnSalvar.disabled = !on;
 
     const allocations = {};    // sid -> total em todas as metas
-    const servidoresData = []; // cache de servidores (id, nome, ...)
+    const servidoresData = []; // cache
     const findSrv = sid => servidoresData.find(s => String(s.id) === String(sid));
-    const DRAG = { id:null };  // fallback universal
+    const DRAG = { id:null };  // fallback
 
     const getMetaCard = (el) => el.closest('[data-meta-id]');
 
@@ -215,13 +247,14 @@
     function makeDisponivelCard(s) {
       const el = document.createElement('div');
       el.className = 'servidor-card';
-      el.id = `srv-${s.id}`;       // ID visual (não usado no DnD)
-      el.dataset.id = s.id;        // ID lógico do servidor (usado no DnD)
-      el.textContent = s.nome;
+      el.id = `srv-${s.id}`;        // ID visual
+      el.dataset.id = s.id;         // ID lógico
       el.setAttribute('draggable','true');
-      const badge = document.createElement('span');
-      badge.className='srv-count-badge';
-      el.appendChild(badge);
+      el.innerHTML = `
+        <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+        <span class="srv-name">${s.nome}</span>
+        <span class="srv-count-badge"></span>
+      `;
       return el;
     }
 
@@ -230,41 +263,44 @@
       chip.className = 'servidor-chip';
       chip.dataset.id = srv.id;
       chip.innerHTML = `
+        <span class="chip-icon"><i class="bi bi-person-fill"></i></span>
         <span class="chip-name">${srv.nome}</span>
         <button type="button" class="chip-remove" title="Remover">&times;</button>`;
-
       chip.querySelector('.chip-remove').addEventListener('click', () => {
         chip.remove();
         const sid = String(srv.id);
         allocations[sid] = Math.max(0, (allocations[sid] || 0) - 1);
-
-        // 👉 Se zerou alocações, volta para o expediente
         if ((allocations[sid] || 0) === 0) appendToExpediente(srv);
-
         updateCounts();
       });
-
       return chip;
     }
+
     function appendToExpediente(srv) {
       const exp = document.getElementById('expedienteAdmin');
       if (!exp.querySelector(`.servidor-card[data-id="${srv.id}"]`)) {
         const el = document.createElement('div');
         el.className = 'servidor-card';
         el.dataset.id = srv.id;
-        el.textContent = srv.nome;
+        el.innerHTML = `
+          <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+          <span class="srv-name">${srv.nome}</span>
+        `;
         exp.appendChild(el);
       }
     }
-
     function removeOneFromExpediente(sid) {
       const el = document.querySelector(`#expedienteAdmin .servidor-card[data-id="${sid}"]`);
       if (el) el.remove();
     }
-   
+
+    /* --------- Cards de meta --------- */
     function ensureMetaCard(metaId, metaTitle) {
       let card = metaCardsContainer.querySelector(`[data-meta-id="${metaId}"]`);
-      if (card) { card.querySelector('.meta-title-text').textContent = metaTitle; return card; }
+      if (card) {
+        card.querySelector('.meta-title-text').textContent = metaTitle;
+        return card;
+      }
 
       const wrapper = document.createElement('div');
       wrapper.className = 'card shadow-sm servidor-cardbox';
@@ -287,18 +323,14 @@
           <div class="servidores-grid meta-dropzone dropzone"></div>
         </div>`;
 
-      // 🔧 Fechar meta: remover chips, atualizar allocations e devolver ao Expediente quando zerar
+      // Fechar meta: remover chips, abater allocations e devolver ao expediente quando zerar
       wrapper.querySelector('.meta-close').addEventListener('click', () => {
         const removedCounts = {};
-
-        // Remover visualmente todos os chips desse card e contar por servidor
         wrapper.querySelectorAll('.servidor-chip').forEach(ch => {
           const sid = String(ch.dataset.id);
           removedCounts[sid] = (removedCounts[sid] || 0) + 1;
           ch.remove();
         });
-
-        // Abater dos allocations e devolver ao expediente se zerar no total
         Object.entries(removedCounts).forEach(([sid, qty]) => {
           allocations[sid] = Math.max(0, (allocations[sid] || 0) - qty);
           if ((allocations[sid] || 0) === 0) {
@@ -306,15 +338,17 @@
             if (srv) appendToExpediente(srv);
           }
         });
-
         wrapper.remove();
         updateCounts();
       });
 
-      metaCardsContainer.appendChild(wrapper);
+      // Inserir SEMPRE no início (à direita do card "Servidores disponíveis")
+      metaCardsContainer.prepend(wrapper);
+
       updateCounts();
       return wrapper;
     }
+
     const cardTitle = (metaId) =>
       metasGrid.querySelector(`.meta-card[data-id="${metaId}"] .meta-title`)?.textContent?.trim() || 'Atividade';
 
@@ -328,33 +362,25 @@
 
       const prev = allocations[sid] || 0;
       allocations[sid] = prev + 1;
-
-      // 👉 Se era 0 e virou 1, retira do expediente
       if (prev === 0) removeOneFromExpediente(sid);
 
       updateCounts();
     }
 
     /* ====== Drag & Drop ====== */
-
-    // Evita que arquivos soltos naveguem fora das zonas
     window.addEventListener('dragover', e => e.preventDefault());
     window.addEventListener('drop',     e => e.preventDefault());
 
-    // Drag em "Servidores disponíveis" -> gravamos o SID
     document.addEventListener('dragstart', (e) => {
       const card = e.target.closest('#servidoresLivres .servidor-card');
       if (!card) return;
-
       const sid = card.dataset.id;
       DRAG.id = sid;
-
       if (e.dataTransfer) {
         e.dataTransfer.setData('application/x-sid', sid);
-        e.dataTransfer.setData('text/plain', `sid:${sid}`); // fallback texto
+        e.dataTransfer.setData('text/plain', `sid:${sid}`);
         e.dataTransfer.effectAllowed = 'copy';
       }
-
       card.classList.add('dragging');
     }, true);
 
@@ -364,11 +390,11 @@
       DRAG.id = null;
     }, true);
 
-    // ACEITA DROP NO CARD INTEIRO DA META
+    // Drop no CARD INTEIRO da meta (qualquer área do card)
     metaCardsContainer.addEventListener('dragover', (e) => {
       const card = getMetaCard(e.target);
       if (!card) return;
-      e.preventDefault(); // essencial para permitir o drop
+      e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
       card.classList.add('dz-hover');
     }, true);
@@ -384,15 +410,12 @@
       if (!card) return;
       e.preventDefault();
       card.classList.remove('dz-hover');
-
-      // lê SID do dataTransfer
       let sid = e.dataTransfer?.getData('application/x-sid');
       if (!sid) {
         const txt = e.dataTransfer?.getData('text/plain') || '';
         if (txt.startsWith('sid:')) sid = txt.slice(4);
       }
       if (!sid) sid = DRAG.id;
-
       if (!sid) return;
       addToMeta(sid, card.dataset.metaId);
     }, true);
@@ -403,10 +426,26 @@
         metasGrid.innerHTML = `<div class="alert alert-light border">Nenhuma meta disponível.</div>`;
         setSalvarEnabled(false); hiddenMetaId.value = ""; return;
       }
+
+      const formatDateBR = (ds) => {
+        try{ const d = (ds instanceof Date) ? ds : new Date(ds);
+             if (isNaN(d.getTime())) return ''; return d.toLocaleDateString('pt-BR',{timeZone:'UTC'}); }
+        catch{ return ''; }
+      };
+
       metasGrid.innerHTML = metas.map(m => {
         const exec = Number(m.executado_unidade ?? 0);
         const aloc = Number(m.alocado_unidade ?? 0);
         const perc = aloc > 0 ? Math.min(100, Math.round((exec / aloc) * 100)) : 0;
+
+        const deadlineISO = m.data_limite || m.deadline || m.dataLimite || m.data_limite_iso || null;
+        const deadlineHtml = deadlineISO ? `
+          <div class="meta-date">
+            <i class="bi bi-calendar-event" aria-hidden="true"></i>
+            <span>Data limite:</span>
+            <strong>${formatDateBR(deadlineISO)}</strong>
+          </div>` : '';
+
         return `
           <button type="button" class="meta-card" data-id="${m.id}">
             <div class="meta-head">
@@ -414,7 +453,8 @@
               <h6 class="meta-title">${m.nome}</h6>
             </div>
             <div class="meta-sep"></div>
-            <div class="meta-small">Alocado nesta unidade: <b>${aloc}</b></div>
+            ${deadlineHtml}
+            <div class="meta-small mt-2">Alocado nesta unidade: <b>${aloc}</b></div>
             <div class="meta-progress mt-1">
               <div class="d-flex justify-content-between summary mb-1">
                 <span>Executado (unidade)</span><span><b>${exec}</b> / ${aloc}</span>
@@ -430,7 +470,8 @@
           card.classList.add('selected');
           hiddenMetaId.value = card.dataset.id;
           setSalvarEnabled(true);
-          ensureMetaCard(card.dataset.id, card.querySelector('.meta-title').textContent.trim());
+          const meta = ensureMetaCard(card.dataset.id, card.querySelector('.meta-title').textContent.trim());
+          meta.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
         });
       });
 
@@ -452,7 +493,7 @@
 
       Object.keys(allocations).forEach(k => delete allocations[k]);
       servidoresData.length = 0;
-      metaCardsContainer.innerHTML = '';
+      metaCardsContainer.innerHTML = '';   // << sem "nova atividade" automática
       livresDiv.innerHTML = '<span class="text-muted">Carregando...</span>';
       expDiv.innerHTML = ''; tbodyImp.innerHTML = '';
 
@@ -467,10 +508,15 @@
             expDiv.innerHTML    = '<div class="alert alert-light border mb-0">Sem servidores.</div>';
           } else {
             livres.forEach(s => livresDiv.appendChild(makeDisponivelCard(s)));
-            // opcional: listar "espelho" no expediente
+            // espelho no expediente
             livres.forEach(s => {
               const el = document.createElement('div');
-              el.className='servidor-card'; el.dataset.id=s.id; el.textContent=s.nome;
+              el.className='servidor-card';
+              el.dataset.id=s.id;
+              el.innerHTML = `
+                <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+                <span class="srv-name">${s.nome}</span>
+              `;
               expDiv.appendChild(el);
             });
           }
