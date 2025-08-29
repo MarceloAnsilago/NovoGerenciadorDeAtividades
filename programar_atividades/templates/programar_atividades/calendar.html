@@ -232,15 +232,36 @@
       chip.innerHTML = `
         <span class="chip-name">${srv.nome}</span>
         <button type="button" class="chip-remove" title="Remover">&times;</button>`;
+
       chip.querySelector('.chip-remove').addEventListener('click', () => {
         chip.remove();
         const sid = String(srv.id);
         allocations[sid] = Math.max(0, (allocations[sid] || 0) - 1);
+
+        // 👉 Se zerou alocações, volta para o expediente
+        if ((allocations[sid] || 0) === 0) appendToExpediente(srv);
+
         updateCounts();
       });
+
       return chip;
     }
+    function appendToExpediente(srv) {
+      const exp = document.getElementById('expedienteAdmin');
+      if (!exp.querySelector(`.servidor-card[data-id="${srv.id}"]`)) {
+        const el = document.createElement('div');
+        el.className = 'servidor-card';
+        el.dataset.id = srv.id;
+        el.textContent = srv.nome;
+        exp.appendChild(el);
+      }
+    }
 
+    function removeOneFromExpediente(sid) {
+      const el = document.querySelector(`#expedienteAdmin .servidor-card[data-id="${sid}"]`);
+      if (el) el.remove();
+    }
+   
     function ensureMetaCard(metaId, metaTitle) {
       let card = metaCardsContainer.querySelector(`[data-meta-id="${metaId}"]`);
       if (card) { card.querySelector('.meta-title-text').textContent = metaTitle; return card; }
@@ -265,13 +286,27 @@
         <div class="card-body">
           <div class="servidores-grid meta-dropzone dropzone"></div>
         </div>`;
+
+      // 🔧 Fechar meta: remover chips, atualizar allocations e devolver ao Expediente quando zerar
       wrapper.querySelector('.meta-close').addEventListener('click', () => {
-        // Remove todos os chips e ajusta contadores
+        const removedCounts = {};
+
+        // Remover visualmente todos os chips desse card e contar por servidor
         wrapper.querySelectorAll('.servidor-chip').forEach(ch => {
-          const sid = ch.dataset.id;
+          const sid = String(ch.dataset.id);
+          removedCounts[sid] = (removedCounts[sid] || 0) + 1;
           ch.remove();
-          allocations[sid] = Math.max(0,(allocations[sid]||0)-1);
         });
+
+        // Abater dos allocations e devolver ao expediente se zerar no total
+        Object.entries(removedCounts).forEach(([sid, qty]) => {
+          allocations[sid] = Math.max(0, (allocations[sid] || 0) - qty);
+          if ((allocations[sid] || 0) === 0) {
+            const srv = findSrv(sid);
+            if (srv) appendToExpediente(srv);
+          }
+        });
+
         wrapper.remove();
         updateCounts();
       });
@@ -280,7 +315,6 @@
       updateCounts();
       return wrapper;
     }
-
     const cardTitle = (metaId) =>
       metasGrid.querySelector(`.meta-card[data-id="${metaId}"] .meta-title`)?.textContent?.trim() || 'Atividade';
 
@@ -292,7 +326,12 @@
       const card = ensureMetaCard(metaId, cardTitle(metaId));
       card.querySelector('.meta-dropzone').appendChild(makeMetaChip(srv));
 
-      allocations[sid] = (allocations[sid] || 0) + 1;
+      const prev = allocations[sid] || 0;
+      allocations[sid] = prev + 1;
+
+      // 👉 Se era 0 e virou 1, retira do expediente
+      if (prev === 0) removeOneFromExpediente(sid);
+
       updateCounts();
     }
 
