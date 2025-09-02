@@ -2,720 +2,632 @@
 {% load static %}
 
 {% block extra_head %}
-  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
-  <style>
-    #calendar{
-      max-width:1100px; margin:24px auto; min-height:520px;
-      background:#fff; padding:8px;
-    }
+<style>
+  #calendar{max-width:1100px;margin:24px auto;min-height:520px;background:#fff;padding:8px}
 
-    /* -------- Metas (topo) -------- */
-    .metas-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px}
-    .meta-card{
-      border:1px solid #e3e6ef; border-radius:.6rem; padding:14px; background:#fff;
-      display:flex; flex-direction:column; gap:8px; transition:.15s ease; cursor:pointer;
-    }
-    .meta-card:hover{box-shadow:0 4px 18px rgba(2,6,23,.08); border-color:#cfd6e4; background:#fbfdff}
-    .meta-card.selected{border-color:#0d6efd; box-shadow:0 0 0 3px rgba(13,110,253,.15)}
-    .meta-head{display:flex; align-items:center; gap:.5rem}
-    .meta-head .icon{
-      width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;
-      border-radius:.5rem; background:#eef5ff; color:#0d6efd
-    }
-    .meta-title{font-weight:700; margin:0}
-    .meta-sep{height:1px; background:#eef1f5}
-    .meta-small{font-size:.875rem; color:#6c757d}
-    .meta-progress .progress{height:6px}
-    .meta-progress .summary{font-size:.8rem; color:#6c757d}
+  /* ---- metas (topo) ---- */
+  .metas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .meta-card{border:1px solid #e3e6ef;border-radius:.6rem;padding:14px;background:#fff;display:flex;flex-direction:column;gap:8px;transition:.15s ease;cursor:pointer}
+  .meta-card:hover{box-shadow:0 4px 18px rgba(2,6,23,.08);border-color:#cfd6e4;background:#fbfdff}
+  .meta-card.selected{border-color:#0d6efd;box-shadow:0 0 0 3px rgba(13,110,253,.15)}
+  .meta-head{display:flex;align-items:center;gap:.5rem}
+  .meta-head .icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem;background:#eef5ff;color:#0d6efd}
+  .meta-title{font-weight:700;margin:0}
+  .meta-sep{height:1px;background:#eef1f5}
+  .meta-small{font-size:.875rem;color:#6c757d}
+  .meta-progress .progress{height:6px}
+  .meta-progress .summary{font-size:.8rem;color:#6c757d}
 
-    /* -------- Linha principal -------- */
-    .cards-row{
-      display:grid; grid-template-columns:340px 340px 1fr; gap:16px; overflow-x:auto; padding-bottom:4px;
-    }
-    @media (max-width:991.98px){ .cards-row{ grid-template-columns:1fr } }
-    .servidor-cardbox{min-width:340px; max-width:340px}
-    #metaCardsContainer{display:flex; gap:16px; min-width:340px}
-    #metaCardsContainer .servidor-cardbox{min-width:340px; max-width:340px}
+  /* ---- linha principal ---- */
+  .cards-row{display:grid;grid-template-columns:340px 340px 1fr;gap:16px;overflow-x:auto;padding-bottom:4px}
+  @media (max-width:991.98px){.cards-row{grid-template-columns:1fr}}
+  .servidor-cardbox{min-width:340px;max-width:340px}
+  #metaCardsContainer{display:flex;gap:16px;min-width:340px}
+  #metaCardsContainer .servidor-cardbox{min-width:340px;max-width:340px}
+  .servidor-cardbox .card-header{background:#f8fafc;border-bottom-color:#e9edf3}
+  .servidor-cardbox .card-body{padding:12px}
+  .servidores-grid{display:grid;grid-template-columns:1fr;gap:10px}
 
-    .servidor-cardbox .card-header{ background:#f8fafc; border-bottom-color:#e9edf3 }
-    .servidor-cardbox .card-body{ padding:12px }
-    .servidores-grid{ display:grid; grid-template-columns:1fr; gap:10px }
+  /* ---- servidores arrastáveis ---- */
+  .servidor-card{display:flex;align-items:center;gap:.625rem;padding:12px 16px;border:1px solid #dee2e6;background:linear-gradient(145deg,#f9f9f9,#fff);border-radius:.75rem;font-size:.875rem;color:#1f2937;font-weight:600;min-height:48px;cursor:grab;user-select:none;box-shadow:0 2px 6px rgba(0,0,0,.04);transition:box-shadow .2s,transform .1s,background-color .2s,border-color .2s}
+  .servidor-card:hover{background-color:#eef5ff;border-color:#cbd6ee;box-shadow:0 3px 8px rgba(13,110,253,.10)}
+  .servidor-card:active{transform:scale(.98)}
+  .servidor-card.dragging{opacity:.9;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+  .servidor-card .srv-icon{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#e8f1ff;color:#0d6efd;font-size:14px;flex-shrink:0;box-shadow:inset 0 0 0 2px #cfe2ff}
+  .servidor-card .srv-name{flex:1;text-align:center;letter-spacing:.3px;text-transform:uppercase}
+  .srv-count-badge{margin-left:auto;background:#0d6efd;color:#fff;border-radius:999px;font-size:.7rem;padding:3px 7px;line-height:1;display:none;box-shadow:0 0 0 2px #fff}
+  .servidor-card.has-count .srv-count-badge{display:inline-block}
 
-    /* -------- Itens de servidor (arrastáveis) -------- */
-    .servidor-card{
-      display:flex; align-items:center; gap:.625rem;
-      padding:12px 16px;
-      border:1px solid #dee2e6;
-      background:linear-gradient(145deg, #f9f9f9, #ffffff);
-      border-radius:.75rem;
-      font-size:.875rem; color:#1f2937; font-weight:600;
-      min-height:48px; cursor:grab; user-select:none;
-      box-shadow:0 2px 6px rgba(0,0,0,.04);
-      transition:box-shadow .2s ease, transform .1s ease, background-color .2s ease, border-color .2s ease;
-    }
-    .servidor-card:hover{ background-color:#eef5ff; border-color:#cbd6ee; box-shadow:0 3px 8px rgba(13,110,253,.10) }
-    .servidor-card:active{ transform:scale(.98) }
-    .servidor-card.dragging{ opacity:.9; box-shadow:0 6px 20px rgba(0,0,0,.15) }
+  /* ---- chips nas metas ---- */
+  .servidor-chip{display:flex;align-items:center;gap:.625rem;padding:10px 14px;background:#eef2f9;border:1px solid #cfd7e6;border-radius:.75rem;font-size:.85rem;color:#1f2937;font-weight:600;min-height:44px;box-shadow:0 2px 4px rgba(13,110,253,.05)}
+  .servidor-chip .chip-icon{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#e8f1ff;color:#0d6efd;font-size:13px;flex-shrink:0;box-shadow:inset 0 0 0 2px #cfe2ff}
+  .servidor-chip .chip-name{flex:1;text-align:center;letter-spacing:.3px;text-transform:uppercase}
+  .servidor-chip .chip-remove{border:0;background:#dee6f5;color:#374151;border-radius:.5rem;padding:3px 10px;font-weight:700;font-size:.8rem;cursor:pointer}
 
-    .servidor-card .srv-icon{
-      width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
-      background:#e8f1ff; color:#0d6efd; font-size:14px; flex-shrink:0; box-shadow:inset 0 0 0 2px #cfe2ff;
-    }
-    .servidor-card .srv-name{ flex:1; text-align:center; letter-spacing:.3px; text-transform:uppercase }
-    .srv-count-badge{
-      margin-left:auto; background:#0d6efd; color:#fff; border-radius:999px; font-size:.7rem; padding:3px 7px; line-height:1;
-      display:none; box-shadow:0 0 0 2px #ffffff;
-    }
-    .servidor-card.has-count .srv-count-badge{ display:inline-block }
+  /* ---- select do veículo ---- */
+  select.veiculo-select{font-size:.9rem;border-radius:.5rem;padding:.5rem .75rem;border:1px solid #ccd6e0;background:#f8f9fa;box-shadow:inset 0 1px 2px rgba(0,0,0,.05);transition:border-color .2s,box-shadow .2s,background-color .2s}
+  select.veiculo-select:focus{border-color:#0d6efd;outline:none;box-shadow:0 0 0 2px rgba(13,110,253,.25);background:#fff}
 
-    /* -------- Chips dentro das metas (servidor alocado) -------- */
-    .servidor-chip{
-      display:flex; align-items:center; gap:.625rem; padding:10px 14px;
-      background:#eef2f9; border:1px solid #cfd7e6; border-radius:.75rem;
-      font-size:.85rem; color:#1f2937; font-weight:600; min-height:44px;
-      box-shadow:0 2px 4px rgba(13,110,253,.05);
-    }
-    .servidor-chip .chip-icon{
-      width:24px; height:24px; border-radius:50%;
-      display:inline-flex; align-items:center; justify-content:center;
-      background:#e8f1ff; color:#0d6efd; font-size:13px; flex-shrink:0; box-shadow:inset 0 0 0 2px #cfe2ff;
-    }
-    .servidor-chip .chip-name{ flex:1; text-align:center; letter-spacing:.3px; text-transform:uppercase }
-    .servidor-chip .chip-remove{
-      border:0; background:#dee6f5; color:#374151; border-radius:.5rem; padding:3px 10px; font-weight:700; font-size:.8rem; cursor:pointer;
-    }
+  /* ---- dropzones ---- */
+  .dropzone{min-height:42px;border:2px dashed transparent;border-radius:.5rem;transition:border-color .15s,background-color .15s}
+  .servidor-cardbox[data-meta-id].dz-hover{outline:2px dashed #0d6efd;outline-offset:-4px;background:#eef5ff}
+  .meta-header-title{display:flex;align-items:center;gap:.5rem}
+  .meta-header-sep{height:1px;background:#e9edf3;margin-top:6px}
+  .meta-date{display:flex;align-items:center;gap:.5rem;font-size:.9rem;color:#495057;margin-top:.35rem}
+  .meta-date i{color:#0d6efd}
+  .meta-date strong{color:#111827}
 
-    /* Select do veículo por meta */
-    select.veiculo-select{
-      font-size:.9rem; border-radius:.5rem; padding:.5rem .75rem; border:1px solid #ccd6e0; background:#f8f9fa;
-      box-shadow:inset 0 1px 2px rgba(0,0,0,.05); transition:border-color .2s, box-shadow .2s, background-color .2s;
-    }
-    select.veiculo-select:focus{
-      border-color:#0d6efd; outline:none; box-shadow:0 0 0 2px rgba(13,110,253,.25); background:#fff;
-    }
+  /* ---- modo compacto ---- */
+  :root{--col-w:300px;--gap:12px}
+  .cards-row{grid-template-columns:var(--col-w) var(--col-w) 1fr;gap:var(--gap);padding-bottom:2px}
+  .servidor-cardbox{min-width:var(--col-w);max-width:var(--col-w)}
+  .servidor-cardbox .card-header{padding:.35rem .6rem}
+  .servidor-cardbox .card-body{padding:8px}
+  .meta-card{padding:10px}
+  .meta-head .icon{width:22px;height:22px;border-radius:.4rem;font-size:12px}
+  .meta-small,.meta-date{font-size:.8rem}
+  .meta-progress .progress{height:4px}
+  .meta-header-sep{margin-top:4px}
+  .servidores-grid{gap:6px}
+  .servidor-card{padding:8px 10px;min-height:36px;font-size:.82rem;border-radius:.55rem;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+  .servidor-card .srv-icon{width:20px;height:20px;font-size:11px;box-shadow:inset 0 0 0 1px #cfe2ff}
+  .srv-count-badge{font-size:.65rem;padding:2px 6px;line-height:1}
+  .meta-dropzone{gap:6px}
+  .servidor-chip{min-height:34px;padding:6px 10px;border-radius:.55rem;font-size:.82rem;background:#eef2f9;border:1px solid #cfd7e6;box-shadow:0 1px 3px rgba(13,110,253,.05)}
+  .servidor-chip .chip-icon{width:18px;height:18px;font-size:10px;box-shadow:inset 0 0 0 1px #cfe2ff}
+  .servidor-chip .chip-remove{padding:2px 8px;font-size:.72rem}
+  .veiculo-select{font-size:.82rem;padding:.25rem .5rem;height:calc(1.5em + .5rem + 2px);border-radius:.45rem;background:#f8fafc}
+  .table-sm>tbody>tr>td,.table-sm>thead>tr>th{padding:.3rem .5rem}
 
-    /* Dropzones */
-    .dropzone{min-height:42px; border:2px dashed transparent; border-radius:.5rem; transition:border-color .15s, background-color .15s}
-    .servidor-cardbox[data-meta-id].dz-hover{ outline:2px dashed #0d6efd; outline-offset:-4px; background:#eef5ff }
-
-    /* Header bonito do card de meta (direita) */
-    .meta-header-title{display:flex; align-items:center; gap:.5rem}
-    .meta-header-sep{height:1px; background:#e9edf3; margin-top:6px}
-
-    /* Linha "Data limite" dentro do card de meta */
-    .meta-date{display:flex; align-items:center; gap:.5rem; font-size:.9rem; color:#495057; margin-top:.35rem}
-    .meta-date i{color:#0d6efd}
-    .meta-date strong{color:#111827}
-
-
-        /* === Modo compacto: cole no fim do <style> === */
-    :root{
-      /* largura das colunas da esquerda e do meio */
-      --col-w: 300px;      /* troque p/ 280px se quiser ainda menor */
-      --gap: 12px;
-    }
-
-    /* Grid principal mais enxuto */
-    .cards-row{
-      grid-template-columns: var(--col-w) var(--col-w) 1fr;
-      gap: var(--gap);
-      padding-bottom: 2px;
-    }
-    .servidor-cardbox{ min-width: var(--col-w); max-width: var(--col-w); }
-    .servidor-cardbox .card-header{ padding:.35rem .6rem; }
-    .servidor-cardbox .card-body{ padding:8px; }
-
-    /* Cards de meta mais secos */
-    .meta-card{ padding:10px; }
-    .meta-head .icon{
-      width:22px; height:22px; border-radius:.4rem; font-size:12px;
-    }
-    .meta-small, .meta-date{ font-size:.8rem; }
-    .meta-progress .progress{ height:4px; }
-    .meta-header-sep{ margin-top:4px; }
-
-    /* Listas de servidores: menos altura, menos padding */
-    .servidores-grid{ gap:6px; }
-    .servidor-card{
-      padding:8px 10px;
-      min-height:36px;
-      font-size:.82rem;
-      border-radius:.55rem;
-      box-shadow:0 1px 4px rgba(0,0,0,.03);
-    }
-    .servidor-card .srv-icon{
-      width:20px; height:20px; font-size:11px;
-      box-shadow:inset 0 0 0 1px #cfe2ff;
-    }
-    .srv-count-badge{
-      font-size:.65rem; padding:2px 6px; line-height:1;
-    }
-
-    /* Chips dentro das metas mais baixinhos */
-    .meta-dropzone{ gap:6px; }
-    .servidor-chip{
-      min-height:34px;
-      padding:6px 10px;
-      border-radius:.55rem;
-      font-size:.82rem;
-      background:#eef2f9; border:1px solid #cfd7e6;
-      box-shadow:0 1px 3px rgba(13,110,253,.05);
-    }
-    .servidor-chip .chip-icon{
-      width:18px; height:18px; font-size:10px;
-      box-shadow:inset 0 0 0 1px #cfe2ff;
-    }
-    .servidor-chip .chip-remove{
-      padding:2px 8px; font-size:.72rem;
-    }
-
-    /* Select do veículo com visual compacto */
-    .veiculo-select{
-      font-size:.82rem;
-      padding:.25rem .5rem;
-      height: calc(1.5em + .5rem + 2px);
-      border-radius:.45rem;
-      background:#f8fafc;
-    }
-
-    /* Tabela de impedidos com células menores */
-    .table-sm>tbody>tr>td, .table-sm>thead>tr>th{ padding:.3rem .5rem; }
-
-    /* corpo do card de meta em coluna, com rolagem e select “grudado” embaixo */
-    .meta-body{
-      display:flex;
-      flex-direction:column;
-      max-height: 420px;      /* ajuste se quiser mais/menos alto */
-      overflow-y:auto;
-      padding: 8px;           /* mantém o mesmo padding do card */
-    }
-
-    .meta-body .meta-dropzone{
-      flex: 1 1 auto;         /* ocupa o espaço todo acima do select */
-      min-height: 32px;
-      gap: 6px;
-    }
-
-    .meta-body .veiculo-select{
-      position: sticky;
-      bottom: 0;              /* fica sempre visível no rodapé do card */
-      background: #fff;       /* fundo sólido para não “sumir” ao rolar */
-      margin-top: 8px;
-      border-radius: .45rem;
-      font-size: .82rem;
-      padding: .25rem .5rem;
-      height: calc(1.5em + .5rem + 2px);
-    }
-
-  </style>
+  /* corpo do card de meta com rolagem + select fixo embaixo */
+  .meta-body{display:flex;flex-direction:column;max-height:420px;overflow-y:auto;padding:8px}
+  .meta-body .meta-dropzone{flex:1 1 auto;min-height:32px;gap:6px}
+  .meta-body .veiculo-select{position:sticky;bottom:0;background:#fff;margin-top:8px;border-radius:.45rem;font-size:.82rem;padding:.25rem .5rem;height:calc(1.5em + .5rem + 2px)}
+</style>
 {% endblock %}
 
 {% block content %}
-  <div class="container my-4">
-    <h1>Programar Atividades</h1>
-    <div id="calendar" class="mt-4"></div>
-  </div>
+<div class="container my-4">
+  <h1>Programar Atividades</h1>
+  <div id="calendar" class="mt-4"></div>
+</div>
 
-  <div class="modal fade" id="modalAtividade" tabindex="-1" aria-labelledby="modalAtividadeLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title text-center w-100" id="modalAtividadeLabel">Programar atividades</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-        </div>
+<div class="modal fade" id="modalAtividade" tabindex="-1" aria-labelledby="modalAtividadeLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-center w-100" id="modalAtividadeLabel">Programar atividades</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
 
-        <div class="modal-body">
-          <form id="formAtividade">
-            <input type="hidden" id="dataAtividade" name="data">
-            <input type="hidden" id="metaId" name="meta_id">
+      <div class="modal-body">
+        <form id="formAtividade">
+          <input type="hidden" id="dataAtividade" name="data">
+          <input type="hidden" id="metaId" name="meta_id">
 
-            <!-- METAS -->
-            <div class="mb-2">
-              <label class="form-label">Escolha a meta</label>
-              <div id="metasGrid" class="metas-grid"></div>
-            </div>
+          <!-- METAS -->
+          <div class="mb-2">
+            <label class="form-label">Escolha a meta</label>
+            <div id="metasGrid" class="metas-grid"></div>
+          </div>
 
-            <hr class="my-4">
+          <hr class="my-4">
 
-            <div class="cards-row mb-3">
-              <!-- expediente -->
-              <div class="card shadow-sm servidor-cardbox">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <span class="fw-semibold">Expediente administrativo</span>
-                  <span class="badge bg-secondary" id="countExpedienteAdmin">0</span>
-                </div>
-                <div class="card-body">
-                  <div id="expedienteAdmin" class="servidores-grid"></div>
-                </div>
+          <div class="cards-row mb-3">
+            <!-- expediente -->
+            <div class="card shadow-sm servidor-cardbox">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Expediente administrativo</span>
+                <span class="badge bg-secondary" id="countExpedienteAdmin">0</span>
               </div>
-
-              <!-- disponíveis -->
-              <div class="card shadow-sm servidor-cardbox">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <span class="fw-semibold">Servidores disponíveis</span>
-                  <span class="badge bg-secondary" id="countServidoresLivres">0</span>
-                </div>
-                <div class="card-body">
-                  <div id="servidoresLivres" class="servidores-grid"></div>
-                </div>
-              </div>
-
-              <!-- coluna de metas -->
-              <div id="metaCardsContainer"></div>
-            </div>
-
-            <!-- impedidos -->
-            <div class="mt-3">
-              <div class="card shadow-sm" style="max-width:100%;min-width:unset;">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <span class="fw-semibold">Servidores impedidos</span>
-                  <span class="badge bg-secondary" id="countServidoresImpedidos">0</span>
-                </div>
-                <div class="card-body">
-                  <div class="table-responsive">
-                    <table class="table table-sm table-striped align-middle mb-0" id="tabelaImpedidos">
-                      <thead class="table-light"><tr><th>Nome</th><th>Motivo</th></tr></thead>
-                      <tbody></tbody>
-                    </table>
-                  </div>
-                </div>
+              <div class="card-body">
+                <div id="expedienteAdmin" class="servidores-grid"></div>
               </div>
             </div>
 
-          </form>
-        </div>
+            <!-- disponíveis -->
+            <div class="card shadow-sm servidor-cardbox">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Servidores disponíveis</span>
+                <span class="badge bg-secondary" id="countServidoresLivres">0</span>
+              </div>
+              <div class="card-body">
+                <div id="servidoresLivres" class="servidores-grid"></div>
+              </div>
+            </div>
 
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" form="formAtividade" id="btnSalvar" class="btn btn-primary" disabled>Salvar</button>
-        </div>
+            <!-- metas selecionadas -->
+            <div id="metaCardsContainer"></div>
+          </div>
+
+          <!-- impedidos -->
+          <div class="mt-3">
+            <div class="card shadow-sm" style="max-width:100%;min-width:unset;">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Servidores impedidos</span>
+                <span class="badge bg-secondary" id="countServidoresImpedidos">0</span>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-sm table-striped align-middle mb-0" id="tabelaImpedidos">
+                    <thead class="table-light"><tr><th>Nome</th><th>Motivo</th></tr></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" form="formAtividade" id="btnSalvar" class="btn btn-primary" disabled>Salvar</button>
       </div>
     </div>
   </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales-all.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales-all.global.min.js"></script>
 
-  <script>
-    window.calendarFeedURL = "{% url 'programar_atividades:events_feed' %}";
-    window.metasURL        = "{% url 'programar_atividades:metas_disponiveis' %}";
-    window.servidoresURL   = "{% url 'programar_atividades:servidores_para_data' %}";
-  </script>
+<script>
+  window.calendarFeedURL = "{% url 'programar_atividades:events_feed' %}";
+  window.metasURL        = "{% url 'programar_atividades:metas_disponiveis' %}";
+  window.servidoresURL   = "{% url 'programar_atividades:servidores_para_data' %}";
+</script>
 
-  <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const calendarEl   = document.getElementById('calendar');
-    const modalEl      = document.getElementById('modalAtividade');
-    const tituloModal  = document.getElementById('modalAtividadeLabel');
-    const inputData    = document.getElementById('dataAtividade');
-    const metasGrid    = document.getElementById('metasGrid');
-    const hiddenMetaId = document.getElementById('metaId');
-    const btnSalvar    = document.getElementById('btnSalvar');
-    const metaCardsContainer = document.getElementById('metaCardsContainer');
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const calendarEl   = document.getElementById('calendar');
+  const modalEl      = document.getElementById('modalAtividade');
+  const tituloModal  = document.getElementById('modalAtividadeLabel');
+  const inputData    = document.getElementById('dataAtividade');
+  const metasGrid    = document.getElementById('metasGrid');
+  const hiddenMetaId = document.getElementById('metaId');
+  const btnSalvar    = document.getElementById('btnSalvar');
+  const metaCardsContainer = document.getElementById('metaCardsContainer');
 
-    const setSalvarEnabled = (on) => btnSalvar.disabled = !on;
+  const setSalvarEnabled = (on) => btnSalvar.disabled = !on;
 
-    const allocations = {};    // sid -> total em todas as metas
-    const servidoresData = []; // cache de servidores livres
-    const findSrv = sid => servidoresData.find(s => String(s.id) === String(sid));
-    const DRAG = { id:null };  // fallback p/ dataTransfer
+  const allocations = {};    // sid -> total em todas as metas
+  const servidoresData = []; // cache
+  const findSrv = sid => servidoresData.find(s => String(s.id) === String(sid));
+  const DRAG = { id:null };
 
-    const getMetaCard = (el) => el.closest('[data-meta-id]');
+  const getMetaCard = (el) => el.closest('[data-meta-id]');
 
-    /* ---------- UI helpers ---------- */
-    function updateCounts() {
-      const countLivres = document.getElementById('countServidoresLivres');
-      const countExp    = document.getElementById('countExpedienteAdmin');
-      const countImp    = document.getElementById('countServidoresImpedidos');
+  /* ---------- helpers ---------- */
+  function updateCounts() {
+    const countLivres = document.getElementById('countServidoresLivres');
+    const countExp    = document.getElementById('countExpedienteAdmin');
+    const countImp    = document.getElementById('countServidoresImpedidos');
 
-      if (countLivres) countLivres.textContent = String(document.querySelectorAll('#servidoresLivres .servidor-card').length);
-      if (countExp)    countExp.textContent    = String(document.querySelectorAll('#expedienteAdmin .servidor-card').length);
-      if (countImp)    countImp.textContent    = String(document.querySelectorAll('#tabelaImpedidos tbody tr').length || 0);
+    if (countLivres) countLivres.textContent = String(document.querySelectorAll('#servidoresLivres .servidor-card').length);
+    if (countExp)    countExp.textContent    = String(document.querySelectorAll('#expedienteAdmin .servidor-card').length);
+    if (countImp)    countImp.textContent    = String(document.querySelectorAll('#tabelaImpedidos tbody tr').length || 0);
 
-      // badge de contagem nos servidores livres
-      document.querySelectorAll('#servidoresLivres .servidor-card[data-id]').forEach(el => {
-        const sid = el.dataset.id;
-        const n = allocations[sid] || 0;
-        const b = el.querySelector('.srv-count-badge');
-        if (!b) return;
-        if (n > 0) { el.classList.add('has-count'); b.textContent = n; }
-        else       { el.classList.remove('has-count'); b.textContent = ''; }
-      });
+    // badge por servidor livre
+    document.querySelectorAll('#servidoresLivres .servidor-card[data-id]').forEach(el => {
+      const sid = el.dataset.id;
+      const n = allocations[sid] || 0;
+      const b = el.querySelector('.srv-count-badge');
+      if (!b) return;
+      if (n > 0) { el.classList.add('has-count'); b.textContent = n; }
+      else       { el.classList.remove('has-count'); b.textContent = ''; }
+    });
 
-      // contagem por meta (chips)
-      metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
-        const n = card.querySelectorAll('.servidor-chip').length;
-        const badge = card.querySelector('.count-meta');
-        if (badge) badge.textContent = String(n);
-      });
-    }
+    // contagem por meta (chips)
+    metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
+      const n = card.querySelectorAll('.servidor-chip').length;
+      const badge = card.querySelector('.count-meta');
+      if (badge) badge.textContent = String(n);
+    });
+  }
 
-    function makeDisponivelCard(s) {
+  function makeDisponivelCard(s) {
+    const el = document.createElement('div');
+    el.className = 'servidor-card';
+    el.id = `srv-${s.id}`;
+    el.dataset.id = s.id;
+    el.setAttribute('draggable','true');
+    el.innerHTML = `
+      <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+      <span class="srv-name">${s.nome}</span>
+      <span class="srv-count-badge"></span>
+    `;
+    return el;
+  }
+
+  function makeMetaChip(srv) {
+    const chip = document.createElement('div');
+    chip.className = 'servidor-chip';
+    chip.dataset.id = srv.id;
+    chip.innerHTML = `
+      <span class="chip-icon"><i class="bi bi-person-fill"></i></span>
+      <span class="chip-name">${srv.nome}</span>
+      <button type="button" class="chip-remove" title="Remover">&times;</button>`;
+    chip.querySelector('.chip-remove').addEventListener('click', () => {
+      chip.remove();
+      const sid = String(srv.id);
+      allocations[sid] = Math.max(0, (allocations[sid] || 0) - 1);
+      if ((allocations[sid] || 0) === 0) appendToExpediente(srv);
+      updateCounts();
+    });
+    return chip;
+  }
+
+  function appendToExpediente(srv) {
+    const exp = document.getElementById('expedienteAdmin');
+    if (!exp.querySelector(`.servidor-card[data-id="${srv.id}"]`)) {
       const el = document.createElement('div');
       el.className = 'servidor-card';
-      el.id = `srv-${s.id}`;        // ID visual
-      el.dataset.id = s.id;         // ID lógico
-      el.setAttribute('draggable','true');
+      el.dataset.id = srv.id;
       el.innerHTML = `
         <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
-        <span class="srv-name">${s.nome}</span>
-        <span class="srv-count-badge"></span>
+        <span class="srv-name">${srv.nome}</span>
       `;
-      return el;
+      exp.appendChild(el);
     }
+  }
+  function removeOneFromExpediente(sid) {
+    const el = document.querySelector(`#expedienteAdmin .servidor-card[data-id="${sid}"]`);
+    if (el) el.remove();
+  }
 
-    function makeMetaChip(srv) {
-      const chip = document.createElement('div');
-      chip.className = 'servidor-chip';
-      chip.dataset.id = srv.id;
-      chip.innerHTML = `
-        <span class="chip-icon"><i class="bi bi-person-fill"></i></span>
-        <span class="chip-name">${srv.nome}</span>
-        <button type="button" class="chip-remove" title="Remover">&times;</button>`;
-      chip.querySelector('.chip-remove').addEventListener('click', () => {
-        chip.remove();
-        const sid = String(srv.id);
-        allocations[sid] = Math.max(0, (allocations[sid] || 0) - 1);
-        if ((allocations[sid] || 0) === 0) appendToExpediente(srv);
-        updateCounts();
-      });
-      return chip;
-    }
+  /* ---- numeração dos cards por meta (#1, #2, ...) ---- */
+  function updateCopyIndexes(metaId){
+    const cards = Array.from(
+      metaCardsContainer.querySelectorAll(`[data-meta-id="${metaId}"]`)
+    );
+    cards.forEach((c, i) => {
+      const b = c.querySelector('.index-badge');
+      if (b) b.textContent = `#${i + 1}`;
+    });
+  }
 
-    function appendToExpediente(srv) {
-      const exp = document.getElementById('expedienteAdmin');
-      if (!exp.querySelector(`.servidor-card[data-id="${srv.id}"]`)) {
-        const el = document.createElement('div');
-        el.className = 'servidor-card';
-        el.dataset.id = srv.id;
-        el.innerHTML = `
-          <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
-          <span class="srv-name">${srv.nome}</span>
-        `;
-        exp.appendChild(el);
-      }
-    }
-    function removeOneFromExpediente(sid) {
-      const el = document.querySelector(`#expedienteAdmin .servidor-card[data-id="${sid}"]`);
-      if (el) el.remove();
-    }
+  /* --------- cards de meta --------- */
+  function ensureMetaCard(metaId, metaTitle, options = {}) {
+    const { forceNew = false } = options;
 
-    /* --------- Cards de meta --------- */
-    function ensureMetaCard(metaId, metaTitle) {
+    // Reaproveita o primeiro card existente se não pediram "novo"
+    if (!forceNew) {
       let card = metaCardsContainer.querySelector(`[data-meta-id="${metaId}"]`);
       if (card) {
         card.querySelector('.meta-title-text').textContent = metaTitle;
         return card;
       }
+    }
 
-      const wrapper = document.createElement('div');
-      wrapper.className = 'card shadow-sm servidor-cardbox';
-      wrapper.dataset.metaId = metaId;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'card shadow-sm servidor-cardbox';
+    wrapper.dataset.metaId = metaId;
 
-      wrapper.innerHTML = `
-        <div class="card-header">
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="meta-header-title">
-              <span class="icon"><i class="bi bi-clipboard2-check"></i></span>
-              <span class="fw-semibold meta-title-text">${metaTitle}</span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              <span class="badge bg-primary count-meta">0</span>
-              <button type="button" class="btn btn-sm btn-outline-secondary meta-close" title="Fechar">&times;</button>
-            </div>
+    wrapper.innerHTML = `
+      <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="meta-header-title">
+            <span class="icon"><i class="bi bi-clipboard2-check"></i></span>
+            <span class="fw-semibold meta-title-text">${metaTitle}</span>
+            <span class="badge text-bg-light index-badge ms-2">#1</span>
           </div>
-          <div class="meta-header-sep"></div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary count-meta">0</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary meta-close" title="Fechar">&times;</button>
+          </div>
         </div>
-        <div class="card-body meta-body">
-          <!-- dropzone para chips -->
-          <div class="servidores-grid meta-dropzone dropzone mb-3"></div>
+        <div class="meta-header-sep"></div>
+      </div>
+      <div class="card-body meta-body">
+        <div class="servidores-grid meta-dropzone dropzone mb-3"></div>
+        <div class="mt-2">
+          <label class="form-label mb-1">Veículo da unidade</label>
+          <select class="form-select form-select-sm veiculo-select" name="veiculo_id" data-meta-id="${metaId}">
+            <option value="" selected disabled>Escolha um veículo</option>
+            {% for v in veiculos_ativos %}
+              <option value="{{ v.id }}">{{ v.nome }} - {{ v.placa }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>`;
 
-          <!-- select de veículos (por meta) -->
-          <div class="mt-2">
-            <label class="form-label mb-1">Veículo da unidade</label>
-            <select class="form-select form-select-sm veiculo-select" name="veiculo_id" data-meta-id="${metaId}">
-              <option value="" selected disabled>Escolha um veículo</option>
-              {% for v in veiculos_ativos %}
-                <option value="{{ v.id }}">{{ v.nome }} - {{ v.placa }}</option>
-              {% endfor %}
-            </select>
+    // fechar card: devolver alocações
+    wrapper.querySelector('.meta-close').addEventListener('click', () => {
+      const removedCounts = {};
+      wrapper.querySelectorAll('.servidor-chip').forEach(ch => {
+        const sid = String(ch.dataset.id);
+        removedCounts[sid] = (removedCounts[sid] || 0) + 1;
+        ch.remove();
+      });
+      Object.entries(removedCounts).forEach(([sid, qty]) => {
+        allocations[sid] = Math.max(0, (allocations[sid] || 0) - qty);
+        if ((allocations[sid] || 0) === 0) {
+          const srv = findSrv(sid);
+          if (srv) appendToExpediente(srv);
+        }
+      });
+      wrapper.remove();
+      updateCopyIndexes(metaId);
+      updateCounts();
+    });
+
+    metaCardsContainer.prepend(wrapper);
+    updateCopyIndexes(metaId);
+    updateCounts();
+    return wrapper;
+  }
+
+  const cardTitle = (metaId) =>
+    metasGrid.querySelector(`.meta-card[data-id="${metaId}"] .meta-title`)?.textContent?.trim() || 'Atividade';
+
+  function addToMeta(serverId, metaId) {
+    const sid = String(serverId);
+    const srv = findSrv(sid);
+    if (!srv) return;
+
+    const card = ensureMetaCard(metaId, cardTitle(metaId));
+    card.querySelector('.meta-dropzone').appendChild(makeMetaChip(srv));
+
+    const prev = allocations[sid] || 0;
+    allocations[sid] = prev + 1;
+    if (prev === 0) removeOneFromExpediente(sid);
+
+    updateCounts();
+  }
+
+  /* ====== Drag & Drop ====== */
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop',     e => e.preventDefault());
+
+  document.addEventListener('dragstart', (e) => {
+    const card = e.target.closest('#servidoresLivres .servidor-card');
+    if (!card) return;
+    const sid = card.dataset.id;
+    DRAG.id = sid;
+    if (e.dataTransfer) {
+      e.dataTransfer.setData('application/x-sid', sid);
+      e.dataTransfer.setData('text/plain', `sid:${sid}`);
+      e.dataTransfer.effectAllowed = 'copy';
+    }
+    card.classList.add('dragging');
+  }, true);
+
+  document.addEventListener('dragend', (e) => {
+    const card = e.target.closest('#servidoresLivres .servidor-card');
+    if (card) card.classList.remove('dragging');
+    DRAG.id = null;
+  }, true);
+
+  // Drop no card da meta
+  metaCardsContainer.addEventListener('dragover', (e) => {
+    const card = getMetaCard(e.target);
+    if (!card) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    card.classList.add('dz-hover');
+  }, true);
+
+  metaCardsContainer.addEventListener('dragleave', (e) => {
+    const card = getMetaCard(e.target);
+    if (!card) return;
+    card.classList.remove('dz-hover');
+  }, true);
+
+  metaCardsContainer.addEventListener('drop', (e) => {
+    const card = getMetaCard(e.target);
+    if (!card) return;
+    e.preventDefault();
+    card.classList.remove('dz-hover');
+
+    let sid = e.dataTransfer?.getData('application/x-sid');
+    if (!sid) {
+      const txt = e.dataTransfer?.getData('text/plain') || '';
+      if (txt.startsWith('sid:')) sid = txt.slice(4);
+    }
+    if (!sid) sid = DRAG.id;
+    if (!sid) return;
+
+    addToMeta(sid, card.dataset.metaId);
+  }, true);
+
+  /* ---------- Metas ---------- */
+  function renderMetas(metas) {
+    if (!metas || metas.length === 0) {
+      metasGrid.innerHTML = `<div class="alert alert-light border">Nenhuma meta disponível.</div>`;
+      setSalvarEnabled(false); hiddenMetaId.value = ""; return;
+    }
+
+    const formatDateBR = (ds) => {
+      try{
+        const d = (ds instanceof Date) ? ds : new Date(ds);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleDateString('pt-BR',{timeZone:'UTC'});
+      } catch { return ''; }
+    };
+
+    metasGrid.innerHTML = metas.map(m => {
+      const exec = Number(m.executado_unidade ?? 0);
+      const aloc = Number(m.alocado_unidade ?? 0);
+      const perc = aloc > 0 ? Math.min(100, Math.round((exec / aloc) * 100)) : 0;
+
+      const deadlineISO = m.data_limite || m.deadline || m.dataLimite || m.data_limite_iso || null;
+      const deadlineHtml = deadlineISO ? `
+        <div class="meta-date">
+          <i class="bi bi-calendar-event" aria-hidden="true"></i>
+          <span>Data limite:</span>
+          <strong>${formatDateBR(deadlineISO)}</strong>
+        </div>` : '';
+
+      return `
+        <button type="button" class="meta-card" data-id="${m.id}">
+          <div class="meta-head">
+            <span class="icon"><i class="bi bi-flag"></i></span>
+            <h6 class="meta-title">${m.nome}</h6>
           </div>
-        </div>`;
+          <div class="meta-sep"></div>
+          ${deadlineHtml}
+          <div class="meta-small mt-2">Alocado nesta unidade: <b>${aloc}</b></div>
+          <div class="meta-progress mt-1">
+            <div class="d-flex justify-content-between summary mb-1">
+              <span>Executado (unidade)</span><span><b>${exec}</b> / ${aloc}</span>
+            </div>
+            <div class="progress"><div class="progress-bar bg-primary" style="width:${perc}%"></div></div>
+          </div>
+        </button>`;
+    }).join('');
 
-      // Fechar meta: devolver servidores ao expediente quando contagem zera
-      wrapper.querySelector('.meta-close').addEventListener('click', () => {
-        const removedCounts = {};
-        wrapper.querySelectorAll('.servidor-chip').forEach(ch => {
-          const sid = String(ch.dataset.id);
-          removedCounts[sid] = (removedCounts[sid] || 0) + 1;
-          ch.remove();
-        });
-        Object.entries(removedCounts).forEach(([sid, qty]) => {
-          allocations[sid] = Math.max(0, (allocations[sid] || 0) - qty);
-          if ((allocations[sid] || 0) === 0) {
-            const srv = findSrv(sid);
-            if (srv) appendToExpediente(srv);
-          }
-        });
-        wrapper.remove();
+    // click nas metas
+    metasGrid.querySelectorAll('.meta-card').forEach(card => {
+      card.addEventListener('click', () => {
+        metasGrid.querySelectorAll('.meta-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+
+        const mid   = card.dataset.id;
+        const title = card.querySelector('.meta-title').textContent.trim();
+
+        hiddenMetaId.value = mid;
+        setSalvarEnabled(true);
+
+        const existing = metaCardsContainer.querySelectorAll(`[data-meta-id="${mid}"]`);
+        let targetCard;
+
+        if (existing.length >= 1) {
+          // desconta 1 do total exibido na mensagem
+          const displayCount = Math.max(1, existing.length - 1);
+
+          const ok = window.confirm(
+            displayCount === 1
+              ? 'Já existe uma atividade nessa programação.\nDeseja abrir mais um card para esta atividade?'
+              : `Já existem ${displayCount} atividades nessa programação.\nDeseja abrir mais um card para esta atividade?`
+          );
+
+          targetCard = ok
+            ? ensureMetaCard(mid, title, { forceNew: true })
+            : existing[0];
+        } else {
+          targetCard = ensureMetaCard(mid, title);
+        }
+
+        targetCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+      });
+    });
+
+    hiddenMetaId.value = ""; setSalvarEnabled(false);
+  }
+
+  function loadMetas() {
+    metasGrid.innerHTML = `<div class="placeholder-glow"><span class="placeholder col-12 mb-2"></span></div>`;
+    fetch(window.metasURL, { headers:{'X-Requested-With':'XMLHttpRequest'} })
+      .then(r=>r.json())
+      .then(({metas})=>renderMetas(metas))
+      .catch(()=>{ metasGrid.innerHTML=`<div class="alert alert-danger">Erro ao carregar metas.</div>`; });
+  }
+
+  /* ---------- Servidores ---------- */
+  function loadServidores(dateStr) {
+    const expDiv     = document.getElementById('expedienteAdmin');
+    const tbodyImp   = document.querySelector('#tabelaImpedidos tbody');
+    const livresDiv  = document.getElementById('servidoresLivres');
+
+    Object.keys(allocations).forEach(k => delete allocations[k]);
+    servidoresData.length = 0;
+    metaCardsContainer.innerHTML = '';
+    livresDiv.innerHTML = '<span class="text-muted">Carregando...</span>';
+    expDiv.innerHTML = ''; tbodyImp.innerHTML = '';
+
+    fetch(`${window.servidoresURL}?data=${dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} })
+      .then(r=>r.json())
+      .then(({livres, impedidos})=>{
+        livresDiv.innerHTML = '';
+        (livres||[]).forEach(s=>{ servidoresData.push(s); allocations[String(s.id)]=0; });
+
+        if (!livres || livres.length===0) {
+          livresDiv.innerHTML = '<div class="alert alert-light border mb-0">Nenhum servidor livre.</div>';
+          expDiv.innerHTML    = '<div class="alert alert-light border mb-0">Sem servidores.</div>';
+        } else {
+          livres.forEach(s => livresDiv.appendChild(makeDisponivelCard(s)));
+          // espelho no expediente
+          livres.forEach(s => {
+            const el = document.createElement('div');
+            el.className='servidor-card';
+            el.dataset.id=s.id;
+            el.innerHTML = `
+              <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+              <span class="srv-name">${s.nome}</span>`;
+            expDiv.appendChild(el);
+          });
+        }
+
+        if (!impedidos || impedidos.length===0) {
+          tbodyImp.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhum impedido.</td></tr>';
+        } else {
+          tbodyImp.innerHTML = impedidos.map(s=>`<tr><td>${s.nome}</td><td>${s.motivo||'Descanso'}</td></tr>`).join('');
+        }
+
+        updateCounts();
+      })
+      .catch(()=>{
+        livresDiv.innerHTML = '<span class="text-danger">Erro ao carregar.</span>';
         updateCounts();
       });
+  }
 
-      // Inserir no início (logo à direita dos servidores disponíveis)
-      metaCardsContainer.prepend(wrapper);
-      updateCounts();
-      return wrapper;
+  /* ---------- Calendar ---------- */
+  const calendar = new FullCalendar.Calendar(calendarEl, {
+    locale:'pt-br', timeZone:'local', firstDay:1, initialView:'dayGridMonth',
+    headerToolbar:{ left:'prev,next today', center:'title', right:'' },
+    buttonText:{ today:'Hoje', month:'Mês', week:'Semana', day:'Dia' },
+    height:'auto',
+    events: window.calendarFeedURL,
+
+    dateClick(info){
+      inputData.value = info.dateStr;
+      const dataBR = info.date.toLocaleDateString('pt-BR',{timeZone:'UTC'});
+      tituloModal.innerHTML = `
+        <i class="bi bi-calendar-event text-primary me-2"></i>
+        Programar atividades para o dia ${dataBR}
+      `;
+      loadMetas();
+      loadServidores(info.dateStr);
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
-
-    const cardTitle = (metaId) =>
-      metasGrid.querySelector(`.meta-card[data-id="${metaId}"] .meta-title`)?.textContent?.trim() || 'Atividade';
-
-    function addToMeta(serverId, metaId) {
-      const sid = String(serverId);
-      const srv = findSrv(sid);
-      if (!srv) return;
-
-      const card = ensureMetaCard(metaId, cardTitle(metaId));
-      card.querySelector('.meta-dropzone').appendChild(makeMetaChip(srv));
-
-      const prev = allocations[sid] || 0;
-      allocations[sid] = prev + 1;
-      if (prev === 0) removeOneFromExpediente(sid);
-
-      updateCounts();
-    }
-
-    /* ====== Drag & Drop ====== */
-    window.addEventListener('dragover', e => e.preventDefault());
-    window.addEventListener('drop',     e => e.preventDefault());
-
-    document.addEventListener('dragstart', (e) => {
-      const card = e.target.closest('#servidoresLivres .servidor-card');
-      if (!card) return;
-      const sid = card.dataset.id;
-      DRAG.id = sid;
-      if (e.dataTransfer) {
-        e.dataTransfer.setData('application/x-sid', sid);
-        e.dataTransfer.setData('text/plain', `sid:${sid}`);
-        e.dataTransfer.effectAllowed = 'copy';
-      }
-      card.classList.add('dragging');
-    }, true);
-
-    document.addEventListener('dragend', (e) => {
-      const card = e.target.closest('#servidoresLivres .servidor-card');
-      if (card) card.classList.remove('dragging');
-      DRAG.id = null;
-    }, true);
-
-    // Drop no CARD INTEIRO da meta
-    metaCardsContainer.addEventListener('dragover', (e) => {
-      const card = getMetaCard(e.target);
-      if (!card) return;
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-      card.classList.add('dz-hover');
-    }, true);
-
-    metaCardsContainer.addEventListener('dragleave', (e) => {
-      const card = getMetaCard(e.target);
-      if (!card) return;
-      card.classList.remove('dz-hover');
-    }, true);
-
-    metaCardsContainer.addEventListener('drop', (e) => {
-      const card = getMetaCard(e.target);
-      if (!card) return;
-      e.preventDefault();
-      card.classList.remove('dz-hover');
-
-      let sid = e.dataTransfer?.getData('application/x-sid');
-      if (!sid) {
-        const txt = e.dataTransfer?.getData('text/plain') || '';
-        if (txt.startsWith('sid:')) sid = txt.slice(4);
-      }
-      if (!sid) sid = DRAG.id;
-      if (!sid) return;
-
-      addToMeta(sid, card.dataset.metaId);
-    }, true);
-
-    /* ---------- Metas ---------- */
-    function renderMetas(metas) {
-      if (!metas || metas.length === 0) {
-        metasGrid.innerHTML = `<div class="alert alert-light border">Nenhuma meta disponível.</div>`;
-        setSalvarEnabled(false); hiddenMetaId.value = ""; return;
-      }
-
-      const formatDateBR = (ds) => {
-        try{
-          const d = (ds instanceof Date) ? ds : new Date(ds);
-          if (isNaN(d.getTime())) return '';
-          return d.toLocaleDateString('pt-BR',{timeZone:'UTC'});
-        } catch { return ''; }
-      };
-
-      metasGrid.innerHTML = metas.map(m => {
-        const exec = Number(m.executado_unidade ?? 0);
-        const aloc = Number(m.alocado_unidade ?? 0);
-        const perc = aloc > 0 ? Math.min(100, Math.round((exec / aloc) * 100)) : 0;
-
-        const deadlineISO = m.data_limite || m.deadline || m.dataLimite || m.data_limite_iso || null;
-        const deadlineHtml = deadlineISO ? `
-          <div class="meta-date">
-            <i class="bi bi-calendar-event" aria-hidden="true"></i>
-            <span>Data limite:</span>
-            <strong>${formatDateBR(deadlineISO)}</strong>
-          </div>` : '';
-
-        return `
-          <button type="button" class="meta-card" data-id="${m.id}">
-            <div class="meta-head">
-              <span class="icon"><i class="bi bi-flag"></i></span>
-              <h6 class="meta-title">${m.nome}</h6>
-            </div>
-            <div class="meta-sep"></div>
-            ${deadlineHtml}
-            <div class="meta-small mt-2">Alocado nesta unidade: <b>${aloc}</b></div>
-            <div class="meta-progress mt-1">
-              <div class="d-flex justify-content-between summary mb-1">
-                <span>Executado (unidade)</span><span><b>${exec}</b> / ${aloc}</span>
-              </div>
-              <div class="progress"><div class="progress-bar bg-primary" style="width:${perc}%"></div></div>
-            </div>
-          </button>`;
-      }).join('');
-
-      metasGrid.querySelectorAll('.meta-card').forEach(card => {
-        card.addEventListener('click', () => {
-          metasGrid.querySelectorAll('.meta-card').forEach(c => c.classList.remove('selected'));
-          card.classList.add('selected');
-          hiddenMetaId.value = card.dataset.id;
-          setSalvarEnabled(true);
-          const meta = ensureMetaCard(card.dataset.id, card.querySelector('.meta-title').textContent.trim());
-          meta.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
-        });
-      });
-
-      hiddenMetaId.value = ""; setSalvarEnabled(false);
-    }
-
-    function loadMetas() {
-      metasGrid.innerHTML = `<div class="placeholder-glow"><span class="placeholder col-12 mb-2"></span></div>`;
-      fetch(window.metasURL, { headers:{'X-Requested-With':'XMLHttpRequest'} })
-        .then(r=>r.json())
-        .then(({metas})=>renderMetas(metas))
-        .catch(()=>{ metasGrid.innerHTML=`<div class="alert alert-danger">Erro ao carregar metas.</div>`; });
-    }
-
-    /* ---------- Servidores ---------- */
-    function loadServidores(dateStr) {
-      const expDiv     = document.getElementById('expedienteAdmin');
-      const tbodyImp   = document.querySelector('#tabelaImpedidos tbody');
-      const livresDiv  = document.getElementById('servidoresLivres');
-
-      Object.keys(allocations).forEach(k => delete allocations[k]);
-      servidoresData.length = 0;
-      metaCardsContainer.innerHTML = '';   // limpa col de metas
-      livresDiv.innerHTML = '<span class="text-muted">Carregando...</span>';
-      expDiv.innerHTML = ''; tbodyImp.innerHTML = '';
-
-      fetch(`${window.servidoresURL}?data=${dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} })
-        .then(r=>r.json())
-        .then(({livres, impedidos})=>{
-          livresDiv.innerHTML = '';
-          (livres||[]).forEach(s=>{ servidoresData.push(s); allocations[String(s.id)]=0; });
-
-          if (!livres || livres.length===0) {
-            livresDiv.innerHTML = '<div class="alert alert-light border mb-0">Nenhum servidor livre.</div>';
-            expDiv.innerHTML    = '<div class="alert alert-light border mb-0">Sem servidores.</div>';
-          } else {
-            // lista de livres
-            livres.forEach(s => livresDiv.appendChild(makeDisponivelCard(s)));
-            // espelho no expediente (sem badge)
-            livres.forEach(s => {
-              const el = document.createElement('div');
-              el.className='servidor-card';
-              el.dataset.id=s.id;
-              el.innerHTML = `
-                <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
-                <span class="srv-name">${s.nome}</span>
-              `;
-              expDiv.appendChild(el);
-            });
-          }
-
-          if (!impedidos || impedidos.length===0) {
-            tbodyImp.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhum impedido.</td></tr>';
-          } else {
-            tbodyImp.innerHTML = impedidos.map(s=>`<tr><td>${s.nome}</td><td>${s.motivo||'Descanso'}</td></tr>`).join('');
-          }
-
-          updateCounts();
-        })
-        .catch(()=>{
-          livresDiv.innerHTML = '<span class="text-danger">Erro ao carregar.</span>';
-          updateCounts();
-        });
-    }
-
-    /* ---------- Calendar ---------- */
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-      locale:'pt-br', timeZone:'local', firstDay:1, initialView:'dayGridMonth',
-      headerToolbar:{ left:'prev,next today', center:'title', right:'' },
-      buttonText:{ today:'Hoje', month:'Mês', week:'Semana', day:'Dia' },
-      height:'auto',
-      events: window.calendarFeedURL,
-
-      dateClick(info){
-        inputData.value = info.dateStr;
-        const dataBR = info.date.toLocaleDateString('pt-BR',{timeZone:'UTC'});
-        tituloModal.innerHTML = `
-          <i class="bi bi-calendar-event text-primary me-2"></i>
-          Programar atividades para o dia ${dataBR}
-        `;
-        loadMetas();
-        loadServidores(info.dateStr);
-        bootstrap.Modal.getOrCreateInstance(modalEl).show();
-      }
-    });
-    calendar.render();
-
-    /* ---------- Submit ---------- */
-    document.getElementById('formAtividade').addEventListener('submit', (e) => {
-      e.preventDefault();
-
-      const metasPayload = {};
-      const veiculosPorMeta = {};
-
-      metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
-        const metaId = card.dataset.metaId;
-
-        // servidores (chips)
-        metasPayload[metaId] = Array
-          .from(card.querySelectorAll('.servidor-chip'))
-          .map(ch => ch.dataset.id);
-
-        // veículo selecionado
-        const select = card.querySelector('.veiculo-select');
-        veiculosPorMeta[metaId] = select?.value || null;
-      });
-
-      const payload = {
-        data: inputData.value,
-        metas: metasPayload,
-        veiculos: veiculosPorMeta,
-      };
-
-      console.log('➡️ Enviar para backend:', payload);
-      bootstrap.Modal.getInstance(modalEl).hide();
-    });
   });
-  </script>
+  calendar.render();
+
+  /* ---------- Submit ---------- */
+  document.getElementById('formAtividade').addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const metasPayload = {};
+    const veiculosPorMeta = {};
+
+    metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
+      const metaId = card.dataset.metaId;
+      metasPayload[metaId] = Array
+        .from(card.querySelectorAll('.servidor-chip'))
+        .map(ch => ch.dataset.id);
+
+      const select = card.querySelector('.veiculo-select');
+      veiculosPorMeta[metaId] = select?.value || null;
+    });
+
+    const payload = {
+      data: inputData.value,
+      metas: metasPayload,
+      veiculos: veiculosPorMeta,
+    };
+
+    console.log('➡️ Enviar para backend:', payload);
+    bootstrap.Modal.getInstance(modalEl).hide();
+  });
+});
+</script>
 {% endblock %}
