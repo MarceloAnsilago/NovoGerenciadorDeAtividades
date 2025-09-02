@@ -51,6 +51,9 @@ def lista_veiculos(request: HttpRequest) -> HttpResponse:
     page_obj = paginator.get_page(page_number)
     veiculos = page_obj.object_list
 
+    # 👇 Defina ANTES de montar o contexto
+    veiculos_ativos = Veiculo.objects.filter(unidade=unidade, ativo=True).order_by("nome")
+
     ctx = {
         "form": form,
         "veiculos": veiculos,
@@ -60,8 +63,8 @@ def lista_veiculos(request: HttpRequest) -> HttpResponse:
         "status": status or "todos",
         "veiculos_ativos": veiculos_ativos,
     }
-    veiculos_ativos = Veiculo.objects.filter(unidade=unidade, ativo=True).order_by("nome")
     return render(request, "veiculos/lista.html", ctx)
+
 
 
 @login_required
