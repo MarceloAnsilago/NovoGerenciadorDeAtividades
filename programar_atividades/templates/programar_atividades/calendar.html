@@ -281,11 +281,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // numeração dos cards ( #1, #2, ... )
+
   function updateCopyIndexes(metaId){
-    const cards = Array.from(metaCardsContainer.querySelectorAll(`[data-meta-id="${metaId}"]`));
+    const cards = Array.from(
+      metaCardsContainer.querySelectorAll(`.servidor-cardbox[data-meta-id="${metaId}"]`)
+    );
     cards.forEach((c, i) => {
       const b = c.querySelector('.index-badge');
-      if (b) b.textContent = `${i  + 1}`;
+      if (b) b.textContent = `${i + 1}`; // 1, 2, 3 ...
     });
   }
 
