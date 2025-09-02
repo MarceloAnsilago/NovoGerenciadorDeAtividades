@@ -58,7 +58,9 @@ def lista_veiculos(request: HttpRequest) -> HttpResponse:
         "unidade": unidade,
         "q": q,
         "status": status or "todos",
+        "veiculos_ativos": veiculos_ativos,
     }
+    veiculos_ativos = Veiculo.objects.filter(unidade=unidade, ativo=True).order_by("nome")
     return render(request, "veiculos/lista.html", ctx)
 
 
