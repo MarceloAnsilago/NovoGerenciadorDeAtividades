@@ -91,19 +91,9 @@
   @keyframes pulseRed{0%{box-shadow:0 0 0 0 rgba(220,53,69,0)}50%{box-shadow:0 0 0 4px rgba(220,53,69,.35)}100%{box-shadow:0 0 0 0 rgba(220,53,69,0)}}
   .servidor-chip.dup-anim{animation:pulseRed .45s ease}
 
-/* body do card como zona de drop, do tamanho do card */
-.drop-target{
-  min-height: 320px;         /* ajuste o valor que preferir */
-}
-
-/* highlight quando o mouse estiver arrastando sobre o card */
-.drop-target.dz-hover{
-  outline: 2px dashed #0d6efd;
-  outline-offset: -4px;
-  background: #eef5ff;
-}
-
-
+  /* body do card do Expediente como zona de drop grande */
+  .drop-target{min-height:320px}
+  .drop-target.dz-hover{outline:2px dashed #0d6efd;outline-offset:-4px;background:#eef5ff}
 </style>
 {% endblock %}
 
@@ -134,16 +124,18 @@
           <hr class="my-4">
 
           <div class="cards-row mb-3">
+            <!-- Expediente administrativo -->
             <div class="card shadow-sm servidor-cardbox">
               <div class="card-header d-flex justify-content-between align-items-center">
                 <span class="fw-semibold">Expediente administrativo</span>
                 <span class="badge bg-secondary" id="countExpedienteAdmin">0</span>
               </div>
-                <div id="expedienteBody" class="card-body drop-target">
-                  <div id="expedienteAdmin" class="servidores-grid"></div>
-                </div>
+              <div id="expedienteBody" class="card-body drop-target">
+                <div id="expedienteAdmin" class="servidores-grid"></div>
+              </div>
             </div>
 
+            <!-- Servidores disponíveis -->
             <div class="card shadow-sm servidor-cardbox">
               <div class="card-header d-flex justify-content-between align-items-center">
                 <span class="fw-semibold">Servidores disponíveis</span>
@@ -154,9 +146,11 @@
               </div>
             </div>
 
+            <!-- Metas selecionadas -->
             <div id="metaCardsContainer"></div>
           </div>
 
+          <!-- Impedidos -->
           <div class="mt-3">
             <div class="card shadow-sm" style="max-width:100%;min-width:unset;">
               <div class="card-header d-flex justify-content-between align-items-center">
@@ -207,12 +201,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const hiddenMetaId = document.getElementById('metaId');
   const btnSalvar    = document.getElementById('btnSalvar');
   const metaCardsContainer = document.getElementById('metaCardsContainer');
-  const expDiv = document.getElementById('expedienteAdmin');
+
+  // Expediente: body = dropzone, list = onde renderiza
+  const expBody = document.getElementById('expedienteBody');
+  const expList = document.getElementById('expedienteAdmin');
 
   const setSalvarEnabled = (on) => btnSalvar.disabled = !on;
 
-  const allocations = {};    // sid -> total em todas as metas
-  const servidoresData = []; // cache
+  const allocations = {};          // sid -> total alocado em metas
+  const servidoresData = [];       // cache
   const findSrv = sid => servidoresData.find(s => String(s.id) === String(sid));
   const DRAG = { id:null };
 
@@ -228,7 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (countExp)    countExp.textContent    = String(document.querySelectorAll('#expedienteAdmin .servidor-card').length);
     if (countImp)    countImp.textContent    = String(document.querySelectorAll('#tabelaImpedidos tbody tr').length || 0);
 
-    // badge por servidor livre
     document.querySelectorAll('#servidoresLivres .servidor-card[data-id]').forEach(el => {
       const sid = el.dataset.id;
       const n = allocations[sid] || 0;
@@ -238,7 +234,6 @@ document.addEventListener('DOMContentLoaded', () => {
       else       { el.classList.remove('has-count'); b.textContent = ''; }
     });
 
-    // contagem por meta (chips)
     metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
       const n = card.querySelectorAll('.servidor-chip').length;
       const badge = card.querySelector('.count-meta');
@@ -271,7 +266,6 @@ document.addEventListener('DOMContentLoaded', () => {
       chip.remove();
       const sid = String(srv.id);
       allocations[sid] = Math.max(0, (allocations[sid] || 0) - 1);
-      // voltou a zero? recoloca no expediente (se ainda não estiver)
       if ((allocations[sid] || 0) === 0) appendToExpediente(srv);
       updateCounts();
     });
@@ -279,30 +273,29 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function appendToExpediente(srv) {
-    if (!expDiv.querySelector(`.servidor-card[data-id="${srv.id}"]`)) {
+    if (!expList.querySelector(`.servidor-card[data-id="${srv.id}"]`)) {
       const el = document.createElement('div');
       el.className = 'servidor-card';
       el.dataset.id = srv.id;
       el.innerHTML = `
         <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
         <span class="srv-name">${srv.nome}</span>`;
-      expDiv.appendChild(el);
+      expList.appendChild(el);
     }
   }
   function removeOneFromExpediente(sid) {
-    const el = expDiv.querySelector(`.servidor-card[data-id="${sid}"]`);
+    const el = expList.querySelector(`.servidor-card[data-id="${sid}"]`);
     if (el) el.remove();
   }
 
-  // numeração dos cards ( #1, #2, ... )
-
+  // numeração dos cards (#1, #2, ...)
   function updateCopyIndexes(metaId){
     const cards = Array.from(
       metaCardsContainer.querySelectorAll(`.servidor-cardbox[data-meta-id="${metaId}"]`)
     );
     cards.forEach((c, i) => {
       const b = c.querySelector('.index-badge');
-      if (b) b.textContent = `${i + 1}`; // 1, 2, 3 ...
+      if (b) b.textContent = String(i + 1);  // 1, 2, 3...
     });
   }
 
@@ -328,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="meta-header-title">
             <span class="icon"><i class="bi bi-clipboard2-check"></i></span>
             <span class="fw-semibold meta-title-text">${metaTitle}</span>
-            <span class="badge text-bg-light index-badge ms-2">#1</span>
+            <span class="badge text-bg-light index-badge ms-2">1</span>
           </div>
           <div class="d-flex align-items-center gap-2">
             <span class="badge bg-primary count-meta">0</span>
@@ -428,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
     DRAG.id = null;
   }, true);
 
-  // drop nas metas
+  // Drop no card de meta (qualquer área do card)
   metaCardsContainer.addEventListener('dragover', (e) => {
     const card = getMetaCard(e.target);
     if (!card) return;
@@ -460,13 +453,17 @@ document.addEventListener('DOMContentLoaded', () => {
     addToMeta(sid, card.dataset.metaId);
   }, true);
 
-  // === Expedeinte aceita drop dos servidores disponíveis ===
-  expDiv.addEventListener('dragover', (e) => {
+  // Drop no Expediente (card inteiro)
+  expBody.addEventListener('dragover', (e) => {
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    expBody.classList.add('dz-hover');
   });
-  expDiv.addEventListener('drop', (e) => {
+  expBody.addEventListener('dragleave', () => expBody.classList.remove('dz-hover'));
+  expBody.addEventListener('drop', (e) => {
     e.preventDefault();
+    expBody.classList.remove('dz-hover');
+
     let sid = e.dataTransfer?.getData('application/x-sid');
     if (!sid) {
       const txt = e.dataTransfer?.getData('text/plain') || '';
@@ -477,7 +474,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const srv = findSrv(sid);
     if (!srv) return;
-    appendToExpediente(srv); // não duplica
+
+    appendToExpediente(srv); // já evita duplicata
     updateCounts();
   });
 
@@ -527,7 +525,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </button>`;
     }).join('');
 
-    // click nas metas
     metasGrid.querySelectorAll('.meta-card').forEach(card => {
       card.addEventListener('click', () => {
         metasGrid.querySelectorAll('.meta-card').forEach(c => c.classList.remove('selected'));
@@ -581,7 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
     servidoresData.length = 0;
     metaCardsContainer.innerHTML = '';
     livresDiv.innerHTML = '<span class="text-muted">Carregando...</span>';
-    expDiv.innerHTML = ''; tbodyImp.innerHTML = '';
+    expList.innerHTML = ''; tbodyImp.innerHTML = '';
 
     fetch(`${window.servidoresURL}?data=${dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} })
       .then(r=>r.json())
@@ -591,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!livres || livres.length===0) {
           livresDiv.innerHTML = '<div class="alert alert-light border mb-0">Nenhum servidor livre.</div>';
-          expDiv.innerHTML    = '<div class="alert alert-light border mb-0">Sem servidores.</div>';
+          expList.innerHTML   = '<div class="alert alert-light border mb-0">Sem servidores.</div>';
         } else {
           livres.forEach(s => livresDiv.appendChild(makeDisponivelCard(s)));
           // espelho no expediente
