@@ -219,30 +219,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const getMetaCard = (el) => el.closest('[data-meta-id]');
 
   /* ---------- helpers ---------- */
-  function updateCounts() {
-    const countLivres = document.getElementById('countServidoresLivres');
-    const countExp    = document.getElementById('countExpedienteAdmin');
-    const countImp    = document.getElementById('countServidoresImpedidos');
+function updateCounts() {
+  const countLivres = document.getElementById('countServidoresLivres');
+  const countExp    = document.getElementById('countExpedienteAdmin');
+  const countImp    = document.getElementById('countServidoresImpedidos');
 
-    if (countLivres) countLivres.textContent = String(document.querySelectorAll('#servidoresLivres .servidor-card').length);
-    if (countExp)    countExp.textContent    = String(document.querySelectorAll('#expedienteAdmin .servidor-card').length);
-    if (countImp)    countImp.textContent    = String(document.querySelectorAll('#tabelaImpedidos tbody tr').length || 0);
+  if (countLivres) countLivres.textContent = String(document.querySelectorAll('#servidoresLivres .servidor-card').length);
+  if (countExp)    countExp.textContent    = String(document.querySelectorAll('#expedienteAdmin .servidor-card').length);
+  if (countImp)    countImp.textContent    = String(document.querySelectorAll('#tabelaImpedidos tbody tr').length || 0);
 
-    document.querySelectorAll('#servidoresLivres .servidor-card[data-id]').forEach(el => {
-      const sid = el.dataset.id;
-      const n = allocations[sid] || 0;
-      const b = el.querySelector('.srv-count-badge');
-      if (!b) return;
-      if (n > 0) { el.classList.add('has-count'); b.textContent = n; }
-      else       { el.classList.remove('has-count'); b.textContent = ''; }
-    });
+  document.querySelectorAll('#servidoresLivres .servidor-card[data-id]').forEach(el => {
+    const sid = el.dataset.id;
+    const n = allocations[sid] || 0;
+    const b = el.querySelector('.srv-count-badge');
+    if (!b) return;
+    if (n > 0) { el.classList.add('has-count'); b.textContent = n; }
+    else       { el.classList.remove('has-count'); b.textContent = ''; }
+  });
 
-    metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
-      const n = card.querySelectorAll('.servidor-chip').length;
-      const badge = card.querySelector('.count-meta');
-      if (badge) badge.textContent = String(n);
-    });
-  }
+  metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
+    const n = card.querySelectorAll('.servidor-chip').length;
+    const badge = card.querySelector('.count-meta');
+    if (badge) badge.textContent = String(n);
+  });
+
++ // habilita o salvar se existir pelo menos 1 card de meta
++ setSalvarEnabled(metaCardsContainer.querySelectorAll('[data-meta-id]').length > 0);
+}
+
 
   function makeDisponivelCard(s) {
     const el = document.createElement('div');
@@ -700,14 +704,34 @@ function getCookie(name){
 document.getElementById('formAtividade').addEventListener('submit', async (e) => {
   e.preventDefault();
 
-  // === NOVO: um item por card (evita sobrescrever quando há múltiplos cards da mesma meta) ===
-  const itens = [];
-  metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
+  // 1) coleto os cards e separo os "vazios" (sem chips)
+  const allCards = Array.from(metaCardsContainer.querySelectorAll('[data-meta-id]'));
+  const nonEmptyCards = allCards.filter(c => c.querySelectorAll('.servidor-chip').length > 0);
+  const removedCount = allCards.length - nonEmptyCards.length;
+
+  // (opcional) remover do DOM os vazios p/ refletir o que será salvo
+  if (removedCount > 0) {
+    allCards
+      .filter(c => !nonEmptyCards.includes(c))
+      .forEach(c => c.remove());
+    updateCounts(); // atualiza badges e botão Salvar
+  }
+
+  // 2) monta payload SOMENTE com cards que têm servidores
+  const itens = nonEmptyCards.map(card => {
     const metaId = card.dataset.metaId;
     const servidores = Array.from(card.querySelectorAll('.servidor-chip')).map(ch => ch.dataset.id);
     const veiculoId = card.querySelector('.veiculo-select')?.value || null;
-    itens.push({ meta_id: metaId, servidores, veiculo_id: veiculoId });
+    return { meta_id: metaId, servidores, veiculo_id: veiculoId };
   });
+
+  // 3) se ficou sem nenhum item, ofereça LIMPAR totalmente o dia
+  if (itens.length === 0) {
+    const ok = window.confirm(
+      'Nenhuma atividade com servidores.\nIsso vai APAGAR toda a programação deste dia.\nDeseja continuar?'
+    );
+    if (!ok) return; // usuário desistiu
+  }
 
   const payload = { data: inputData.value, itens };
 
@@ -725,7 +749,6 @@ document.getElementById('formAtividade').addEventListener('submit', async (e) =>
       body: JSON.stringify(payload),
     });
 
-    // Parse tolerante: tenta JSON, senão usa texto puro
     const raw = await resp.text();
     let data;
     try { data = JSON.parse(raw); } catch { data = { ok: resp.ok, error: raw || 'Resposta inválida do servidor.' }; }
@@ -734,7 +757,7 @@ document.getElementById('formAtividade').addEventListener('submit', async (e) =>
       throw new Error(data.error || 'Falha ao salvar a programação.');
     }
 
-    alert(`Programação salva!\nItens: ${data.itens}\nServidores vinculados: ${data.servidores_vinculados}`);
+    alert(`Programação salva!\nAtividades: ${data.itens}\nServidores vinculados: ${data.servidores_vinculados}`);
     calendar.refetchEvents();
     bootstrap.Modal.getInstance(modalEl)?.hide();
 
@@ -745,6 +768,7 @@ document.getElementById('formAtividade').addEventListener('submit', async (e) =>
     btnSalvar.disabled = false;
   }
 });
+
 
 });
 </script>

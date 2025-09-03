@@ -232,13 +232,23 @@ def servidores_para_data(request: HttpRequest):
 
 
 # ---------------------- SALVAR PROGRAMAÇÃO ---------------------- #
+
+
 @login_required
 @require_POST
 def salvar_programacao(request: HttpRequest):
-    """Recebe JSON: {"data": "YYYY-MM-DD", "itens": [{"meta_id": "...", "servidores": ["1","2"], "veiculo_id": "X"}]}"""
+    """
+    Snapshot do dia: recria os itens exatamente como o front enviou.
+    Regras:
+      - Se itens == []: limpa o dia (sem erro).
+      - Não cria ProgramacaoItem sem servidores.
+    Payload:
+      {"data": "YYYY-MM-DD",
+       "itens": [{"meta_id": "X", "servidores": ["1","2"], "veiculo_id": "Y" | null}]}
+    """
     try:
         payload = json.loads(request.body.decode("utf-8"))
-    except json.JSONDecodeError:
+    except Exception:
         return JsonResponse({"ok": False, "error": "JSON inválido."}, status=400)
 
     data_str = (payload or {}).get("data")
@@ -249,20 +259,28 @@ def salvar_programacao(request: HttpRequest):
     except Exception:
         return JsonResponse({"ok": False, "error": "Data inválida."}, status=400)
 
-    if not isinstance(itens, list) or not itens:
-        return JsonResponse({"ok": False, "error": "Nenhum item para salvar."}, status=400)
+    if not isinstance(itens, list):
+        return JsonResponse({"ok": False, "error": "'itens' deve ser lista."}, status=400)
 
     unidade = get_unidade_atual(request)
     if not unidade:
         return JsonResponse({"ok": False, "error": "Unidade do usuário não localizada."}, status=400)
 
-    created_items = 0
-    servidores_vinculados = 0
-
     with transaction.atomic():
-        programacao, _ = Programacao.objects.get_or_create(
+        prog, _ = Programacao.objects.select_for_update().get_or_create(
             unidade=unidade, data=dia, defaults={"criado_por": request.user}
         )
+
+        # Zera o dia atual
+        ProgramacaoItemServidor.objects.filter(item__programacao=prog).delete()
+        ProgramacaoItem.objects.filter(programacao=prog).delete()
+
+        # Se não há itens, apenas limpamos e retornamos sucesso
+        if len(itens) == 0:
+            return JsonResponse({"ok": True, "itens": 0, "servidores_vinculados": 0}, status=200)
+
+        created_items = 0
+        servidores_vinculados = 0
 
         for it in itens:
             meta_id = str(it.get("meta_id") or "").strip()
@@ -273,26 +291,35 @@ def salvar_programacao(request: HttpRequest):
             except Meta.DoesNotExist:
                 continue
 
-            veiculo_id = it.get("veiculo_id") or None
-            servidores_ids = list(dict.fromkeys(it.get("servidores") or []))  # únicos
+            # únicos preservando ordem
+            servidores_ids = list(dict.fromkeys(it.get("servidores") or []))
+            if not servidores_ids:
+                # card sem servidores -> não recria item
+                continue
 
-            item_kwargs = {"programacao": programacao, "meta": meta}
-            # Se o seu model tem FK chamada "veiculo", o **kwargs abaixo funciona
+            veiculo_id = it.get("veiculo_id") or None
+            item_kwargs = {"programacao": prog, "meta": meta}
             if veiculo_id:
+                # funciona com FK "veiculo"
                 item_kwargs["veiculo_id"] = veiculo_id
 
             item = ProgramacaoItem.objects.create(**item_kwargs)
             created_items += 1
 
-            for sid in servidores_ids:
-                try:
-                    serv = Servidor.objects.get(pk=sid)
-                except Servidor.DoesNotExist:
-                    continue
-                ProgramacaoItemServidor.objects.get_or_create(item=item, servidor=serv)
-                servidores_vinculados += 1
+            # vincula servidores em bulk (evita N queries)
+            # só cria vínculos para servidores que realmente existem
+            s_ok = list(
+                Servidor.objects.filter(pk__in=servidores_ids).values_list("pk", flat=True)
+            )
+            ProgramacaoItemServidor.objects.bulk_create(
+                [ProgramacaoItemServidor(item=item, servidor_id=sid) for sid in s_ok],
+                ignore_conflicts=True,
+            )
+            servidores_vinculados += len(s_ok)
 
-    return JsonResponse({"ok": True, "itens": created_items, "servidores_vinculados": servidores_vinculados}, status=200)
+    return JsonResponse(
+        {"ok": True, "itens": created_items, "servidores_vinculados": servidores_vinculados}, status=200
+    )
 
 
 # ---------------------- ATUALIZAÇÕES ---------------------- #
