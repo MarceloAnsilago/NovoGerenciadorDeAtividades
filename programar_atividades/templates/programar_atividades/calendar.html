@@ -189,7 +189,10 @@
   window.calendarFeedURL = "{% url 'programar_atividades:events_feed' %}";
   window.metasURL        = "{% url 'programar_atividades:metas_disponiveis' %}";
   window.servidoresURL   = "{% url 'programar_atividades:servidores_para_data' %}";
+  window.salvarURL       = "{% url 'programar_atividades:salvar_programacao' %}";
+  window.programacaoURL  = "{% url 'programar_atividades:programacao_do_dia' %}";
 </script>
+
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -541,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (existing.length >= 1) {
           // exibe quantidade "descontada" na mensagem (ajuste que você pediu)
-          const displayCount = Math.max(1, existing.length - 1);
+          const displayCount = existing.length;
           const ok = window.confirm(
             displayCount === 1
               ? 'Já existe uma atividade nessa programação.\nDeseja abrir mais um card para esta atividade?'
@@ -563,7 +566,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function loadMetas() {
     metasGrid.innerHTML = `<div class="placeholder-glow"><span class="placeholder col-12 mb-2"></span></div>`;
-    fetch(window.metasURL, { headers:{'X-Requested-With':'XMLHttpRequest'} })
+    return fetch(window.metasURL, { headers:{'X-Requested-With':'XMLHttpRequest'} })
       .then(r=>r.json())
       .then(({metas})=>renderMetas(metas))
       .catch(()=>{ metasGrid.innerHTML=`<div class="alert alert-danger">Erro ao carregar metas.</div>`; });
@@ -580,7 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
     livresDiv.innerHTML = '<span class="text-muted">Carregando...</span>';
     expList.innerHTML = ''; tbodyImp.innerHTML = '';
 
-    fetch(`${window.servidoresURL}?data=${dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} })
+    return fetch(`${window.servidoresURL}?data=${dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} })
       .then(r=>r.json())
       .then(({livres, impedidos})=>{
         livresDiv.innerHTML = '';
@@ -591,7 +594,6 @@ document.addEventListener('DOMContentLoaded', () => {
           expList.innerHTML   = '<div class="alert alert-light border mb-0">Sem servidores.</div>';
         } else {
           livres.forEach(s => livresDiv.appendChild(makeDisponivelCard(s)));
-          // espelho no expediente
           livres.forEach(s => appendToExpediente(s));
         }
 
@@ -608,7 +610,48 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCounts();
       });
   }
+  function applyProgramacao(prog) {
+    if (!prog || !prog.itens || prog.itens.length === 0) return;
 
+    // garantir que metasGrid já está pronto para pegar os títulos
+    const titleForMeta = (mid, fallback) => {
+      return (
+        metasGrid.querySelector(`.meta-card[data-id="${mid}"] .meta-title`)?.textContent?.trim()
+        || fallback || 'Atividade'
+      );
+    };
+
+    for (const it of prog.itens) {
+      const metaId = String(it.meta_id);
+      const metaTitle = titleForMeta(metaId, it.meta_nome);
+
+      // cria 1 card por item
+      const card = ensureMetaCard(metaId, metaTitle, { forceNew: true });
+      const dropzone = card.querySelector('.meta-dropzone');
+
+      // servidores: criar chips e ajustar allocations/expediente
+      const servidores = it.servidores || [];
+      for (const s of servidores) {
+        const srv = findSrv(String(s.id));
+        if (!srv) continue; // se não estiver em "livres", não cria chip (estará na tabela de impedidos)
+        // evita duplicar chip no mesmo card
+        if (!dropzone.querySelector(`.servidor-chip[data-id="${srv.id}"]`)) {
+          dropzone.appendChild(makeMetaChip(srv));
+          const prev = allocations[String(srv.id)] || 0;
+          allocations[String(srv.id)] = prev + 1;
+          if (prev === 0) removeOneFromExpediente(String(srv.id));
+        }
+      }
+
+      // veículo do item (se houver)
+      const sel = card.querySelector('.veiculo-select');
+      if (sel && it.veiculo_id) {
+        sel.value = String(it.veiculo_id);
+      }
+    }
+
+    updateCounts();
+  }
   /* ---------- Calendar ---------- */
   const calendar = new FullCalendar.Calendar(calendarEl, {
     locale:'pt-br', timeZone:'local', firstDay:1, initialView:'dayGridMonth',
@@ -617,6 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
     height:'auto',
     events: window.calendarFeedURL,
 
+ 
     dateClick(info){
       inputData.value = info.dateStr;
       const dataBR = info.date.toLocaleDateString('pt-BR',{timeZone:'UTC'});
@@ -624,39 +668,84 @@ document.addEventListener('DOMContentLoaded', () => {
         <i class="bi bi-calendar-event text-primary me-2"></i>
         Programar atividades para o dia ${dataBR}
       `;
-      loadMetas();
-      loadServidores(info.dateStr);
-      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+      // 1) carrega metas e servidores
+      Promise.all([loadMetas(), loadServidores(info.dateStr)])
+        .then(() => {
+          // 2) busca programação existente e aplica nos cards
+          return fetch(`${window.programacaoURL}?data=${info.dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} })
+            .then(r=>r.json())
+            .then(data => {
+              if (data && data.ok && data.programacao) {
+                applyProgramacao(data.programacao);
+              }
+            })
+            .catch(()=>{ /* silencioso: sem programação prévia */ });
+        })
+        .finally(() => {
+          bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        });
     }
+
   });
   calendar.render();
 
   /* ---------- Submit ---------- */
-  document.getElementById('formAtividade').addEventListener('submit', (e) => {
-    e.preventDefault();
+// helper CSRF
+function getCookie(name){
+  const m = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
+  return m ? decodeURIComponent(m[2]) : null;
+}
 
-    const metasPayload = {};
-    const veiculosPorMeta = {};
+document.getElementById('formAtividade').addEventListener('submit', async (e) => {
+  e.preventDefault();
 
-    metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
-      const metaId = card.dataset.metaId;
-      metasPayload[metaId] = Array
-        .from(card.querySelectorAll('.servidor-chip'))
-        .map(ch => ch.dataset.id);
+  // === NOVO: um item por card (evita sobrescrever quando há múltiplos cards da mesma meta) ===
+  const itens = [];
+  metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
+    const metaId = card.dataset.metaId;
+    const servidores = Array.from(card.querySelectorAll('.servidor-chip')).map(ch => ch.dataset.id);
+    const veiculoId = card.querySelector('.veiculo-select')?.value || null;
+    itens.push({ meta_id: metaId, servidores, veiculo_id: veiculoId });
+  });
 
-      const select = card.querySelector('.veiculo-select');
-      veiculosPorMeta[metaId] = select?.value || null;
+  const payload = { data: inputData.value, itens };
+
+  // feedback
+  btnSalvar.disabled = true;
+
+  try {
+    const resp = await fetch(window.salvarURL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken'),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(payload),
     });
 
-    const payload = {
-      data: inputData.value,
-      metas: metasPayload,
-      veiculos: veiculosPorMeta,
-    };
+    // Parse tolerante: tenta JSON, senão usa texto puro
+    const raw = await resp.text();
+    let data;
+    try { data = JSON.parse(raw); } catch { data = { ok: resp.ok, error: raw || 'Resposta inválida do servidor.' }; }
 
-    console.log('➡️ Enviar para backend:', payload);
-    bootstrap.Modal.getInstance(modalEl).hide();
-  });
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || 'Falha ao salvar a programação.');
+    }
+
+    alert(`Programação salva!\nItens: ${data.itens}\nServidores vinculados: ${data.servidores_vinculados}`);
+    calendar.refetchEvents();
+    bootstrap.Modal.getInstance(modalEl)?.hide();
+
+  } catch (err) {
+    console.error(err);
+    alert(err.message || 'Erro ao salvar a programação.');
+  } finally {
+    btnSalvar.disabled = false;
+  }
+});
+
 });
 </script>
 {% endblock %}

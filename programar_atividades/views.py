@@ -1,63 +1,52 @@
-# programar_atividades/views.py
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any, Tuple, Optional
 
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, Http404
+from django.db import transaction
+from django.http import JsonResponse, Http404, HttpResponseBadRequest, HttpRequest
 from django.shortcuts import render
-from django.views.decorators.http import require_GET
+from django.utils.dateparse import parse_date
+from django.views.decorators.http import require_GET, require_POST
 
 from core.utils import get_unidade_atual, get_unidade_atual_id
-from metas.models import MetaAlocacao
+from metas.models import Meta, MetaAlocacao
 from servidores.models import Servidor
 from descanso.models import Descanso
-from veiculos.models import Veiculo
+from .models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
+
+from django.db import models
+# Veículo é opcional (ambientes sem o app)
+try:
+    from veiculos.models import Veiculo  # type: ignore
+except Exception:
+    Veiculo = None  # type: ignore
 
 
 # ---------------------- PÁGINA DO CALENDÁRIO ---------------------- #
 @login_required
-def calendar_view(request):
-    """
-    Renderiza a tela do calendário e envia os veículos ativos da
-    unidade atual para o template (usado no <select> dentro de cada card).
-    """
+def calendar_view(request: HttpRequest):
+    """Renderiza o calendário e injeta veículos ativos para o <select> dos cards."""
     unidade = get_unidade_atual(request)
     if not unidade:
         raise Http404("Unidade atual não definida para o usuário.")
 
-    veiculos_ativos = Veiculo.objects.filter(
-        unidade=unidade, ativo=True
-    ).order_by("nome")
+    veiculos_ativos = []
+    if Veiculo is not None:
+        veiculos_ativos = Veiculo.objects.filter(unidade=unidade, ativo=True).order_by("nome")
 
     return render(
         request,
         "programar_atividades/calendar.html",
-        {
-            "unidade": unidade,
-            "veiculos_ativos": veiculos_ativos,
-        },
+        {"unidade": unidade, "veiculos_ativos": veiculos_ativos},
     )
 
 
-# ---------------------- FEED DO CALENDÁRIO (exemplo) ---------------------- #
-@login_required
-@require_GET
-def events_feed(request):
-    """
-    Feed simples para o FullCalendar (mock).
-    Depois você pode trocar por eventos reais do banco.
-    """
-    hoje = date.today().isoformat()
-    data = [
-        {"id": 1, "title": "Evento de teste", "start": hoje},
-    ]
-    return JsonResponse(data, safe=False)
-
-
-# ---------------------- HELPERS PARA CAMPOS NUMÉRICOS ---------------------- #
-def _num_or_none(v):
+# ---------------------- HELPERS NUMÉRICOS ---------------------- #
+def _num_or_none(v: Any) -> Optional[int]:
     if v is None:
         return None
     if isinstance(v, (int, float, Decimal)):
@@ -74,33 +63,15 @@ def _num_or_none(v):
             return None
 
 
-def _find_numeric_attr(obj, include_substr, exclude_substr=()):
-    """
-    Procura no objeto o primeiro atributo numérico cujo nome
-    contém algum dos termos em include_substr e não contém exclude_substr.
-    """
+def _find_numeric_attr(obj: Any, include_substr, exclude_substr=()) -> Tuple[Optional[str], Optional[int]]:
     inc = tuple(s.lower() for s in include_substr)
     exc = tuple(s.lower() for s in exclude_substr)
 
-    # 1) tenta por atributos “conhecidos” primeiro (mais comuns)
     favoritos = [
-        "qtd_alocada",
-        "quantidade_alocada",
-        "alocado",
-        "quantidade",
-        "alocado_unidade",
-        "valor_alocado",
-        "alocada",
-        "executado",
-        "qtd_executado",
-        "quantidade_executada",
-        "realizado",
-        "feito",
-        "progresso",
-        "quantidade_total",
-        "qtd_total",
-        "alvo",
-        "meta",
+        "qtd_alocada", "quantidade_alocada", "alocado", "quantidade",
+        "alocado_unidade", "valor_alocado", "alocada",
+        "executado", "qtd_executado", "quantidade_executada", "realizado", "feito",
+        "progresso", "quantidade_total", "qtd_total", "alvo", "meta",
     ]
     for name in favoritos:
         if hasattr(obj, name):
@@ -112,7 +83,6 @@ def _find_numeric_attr(obj, include_substr, exclude_substr=()):
                     if any(t in low for t in inc) and not any(t in low for t in exc):
                         return name, nv
 
-    # 2) varre demais atributos
     for name in dir(obj):
         if name.startswith("_"):
             continue
@@ -120,12 +90,10 @@ def _find_numeric_attr(obj, include_substr, exclude_substr=()):
             continue
         if not any(t in name.lower() for t in inc):
             continue
-
         try:
             v = getattr(obj, name)
         except Exception:
             continue
-
         if callable(v):
             continue
         nv = _num_or_none(v)
@@ -138,12 +106,11 @@ def _find_numeric_attr(obj, include_substr, exclude_substr=()):
 # ---------------------- METAS DISPONÍVEIS ---------------------- #
 @login_required
 @require_GET
-def metas_disponiveis(request):
+def metas_disponiveis(request: HttpRequest):
     """
     Metas da UNIDADE atual (opcional: ?atividade=<id>) com:
       - nome, atividade_nome, data_limite
-      - alocado_unidade (somado por meta)
-      - executado_unidade (somado por meta)
+      - alocado_unidade, executado_unidade (somados por meta)
       - meta_total (alvo total da meta)
     """
     unidade = get_unidade_atual(request)
@@ -163,36 +130,25 @@ def metas_disponiveis(request):
     bucket = {}
     for al in qs:
         meta = getattr(al, "meta", None)
-        if not meta:
+        if not meta or not getattr(meta, "id", None):
             continue
-        mid = getattr(meta, "id", None)
-        if not mid:
-            continue
+        mid = meta.id
 
-        # --- alocado por alocação ---
+        # valores por alocação
         _, alocado_val = _find_numeric_attr(
-            al,
-            include_substr=("aloc", "qtd", "quant"),
-            exclude_substr=("exec", "realiz", "feito"),
+            al, include_substr=("aloc", "qtd", "quant"), exclude_substr=("exec", "realiz", "feito")
         )
-        # --- executado por alocação ---
         _, executado_val = _find_numeric_attr(
-            al,
-            include_substr=("exec", "realiz", "feito"),
-            exclude_substr=(),
+            al, include_substr=("exec", "realiz", "feito")
         )
 
         if mid not in bucket:
             atividade = getattr(meta, "atividade", None)
-
-            # total da meta (alvo)
             _, meta_total_val = _find_numeric_attr(
-                meta,
-                include_substr=("total", "alvo", "quant", "qtd", "meta"),
+                meta, include_substr=("total", "alvo", "quant", "qtd", "meta"),
                 exclude_substr=("exec", "realiz", "feito"),
             )
 
-            # prazo
             data_limite = None
             for cand in ("data_limite", "deadline", "prazo", "limite"):
                 if hasattr(meta, cand):
@@ -201,18 +157,12 @@ def metas_disponiveis(request):
 
             bucket[mid] = {
                 "id": mid,
-                "nome": getattr(meta, "titulo", None)
-                or getattr(meta, "nome", None)
-                or str(meta),
+                "nome": getattr(meta, "titulo", None) or getattr(meta, "nome", None) or str(meta),
                 "atividade_id": getattr(atividade, "id", None),
                 "atividade_nome": (
-                    getattr(atividade, "nome", None)
-                    or getattr(atividade, "titulo", None)
-                    or (str(atividade) if atividade else None)
+                    getattr(atividade, "nome", None) or getattr(atividade, "titulo", None) or (str(atividade) if atividade else None)
                 ),
-                "data_limite": data_limite.isoformat()
-                if hasattr(data_limite, "isoformat")
-                else data_limite,
+                "data_limite": data_limite.isoformat() if hasattr(data_limite, "isoformat") else data_limite,
                 "alocado_unidade": 0,
                 "executado_unidade": 0,
                 "meta_total": meta_total_val or 0,
@@ -229,19 +179,19 @@ def metas_disponiveis(request):
 
 
 # ---------------------- SERVIDORES POR DATA ---------------------- #
-@require_GET
 @login_required
-def servidores_disponiveis_para_data(request):
+@require_GET
+def servidores_para_data(request: HttpRequest):
     """
-    Retorna dois arrays para a data informada:
-      - 'livres': servidores disponíveis
+    Retorna:
+      - 'livres': servidores disponíveis no dia
       - 'impedidos': servidores em descanso/impedimento (com motivo)
     """
     data_str = request.GET.get("data")
     if not data_str:
         return JsonResponse({"erro": "Data não informada"}, status=400)
     try:
-        data = datetime.strptime(data_str, "%Y-%m-%d").date()
+        dia = datetime.strptime(data_str, "%Y-%m-%d").date()
     except ValueError:
         return JsonResponse({"erro": "Formato inválido da data"}, status=400)
 
@@ -251,12 +201,11 @@ def servidores_disponiveis_para_data(request):
 
     todos = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).order_by("nome")
 
-    # descansos que pegam a data -> gerar mapa servidor_id -> motivo (tipo)
     descansos_qs = (
         Descanso.objects.filter(
             servidor__unidade_id=unidade_id,
-            data_inicio__lte=data,
-            data_fim__gte=data,
+            data_inicio__lte=dia,
+            data_fim__gte=dia,
         )
         .select_related("servidor")
     )
@@ -280,3 +229,228 @@ def servidores_disponiveis_para_data(request):
             "impedidos": [map_servidor(s, motivo_map.get(s.id)) for s in impedidos_qs],
         }
     )
+
+
+# ---------------------- SALVAR PROGRAMAÇÃO ---------------------- #
+@login_required
+@require_POST
+def salvar_programacao(request: HttpRequest):
+    """Recebe JSON: {"data": "YYYY-MM-DD", "itens": [{"meta_id": "...", "servidores": ["1","2"], "veiculo_id": "X"}]}"""
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "JSON inválido."}, status=400)
+
+    data_str = (payload or {}).get("data")
+    itens = (payload or {}).get("itens") or []
+
+    try:
+        dia = date.fromisoformat(data_str)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "Data inválida."}, status=400)
+
+    if not isinstance(itens, list) or not itens:
+        return JsonResponse({"ok": False, "error": "Nenhum item para salvar."}, status=400)
+
+    unidade = get_unidade_atual(request)
+    if not unidade:
+        return JsonResponse({"ok": False, "error": "Unidade do usuário não localizada."}, status=400)
+
+    created_items = 0
+    servidores_vinculados = 0
+
+    with transaction.atomic():
+        programacao, _ = Programacao.objects.get_or_create(
+            unidade=unidade, data=dia, defaults={"criado_por": request.user}
+        )
+
+        for it in itens:
+            meta_id = str(it.get("meta_id") or "").strip()
+            if not meta_id:
+                continue
+            try:
+                meta = Meta.objects.get(pk=meta_id)
+            except Meta.DoesNotExist:
+                continue
+
+            veiculo_id = it.get("veiculo_id") or None
+            servidores_ids = list(dict.fromkeys(it.get("servidores") or []))  # únicos
+
+            item_kwargs = {"programacao": programacao, "meta": meta}
+            # Se o seu model tem FK chamada "veiculo", o **kwargs abaixo funciona
+            if veiculo_id:
+                item_kwargs["veiculo_id"] = veiculo_id
+
+            item = ProgramacaoItem.objects.create(**item_kwargs)
+            created_items += 1
+
+            for sid in servidores_ids:
+                try:
+                    serv = Servidor.objects.get(pk=sid)
+                except Servidor.DoesNotExist:
+                    continue
+                ProgramacaoItemServidor.objects.get_or_create(item=item, servidor=serv)
+                servidores_vinculados += 1
+
+    return JsonResponse({"ok": True, "itens": created_items, "servidores_vinculados": servidores_vinculados}, status=200)
+
+
+# ---------------------- ATUALIZAÇÕES ---------------------- #
+@login_required
+@require_POST
+def atualizar_programacao(request: HttpRequest):
+    """JSON: {"programacao_id": 1, "observacao": "txt", "concluida": true|false}"""
+    try:
+        data = json.loads(request.body or "{}")
+    except Exception:
+        return HttpResponseBadRequest("JSON inválido")
+
+    pid = data.get("programacao_id")
+    if not pid:
+        return HttpResponseBadRequest("programacao_id obrigatório")
+
+    try:
+        prog = Programacao.objects.get(pk=pid, unidade_id=get_unidade_atual_id(request))
+    except Programacao.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "Programação não encontrada"}, status=404)
+
+    fields = []
+    if "observacao" in data:
+        prog.observacao = str(data.get("observacao") or "")
+        fields.append("observacao")
+    if "concluida" in data:
+        prog.marcar_concluida(request.user, bool(data.get("concluida")))
+        fields += ["concluida", "concluida_em", "concluida_por"]
+
+    if fields:
+        prog.save(update_fields=fields)
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@require_POST
+def atualizar_item(request: HttpRequest):
+    """JSON: {"item_id": 123, "observacao": "txt", "concluido": true|false}"""
+    try:
+        data = json.loads(request.body or "{}")
+    except Exception:
+        return HttpResponseBadRequest("JSON inválido")
+
+    iid = data.get("item_id")
+    if not iid:
+        return HttpResponseBadRequest("item_id obrigatório")
+
+    try:
+        item = ProgramacaoItem.objects.select_related("programacao").get(
+            pk=iid, programacao__unidade_id=get_unidade_atual_id(request)
+        )
+    except ProgramacaoItem.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "Item não encontrado"}, status=404)
+
+    fields = []
+    if "observacao" in data:
+        item.observacao = str(data.get("observacao") or "")
+        fields.append("observacao")
+    if "concluido" in data:
+        item.marcar_concluido(request.user, bool(data.get("concluido")))
+        fields += ["concluido", "concluido_em", "concluido_por"]
+
+    if fields:
+        item.save(update_fields=fields)
+    return JsonResponse({"ok": True})
+
+
+# ---------------------- FEED DO FULLCALENDAR ---------------------- #
+@login_required
+@require_GET
+def events_feed(request: HttpRequest):
+    """Retorna programações como eventos all-day do FullCalendar."""
+    start = request.GET.get("start")
+    end = request.GET.get("end")
+    start_date = parse_date(start[:10]) if start else None
+    end_date = parse_date(end[:10]) if end else None
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse([], safe=False)
+
+    qs = Programacao.objects.filter(unidade_id=unidade_id)
+    if start_date and end_date:
+        qs = qs.filter(data__gte=start_date, data__lte=end_date)
+
+    data = []
+    for prog in qs.select_related("unidade"):
+        qtd_itens = prog.itens.count()
+        title = f"Programação ({qtd_itens} atividade{'s' if qtd_itens != 1 else ''})"
+        if getattr(prog, "concluida", False):
+            title = "✅ " + title
+        data.append(
+            {"id": prog.id, "title": title, "start": prog.data.isoformat(), "allDay": True}
+        )
+    return JsonResponse(data, safe=False)
+
+@login_required
+@require_GET
+def programacao_do_dia(request: HttpRequest):
+    """
+    Retorna a programação do dia com itens, veículos e servidores.
+    GET ?data=YYYY-MM-DD
+    """
+    data_str = request.GET.get("data")
+    if not data_str:
+        return JsonResponse({"ok": False, "error": "Data não informada"}, status=400)
+    try:
+        dia = date.fromisoformat(data_str)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "Data inválida"}, status=400)
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade não definida"}, status=400)
+
+    try:
+        prog = (
+            Programacao.objects
+            .select_related("unidade")
+            .prefetch_related(
+                # itens + servidores do item
+                models.Prefetch(
+                    "itens",
+                    queryset=ProgramacaoItem.objects.prefetch_related(
+                        models.Prefetch(
+                            "servidores",
+                            queryset=ProgramacaoItemServidor.objects.select_related("servidor")
+                        )
+                    )
+                )
+            )
+            .get(unidade_id=unidade_id, data=dia)
+        )
+    except Programacao.DoesNotExist:
+        return JsonResponse({"ok": True, "programacao": None})
+
+    itens = []
+    for it in prog.itens.all():
+        itens.append({
+            "id": it.id,
+            "meta_id": it.meta_id,
+            "meta_nome": getattr(it.meta, "titulo", None) or getattr(it.meta, "nome", None) or str(it.meta),
+            "veiculo_id": getattr(it, "veiculo_id", None),
+            "servidores": [
+                {"id": pis.servidor_id, "nome": pis.servidor.nome}
+                for pis in it.servidores.all()
+            ],
+            "observacao": it.observacao,
+            "concluido": it.concluido,
+        })
+
+    return JsonResponse({
+        "ok": True,
+        "programacao": {
+            "id": prog.id,
+            "data": prog.data.isoformat(),
+            "observacao": prog.observacao,
+            "concluida": prog.concluida,
+            "itens": itens,
+        }
+    })
