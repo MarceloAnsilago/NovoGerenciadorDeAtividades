@@ -193,7 +193,6 @@
   window.programacaoURL  = "{% url 'programar_atividades:programacao_do_dia' %}";
 </script>
 
-
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const calendarEl   = document.getElementById('calendar');
@@ -209,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const expBody = document.getElementById('expedienteBody');
   const expList = document.getElementById('expedienteAdmin');
 
-  const setSalvarEnabled = (on) => btnSalvar.disabled = !on;
+  const setSalvarEnabled = (on) => { btnSalvar.disabled = !on; };
 
   const allocations = {};          // sid -> total alocado em metas
   const servidoresData = [];       // cache
@@ -219,34 +218,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const getMetaCard = (el) => el.closest('[data-meta-id]');
 
   /* ---------- helpers ---------- */
-function updateCounts() {
-  const countLivres = document.getElementById('countServidoresLivres');
-  const countExp    = document.getElementById('countExpedienteAdmin');
-  const countImp    = document.getElementById('countServidoresImpedidos');
+  function updateCounts() {
+    const countLivres = document.getElementById('countServidoresLivres');
+    const countExp    = document.getElementById('countExpedienteAdmin');
+    const countImp    = document.getElementById('countServidoresImpedidos');
 
-  if (countLivres) countLivres.textContent = String(document.querySelectorAll('#servidoresLivres .servidor-card').length);
-  if (countExp)    countExp.textContent    = String(document.querySelectorAll('#expedienteAdmin .servidor-card').length);
-  if (countImp)    countImp.textContent    = String(document.querySelectorAll('#tabelaImpedidos tbody tr').length || 0);
+    if (countLivres) countLivres.textContent = String(document.querySelectorAll('#servidoresLivres .servidor-card').length);
+    if (countExp)    countExp.textContent    = String(document.querySelectorAll('#expedienteAdmin .servidor-card').length);
 
-  document.querySelectorAll('#servidoresLivres .servidor-card[data-id]').forEach(el => {
-    const sid = el.dataset.id;
-    const n = allocations[sid] || 0;
-    const b = el.querySelector('.srv-count-badge');
-    if (!b) return;
-    if (n > 0) { el.classList.add('has-count'); b.textContent = n; }
-    else       { el.classList.remove('has-count'); b.textContent = ''; }
-  });
+    if (countImp) {
+      const rows = Array.from(document.querySelectorAll('#tabelaImpedidos tbody tr'));
+      const none = rows.length === 1 && rows[0].querySelector('td[colspan]');
+      countImp.textContent = String(none ? 0 : rows.length);
+    }
 
-  metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
-    const n = card.querySelectorAll('.servidor-chip').length;
-    const badge = card.querySelector('.count-meta');
-    if (badge) badge.textContent = String(n);
-  });
+    document.querySelectorAll('#servidoresLivres .servidor-card[data-id]').forEach(el => {
+      const sid = el.dataset.id;
+      const n = allocations[sid] || 0;
+      const b = el.querySelector('.srv-count-badge');
+      if (!b) return;
+      if (n > 0) { el.classList.add('has-count'); b.textContent = n; }
+      else       { el.classList.remove('has-count'); b.textContent = ''; }
+    });
 
-+ // habilita o salvar se existir pelo menos 1 card de meta
-+ setSalvarEnabled(metaCardsContainer.querySelectorAll('[data-meta-id]').length > 0);
-}
+    metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
+      const n = card.querySelectorAll('.servidor-chip').length;
+      const badge = card.querySelector('.count-meta');
+      if (badge) badge.textContent = String(n);
+    });
 
+    // habilita Salvar se houver ao menos um card aberto
+    setSalvarEnabled(metaCardsContainer.querySelectorAll('[data-meta-id]').length > 0);
+  }
 
   function makeDisponivelCard(s) {
     const el = document.createElement('div');
@@ -302,7 +305,7 @@ function updateCounts() {
     );
     cards.forEach((c, i) => {
       const b = c.querySelector('.index-badge');
-      if (b) b.textContent = String(i + 1);  // 1, 2, 3...
+      if (b) b.textContent = String(i + 1);
     });
   }
 
@@ -547,7 +550,6 @@ function updateCounts() {
         let targetCard;
 
         if (existing.length >= 1) {
-          // exibe quantidade "descontada" na mensagem (ajuste que você pediu)
           const displayCount = existing.length;
           const ok = window.confirm(
             displayCount === 1
@@ -614,31 +616,28 @@ function updateCounts() {
         updateCounts();
       });
   }
+
+  /* ---------- Aplicar programação existente ---------- */
+
   function applyProgramacao(prog) {
     if (!prog || !prog.itens || prog.itens.length === 0) return;
 
-    // garantir que metasGrid já está pronto para pegar os títulos
-    const titleForMeta = (mid, fallback) => {
-      return (
-        metasGrid.querySelector(`.meta-card[data-id="${mid}"] .meta-title`)?.textContent?.trim()
-        || fallback || 'Atividade'
-      );
-    };
+    const titleForMeta = (mid, fallback) =>
+      metasGrid.querySelector(`.meta-card[data-id="${mid}"] .meta-title`)?.textContent?.trim()
+      || fallback || 'Atividade';
 
     for (const it of prog.itens) {
-      const metaId = String(it.meta_id);
+      const metaId    = String(it.meta_id);
       const metaTitle = titleForMeta(metaId, it.meta_nome);
 
       // cria 1 card por item
-      const card = ensureMetaCard(metaId, metaTitle, { forceNew: true });
+      const card     = ensureMetaCard(metaId, metaTitle, { forceNew: true });
       const dropzone = card.querySelector('.meta-dropzone');
 
-      // servidores: criar chips e ajustar allocations/expediente
-      const servidores = it.servidores || [];
-      for (const s of servidores) {
+      // chips de servidores
+      for (const s of (it.servidores || [])) {
         const srv = findSrv(String(s.id));
-        if (!srv) continue; // se não estiver em "livres", não cria chip (estará na tabela de impedidos)
-        // evita duplicar chip no mesmo card
+        if (!srv) continue; // impedidos ficam na tabela
         if (!dropzone.querySelector(`.servidor-chip[data-id="${srv.id}"]`)) {
           dropzone.appendChild(makeMetaChip(srv));
           const prev = allocations[String(srv.id)] || 0;
@@ -647,15 +646,47 @@ function updateCounts() {
         }
       }
 
-      // veículo do item (se houver)
+      // veículo do item (seleciona — criando option caso não exista)
       const sel = card.querySelector('.veiculo-select');
-      if (sel && it.veiculo_id) {
-        sel.value = String(it.veiculo_id);
+      if (sel) {
+        const vid = (it.veiculo_id != null && it.veiculo_id !== '') ? String(it.veiculo_id) : '';
+
+        if (vid) {
+          // procura option existente
+          let opt = Array.from(sel.options).find(o => String(o.value) === vid);
+
+          // se não existir (ex.: veículo desativado/fora do filtro), cria a option
+          if (!opt) {
+            const label = it.veiculo_label || `Veículo #${vid} (indisponível)`;
+            opt = new Option(label, vid);
+            sel.add(opt);
+          }
+
+          // força a seleção de forma compatível
+          Array.from(sel.options).forEach(o => { o.selected = (String(o.value) === vid); });
+          sel.value = vid; // alguns navegadores exigem também o value
+
+        } else {
+          // sem veículo: volta ao placeholder (primeira opção)
+          const placeholder = sel.querySelector('option[disabled]') || sel.options[0];
+          if (placeholder) {
+            Array.from(sel.options).forEach(o => { o.selected = false; });
+            placeholder.selected = true;
+          }
+          sel.value = ''; // limpa value visível
+        }
+
+        // dispara change para qualquer listener de UI
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
 
     updateCounts();
   }
+
+
+
+
   /* ---------- Calendar ---------- */
   const calendar = new FullCalendar.Calendar(calendarEl, {
     locale:'pt-br', timeZone:'local', firstDay:1, initialView:'dayGridMonth',
@@ -664,7 +695,6 @@ function updateCounts() {
     height:'auto',
     events: window.calendarFeedURL,
 
- 
     dateClick(info){
       inputData.value = info.dateStr;
       const dataBR = info.date.toLocaleDateString('pt-BR',{timeZone:'UTC'});
@@ -684,92 +714,103 @@ function updateCounts() {
                 applyProgramacao(data.programacao);
               }
             })
-            .catch(()=>{ /* silencioso: sem programação prévia */ });
+            .catch(()=>{ /* silencioso */ });
         })
         .finally(() => {
           bootstrap.Modal.getOrCreateInstance(modalEl).show();
         });
     }
-
   });
   calendar.render();
 
   /* ---------- Submit ---------- */
-// helper CSRF
-function getCookie(name){
-  const m = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
-  return m ? decodeURIComponent(m[2]) : null;
-}
-
-document.getElementById('formAtividade').addEventListener('submit', async (e) => {
-  e.preventDefault();
-
-  // 1) coleto os cards e separo os "vazios" (sem chips)
-  const allCards = Array.from(metaCardsContainer.querySelectorAll('[data-meta-id]'));
-  const nonEmptyCards = allCards.filter(c => c.querySelectorAll('.servidor-chip').length > 0);
-  const removedCount = allCards.length - nonEmptyCards.length;
-
-  // (opcional) remover do DOM os vazios p/ refletir o que será salvo
-  if (removedCount > 0) {
-    allCards
-      .filter(c => !nonEmptyCards.includes(c))
-      .forEach(c => c.remove());
-    updateCounts(); // atualiza badges e botão Salvar
+  function getCookie(name){
+    const m = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
+    return m ? decodeURIComponent(m[2]) : null;
   }
 
-  // 2) monta payload SOMENTE com cards que têm servidores
-  const itens = nonEmptyCards.map(card => {
-    const metaId = card.dataset.metaId;
-    const servidores = Array.from(card.querySelectorAll('.servidor-chip')).map(ch => ch.dataset.id);
-    const veiculoId = card.querySelector('.veiculo-select')?.value || null;
-    return { meta_id: metaId, servidores, veiculo_id: veiculoId };
-  });
+  document.getElementById('formAtividade').addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-  // 3) se ficou sem nenhum item, ofereça LIMPAR totalmente o dia
-  if (itens.length === 0) {
-    const ok = window.confirm(
-      'Nenhuma atividade com servidores.\nIsso vai APAGAR toda a programação deste dia.\nDeseja continuar?'
-    );
-    if (!ok) return; // usuário desistiu
-  }
+    // 1) cards com/sem servidores
+    const allCards = Array.from(metaCardsContainer.querySelectorAll('[data-meta-id]'));
+    const nonEmptyCards = allCards.filter(c => c.querySelectorAll('.servidor-chip').length > 0);
+    const removedCount = allCards.length - nonEmptyCards.length;
 
-  const payload = { data: inputData.value, itens };
-
-  // feedback
-  btnSalvar.disabled = true;
-
-  try {
-    const resp = await fetch(window.salvarURL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': getCookie('csrftoken'),
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const raw = await resp.text();
-    let data;
-    try { data = JSON.parse(raw); } catch { data = { ok: resp.ok, error: raw || 'Resposta inválida do servidor.' }; }
-
-    if (!resp.ok || data.ok === false) {
-      throw new Error(data.error || 'Falha ao salvar a programação.');
+    if (removedCount > 0) {
+      allCards.filter(c => !nonEmptyCards.includes(c)).forEach(c => c.remove());
+      updateCounts();
     }
 
-    alert(`Programação salva!\nAtividades: ${data.itens}\nServidores vinculados: ${data.servidores_vinculados}`);
-    calendar.refetchEvents();
-    bootstrap.Modal.getInstance(modalEl)?.hide();
+    // 2) validar veículo obrigatório em cards com servidores
+    const cardSemVeiculo = nonEmptyCards.find(card => {
+      const temServ = card.querySelectorAll('.servidor-chip').length > 0;
+      const val = card.querySelector('.veiculo-select')?.value ?? '';
+      return temServ && (!val || val === 'null');
+    });
+    if (cardSemVeiculo) {
+      alert('Selecione o veículo em todos os cards que possuem servidores.');
+      cardSemVeiculo.querySelector('.veiculo-select')?.focus();
+      return;
+    }
 
-  } catch (err) {
-    console.error(err);
-    alert(err.message || 'Erro ao salvar a programação.');
-  } finally {
-    btnSalvar.disabled = false;
-  }
-});
+    // 3) montar payload (veiculo_id como número ou null)
+    const itens = nonEmptyCards.map(card => {
+      const metaId = card.dataset.metaId;
+      const servidores = Array.from(card.querySelectorAll('.servidor-chip')).map(ch => ch.dataset.id);
 
+    
+      const sel = card.querySelector('.veiculo-select');
+      let veiculoId = null;
+      if (sel && sel.value && sel.value !== 'null') {
+        // Envie COMO STRING (serve tanto para int quanto para UUID)
+        veiculoId = String(sel.value);
+      }
+      return { meta_id: metaId, servidores, veiculo_id: veiculoId };
+    });
 
+    // 4) confirmar limpeza total (sem itens)
+    if (itens.length === 0) {
+      const ok = window.confirm(
+        'Nenhuma atividade com servidores.\nIsso vai APAGAR toda a programação deste dia.\nDeseja continuar?'
+      );
+      if (!ok) return;
+    }
+
+    const payload = { data: inputData.value, itens };
+
+    btnSalvar.disabled = true;
+
+    try {
+      const resp = await fetch(window.salvarURL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken'),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const rawText = await resp.text();
+      let data;
+      try { data = JSON.parse(rawText); } catch { data = { ok: resp.ok, error: rawText || 'Resposta inválida do servidor.' }; }
+
+      if (!resp.ok || data.ok === false) {
+        throw new Error(data.error || 'Falha ao salvar a programação.');
+      }
+
+      alert(`Programação salva!\nAtividades: ${data.itens}\nServidores vinculados: ${data.servidores_vinculados}`);
+      calendar.refetchEvents();
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Erro ao salvar a programação.');
+    } finally {
+      btnSalvar.disabled = false;
+    }
+  });
 });
 </script>
 {% endblock %}

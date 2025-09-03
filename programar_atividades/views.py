@@ -234,17 +234,25 @@ def servidores_para_data(request: HttpRequest):
 # ---------------------- SALVAR PROGRAMAÇÃO ---------------------- #
 
 
+
+def _to_pk(v):
+    """Converte para PK int > 0. '', 'null', None ou inválidos => None."""
+    if v in (None, "", "null", "undefined"):
+        return None
+    try:
+        iv = int(v)
+        return iv if iv > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 @login_required
 @require_POST
-def salvar_programacao(request: HttpRequest):
+def salvar_programacao(request):
     """
     Snapshot do dia: recria os itens exatamente como o front enviou.
-    Regras:
-      - Se itens == []: limpa o dia (sem erro).
-      - Não cria ProgramacaoItem sem servidores.
-    Payload:
-      {"data": "YYYY-MM-DD",
-       "itens": [{"meta_id": "X", "servidores": ["1","2"], "veiculo_id": "Y" | null}]}
+    - Se itens == []: limpa o dia (sem erro).
+    - Não cria ProgramacaoItem sem servidores.
     """
     try:
         payload = json.loads(request.body.decode("utf-8"))
@@ -271,13 +279,14 @@ def salvar_programacao(request: HttpRequest):
             unidade=unidade, data=dia, defaults={"criado_por": request.user}
         )
 
-        # Zera o dia atual
+        # limpa tudo do dia
         ProgramacaoItemServidor.objects.filter(item__programacao=prog).delete()
         ProgramacaoItem.objects.filter(programacao=prog).delete()
 
-        # Se não há itens, apenas limpamos e retornamos sucesso
         if len(itens) == 0:
-            return JsonResponse({"ok": True, "itens": 0, "servidores_vinculados": 0}, status=200)
+            # opcional: remover a própria programação quando fica vazia
+            prog.delete()
+            return JsonResponse({"ok": True, "programacao_id": None, "itens": 0, "servidores_vinculados": 0})
 
         created_items = 0
         servidores_vinculados = 0
@@ -291,37 +300,47 @@ def salvar_programacao(request: HttpRequest):
             except Meta.DoesNotExist:
                 continue
 
-            # únicos preservando ordem
-            servidores_ids = list(dict.fromkeys(it.get("servidores") or []))
+            # servidores (únicos, numéricos)
+            servidores_ids_raw = list(dict.fromkeys(it.get("servidores") or []))
+            servidores_ids = []
+            for sid in servidores_ids_raw:
+                try:
+                    sid_int = int(sid)
+                    if sid_int > 0:
+                        servidores_ids.append(sid_int)
+                except (TypeError, ValueError):
+                    pass
+
             if not servidores_ids:
-                # card sem servidores -> não recria item
+                # não cria item sem servidores
                 continue
+            veiculo_raw = it.get("veiculo_id")
 
-            veiculo_id = it.get("veiculo_id") or None
-            item_kwargs = {"programacao": prog, "meta": meta}
-            if veiculo_id:
-                # funciona com FK "veiculo"
-                item_kwargs["veiculo_id"] = veiculo_id
+            # Aceita qualquer PK não vazio (int ou UUID). Normaliza "null"/"undefined"/"" para None
+            if veiculo_raw in (None, "", "null", "undefined"):
+                veiculo_kw = {}
+            else:
+                veiculo_kw = {"veiculo_id": veiculo_raw}
 
-            item = ProgramacaoItem.objects.create(**item_kwargs)
+            item = ProgramacaoItem.objects.create(
+                programacao=prog,
+                meta=meta,
+                **veiculo_kw,
+            )
             created_items += 1
 
-            # vincula servidores em bulk (evita N queries)
-            # só cria vínculos para servidores que realmente existem
-            s_ok = list(
-                Servidor.objects.filter(pk__in=servidores_ids).values_list("pk", flat=True)
-            )
+            s_ok = list(Servidor.objects.filter(pk__in=servidores_ids).values_list("pk", flat=True))
             ProgramacaoItemServidor.objects.bulk_create(
                 [ProgramacaoItemServidor(item=item, servidor_id=sid) for sid in s_ok],
                 ignore_conflicts=True,
             )
             servidores_vinculados += len(s_ok)
 
-    return JsonResponse(
-        {"ok": True, "itens": created_items, "servidores_vinculados": servidores_vinculados}, status=200
-    )
+        if created_items == 0:
+            prog.delete()
+            return JsonResponse({"ok": True, "programacao_id": None, "itens": 0, "servidores_vinculados": 0})
 
-
+    return JsonResponse({"ok": True, "programacao_id": prog.id, "itens": created_items, "servidores_vinculados": servidores_vinculados})
 # ---------------------- ATUALIZAÇÕES ---------------------- #
 @login_required
 @require_POST
@@ -419,10 +438,6 @@ def events_feed(request: HttpRequest):
 @login_required
 @require_GET
 def programacao_do_dia(request: HttpRequest):
-    """
-    Retorna a programação do dia com itens, veículos e servidores.
-    GET ?data=YYYY-MM-DD
-    """
     data_str = request.GET.get("data")
     if not data_str:
         return JsonResponse({"ok": False, "error": "Data não informada"}, status=400)
@@ -440,15 +455,16 @@ def programacao_do_dia(request: HttpRequest):
             Programacao.objects
             .select_related("unidade")
             .prefetch_related(
-                # itens + servidores do item
                 models.Prefetch(
                     "itens",
-                    queryset=ProgramacaoItem.objects.prefetch_related(
-                        models.Prefetch(
-                            "servidores",
-                            queryset=ProgramacaoItemServidor.objects.select_related("servidor")
+                    queryset=ProgramacaoItem.objects
+                        .select_related("meta", "veiculo")
+                        .prefetch_related(
+                            models.Prefetch(
+                                "servidores",
+                                queryset=ProgramacaoItemServidor.objects.select_related("servidor")
+                            )
                         )
-                    )
                 )
             )
             .get(unidade_id=unidade_id, data=dia)
@@ -458,26 +474,31 @@ def programacao_do_dia(request: HttpRequest):
 
     itens = []
     for it in prog.itens.all():
+        veiculo_id = getattr(it, "veiculo_id", None)
+
+        veiculo_label = None
+        if getattr(it, "veiculo", None):
+            nome  = getattr(it.veiculo, "nome", "") or "Veículo"
+            placa = getattr(it.veiculo, "placa", "") or ""
+            veiculo_label = f"{nome} - {placa}".strip(" -")
+        elif veiculo_id:
+            veiculo_label = f"Veículo #{veiculo_id} (indisponível)"
+
         itens.append({
             "id": it.id,
             "meta_id": it.meta_id,
             "meta_nome": getattr(it.meta, "titulo", None) or getattr(it.meta, "nome", None) or str(it.meta),
-            "veiculo_id": getattr(it, "veiculo_id", None),
-            "servidores": [
-                {"id": pis.servidor_id, "nome": pis.servidor.nome}
-                for pis in it.servidores.all()
-            ],
+            "veiculo_id": veiculo_id,
+            "veiculo_label": veiculo_label,
+            "servidores": [{"id": pis.servidor_id, "nome": pis.servidor.nome} for pis in it.servidores.all()],
             "observacao": it.observacao,
             "concluido": it.concluido,
         })
 
-    return JsonResponse({
-        "ok": True,
-        "programacao": {
-            "id": prog.id,
-            "data": prog.data.isoformat(),
-            "observacao": prog.observacao,
-            "concluida": prog.concluida,
-            "itens": itens,
-        }
-    })
+    return JsonResponse({"ok": True, "programacao": {
+        "id": prog.id,
+        "data": prog.data.isoformat(),
+        "observacao": prog.observacao,
+        "concluida": prog.concluida,
+        "itens": itens,
+    }})
