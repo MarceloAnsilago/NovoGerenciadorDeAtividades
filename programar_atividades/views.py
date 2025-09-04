@@ -466,7 +466,7 @@ def events_feed(request: HttpRequest):
     data = []
     for prog in qs.select_related("unidade"):
         qtd_itens = prog.itens.count()
-        title = f"Programação ({qtd_itens} atividade{'s' if qtd_itens != 1 else ''})"
+        title = f"({qtd_itens} atividade{'s' if qtd_itens != 1 else ''})"
         if getattr(prog, "concluida", False):
             title = "✅ " + title
         data.append(

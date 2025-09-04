@@ -94,6 +94,50 @@
   /* body do card do Expediente como zona de drop grande */
   .drop-target{min-height:320px}
   .drop-target.dz-hover{outline:2px dashed #0d6efd;outline-offset:-4px;background:#eef5ff}
+
+  /* Centraliza o TEXTO dentro da tarja */
+  .fc-daygrid-event .fc-event-main {
+    display: flex;
+    justify-content: center;   /* eixo horizontal */
+    align-items: center;       /* eixo vertical dentro da própria tarja */
+  }
+
+  /* (Opcional) centralizar a TARJA no meio da célula do dia
+    OBS: isso funciona melhor quando há 0-1 eventos no dia. */
+  .fc-daygrid-day-frame {
+    display: flex;
+    flex-direction: column;
+  }
+  .fc-daygrid-day-events {
+    flex: 1;                   /* ocupa a altura toda da célula */
+    display: flex;
+    align-items: center;       /* alinha verticalmente ao centro */
+    justify-content: center;   /* alinha horizontalmente ao centro */
+  }
+
+  /* tarja mais fina */
+  .fc-daygrid-event {
+    min-height: 14px;      /* altura mínima menor */
+    font-size: 0.75rem;    /* fonte menor */
+    padding: 1px 4px;      /* menos espaço interno */
+    border-radius: 4px;    /* cantos discretos */
+    line-height: 1.2;      /* altura da linha mais compacta */
+  }
+
+  /* largura total da célula (se quiser manter assim) */
+  .fc-daygrid-event-harness,
+  .fc-daygrid-event {
+    width: 100% !important;
+    display: block;
+  }
+
+  /* texto centralizado dentro da tarja */
+  .fc-daygrid-event .fc-event-main {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
 </style>
 {% endblock %}
 
