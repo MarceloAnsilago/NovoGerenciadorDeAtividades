@@ -17,8 +17,10 @@ from metas.models import Meta, MetaAlocacao
 from servidores.models import Servidor
 from descanso.models import Descanso
 from .models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
-
+from django.template.loader import render_to_string
+from django.utils.dateparse import parse_date
 from django.db import models
+from datetime import date, timedelta
 # Veículo é opcional (ambientes sem o app)
 try:
     from veiculos.models import Veiculo  # type: ignore
@@ -580,3 +582,88 @@ def excluir_programacao(request: HttpRequest):
     # cascata: itens/servidores serão removidos pelas FKs
     prog.delete()
     return JsonResponse({"ok": True, "deleted": True})
+
+
+# programar_atividades/views.py (adicione ao seu arquivo)
+
+from django.template.loader import render_to_string
+from django.utils.dateparse import parse_date
+from django.db.models import Count
+# imports já existentes acima...
+
+@login_required
+@require_GET
+def relatorios_parcial(request: HttpRequest):
+    """
+    Retorna um HTML parcial com os relatórios, filtrando por intervalo de datas.
+    Query params:
+      - start=YYYY-MM-DD (opcional, default: primeiro dia do mês atual)
+      - end=YYYY-MM-DD   (opcional, default: último dia do mês atual)
+    """
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "html": "<div class='alert alert-warning'>Unidade não definida.</div>"})
+
+    today = date.today()
+    start_qs = parse_date(request.GET.get("start") or "") or today.replace(day=1)
+    # último dia do mês:
+    if today.month == 12:
+        month_end = date(today.year, 12, 31)
+    else:
+        next_month = date(today.year, today.month + 1, 1)
+        month_end = next_month - timedelta(days=1)
+    end_qs = parse_date(request.GET.get("end") or "") or month_end
+
+    qs = (
+        Programacao.objects
+        .filter(unidade_id=unidade_id, data__gte=start_qs, data__lte=end_qs)
+        .prefetch_related(
+            models.Prefetch(
+                "itens",
+                queryset=ProgramacaoItem.objects.prefetch_related(
+                    models.Prefetch("servidores", queryset=ProgramacaoItemServidor.objects.select_related("servidor"))
+                )
+            )
+        )
+        .order_by("data")
+    )
+
+    total_programacoes = qs.count()
+    # total de itens no período
+    total_itens = ProgramacaoItem.objects.filter(programacao__in=qs).count()
+    # servidores únicos vinculados a itens no período
+    total_servidores = (
+        ProgramacaoItemServidor.objects
+        .filter(item__programacao__in=qs)
+        .values("servidor_id")
+        .distinct()
+        .count()
+    )
+
+    # Tabela por dia
+    dias = []
+    for prog in qs:
+        itens = list(prog.itens.all())
+        servidores_unicos = {
+            pis.servidor_id for it in itens for pis in it.servidores.all()
+        }
+        dias.append({
+            "data": prog.data,
+            "qtd_itens": len(itens),
+            "qtd_servidores": len(servidores_unicos),
+            "concluida": getattr(prog, "concluida", False),
+        })
+
+    html = render_to_string(
+        "programar_atividades/_relatorios.html",
+        {
+            "start": start_qs,
+            "end": end_qs,
+            "total_programacoes": total_programacoes,
+            "total_itens": total_itens,
+            "total_servidores": total_servidores,
+            "dias": dias,
+        },
+        request=request,
+    )
+    return JsonResponse({"ok": True, "html": html})

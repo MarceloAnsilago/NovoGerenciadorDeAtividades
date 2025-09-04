@@ -1,0 +1,77 @@
+{# NÃO herda base. É um parcial para ser injetado #}
+<div class="mt-5">
+  <h2 class="h4 d-flex align-items-center gap-2">
+    <i class="bi bi-graph-up"></i> Relatórios
+    <small class="text-muted ms-2">
+      {{ start|date:"d/m/Y" }} &rarr; {{ end|date:"d/m/Y" }}
+    </small>
+  </h2>
+
+  <div class="row g-3 mt-1">
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted small">Programações</div>
+          <div class="fs-3 fw-bold">{{ total_programacoes }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted small">Atividades (itens)</div>
+          <div class="fs-3 fw-bold">{{ total_itens }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted small">Servidores envolvidos</div>
+          <div class="fs-3 fw-bold">{{ total_servidores }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">Resumo por dia</span>
+      <small class="text-muted">somente dias com programação</small>
+    </div>
+    <div class="card-body">
+      {% if dias %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Data</th>
+                <th class="text-center">Atividades</th>
+                <th class="text-center">Servidores</th>
+                <th class="text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for d in dias %}
+                <tr>
+                  <td>{{ d.data|date:"d/m/Y" }}</td>
+                  <td class="text-center">{{ d.qtd_itens }}</td>
+                  <td class="text-center">{{ d.qtd_servidores }}</td>
+                  <td class="text-center">
+                    {% if d.concluida %}
+                      <span class="badge bg-success"><i class="bi bi-check2"></i> Concluída</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Aberta</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="alert alert-light border mb-0">Nenhuma programação no intervalo.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>

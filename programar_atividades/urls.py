@@ -13,4 +13,5 @@ urlpatterns = [
     path("atualizar-programacao/", views.atualizar_programacao, name="atualizar_programacao"),
     path("atualizar-item/", views.atualizar_item, name="atualizar_item"),
     path("excluir-programacao/", views.excluir_programacao, name="excluir_programacao"),
+    path("relatorios-parcial/", views.relatorios_parcial, name="relatorios_parcial"),
 ]

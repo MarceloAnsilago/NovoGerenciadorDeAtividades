@@ -108,6 +108,7 @@
 <div class="container my-4">
   <h1>Programar Atividades</h1>
   <div id="calendar" class="mt-4"></div>
+  <div id="relatoriosContainer" class="container mt-3"></div>
 </div>
 
 <div class="modal fade" id="modalAtividade" tabindex="-1" aria-labelledby="modalAtividadeLabel" aria-hidden="true">
@@ -691,6 +692,28 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCounts();
   }
 
+
+  window.relatoriosURL = "{% url 'programar_atividades:relatorios_parcial' %}";
+
+  async function loadRelatoriosForRange(startISO, endISO) {
+    const container = document.getElementById('relatoriosContainer');
+    if (!container) return;
+    container.innerHTML = `
+      <div class="text-center my-4">
+        <div class="spinner-border" role="status"></div>
+        <div class="small text-muted mt-2">Carregando relatório…</div>
+      </div>`;
+    try {
+      const resp = await fetch(`${window.relatoriosURL}?start=${startISO}&end=${endISO}`,
+        { headers: {'X-Requested-With':'XMLHttpRequest'} });
+      const data = await resp.json();
+      container.innerHTML = data.ok ? data.html :
+        `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
+    } catch {
+      container.innerHTML = `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
+    }
+  }
+
   /* ---------- Calendar ---------- */
   const calendar = new FullCalendar.Calendar(calendarEl, {
     locale:'pt-br', timeZone:'local', firstDay:1, initialView:'dayGridMonth',
@@ -698,6 +721,15 @@ document.addEventListener('DOMContentLoaded', () => {
     buttonText:{ today:'Hoje', month:'Mês', week:'Semana', day:'Dia' },
     height:'auto',
     events: window.calendarFeedURL,
+
+    // 👇 carrega o relatório sempre que o range do calendário mudar
+    datesSet(arg) {
+      // arg.end é exclusivo: recua 1 dia
+      const endAdj = new Date(arg.end.getTime() - 24*60*60*1000);
+      const startISO = arg.start.toISOString().slice(0,10);
+      const endISO   = endAdj.toISOString().slice(0,10);
+      loadRelatoriosForRange(startISO, endISO);
+    },
 
     async dateClick(info){
       inputData.value = info.dateStr;
@@ -707,10 +739,8 @@ document.addEventListener('DOMContentLoaded', () => {
         Programar atividades para o dia ${dataBR}
       `;
 
-      // 1) carrega metas e servidores
       await Promise.all([loadMetas(), loadServidores(info.dateStr)]);
 
-      // 2) busca programação existente e aplica nos cards + habilita Exclusão
       try{
         const r = await fetch(`${window.programacaoURL}?data=${info.dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} });
         const data = await r.json();
@@ -722,11 +752,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch{}
 
-      // 3) abre modal
       bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
   });
   calendar.render();
+// (não precisa chamar o relatório aqui; o datesSet roda após render)
+
 
   /* ---------- Excluir programação ---------- */
   btnExcluir?.addEventListener('click', async () => {
@@ -891,6 +922,26 @@ document.addEventListener('DOMContentLoaded', () => {
       alert(err.message || 'Erro ao salvar a programação.');
     } finally {
       btnSalvar.disabled = false;
+    }
+
+    // helper pra carregar o relatório por AJAX
+    async function loadRelatoriosForRange(startISO, endISO) {
+      const container = document.getElementById('relatoriosContainer');
+      if (!container) return;
+      container.innerHTML = `
+        <div class="text-center my-4">
+          <div class="spinner-border" role="status" aria-hidden="true"></div>
+          <div class="small text-muted mt-2">Carregando relatório…</div>
+        </div>`;
+      try {
+        const url = `${window.location.origin}{% url 'programar_atividades:relatorios_parcial' %}?start=${startISO}&end=${endISO}`;
+        const resp = await fetch(url, { headers: {'X-Requested-With':'XMLHttpRequest'} });
+        const data = await resp.json();
+        container.innerHTML = data.ok ? data.html :
+          `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
+      } catch (e) {
+        container.innerHTML = `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
+      }
     }
   });
 });
