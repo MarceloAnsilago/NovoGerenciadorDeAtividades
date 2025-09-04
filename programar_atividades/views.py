@@ -586,19 +586,41 @@ def excluir_programacao(request: HttpRequest):
 
 # programar_atividades/views.py (adicione ao seu arquivo)
 
-from django.template.loader import render_to_string
-from django.utils.dateparse import parse_date
-from django.db.models import Count
-# imports já existentes acima...
+
+def _ordinal_pt(n: int) -> str:
+    # retorna "Primeira", "Segunda", "3ª", ...
+    ord_map = {1: "Primeira", 2: "Segunda", 3: "Terceira", 4: "Quarta", 5: "Quinta", 6: "Sexta"}
+    if n in ord_map:
+        return ord_map[n]
+    return f"{n}ª"
+
+def _weeks_start_to_end(start: date, end: date):
+    """
+    Divide o intervalo [start, end] em blocos de 7 dias:
+    [start, start+6], [start+7, start+13], ...
+    Retorna lista de dicts: {'index': i, 'inicio': date, 'fim': date, 'label': str}
+    """
+    weeks = []
+    cur = start
+    i = 1
+    while cur <= end:
+        wk_end = cur + timedelta(days=6)
+        if wk_end > end:
+            wk_end = end
+        label = f"{_ordinal_pt(i)} ({cur.strftime('%d/%m/%Y')} → {wk_end.strftime('%d/%m/%Y')})"
+        weeks.append({"index": i, "inicio": cur, "fim": wk_end, "label": label})
+        cur = cur + timedelta(days=7)
+        i += 1
+    return weeks
 
 @login_required
 @require_GET
 def relatorios_parcial(request: HttpRequest):
     """
-    Retorna um HTML parcial com os relatórios, filtrando por intervalo de datas.
+    Retorna partial com título/intervalo e selectbox de semanas dentro do intervalo.
     Query params:
-      - start=YYYY-MM-DD (opcional, default: primeiro dia do mês atual)
-      - end=YYYY-MM-DD   (opcional, default: último dia do mês atual)
+      - start=YYYY-MM-DD
+      - end=YYYY-MM-DD
     """
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
@@ -606,64 +628,22 @@ def relatorios_parcial(request: HttpRequest):
 
     today = date.today()
     start_qs = parse_date(request.GET.get("start") or "") or today.replace(day=1)
-    # último dia do mês:
+
+    # calcula último dia do mês corrente (fallback)
     if today.month == 12:
         month_end = date(today.year, 12, 31)
     else:
         next_month = date(today.year, today.month + 1, 1)
         month_end = next_month - timedelta(days=1)
+
     end_qs = parse_date(request.GET.get("end") or "") or month_end
 
-    qs = (
-        Programacao.objects
-        .filter(unidade_id=unidade_id, data__gte=start_qs, data__lte=end_qs)
-        .prefetch_related(
-            models.Prefetch(
-                "itens",
-                queryset=ProgramacaoItem.objects.prefetch_related(
-                    models.Prefetch("servidores", queryset=ProgramacaoItemServidor.objects.select_related("servidor"))
-                )
-            )
-        )
-        .order_by("data")
-    )
-
-    total_programacoes = qs.count()
-    # total de itens no período
-    total_itens = ProgramacaoItem.objects.filter(programacao__in=qs).count()
-    # servidores únicos vinculados a itens no período
-    total_servidores = (
-        ProgramacaoItemServidor.objects
-        .filter(item__programacao__in=qs)
-        .values("servidor_id")
-        .distinct()
-        .count()
-    )
-
-    # Tabela por dia
-    dias = []
-    for prog in qs:
-        itens = list(prog.itens.all())
-        servidores_unicos = {
-            pis.servidor_id for it in itens for pis in it.servidores.all()
-        }
-        dias.append({
-            "data": prog.data,
-            "qtd_itens": len(itens),
-            "qtd_servidores": len(servidores_unicos),
-            "concluida": getattr(prog, "concluida", False),
-        })
+    # monta as semanas (lista de dicts com index, inicio, fim, label)
+    semanas = _weeks_start_to_end(start_qs, end_qs)
 
     html = render_to_string(
         "programar_atividades/_relatorios.html",
-        {
-            "start": start_qs,
-            "end": end_qs,
-            "total_programacoes": total_programacoes,
-            "total_itens": total_itens,
-            "total_servidores": total_servidores,
-            "dias": dias,
-        },
+        {"start": start_qs, "end": end_qs, "semanas": semanas},
         request=request,
     )
     return JsonResponse({"ok": True, "html": html})
