@@ -541,3 +541,42 @@ def programacao_do_dia(request: HttpRequest):
         "concluida": prog.concluida,
         "itens": itens,
     }})
+
+login_required
+@require_POST
+def excluir_programacao(request: HttpRequest):
+    """
+    Exclui a Programacao do dia da UNIDADE atual.
+    Aceita JSON: {"programacao_id": <id>} OU {"data": "YYYY-MM-DD"}.
+    """
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        data = {}
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade não definida."}, status=400)
+
+    prog = None
+    pid = data.get("programacao_id")
+    if pid:
+        try:
+            prog = Programacao.objects.get(pk=pid, unidade_id=unidade_id)
+        except Programacao.DoesNotExist:
+            return JsonResponse({"ok": False, "error": "Programação não encontrada."}, status=404)
+    else:
+        data_str = data.get("data")
+        if not data_str:
+            return JsonResponse({"ok": False, "error": "Informe programacao_id ou data."}, status=400)
+        try:
+            dia = date.fromisoformat(data_str)
+        except Exception:
+            return JsonResponse({"ok": False, "error": "Data inválida."}, status=400)
+        prog = Programacao.objects.filter(unidade_id=unidade_id, data=dia).first()
+        if not prog:
+            return JsonResponse({"ok": True, "deleted": False})  # nada para excluir
+
+    # cascata: itens/servidores serão removidos pelas FKs
+    prog.delete()
+    return JsonResponse({"ok": True, "deleted": True})

@@ -95,49 +95,12 @@
   .drop-target{min-height:320px}
   .drop-target.dz-hover{outline:2px dashed #0d6efd;outline-offset:-4px;background:#eef5ff}
 
-  /* Centraliza o TEXTO dentro da tarja */
-  .fc-daygrid-event .fc-event-main {
-    display: flex;
-    justify-content: center;   /* eixo horizontal */
-    align-items: center;       /* eixo vertical dentro da própria tarja */
-  }
-
-  /* (Opcional) centralizar a TARJA no meio da célula do dia
-    OBS: isso funciona melhor quando há 0-1 eventos no dia. */
-  .fc-daygrid-day-frame {
-    display: flex;
-    flex-direction: column;
-  }
-  .fc-daygrid-day-events {
-    flex: 1;                   /* ocupa a altura toda da célula */
-    display: flex;
-    align-items: center;       /* alinha verticalmente ao centro */
-    justify-content: center;   /* alinha horizontalmente ao centro */
-  }
-
-  /* tarja mais fina */
-  .fc-daygrid-event {
-    min-height: 14px;      /* altura mínima menor */
-    font-size: 0.75rem;    /* fonte menor */
-    padding: 1px 4px;      /* menos espaço interno */
-    border-radius: 4px;    /* cantos discretos */
-    line-height: 1.2;      /* altura da linha mais compacta */
-  }
-
-  /* largura total da célula (se quiser manter assim) */
-  .fc-daygrid-event-harness,
-  .fc-daygrid-event {
-    width: 100% !important;
-    display: block;
-  }
-
-  /* texto centralizado dentro da tarja */
-  .fc-daygrid-event .fc-event-main {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
+  /* Tarja (evento) centralizada e fininha */
+  .fc-daygrid-event .fc-event-main{display:flex;justify-content:center;align-items:center}
+  .fc-daygrid-day-frame{display:flex;flex-direction:column}
+  .fc-daygrid-day-events{flex:1;display:flex;align-items:center;justify-content:center}
+  .fc-daygrid-event{min-height:14px;font-size:.75rem;padding:1px 4px;border-radius:4px;line-height:1.2}
+  .fc-daygrid-event-harness,.fc-daygrid-event{width:100%!important;display:block}
 </style>
 {% endblock %}
 
@@ -215,7 +178,11 @@
         </form>
       </div>
 
+      <!-- ÚNICO footer -->
       <div class="modal-footer">
+        <button type="button" class="btn btn-outline-danger me-auto" id="btnExcluir" disabled>
+          Excluir programação
+        </button>
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="submit" form="formAtividade" id="btnSalvar" class="btn btn-primary" disabled>Salvar</button>
       </div>
@@ -235,6 +202,7 @@
   window.servidoresURL   = "{% url 'programar_atividades:servidores_para_data' %}";
   window.salvarURL       = "{% url 'programar_atividades:salvar_programacao' %}";
   window.programacaoURL  = "{% url 'programar_atividades:programacao_do_dia' %}";
+  window.excluirURL      = "{% url 'programar_atividades:excluir_programacao' %}";
 </script>
 
 <script>
@@ -246,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const metasGrid    = document.getElementById('metasGrid');
   const hiddenMetaId = document.getElementById('metaId');
   const btnSalvar    = document.getElementById('btnSalvar');
+  const btnExcluir   = document.getElementById('btnExcluir');
   const metaCardsContainer = document.getElementById('metaCardsContainer');
 
   // Expediente: body = dropzone, list = onde renderiza
@@ -260,6 +229,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const DRAG = { id:null };
 
   const getMetaCard = (el) => el.closest('[data-meta-id]');
+
+  function setDeleteEnabled(on){ if(btnExcluir) btnExcluir.disabled = !on; }
+  let currentProgId = null; // id da programação carregada
 
   /* ---------- helpers ---------- */
   function updateCounts() {
@@ -529,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const srv = findSrv(sid);
     if (!srv) return;
 
-    appendToExpediente(srv); // já evita duplicata
+    appendToExpediente(srv);
     updateCounts();
   });
 
@@ -662,7 +634,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ---------- Aplicar programação existente ---------- */
-
   function applyProgramacao(prog) {
     if (!prog || !prog.itens || prog.itens.length === 0) return;
 
@@ -690,46 +661,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // veículo do item (seleciona — criando option caso não exista)
+      // veículo (seleciona — criando option caso não exista)
       const sel = card.querySelector('.veiculo-select');
       if (sel) {
         const vid = (it.veiculo_id != null && it.veiculo_id !== '') ? String(it.veiculo_id) : '';
 
         if (vid) {
-          // procura option existente
           let opt = Array.from(sel.options).find(o => String(o.value) === vid);
-
-          // se não existir (ex.: veículo desativado/fora do filtro), cria a option
-          if (!opt) {
+          if (!opt) { // veículo inativo/desconhecido
             const label = it.veiculo_label || `Veículo #${vid} (indisponível)`;
-            opt = new Option(label, vid);
+            opt = new Option(label, vid, true, true);
             sel.add(opt);
+          } else {
+            opt.selected = true;
           }
-
-          // força a seleção de forma compatível
-          Array.from(sel.options).forEach(o => { o.selected = (String(o.value) === vid); });
-          sel.value = vid; // alguns navegadores exigem também o value
-
+          sel.value = vid;
         } else {
-          // sem veículo: volta ao placeholder (primeira opção)
           const placeholder = sel.querySelector('option[disabled]') || sel.options[0];
           if (placeholder) {
             Array.from(sel.options).forEach(o => { o.selected = false; });
             placeholder.selected = true;
           }
-          sel.value = ''; // limpa value visível
+          sel.value = '';
         }
-
-        // dispara change para qualquer listener de UI
         sel.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
 
     updateCounts();
   }
-
-
-
 
   /* ---------- Calendar ---------- */
   const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -739,7 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
     height:'auto',
     events: window.calendarFeedURL,
 
-    dateClick(info){
+    async dateClick(info){
       inputData.value = info.dateStr;
       const dataBR = info.date.toLocaleDateString('pt-BR',{timeZone:'UTC'});
       tituloModal.innerHTML = `
@@ -748,24 +708,69 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       // 1) carrega metas e servidores
-      Promise.all([loadMetas(), loadServidores(info.dateStr)])
-        .then(() => {
-          // 2) busca programação existente e aplica nos cards
-          return fetch(`${window.programacaoURL}?data=${info.dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} })
-            .then(r=>r.json())
-            .then(data => {
-              if (data && data.ok && data.programacao) {
-                applyProgramacao(data.programacao);
-              }
-            })
-            .catch(()=>{ /* silencioso */ });
-        })
-        .finally(() => {
-          bootstrap.Modal.getOrCreateInstance(modalEl).show();
-        });
+      await Promise.all([loadMetas(), loadServidores(info.dateStr)]);
+
+      // 2) busca programação existente e aplica nos cards + habilita Exclusão
+      try{
+        const r = await fetch(`${window.programacaoURL}?data=${info.dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} });
+        const data = await r.json();
+        currentProgId = null; setDeleteEnabled(false);
+        if (data && data.ok && data.programacao) {
+          currentProgId = data.programacao.id || null;
+          setDeleteEnabled(!!currentProgId);
+          applyProgramacao(data.programacao);
+        }
+      } catch{}
+
+      // 3) abre modal
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
   });
   calendar.render();
+
+  /* ---------- Excluir programação ---------- */
+  btnExcluir?.addEventListener('click', async () => {
+    if (!currentProgId && !inputData.value) return;
+
+    const ok = confirm('Deseja realmente EXCLUIR toda a programação deste dia? Esta ação não pode ser desfeita.');
+    if (!ok) return;
+
+    btnExcluir.disabled = true;
+    btnSalvar.disabled  = true;
+
+    try {
+      const resp = await fetch(window.excluirURL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': (document.cookie.match(/(^|;\s*)csrftoken=([^;]*)/)||[])[2] || '',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ programacao_id: currentProgId || undefined, data: currentProgId ? undefined : inputData.value }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || data.ok === false) throw new Error(data.error || 'Falha ao excluir.');
+
+      alert('Programação excluída.');
+      // limpa UI do modal
+      metaCardsContainer.innerHTML = '';
+      document.getElementById('servidoresLivres').innerHTML = '';
+      document.querySelector('#tabelaImpedidos tbody').innerHTML = '';
+      document.getElementById('expedienteAdmin').innerHTML = '';
+      setDeleteEnabled(false);
+      currentProgId = null;
+
+      calendar.refetchEvents();
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Erro ao excluir programação.');
+    } finally {
+      btnExcluir.disabled = false;
+      btnSalvar.disabled  = false;
+    }
+  });
 
   /* ---------- Submit ---------- */
   function getCookie(name){
@@ -813,9 +818,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const first = invalid[0];
       first.classList.add('border','border-danger');
       first.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-      const title = (first.querySelector('.meta-title-text')?.textContent || 'Atividade').trim();
 
       if (REQUIRE_VEICULO) {
+        const title = (first.querySelector('.meta-title-text')?.textContent || 'Atividade').trim();
         alert(`Selecione o veículo no card: "${title}".`);
         first.querySelector('.veiculo-select')?.focus();
         return;
@@ -884,11 +889,10 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error(err);
       alert(err.message || 'Erro ao salvar a programação.');
-  } finally {
-    btnSalvar.disabled = false;
-  }
-}); 
-
+    } finally {
+      btnSalvar.disabled = false;
+    }
+  });
 });
 </script>
 {% endblock %}
