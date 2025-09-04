@@ -732,44 +732,77 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('formAtividade').addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // 1) cards com/sem servidores
-    const allCards = Array.from(metaCardsContainer.querySelectorAll('[data-meta-id]'));
+    // pegue APENAS os cards de atividade da coluna direita
+    const allCards = Array.from(
+      document.querySelectorAll('#metaCardsContainer .servidor-cardbox[data-meta-id]')
+    );
     const nonEmptyCards = allCards.filter(c => c.querySelectorAll('.servidor-chip').length > 0);
-    const removedCount = allCards.length - nonEmptyCards.length;
 
+    // remove visualmente cards vazios antes de montar payload
+    const removedCount = allCards.length - nonEmptyCards.length;
     if (removedCount > 0) {
       allCards.filter(c => !nonEmptyCards.includes(c)).forEach(c => c.remove());
       updateCounts();
     }
 
-    // 2) validar veículo obrigatório em cards com servidores
-    const cardSemVeiculo = nonEmptyCards.find(card => {
-      const temServ = card.querySelectorAll('.servidor-chip').length > 0;
-      const val = card.querySelector('.veiculo-select')?.value ?? '';
-      return temServ && (!val || val === 'null');
-    });
-    if (cardSemVeiculo) {
-      alert('Selecione o veículo em todos os cards que possuem servidores.');
-      cardSemVeiculo.querySelector('.veiculo-select')?.focus();
-      return;
+    // ===== Validação de veículo =====
+    const REQUIRE_VEICULO = false; // mude para true se quiser OBRIGAR veículo
+
+    // limpar destaques antigos
+    allCards.forEach(c => c.classList.remove('border','border-danger'));
+
+    const invalid = [];
+    for (const card of nonEmptyCards) {
+      const sel = card.querySelector('.veiculo-select');
+      const val = (sel && typeof sel.value === 'string') ? sel.value.trim() : '';
+
+      const isPlaceholder =
+        !sel || !val ||
+        val.toLowerCase() === 'null' ||
+        val.toLowerCase() === 'undefined' ||
+        (sel && sel.selectedIndex === 0 && sel.options[0] && sel.options[0].disabled);
+
+      if (isPlaceholder) invalid.push(card);
     }
 
-    // 3) montar payload (veiculo_id como número ou null)
+    if (invalid.length) {
+      const first = invalid[0];
+      first.classList.add('border','border-danger');
+      first.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      const title = (first.querySelector('.meta-title-text')?.textContent || 'Atividade').trim();
+
+      if (REQUIRE_VEICULO) {
+        alert(`Selecione o veículo no card: "${title}".`);
+        first.querySelector('.veiculo-select')?.focus();
+        return;
+      } else {
+        const ok = confirm(
+          `${invalid.length} atividade(s) com servidores estão sem veículo.\nDeseja salvar assim mesmo?`
+        );
+        if (!ok) {
+          first.querySelector('.veiculo-select')?.focus();
+          return;
+        }
+      }
+    }
+
+    // ===== Montar payload (veiculo_id string ou null) =====
     const itens = nonEmptyCards.map(card => {
       const metaId = card.dataset.metaId;
       const servidores = Array.from(card.querySelectorAll('.servidor-chip')).map(ch => ch.dataset.id);
 
-    
       const sel = card.querySelector('.veiculo-select');
       let veiculoId = null;
-      if (sel && sel.value && sel.value !== 'null') {
-        // Envie COMO STRING (serve tanto para int quanto para UUID)
-        veiculoId = String(sel.value);
+      if (sel) {
+        const v = String(sel.value || '').trim();
+        if (v !== '' && v.toLowerCase() !== 'null' && v.toLowerCase() !== 'undefined') {
+          veiculoId = v; // envia como string (serve para int e UUID)
+        }
       }
       return { meta_id: metaId, servidores, veiculo_id: veiculoId };
     });
 
-    // 4) confirmar limpeza total (sem itens)
+    // confirmar limpeza total (sem itens)
     if (itens.length === 0) {
       const ok = window.confirm(
         'Nenhuma atividade com servidores.\nIsso vai APAGAR toda a programação deste dia.\nDeseja continuar?'
@@ -778,7 +811,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const payload = { data: inputData.value, itens };
-
     btnSalvar.disabled = true;
 
     try {
@@ -794,7 +826,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const rawText = await resp.text();
       let data;
-      try { data = JSON.parse(rawText); } catch { data = { ok: resp.ok, error: rawText || 'Resposta inválida do servidor.' }; }
+      try { data = JSON.parse(rawText); }
+      catch { data = { ok: resp.ok, error: rawText || 'Resposta inválida do servidor.' }; }
 
       if (!resp.ok || data.ok === false) {
         throw new Error(data.error || 'Falha ao salvar a programação.');
@@ -807,10 +840,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error(err);
       alert(err.message || 'Erro ao salvar a programação.');
-    } finally {
-      btnSalvar.disabled = false;
-    }
-  });
+  } finally {
+    btnSalvar.disabled = false;
+  }
+}); 
+
 });
 </script>
 {% endblock %}

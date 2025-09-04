@@ -230,11 +230,7 @@ def servidores_para_data(request: HttpRequest):
         }
     )
 
-
 # ---------------------- SALVAR PROGRAMAÇÃO ---------------------- #
-
-
-
 def _to_pk(v):
     """Converte para PK int > 0. '', 'null', None ou inválidos => None."""
     if v in (None, "", "null", "undefined"):
@@ -245,6 +241,21 @@ def _to_pk(v):
     except (TypeError, ValueError):
         return None
 
+# Detecta o tipo da PK do Veiculo para coerção correta
+def _coerce_veiculo_pk(raw):
+    if raw in (None, "", "null", "undefined"):
+        return None
+    if Veiculo is None:
+        return None
+    # UUID? então preserve string
+    if isinstance(Veiculo._meta.pk, models.UUIDField):
+        return str(raw).strip()
+    # Inteiro? tente converter com segurança
+    try:
+        iv = int(str(raw).strip())
+        return iv if iv > 0 else None
+    except (TypeError, ValueError):
+        return None
 
 @login_required
 @require_POST
@@ -286,7 +297,13 @@ def salvar_programacao(request):
         if len(itens) == 0:
             # opcional: remover a própria programação quando fica vazia
             prog.delete()
-            return JsonResponse({"ok": True, "programacao_id": None, "itens": 0, "servidores_vinculados": 0})
+            return JsonResponse({
+                "ok": True,
+                "programacao_id": None,
+                "itens": 0,
+                "servidores_vinculados": 0,
+                "itens_com_veiculo": 0,
+            })
 
         created_items = 0
         servidores_vinculados = 0
@@ -300,27 +317,28 @@ def salvar_programacao(request):
             except Meta.DoesNotExist:
                 continue
 
-            # servidores (únicos, numéricos)
+            # servidores (únicos, inteiros)
             servidores_ids_raw = list(dict.fromkeys(it.get("servidores") or []))
             servidores_ids = []
             for sid in servidores_ids_raw:
-                try:
-                    sid_int = int(sid)
-                    if sid_int > 0:
-                        servidores_ids.append(sid_int)
-                except (TypeError, ValueError):
-                    pass
+                sid_int = _to_pk(sid)
+                if sid_int:
+                    servidores_ids.append(sid_int)
 
             if not servidores_ids:
                 # não cria item sem servidores
                 continue
-            veiculo_raw = it.get("veiculo_id")
 
-            # Aceita qualquer PK não vazio (int ou UUID). Normaliza "null"/"undefined"/"" para None
-            if veiculo_raw in (None, "", "null", "undefined"):
-                veiculo_kw = {}
-            else:
-                veiculo_kw = {"veiculo_id": veiculo_raw}
+            # --- veículo: aceita int/UUID, normaliza e verifica existência ---
+            veiculo_pk = _coerce_veiculo_pk(it.get("veiculo_id"))
+            veiculo_kw = {}
+            if veiculo_pk is not None and Veiculo is not None:
+                if Veiculo.objects.filter(pk=veiculo_pk, unidade=unidade).exists():
+                    veiculo_kw = {"veiculo_id": veiculo_pk}
+                else:
+                    # se quiser, pode ignorar unidade na checagem:
+                    # if Veiculo.objects.filter(pk=veiculo_pk).exists(): ...
+                    pass
 
             item = ProgramacaoItem.objects.create(
                 programacao=prog,
@@ -329,7 +347,10 @@ def salvar_programacao(request):
             )
             created_items += 1
 
-            s_ok = list(Servidor.objects.filter(pk__in=servidores_ids).values_list("pk", flat=True))
+            s_ok = list(
+                Servidor.objects.filter(pk__in=servidores_ids, unidade=unidade)
+                .values_list("pk", flat=True)
+            )
             ProgramacaoItemServidor.objects.bulk_create(
                 [ProgramacaoItemServidor(item=item, servidor_id=sid) for sid in s_ok],
                 ignore_conflicts=True,
@@ -338,9 +359,27 @@ def salvar_programacao(request):
 
         if created_items == 0:
             prog.delete()
-            return JsonResponse({"ok": True, "programacao_id": None, "itens": 0, "servidores_vinculados": 0})
+            return JsonResponse({
+                "ok": True,
+                "programacao_id": None,
+                "itens": 0,
+                "servidores_vinculados": 0,
+                "itens_com_veiculo": 0,
+            })
 
-    return JsonResponse({"ok": True, "programacao_id": prog.id, "itens": created_items, "servidores_vinculados": servidores_vinculados})
+        # Métrica extra p/ conferência
+        itens_com_veiculo = ProgramacaoItem.objects.filter(
+            programacao=prog
+        ).exclude(veiculo_id__isnull=True).count()
+
+    return JsonResponse({
+        "ok": True,
+        "programacao_id": prog.id,
+        "itens": created_items,
+        "servidores_vinculados": servidores_vinculados,
+        "itens_com_veiculo": itens_com_veiculo,
+    })
+
 # ---------------------- ATUALIZAÇÕES ---------------------- #
 @login_required
 @require_POST
