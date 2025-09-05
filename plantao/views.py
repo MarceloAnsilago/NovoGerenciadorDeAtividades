@@ -675,3 +675,70 @@ def plantao_imprimir(request, pk):
 
     # caso contrário, retorna a página completa de impressão (como antes)
     return render(request, "plantao/print.html", context)
+
+
+
+
+@login_required
+def servidores_por_intervalo(request):
+    """
+    GET params: start=YYYY-MM-DD, end=YYYY-MM-DD
+    Retorna JSON: { ok: true, semanas: [ { inicio, fim, servidores: [{id,nome,telefone}] } ] }
+    """
+    start = request.GET.get('start')
+    end   = request.GET.get('end')
+    if not start or not end:
+        return JsonResponse({"ok": False, "error": "start and end required"}, status=400)
+    try:
+        dt_start = datetime.strptime(start, "%Y-%m-%d").date()
+        dt_end = datetime.strptime(end, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "invalid date format"}, status=400)
+
+    # busca plantões que intersectam o intervalo
+    plantoes = Plantao.objects.filter(inicio__lte=dt_end, fim__gte=dt_start).order_by('inicio')
+    if not plantoes.exists():
+        return JsonResponse({"ok": True, "semanas": []})
+
+    semanas_out = []
+    for plantao in plantoes:
+        # pega semanas relacionadas (tenta vários related_names)
+        if hasattr(plantao, 'semanas'):
+            semanas_qs = plantao.semanas.all().order_by('ordem', 'inicio')
+        elif hasattr(plantao, 'semana_set'):
+            semanas_qs = plantao.semana_set.all().order_by('ordem', 'inicio')
+        else:
+            semanas_qs = Semana.objects.filter(plantao=plantao).order_by('ordem', 'inicio')
+
+        for semana in semanas_qs:
+            # opcional: filtrar semanas que intersectam o intervalo pedido
+            if semana.fim < dt_start or semana.inicio > dt_end:
+                continue
+            servidores = []
+            # tenta vários relacionamentos
+            if hasattr(semana, 'itens'):
+                itens_qs = getattr(semana, 'itens').all()
+            elif hasattr(semana, 'semanaservidor_set'):
+                itens_qs = getattr(semana, 'semanaservidor_set').all()
+            else:
+                itens_qs = SemanaServidor.objects.filter(semana=semana)
+
+            for item in itens_qs.order_by('ordem'):
+                srv = getattr(item, 'servidor', None)
+                nome = getattr(srv, 'nome', '') if srv else ''
+                telefone_snapshot = getattr(item, 'telefone_snapshot', '') or ''
+                telefone_servidor = getattr(srv, 'telefone', '') if srv else ''
+                celular_servidor = getattr(srv, 'celular', '') if srv else ''
+                telefone_final = telefone_snapshot or telefone_servidor or celular_servidor or ''
+                servidores.append({
+                    "id": getattr(srv, 'id', None),
+                    "nome": nome,
+                    "telefone": telefone_final,
+                })
+            semanas_out.append({
+                "inicio": semana.inicio.isoformat(),
+                "fim": semana.fim.isoformat(),
+                "servidores": servidores
+            })
+
+    return JsonResponse({"ok": True, "semanas": semanas_out})

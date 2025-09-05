@@ -204,6 +204,7 @@
   window.salvarURL       = "{% url 'programar_atividades:salvar_programacao' %}";
   window.programacaoURL  = "{% url 'programar_atividades:programacao_do_dia' %}";
   window.excluirURL      = "{% url 'programar_atividades:excluir_programacao' %}";
+  window.plantaoSemanaURL = "{% url 'plantao:servidores_por_intervalo' %}";
 </script>
 
 <script>
@@ -258,11 +259,13 @@ document.addEventListener('DOMContentLoaded', () => {
       else       { el.classList.remove('has-count'); b.textContent = ''; }
     });
 
-    metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
-      const n = card.querySelectorAll('.servidor-chip').length;
-      const badge = card.querySelector('.count-meta');
-      if (badge) badge.textContent = String(n);
-    });
+    if (metaCardsContainer) {
+      metaCardsContainer.querySelectorAll('[data-meta-id]').forEach(card => {
+        const n = card.querySelectorAll('.servidor-chip').length;
+        const badge = card.querySelector('.count-meta');
+        if (badge) badge.textContent = String(n);
+      });
+    }
 
     // habilita Salvar se houver ao menos um card aberto
     setSalvarEnabled(metaCardsContainer.querySelectorAll('[data-meta-id]').length > 0);
@@ -317,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // numeração dos cards (#1, #2, ...)
   function updateCopyIndexes(metaId){
+    if (!metaCardsContainer) return;
     const cards = Array.from(
       metaCardsContainer.querySelectorAll(`.servidor-cardbox[data-meta-id="${metaId}"]`)
     );
@@ -695,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.relatoriosURL = "{% url 'programar_atividades:relatorios_parcial' %}";
 
+  /* ---------- loadRelatoriosForRange (UNICA VERSÃO, global) ---------- */
   async function loadRelatoriosForRange(startISO, endISO) {
     const container = document.getElementById('relatoriosContainer');
     if (!container) return;
@@ -705,8 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
 
     try {
-      const resp = await fetch(`${window.relatoriosURL}?start=${startISO}&end=${endISO}`,
-        { headers: {'X-Requested-With':'XMLHttpRequest'} });
+      const resp = await fetch(`${window.relatoriosURL}?start=${startISO}&end=${endISO}`, { headers: {'X-Requested-With':'XMLHttpRequest'} });
       const data = await resp.json();
 
       container.innerHTML = data.ok ? data.html :
@@ -744,13 +748,166 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof populateWeeksSelect === 'function' && window._lastCalendarArg) {
           populateWeeksSelect(window._lastCalendarArg);
         }
+      } catch (e) { console.error('populateWeeksSelect error after inject:', e); }
+
+      // Se houver um select e uma opção já selecionada, atualiza o cabeçalho com o texto da option
+      try {
+        const sel = document.getElementById('select-semana');
+        if (sel && sel.selectedIndex > 0) {
+          writeSelectedWeekLabel(sel.options[sel.selectedIndex].textContent.trim());
+        }
       } catch (e) { /* silent */ }
 
-    } catch {
+    } catch (err) {
+      console.error('loadRelatoriosForRange erro', err);
       container.innerHTML = `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
     }
   }
 
+  /* ---------- Plantão: fetch por intervalo (UNICO) ---------- */
+  (function(){
+    function toDate(dstr){ return new Date(dstr + 'T00:00:00Z'); } // parse ISO (UTC)
+    function isoDate(d){ return d.toISOString().slice(0,10); }
+
+    // converte intervalo (p.ex. Mon->Sun) para a convenção do app plantao (Sat->Fri)
+    function normalizeToPlantaoRange(startISO, endISO){
+      const s = toDate(startISO);
+      const e = toDate(endISO);
+
+      // prev_or_same_saturday
+      const dowS = s.getUTCDay(); // 0=Sun..6=Sat
+      const shiftToSat = (dowS - 6 + 7) % 7; // dias a retroceder para chegar ao sábado anterior/igual
+      const sat = new Date(s); sat.setUTCDate(s.getUTCDate() - shiftToSat);
+
+      // next_or_same_friday
+      const dowE = e.getUTCDay();
+      const shiftToFri = (4 - dowE + 7) % 7; // dias a avançar para próxima sexta/igual
+      const fri = new Date(e); fri.setUTCDate(e.getUTCDate() + shiftToFri);
+
+      return { inicio_plantao: isoDate(sat), fim_plantao: isoDate(fri) };
+    }
+
+    // cria/retorna container para mostrar servidores de plantão
+    function getOrCreatePlantaoContainer(){
+      let c = document.getElementById('servidoresPlantaoContainer');
+      if (!c){
+        c = document.createElement('div');
+        c.id = 'servidoresPlantaoContainer';
+        c.className = 'mt-3';
+        // tenta inserir logo abaixo do wrapper do select
+        const wrapper = document.getElementById('select-semana-wrapper');
+        if (wrapper && wrapper.parentNode) wrapper.parentNode.insertBefore(c, wrapper.nextSibling);
+        else {
+          const rel = document.getElementById('relatoriosContainer') || document.body;
+          rel.parentNode.insertBefore(c, rel);
+        }
+      }
+      return c;
+    }
+
+    // faz fetch e renderiza
+    async function fetchServidoresPlantao(startISO, endISO){
+      const container = getOrCreatePlantaoContainer();
+      container.innerHTML = `<div class="small text-muted">Carregando servidores de plantão…</div>`;
+
+      // normaliza para o formato do app plantao (Sáb->Sex)
+      const norm = normalizeToPlantaoRange(startISO, endISO);
+
+      // chama endpoint (GET)
+      const url = new URL(window.plantaoSemanaURL, window.location.origin);
+      url.searchParams.set('start', norm.inicio_plantao);
+      url.searchParams.set('end',   norm.fim_plantao);
+      // também envia os originais por segurança
+      url.searchParams.set('orig_start', startISO);
+      url.searchParams.set('orig_end',   endISO);
+
+      console.debug('[plantao] fetch URL:', String(url));
+
+      try {
+        const resp = await fetch(String(url), { headers: {'X-Requested-With': 'XMLHttpRequest'} });
+        const text = await resp.text();
+
+        let data;
+        try { data = JSON.parse(text); }
+        catch (e) {
+          container.innerHTML = `<div class="alert alert-danger">Resposta inválida do servidor (não JSON). Veja console.</div>`;
+          console.error('[plantao] parse JSON failed', e, text);
+          return;
+        }
+
+        if (!data || data.ok === false || !Array.isArray(data.semanas)) {
+          container.innerHTML = `<div class="alert alert-warning">Nenhum plantão encontrado ou erro: ${data && data.error ? data.error : 'sem dados'}</div>`;
+          return;
+        }
+
+        // Função helper para comparar conjuntos de IDs (ordenados)
+        function serverIdSet(sem) {
+          return (sem.servidores || []).map(s => String(s.id)).sort().join(',');
+        }
+
+        // Merge: colapsa semanas CONSECUTIVAS com MESMO conjunto de servidores,
+        // mantendo o índice original da primeira semana do bloco.
+        const merged = [];
+        for (let i = 0; i < data.semanas.length; i++) {
+          const wk = data.semanas[i];
+          const weekIndex = i + 1; // índice original na resposta (1-based)
+          const normalized = {
+            inicio: wk.inicio,
+            fim: wk.fim,
+            servidores: wk.servidores || [],
+            indexStart: weekIndex,
+            count: 1
+          };
+
+          if (merged.length === 0) {
+            merged.push(normalized);
+            continue;
+          }
+
+          const prev = merged[merged.length - 1];
+          if (serverIdSet(prev) === serverIdSet(normalized)) {
+            // Mescla estendendo o fim e incrementando contador
+            prev.fim = normalized.fim;
+            prev.count = (prev.count || 1) + 1;
+          } else {
+            merged.push(normalized);
+          }
+        }
+
+        // Renderiza as semanas mescladas usando o índice original (indexStart)
+        const html = merged.map((wk) => {
+          const labelIndex = wk.count && wk.count > 1
+            ? `Semana ${wk.indexStart} (agrupou ${wk.count} semanas)`
+            : `Semana ${wk.indexStart}`;
+
+          const header = `<div class="fw-semibold">${labelIndex}: ${wk.inicio} → ${wk.fim}</div>`;
+          const list = (wk.servidores || []).length
+            ? `<ul class="mb-2">${(wk.servidores||[]).map(s=>`<li>${s.nome}${s.telefone?` — ${s.telefone}`:''}</li>`).join('')}</ul>`
+            : `<div class="text-muted mb-2">Nenhum servidor atribuído nesta semana</div>`;
+          return `<div class="mb-2">${header}${list}</div>`;
+        }).join('');
+
+        container.innerHTML = html;
+
+      } catch (err) {
+        console.error('[plantao] fetch error', err);
+        container.innerHTML = `<div class="alert alert-danger">Erro ao buscar servidores de plantão. Veja console.</div>`;
+      }
+    }
+
+    window.fetchServidoresPlantao = fetchServidoresPlantao;
+
+    // anexa listener (se já existir handler anterior, mantemos; este faz a requisição adicional)
+    document.addEventListener('change', (ev) => {
+      const sel = ev.target;
+      if (sel && sel.id === 'select-semana') {
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.dataset.inicio) return;
+        const s = opt.dataset.inicio, e = opt.dataset.fim;
+        fetchServidoresPlantao(s, e);
+      }
+    }, true);
+  })();
 
   /* ---------- Calendar ---------- */
   const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -768,7 +925,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const startISO = arg.start.toISOString().slice(0,10);
       const endISO   = endAdj.toISOString().slice(0,10);
       loadRelatoriosForRange(startISO, endISO);
-      populateWeeksSelect(arg);
+      // chama populate que cuidará de criar/atualizar o select
+      if (typeof populateWeeksSelect === 'function') populateWeeksSelect(arg);
     },
 
     async dateClick(info){
@@ -796,8 +954,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   calendar.render();
-  // (não precisa chamar o relatório aqui; o datesSet roda após render)
-  // ---------- helper para popular o select de semanas ----------
+
+  // ---------- helper para popular o select de semanas (UNICA VERSÃO) ----------
   function formatBRFromISO(iso){
     // iso esperado: 'YYYY-MM-DD'
     if (!iso) return '';
@@ -806,125 +964,256 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${parts[2].padStart(2,'0')}/${parts[1].padStart(2,'0')}/${parts[0]}`;
   }
 
- 
-  // ---------- popula select com semanas alinhadas ao view do calendário (Seg -> Dom) ----------
-// Versão que coloca o select exatamente abaixo do título <h2> "Relatórios"
-
-  function populateWeeksSelect(arg){
-    // 1) remove qualquer select-server-side duplicado que esteja DENTRO do bloco de relatórios
+  // helper pra escrever/atualizar o cabeçalho "Semana ..." no DOM
+  function writeSelectedWeekLabel(label) {
+    if (!label) return;
     const relCont = document.getElementById('relatoriosContainer');
-    if (relCont) {
-      // remove selects com id igual que estejam dentro do container (o "de baixo")
-      Array.from(relCont.querySelectorAll('#select-semana')).forEach(s => {
-        const parentWrap = s.closest('#select-semana-wrapper');
-        if (parentWrap) parentWrap.remove();
-        else s.remove();
-      });
+    if (!relCont) return;
+    // procura elemento existente com classe plantao-week-label
+    let el = document.querySelector('.plantao-week-label');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'plantao-week-label fw-semibold mb-2';
+      if (relCont.parentNode) relCont.parentNode.insertBefore(el, relCont);
+      else document.body.insertBefore(el, document.body.firstChild);
     }
-
-    // 2) agora pegue (ou crie) o select principal
-    let select = document.getElementById('select-semana');
-    let wrapper = document.getElementById('select-semana-wrapper');
-
-    if (!select && !wrapper) {
-      wrapper = document.createElement('div');
-      wrapper.id = 'select-semana-wrapper';
-      wrapper.className = 'mt-3 d-flex align-items-center gap-2';
-      wrapper.innerHTML = `
-        <label for="select-semana" class="mb-0 small text-muted">Semana:</label>
-        <select id="select-semana" class="form-select form-select-sm w-auto">
-          <option value="">Selecione a semana</option>
-        </select>
-      `;
-      select = wrapper.querySelector('#select-semana');
-    } else if (select && !wrapper) {
-      // move select existente para um wrapper
-      wrapper = document.createElement('div');
-      wrapper.id = 'select-semana-wrapper';
-      wrapper.className = 'mt-3 d-flex align-items-center gap-2';
-      const label = document.createElement('label');
-      label.setAttribute('for','select-semana');
-      label.className = 'mb-0 small text-muted';
-      label.textContent = 'Semana:';
-      const originalParent = select.parentNode;
-      wrapper.appendChild(label);
-      wrapper.appendChild(select);
-      if (originalParent) originalParent.insertBefore(wrapper, select);
-    } else if (wrapper && !select) {
-      select = document.createElement('select');
-      select.id = 'select-semana';
-      select.className = 'form-select form-select-sm w-auto';
-      select.innerHTML = `<option value="">Selecione a semana</option>`;
-      wrapper.appendChild(select);
-    }
-
-    // 3) posicione o wrapper logo abaixo do título "Relatórios"
-    const titulo = Array.from(document.querySelectorAll('h1,h2,h3,h4')).find(h => /relat[oó]rios/i.test(h.textContent));
-    if (titulo && wrapper) {
-      if (titulo.nextSibling) titulo.parentNode.insertBefore(wrapper, titulo.nextSibling);
-      else titulo.parentNode.appendChild(wrapper);
-    } else if (relCont && wrapper) {
-      // fallback: antes do container de relatórios
-      relCont.parentNode.insertBefore(wrapper, relCont);
-    } else if (wrapper) {
-      document.body.appendChild(wrapper);
-    }
-
-    // garante seleção atualizada
-    select = document.getElementById('select-semana');
-    if (!select) return;
-
-    // 4) gera semanas Seg->Dom (como antes) usando arg.start / arg.end
-    const isoDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    const formatBR = iso => {
-      if (!iso) return '';
-      const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`;
-    };
-
-    const startView = new Date(arg.start.getFullYear(), arg.start.getMonth(), arg.start.getDate());
-    const endViewEx = new Date(arg.end.getFullYear(), arg.end.getMonth(), arg.end.getDate());
-
-    const first = new Date(startView);
-    const dow = first.getDay();
-    const shiftBack = (dow + 6) % 7;
-    first.setDate(first.getDate() - shiftBack);
-
-    const weeks = [];
-    const w = new Date(first);
-    while (w < endViewEx) {
-      const ws = new Date(w);
-      const we = new Date(w); we.setDate(ws.getDate() + 6);
-      weeks.push({ inicio: isoDate(ws), fim: isoDate(we) });
-      w.setDate(w.getDate() + 7);
-    }
-
-    const placeholder = `<option value="">Selecione a semana</option>`;
-    const opts = weeks.map((wk, i) => {
-      const label = `Semana ${i+1} — ${formatBR(wk.inicio)} → ${formatBR(wk.fim)}`;
-      return `<option value="${i+1}" data-inicio="${wk.inicio}" data-fim="${wk.fim}">${label}</option>`;
-    }).join('');
-    select.innerHTML = placeholder + opts;
-
-    // 5) attach/change handler (apenas uma vez)
-    if (!select._weekHandlerAttached) {
-      select.addEventListener('change', (ev) => {
-        const opt = ev.target.options[ev.target.selectedIndex];
-        if (!opt || !opt.dataset.inicio) return;
-        const s = opt.dataset.inicio, e = opt.dataset.fim;
-        if (typeof loadRelatoriosForRange === 'function') {
-          loadRelatoriosForRange(s, e);
-        } else {
-          fetch(`${window.relatoriosURL}?start=${s}&end=${e}`, { headers: {'X-Requested-With':'XMLHttpRequest'} })
-            .then(r => r.json()).then(data => {
-              const cont = document.getElementById('relatoriosContainer');
-              if (cont) cont.innerHTML = data.ok ? data.html : `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
-            }).catch(()=>{/* noop */});
-        }
-      });
-      select._weekHandlerAttached = true;
-    }
+    el.textContent = label;
   }
 
+  // ---------- popula select com semanas alinhadas ao view do calendário (Sáb->Sex) ----------
+  (function(){
+    // helpers de data (plantão Sáb->Sex)
+    const isoDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const formatBR = iso => { if(!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; };
+
+    function prevOrSameSaturday(d){
+      const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const shift = (dt.getDay() - 6 + 7) % 7; // 6 === Saturday
+      dt.setDate(dt.getDate() - shift);
+      return dt;
+    }
+    function nextOrSameMonday(d){
+      const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const shift = (1 - dt.getDay() + 7) % 7; // 1 === Monday
+      dt.setDate(dt.getDate() + shift);
+      return dt;
+    }
+
+    // debounce util
+    function debounce(fn, wait=120){
+      let t;
+      return function(...args){
+        clearTimeout(t);
+        t = setTimeout(()=>fn.apply(this, args), wait);
+      };
+    }
+
+    // flag para evitar concorrência de fetchs ao selecionar semana
+    window.__loadingWeek = false;
+
+    // handler centralizado (debounced)
+    async function onSelectSemanaChange(opt){
+      if (!opt || !opt.dataset.inicio) return;
+      const s = opt.dataset.inicio, e = opt.dataset.fim;
+      const globalIdx = opt.dataset.globalIndex || opt.value || '1';
+      const label = `Semana ${globalIdx} — ${formatBR(s)} → ${formatBR(e)}`;
+
+      // atualiza label imediatamente
+      try { writeSelectedWeekLabel(label); } catch(e){ console.error(e); }
+
+      // evita concorrência
+      if (window.__loadingWeek) {
+        console.debug('[weeks] seleção ignorada: carregamento em andamento');
+        return;
+      }
+      window.__loadingWeek = true;
+
+      try {
+        const tasks = [];
+        if (typeof loadRelatoriosForRange === 'function') tasks.push(loadRelatoriosForRange(s, e));
+        if (typeof fetchServidoresPlantao === 'function') tasks.push(fetchServidoresPlantao(s, e));
+        await Promise.allSettled(tasks);
+      } catch (err) {
+        console.error('[weeks] erro ao carregar semana', err);
+      } finally {
+        window.__loadingWeek = false;
+      }
+    }
+    const debouncedOnChange = debounce(opt => onSelectSemanaChange(opt), 100);
+
+    // função principal que popula o select (exportada)
+    window.populateWeeksSelect = function(arg){
+      const relCont = document.getElementById('relatoriosContainer');
+      // remove select(s) que foram injetados dentro do próprio relatório (server-side)
+      if (relCont) {
+        Array.from(relCont.querySelectorAll('#select-semana')).forEach(s=>{
+          const parentWrap = s.closest('#select-semana-wrapper');
+          if (parentWrap) parentWrap.remove(); else s.remove();
+        });
+      }
+
+      // cria/obtém select + wrapper
+      let select = document.getElementById('select-semana');
+      let wrapper = document.getElementById('select-semana-wrapper');
+
+      if (!select && !wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.id = 'select-semana-wrapper';
+        wrapper.className = 'mt-3 d-flex align-items-center gap-2';
+        wrapper.innerHTML = `
+          <label for="select-semana" class="mb-0 small text-muted">Semana:</label>
+          <select id="select-semana" class="form-select form-select-sm w-auto">
+            <option value="">Selecione a semana</option>
+          </select>
+        `;
+        select = wrapper.querySelector('#select-semana');
+      } else if (select && !wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.id = 'select-semana-wrapper';
+        wrapper.className = 'mt-3 d-flex align-items-center gap-2';
+        const label = document.createElement('label');
+        label.setAttribute('for','select-semana');
+        label.className = 'mb-0 small text-muted';
+        label.textContent = 'Semana:';
+        const originalParent = select.parentNode;
+        wrapper.appendChild(label);
+        wrapper.appendChild(select);
+        if (originalParent) originalParent.insertBefore(wrapper, select);
+      } else if (wrapper && !select) {
+        select = document.createElement('select');
+        select.id = 'select-semana';
+        select.className = 'form-select form-select-sm w-auto';
+        select.innerHTML = `<option value="">Selecione a semana</option>`;
+        wrapper.appendChild(select);
+      }
+
+      // insere logo após título "Relatórios"
+      const titulo = Array.from(document.querySelectorAll('h1,h2,h3,h4')).find(h => /relat[oó]rios/i.test(h.textContent));
+      if (titulo && wrapper) {
+        if (titulo.nextSibling) titulo.parentNode.insertBefore(wrapper, titulo.nextSibling);
+        else titulo.parentNode.appendChild(wrapper);
+      } else if (relCont && wrapper) {
+        relCont.parentNode.insertBefore(wrapper, relCont);
+      } else if (wrapper) {
+        document.body.appendChild(wrapper);
+      }
+
+      // garante select atualizado
+      select = document.getElementById('select-semana');
+      if (!select) return;
+
+      // build plantaoWeeks (Sáb -> Sex) usando arg.start / arg.end
+      const startView = new Date(arg.start.getFullYear(), arg.start.getMonth(), arg.start.getDate());
+      const endViewEx = new Date(arg.end.getFullYear(), arg.end.getMonth(), arg.end.getDate()); // exclusive
+
+      const plantaoWeeks = [];
+      let curSat = prevOrSameSaturday(startView);
+      while (curSat < endViewEx) {
+        const ws = new Date(curSat);
+        const we = new Date(curSat); we.setDate(ws.getDate() + 6);
+        plantaoWeeks.push({ inicioObj: new Date(ws), inicio: isoDate(ws), fim: isoDate(we) });
+        curSat = new Date(curSat); curSat.setDate(curSat.getDate() + 7);
+      }
+
+      // primeiro Monday de referência dentro da view
+      const firstMondayInView = nextOrSameMonday(startView);
+
+      // encontra offsetIndex — primeira plantaoWeek cuja segunda-feira (dentro do Sáb->Sex) >= firstMondayInView
+      let offsetIndex = 0;
+      for (let i=0;i<plantaoWeeks.length;i++){
+        const wk = plantaoWeeks[i];
+        const mondayOfWeek = nextOrSameMonday(wk.inicioObj);
+        if (mondayOfWeek.getTime() >= firstMondayInView.getTime()) { offsetIndex = i; break; }
+      }
+
+      // cria options A PARTIR do offsetIndex, numerando com índice global correto
+      const sliceWeeks = plantaoWeeks.slice(offsetIndex);
+      const placeholder = `<option value="">Selecione a semana</option>`;
+      const opts = sliceWeeks.map((wk, idx) => {
+        const globalIndex = offsetIndex + idx + 1; // índice global (começa em 1)
+        const label = `Semana ${globalIndex} — ${formatBR(wk.inicio)} → ${formatBR(wk.fim)}`;
+        return `<option value="${globalIndex}" data-inicio="${wk.inicio}" data-fim="${wk.fim}" data-global-index="${globalIndex}">${label}</option>`;
+      }).join('');
+      select.innerHTML = placeholder + opts;
+
+      // (re)anexa handler de mudança de forma segura — remove antigo se existir
+      if (select.__weekHandler) {
+        select.removeEventListener('change', select.__weekHandler, true);
+        delete select.__weekHandler;
+      }
+      const localHandler = function(ev){
+        const opt = select.options[select.selectedIndex];
+        debouncedOnChange(opt);
+      };
+      select.addEventListener('change', localHandler, true);
+      select.__weekHandler = localHandler;
+
+      // se houver já uma option selecionada (por exemplo, server-side), dispara a ação uma vez
+      if (select.selectedIndex > 0) {
+        setTimeout(()=> {
+          const opt = select.options[select.selectedIndex];
+          debouncedOnChange(opt);
+        }, 50);
+      }
+    };
+
+    // Observador para reaplicar o handler quando o relatoriosContainer for re-renderizado
+    const relContRoot = document.getElementById('relatoriosContainer');
+    if (relContRoot && window.MutationObserver) {
+      const mo = new MutationObserver(debounce(() => {
+        // reaplica handler se select existir (populateWeeksSelect cuida de criar)
+        const sel = document.getElementById('select-semana');
+        if (sel && !sel.__weekHandler) {
+          if (window._lastCalendarArg) {
+            try { window.populateWeeksSelect(window._lastCalendarArg); } catch(e){ /*silent*/ }
+          }
+        }
+      }, 80));
+      mo.observe(relContRoot, { childList: true, subtree: true });
+    }
+  })(); // end IIFE for populateWeeksSelect helpers
+
+  // Listener global: qualquer mudança no select-semana usa o texto da option para atualizar header e buscar plantao
+  document.addEventListener('change', (ev) => {
+    const sel = ev.target;
+    if (!sel || sel.id !== 'select-semana') return;
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt) return;
+
+    const s = opt.dataset.inicio || null;
+    const e = opt.dataset.fim || null;
+    const globalIdx = opt.dataset.globalIndex || opt.value || '1';
+    const labelText = `Semana ${globalIdx} — ${formatBRFromISO(s)} → ${formatBRFromISO(e)}`;
+
+    // atualiza o cabeçalho de plantão com o texto da option
+    try { writeSelectedWeekLabel(labelText); }
+    catch(e){ console.error('writeSelectedWeekLabel erro', e); }
+
+    // chama fetchServidoresPlantao (se existir)
+    try { if (typeof fetchServidoresPlantao === 'function') fetchServidoresPlantao(s, e); }
+    catch(e){ console.error('fetchServidoresPlantao erro', e); }
+
+    // também atualiza o relatório parcial (comportamento anterior)
+    try { if (typeof loadRelatoriosForRange === 'function') loadRelatoriosForRange(s, e); }
+    catch(e){ /* não bloqueia */ }
+  }, true);
+
+  // Depois de injetar o relatório via AJAX, se houver um select e uma option selecionada,
+  // escreve o label (caso o servidor já tenha injetado um "Semana X ...").
+  (function ensureSelectedWeekLabelAfterLoad(){
+    // observe mutações no contêiner de relatórios para reagir quando o HTML for substituído via AJAX
+    const relCont = document.getElementById('relatoriosContainer');
+    if (!relCont || !window.MutationObserver) return;
+    const obs = new MutationObserver((mutations) => {
+      // se já houver select com opção selecionada, escreve o label
+      const sel = document.getElementById('select-semana');
+      if (sel && sel.selectedIndex > 0) {
+        const opt = sel.options[sel.selectedIndex];
+        writeSelectedWeekLabel(opt.textContent.trim(), opt.dataset.inicio, opt.dataset.fim);
+      }
+    });
+    obs.observe(relCont, { childList: true, subtree: true });
+  })();
 
   /* ---------- Excluir programação ---------- */
   btnExcluir?.addEventListener('click', async () => {
@@ -1091,25 +1380,6 @@ document.addEventListener('DOMContentLoaded', () => {
       btnSalvar.disabled = false;
     }
 
-    // helper pra carregar o relatório por AJAX
-    async function loadRelatoriosForRange(startISO, endISO) {
-      const container = document.getElementById('relatoriosContainer');
-      if (!container) return;
-      container.innerHTML = `
-        <div class="text-center my-4">
-          <div class="spinner-border" role="status" aria-hidden="true"></div>
-          <div class="small text-muted mt-2">Carregando relatório…</div>
-        </div>`;
-      try {
-        const url = `${window.location.origin}{% url 'programar_atividades:relatorios_parcial' %}?start=${startISO}&end=${endISO}`;
-        const resp = await fetch(url, { headers: {'X-Requested-With':'XMLHttpRequest'} });
-        const data = await resp.json();
-        container.innerHTML = data.ok ? data.html :
-          `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
-      } catch (e) {
-        container.innerHTML = `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
-      }
-    }
   });
 });
 </script>

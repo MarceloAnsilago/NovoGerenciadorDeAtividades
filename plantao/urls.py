@@ -11,4 +11,5 @@ urlpatterns = [
     path("<int:pk>/excluir/", views.plantao_excluir, name="plantao_excluir"),
     path('imprimir/<int:pk>/', views.plantao_imprimir, name='imprimir_plantao'),
     path('pagina/', views.ver_plantoes, name='pagina_plantao'),
+    path('api/servidores_por_intervalo/', views.servidores_por_intervalo, name='servidores_por_intervalo'),
 ]
