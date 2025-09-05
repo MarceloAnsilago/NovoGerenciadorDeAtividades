@@ -11,9 +11,11 @@
     <select id="select-semana" class="form-select form-select-sm w-auto">
       <option value="">Selecione a semana</option>
       {% for s in semanas %}
-        <option value="{{ s.index }}" data-inicio="{{ s.inicio.isoformat }}" data-fim="{{ s.fim.isoformat }}">
-          {{ s.label }}
-        </option>
+        <option
+          value="{{ s.index }}"
+          data-inicio="{{ s.inicio.isoformat }}"
+          data-fim="{{ s.fim.isoformat }}"
+        >{{ s.label }}</option>
       {% endfor %}
     </select>
   </div>

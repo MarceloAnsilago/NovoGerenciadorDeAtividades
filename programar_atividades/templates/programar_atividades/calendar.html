@@ -703,16 +703,54 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="spinner-border" role="status"></div>
         <div class="small text-muted mt-2">Carregando relatório…</div>
       </div>`;
+
     try {
       const resp = await fetch(`${window.relatoriosURL}?start=${startISO}&end=${endISO}`,
         { headers: {'X-Requested-With':'XMLHttpRequest'} });
       const data = await resp.json();
+
       container.innerHTML = data.ok ? data.html :
         `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
+
+      // ---- REMOVE selects duplicados que o HTML do relatório possa ter injetado ----
+      try {
+        const dup = container.querySelectorAll('#select-semana');
+        dup.forEach(s => {
+          const wrap = s.closest('#select-semana-wrapper');
+          if (wrap) wrap.remove(); else s.remove();
+        });
+      } catch (e) { /* silent */ }
+
+      // ---- remover label/texto "Semana" sobrando dentro do relatório ----
+      try {
+        // labels explícitos
+        container.querySelectorAll('label[for="select-semana"]').forEach(n => n.remove());
+        // wrappers ou selects eventuais
+        container.querySelectorAll('#select-semana, #select-semana-wrapper').forEach(n => n.remove());
+
+        // limpar nós de texto soltos que iniciem com 'Semana'
+        Array.from(container.childNodes).forEach(node => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (node.textContent.trim().toLowerCase().startsWith('semana')) node.remove();
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const txt = (node.textContent || '').trim().toLowerCase();
+            if (txt === 'semana' || txt === 'semana:') node.remove();
+          }
+        });
+      } catch (e) { /* silent */ }
+
+      // ---- Reaplicar populateWeeksSelect com o arg salvo (se disponível) ----
+      try {
+        if (typeof populateWeeksSelect === 'function' && window._lastCalendarArg) {
+          populateWeeksSelect(window._lastCalendarArg);
+        }
+      } catch (e) { /* silent */ }
+
     } catch {
       container.innerHTML = `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
     }
   }
+
 
   /* ---------- Calendar ---------- */
   const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -724,11 +762,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 👇 carrega o relatório sempre que o range do calendário mudar
     datesSet(arg) {
+      window._lastCalendarArg = arg;
       // arg.end é exclusivo: recua 1 dia
       const endAdj = new Date(arg.end.getTime() - 24*60*60*1000);
       const startISO = arg.start.toISOString().slice(0,10);
       const endISO   = endAdj.toISOString().slice(0,10);
       loadRelatoriosForRange(startISO, endISO);
+      populateWeeksSelect(arg);
     },
 
     async dateClick(info){
@@ -756,7 +796,134 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   calendar.render();
-// (não precisa chamar o relatório aqui; o datesSet roda após render)
+  // (não precisa chamar o relatório aqui; o datesSet roda após render)
+  // ---------- helper para popular o select de semanas ----------
+  function formatBRFromISO(iso){
+    // iso esperado: 'YYYY-MM-DD'
+    if (!iso) return '';
+    const parts = iso.split('-');
+    if (parts.length !== 3) return iso;
+    return `${parts[2].padStart(2,'0')}/${parts[1].padStart(2,'0')}/${parts[0]}`;
+  }
+
+ 
+  // ---------- popula select com semanas alinhadas ao view do calendário (Seg -> Dom) ----------
+// Versão que coloca o select exatamente abaixo do título <h2> "Relatórios"
+
+  function populateWeeksSelect(arg){
+    // 1) remove qualquer select-server-side duplicado que esteja DENTRO do bloco de relatórios
+    const relCont = document.getElementById('relatoriosContainer');
+    if (relCont) {
+      // remove selects com id igual que estejam dentro do container (o "de baixo")
+      Array.from(relCont.querySelectorAll('#select-semana')).forEach(s => {
+        const parentWrap = s.closest('#select-semana-wrapper');
+        if (parentWrap) parentWrap.remove();
+        else s.remove();
+      });
+    }
+
+    // 2) agora pegue (ou crie) o select principal
+    let select = document.getElementById('select-semana');
+    let wrapper = document.getElementById('select-semana-wrapper');
+
+    if (!select && !wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.id = 'select-semana-wrapper';
+      wrapper.className = 'mt-3 d-flex align-items-center gap-2';
+      wrapper.innerHTML = `
+        <label for="select-semana" class="mb-0 small text-muted">Semana:</label>
+        <select id="select-semana" class="form-select form-select-sm w-auto">
+          <option value="">Selecione a semana</option>
+        </select>
+      `;
+      select = wrapper.querySelector('#select-semana');
+    } else if (select && !wrapper) {
+      // move select existente para um wrapper
+      wrapper = document.createElement('div');
+      wrapper.id = 'select-semana-wrapper';
+      wrapper.className = 'mt-3 d-flex align-items-center gap-2';
+      const label = document.createElement('label');
+      label.setAttribute('for','select-semana');
+      label.className = 'mb-0 small text-muted';
+      label.textContent = 'Semana:';
+      const originalParent = select.parentNode;
+      wrapper.appendChild(label);
+      wrapper.appendChild(select);
+      if (originalParent) originalParent.insertBefore(wrapper, select);
+    } else if (wrapper && !select) {
+      select = document.createElement('select');
+      select.id = 'select-semana';
+      select.className = 'form-select form-select-sm w-auto';
+      select.innerHTML = `<option value="">Selecione a semana</option>`;
+      wrapper.appendChild(select);
+    }
+
+    // 3) posicione o wrapper logo abaixo do título "Relatórios"
+    const titulo = Array.from(document.querySelectorAll('h1,h2,h3,h4')).find(h => /relat[oó]rios/i.test(h.textContent));
+    if (titulo && wrapper) {
+      if (titulo.nextSibling) titulo.parentNode.insertBefore(wrapper, titulo.nextSibling);
+      else titulo.parentNode.appendChild(wrapper);
+    } else if (relCont && wrapper) {
+      // fallback: antes do container de relatórios
+      relCont.parentNode.insertBefore(wrapper, relCont);
+    } else if (wrapper) {
+      document.body.appendChild(wrapper);
+    }
+
+    // garante seleção atualizada
+    select = document.getElementById('select-semana');
+    if (!select) return;
+
+    // 4) gera semanas Seg->Dom (como antes) usando arg.start / arg.end
+    const isoDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const formatBR = iso => {
+      if (!iso) return '';
+      const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`;
+    };
+
+    const startView = new Date(arg.start.getFullYear(), arg.start.getMonth(), arg.start.getDate());
+    const endViewEx = new Date(arg.end.getFullYear(), arg.end.getMonth(), arg.end.getDate());
+
+    const first = new Date(startView);
+    const dow = first.getDay();
+    const shiftBack = (dow + 6) % 7;
+    first.setDate(first.getDate() - shiftBack);
+
+    const weeks = [];
+    const w = new Date(first);
+    while (w < endViewEx) {
+      const ws = new Date(w);
+      const we = new Date(w); we.setDate(ws.getDate() + 6);
+      weeks.push({ inicio: isoDate(ws), fim: isoDate(we) });
+      w.setDate(w.getDate() + 7);
+    }
+
+    const placeholder = `<option value="">Selecione a semana</option>`;
+    const opts = weeks.map((wk, i) => {
+      const label = `Semana ${i+1} — ${formatBR(wk.inicio)} → ${formatBR(wk.fim)}`;
+      return `<option value="${i+1}" data-inicio="${wk.inicio}" data-fim="${wk.fim}">${label}</option>`;
+    }).join('');
+    select.innerHTML = placeholder + opts;
+
+    // 5) attach/change handler (apenas uma vez)
+    if (!select._weekHandlerAttached) {
+      select.addEventListener('change', (ev) => {
+        const opt = ev.target.options[ev.target.selectedIndex];
+        if (!opt || !opt.dataset.inicio) return;
+        const s = opt.dataset.inicio, e = opt.dataset.fim;
+        if (typeof loadRelatoriosForRange === 'function') {
+          loadRelatoriosForRange(s, e);
+        } else {
+          fetch(`${window.relatoriosURL}?start=${s}&end=${e}`, { headers: {'X-Requested-With':'XMLHttpRequest'} })
+            .then(r => r.json()).then(data => {
+              const cont = document.getElementById('relatoriosContainer');
+              if (cont) cont.innerHTML = data.ok ? data.html : `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
+            }).catch(()=>{/* noop */});
+        }
+      });
+      select._weekHandlerAttached = true;
+    }
+  }
 
 
   /* ---------- Excluir programação ---------- */

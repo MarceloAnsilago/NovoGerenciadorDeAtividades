@@ -586,38 +586,40 @@ def excluir_programacao(request: HttpRequest):
 
 # programar_atividades/views.py (adicione ao seu arquivo)
 
+# --- helpers para semanas Sáb → Sex (compatível com Plantao) ---
+def _prev_or_same_saturday(d: date) -> date:
+    """Retorna o sábado anterior ou o próprio se d for sábado.
+    weekday(): Mon=0 .. Sun=6 ; Saturday=5"""
+    return d - timedelta(days=(d.weekday() - 5) % 7)
 
-def _ordinal_pt(n: int) -> str:
-    # retorna "Primeira", "Segunda", "3ª", ...
-    ord_map = {1: "Primeira", 2: "Segunda", 3: "Terceira", 4: "Quarta", 5: "Quinta", 6: "Sexta"}
-    if n in ord_map:
-        return ord_map[n]
-    return f"{n}ª"
+def _next_or_same_friday(d: date) -> date:
+    """Retorna a próxima sexta (ou a própria se d for sexta). Friday=4"""
+    return d + timedelta(days=(4 - d.weekday()) % 7)
 
-def _weeks_start_to_end(start: date, end: date):
+def _weeks_sat_to_fri(dt_ini: date, dt_fim: date):
     """
-    Divide o intervalo [start, end] em blocos de 7 dias:
-    [start, start+6], [start+7, start+13], ...
-    Retorna lista de dicts: {'index': i, 'inicio': date, 'fim': date, 'label': str}
+    Gera uma lista de (inicio, fim) onde cada semana começa no sábado e termina na sexta.
+    O primeiro início é o sábado <= dt_ini; o último fim é a sexta >= dt_fim.
+    Retorna lista de tuples (inicio: date, fim: date).
     """
+    start = _prev_or_same_saturday(dt_ini)
+    last = _next_or_same_friday(dt_fim)
     weeks = []
     cur = start
-    i = 1
-    while cur <= end:
-        wk_end = cur + timedelta(days=6)
-        if wk_end > end:
-            wk_end = end
-        label = f"{_ordinal_pt(i)} ({cur.strftime('%d/%m/%Y')} → {wk_end.strftime('%d/%m/%Y')})"
-        weeks.append({"index": i, "inicio": cur, "fim": wk_end, "label": label})
-        cur = cur + timedelta(days=7)
-        i += 1
+    while cur <= last:
+        weeks.append((cur, cur + timedelta(days=6)))  # sábado -> sexta (6 dias depois)
+        cur += timedelta(days=7)
     return weeks
+
+def _ordinal_pt(n: int) -> str:
+    ord_map = {1: "Primeira", 2: "Segunda", 3: "Terceira", 4: "Quarta", 5: "Quinta", 6: "Sexta", 7: "Sétima"}
+    return ord_map.get(n, f"{n}ª")
 
 @login_required
 @require_GET
 def relatorios_parcial(request: HttpRequest):
     """
-    Retorna partial com título/intervalo e selectbox de semanas dentro do intervalo.
+    Retorna partial com título/intervalo e selectbox de semanas alinhadas Sábado→Sexta.
     Query params:
       - start=YYYY-MM-DD
       - end=YYYY-MM-DD
@@ -638,8 +640,13 @@ def relatorios_parcial(request: HttpRequest):
 
     end_qs = parse_date(request.GET.get("end") or "") or month_end
 
-    # monta as semanas (lista de dicts com index, inicio, fim, label)
-    semanas = _weeks_start_to_end(start_qs, end_qs)
+    # monta semanas alinhadas Sáb→Sex (mesma forma de persistência do Plantao)
+    raw_weeks = _weeks_sat_to_fri(start_qs, end_qs)
+    semanas = []
+    for i, (ini, fim) in enumerate(raw_weeks, start=1):
+        # se o último fim ultrapassar `end_qs`, mantemos fim como calculado (Plantao grava Sáb→Sex completo)
+        label = f"{_ordinal_pt(i)} ({ini.strftime('%d/%m/%Y')} → {fim.strftime('%d/%m/%Y')})"
+        semanas.append({"index": i, "inicio": ini, "fim": fim, "label": label})
 
     html = render_to_string(
         "programar_atividades/_relatorios.html",
