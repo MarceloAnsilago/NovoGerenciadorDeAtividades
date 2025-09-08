@@ -776,21 +776,43 @@ document.addEventListener('DOMContentLoaded', () => {
     function isoDate(d){ return d.toISOString().slice(0,10); }
 
     // converte intervalo (p.ex. Mon->Sun) para a convenção do app plantao (Sat->Fri)
+    // parse YYYY-MM-DD como data LOCAL (meia-noite local)
+    function parseYMDLocal(dstr){
+      if (!dstr) return null;
+      const parts = String(dstr).split('-').map(x => parseInt(x,10));
+      if (parts.length !== 3 || parts.some(isNaN)) return null;
+      const [y,m,d] = parts;
+      return new Date(y, m - 1, d); // midnight local
+    }
+
+    // formata Date local para 'YYYY-MM-DD' sem passar por toISOString()
+    function formatLocalYMD(d){
+      if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
+      const Y = d.getFullYear();
+      const M = String(d.getMonth() + 1).padStart(2,'0');
+      const D = String(d.getDate()).padStart(2,'0');
+      return `${Y}-${M}-${D}`;
+    }
+
     function normalizeToPlantaoRange(startISO, endISO){
-      const s = toDate(startISO);
-      const e = toDate(endISO);
+      // usa parse local para evitar drift por timezone/UTC
+      const s = parseYMDLocal(startISO);
+      const e = parseYMDLocal(endISO);
+      if (!s || !e) return { inicio_plantao: startISO, fim_plantao: endISO };
 
-      // prev_or_same_saturday
-      const dowS = s.getUTCDay(); // 0=Sun..6=Sat
-      const shiftToSat = (dowS - 6 + 7) % 7; // dias a retroceder para chegar ao sábado anterior/igual
-      const sat = new Date(s); sat.setUTCDate(s.getUTCDate() - shiftToSat);
+      // prev_or_same_saturday (local)
+      const dowS = s.getDay(); // 0=Sun..6=Sat
+      const shiftToSat = (dowS - 6 + 7) % 7;
+      const sat = new Date(s);
+      sat.setDate(s.getDate() - shiftToSat);
 
-      // next_or_same_friday
-      const dowE = e.getUTCDay();
-      const shiftToFri = (4 - dowE + 7) % 7; // dias a avançar para próxima sexta/igual
-      const fri = new Date(e); fri.setUTCDate(e.getUTCDate() + shiftToFri);
+      // next_or_same_friday (local)
+      const dowE = e.getDay(); // 0=Sun..6=Sat
+      const shiftToFri = (5 - dowE + 7) % 7; // 5 == Friday
+      const fri = new Date(e);
+      fri.setDate(e.getDate() + shiftToFri);
 
-      return { inicio_plantao: isoDate(sat), fim_plantao: isoDate(fri) };
+      return { inicio_plantao: formatLocalYMD(sat), fim_plantao: formatLocalYMD(fri) };
     }
 
     // cria/retorna container para mostrar servidores de plantão
