@@ -735,9 +735,11 @@ def servidores_por_intervalo(request):
                     "nome": nome,
                     "telefone": telefone_final,
                 })
+       
             semanas_out.append({
                 "inicio": semana.inicio.isoformat(),
                 "fim": semana.fim.isoformat(),
+                "label": f"{semana.inicio.strftime('%d/%m/%Y')} → {semana.fim.strftime('%d/%m/%Y')}",
                 "servidores": servidores
             })
 

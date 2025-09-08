@@ -101,6 +101,12 @@
   .fc-daygrid-day-events{flex:1;display:flex;align-items:center;justify-content:center}
   .fc-daygrid-event{min-height:14px;font-size:.75rem;padding:1px 4px;border-radius:4px;line-height:1.2}
   .fc-daygrid-event-harness,.fc-daygrid-event{width:100%!important;display:block}
+
+  /* separador da semana/plantão */
+  .plantao-week-sep { display:flex; align-items:center; gap:0.5rem; }
+  .plantao-week-sep .plantao-week-line { height:1px; background:#e9ecef; min-width:40px; }
+  .plantao-week-sep .plantao-week-text { white-space:nowrap; color: #495057; }
+
 </style>
 {% endblock %}
 
@@ -788,69 +794,123 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // cria/retorna container para mostrar servidores de plantão
-    function getOrCreatePlantaoContainer(){
-      let c = document.getElementById('servidoresPlantaoContainer');
-      if (!c){
-        c = document.createElement('div');
-        c.id = 'servidoresPlantaoContainer';
-        c.className = 'mt-3';
-        // tenta inserir logo abaixo do wrapper do select
-        const wrapper = document.getElementById('select-semana-wrapper');
-        if (wrapper && wrapper.parentNode) wrapper.parentNode.insertBefore(c, wrapper.nextSibling);
-        else {
-          const rel = document.getElementById('relatoriosContainer') || document.body;
-          rel.parentNode.insertBefore(c, rel);
-        }
+    function getOrCreatePlantaoContainer() {
+      let cont = document.getElementById('servidoresPlantaoContainer');
+      if (cont) return cont;
+
+      cont = document.createElement('div');
+      cont.id = 'servidoresPlantaoContainer';
+      cont.className = 'mt-4';
+      // estilos defensivos para evitar ficar sob a sidebar
+      cont.style.position = 'relative';
+      cont.style.zIndex = '1';
+      cont.style.clear = 'both';
+
+      // 1) tenta inserir após o wrapper do select (se existir)
+      const wrapper = document.getElementById('select-semana-wrapper');
+      if (wrapper && wrapper.parentNode) {
+        wrapper.parentNode.insertBefore(cont, wrapper.nextSibling);
+        console.debug('[plantao] container inserido após select-semana-wrapper');
+        return cont;
       }
-      return c;
+
+      // 2) tenta inserir após título "Relatórios" (procura h1..h4 com texto)
+      const titulo = Array.from(document.querySelectorAll('h1,h2,h3,h4'))
+        .find(h => /relat[oó]rios/i.test(h.textContent || ''));
+      if (titulo && titulo.parentNode) {
+        if (titulo.nextSibling) titulo.parentNode.insertBefore(cont, titulo.nextSibling);
+        else titulo.parentNode.appendChild(cont);
+        console.debug('[plantao] container inserido após título Relatórios');
+        return cont;
+      }
+
+      // 3) tenta colocar dentro do container principal da página (mais seguro que .container genérico)
+      const mainContainer = document.querySelector('.container.my-4') 
+                        || document.querySelector('.container') 
+                        || document.querySelector('main');
+      if (mainContainer) {
+        mainContainer.appendChild(cont);
+        console.debug('[plantao] container anexado ao mainContainer');
+        return cont;
+      }
+
+      // 4) fallback final
+      document.body.appendChild(cont);
+      console.debug('[plantao] container anexado ao body (fallback)');
+      return cont;
     }
 
+    // Observador leve para recriar o container se um re-render do relatório o remover.
+    // Debounce simples para não ficar recriando sem parar.
+    (function ensurePlantaoContainerSurvive() {
+      let timer = null;
+      const ensure = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          if (!document.getElementById('servidoresPlantaoContainer')) {
+            console.debug('[plantao] container ausente — recriando');
+            getOrCreatePlantaoContainer();
+          }
+        }, 120);
+      };
+
+      // Observe mutações que provavelmente removem o relatório
+      if (window.MutationObserver) {
+        const mo = new MutationObserver(ensure);
+        mo.observe(document.body, { childList: true, subtree: true });
+      } else {
+        // fallback: checa periodicamente
+        setInterval(() => {
+          if (!document.getElementById('servidoresPlantaoContainer')) getOrCreatePlantaoContainer();
+        }, 2000);
+      }
+    })();
+
+
+
+
     // faz fetch e renderiza
-    async function fetchServidoresPlantao(startISO, endISO){
+  
+    async function fetchServidoresPlantao(startISO, endISO) {
       const container = getOrCreatePlantaoContainer();
       container.innerHTML = `<div class="small text-muted">Carregando servidores de plantão…</div>`;
 
-      // normaliza para o formato do app plantao (Sáb->Sex)
       const norm = normalizeToPlantaoRange(startISO, endISO);
 
-      // chama endpoint (GET)
       const url = new URL(window.plantaoSemanaURL, window.location.origin);
       url.searchParams.set('start', norm.inicio_plantao);
-      url.searchParams.set('end',   norm.fim_plantao);
-      // também envia os originais por segurança
+      url.searchParams.set('end', norm.fim_plantao);
       url.searchParams.set('orig_start', startISO);
-      url.searchParams.set('orig_end',   endISO);
+      url.searchParams.set('orig_end', endISO);
 
       console.debug('[plantao] fetch URL:', String(url));
 
       try {
-        const resp = await fetch(String(url), { headers: {'X-Requested-With': 'XMLHttpRequest'} });
+        const resp = await fetch(String(url), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         const text = await resp.text();
 
         let data;
-        try { data = JSON.parse(text); }
-        catch (e) {
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
           container.innerHTML = `<div class="alert alert-danger">Resposta inválida do servidor (não JSON). Veja console.</div>`;
           console.error('[plantao] parse JSON failed', e, text);
           return;
         }
 
         if (!data || data.ok === false || !Array.isArray(data.semanas)) {
-          container.innerHTML = `<div class="alert alert-warning">Nenhum plantão encontrado ou erro: ${data && data.error ? data.error : 'sem dados'}</div>`;
+          container.innerHTML = `<div class="alert alert-warning">Nenhum plantão encontrado ou erro: ${data?.error || 'sem dados'}</div>`;
           return;
         }
 
-        // Função helper para comparar conjuntos de IDs (ordenados)
         function serverIdSet(sem) {
           return (sem.servidores || []).map(s => String(s.id)).sort().join(',');
         }
 
-        // Merge: colapsa semanas CONSECUTIVAS com MESMO conjunto de servidores,
-        // mantendo o índice original da primeira semana do bloco.
         const merged = [];
         for (let i = 0; i < data.semanas.length; i++) {
           const wk = data.semanas[i];
-          const weekIndex = i + 1; // índice original na resposta (1-based)
+          const weekIndex = i + 1;
           const normalized = {
             inicio: wk.inicio,
             fim: wk.fim,
@@ -866,7 +926,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const prev = merged[merged.length - 1];
           if (serverIdSet(prev) === serverIdSet(normalized)) {
-            // Mescla estendendo o fim e incrementando contador
             prev.fim = normalized.fim;
             prev.count = (prev.count || 1) + 1;
           } else {
@@ -874,16 +933,17 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Renderiza as semanas mescladas usando o índice original (indexStart)
         const html = merged.map((wk) => {
-          const labelIndex = wk.count && wk.count > 1
-            ? `Semana ${wk.indexStart} (agrupou ${wk.count} semanas)`
-            : `Semana ${wk.indexStart}`;
+          const periodoLabel = `${formatBRFromISO(wk.inicio)} → ${formatBRFromISO(wk.fim)}`;
+          const agrupamento = wk.count > 1 ? ` <span class="text-muted">(agrupando ${wk.count} semanas)</span>` : '';
+          const header = `<div class="fw-semibold mb-1">${periodoLabel}${agrupamento}</div>`;
 
-          const header = `<div class="fw-semibold">${labelIndex}: ${wk.inicio} → ${wk.fim}</div>`;
           const list = (wk.servidores || []).length
-            ? `<ul class="mb-2">${(wk.servidores||[]).map(s=>`<li>${s.nome}${s.telefone?` — ${s.telefone}`:''}</li>`).join('')}</ul>`
+            ? `<ul class="mb-2">${(wk.servidores || []).map(s => `
+                <li>${s.nome}${s.telefone ? ` — ${s.telefone}` : ''}</li>
+              `).join('')}</ul>`
             : `<div class="text-muted mb-2">Nenhum servidor atribuído nesta semana</div>`;
+
           return `<div class="mb-2">${header}${list}</div>`;
         }).join('');
 
@@ -894,6 +954,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = `<div class="alert alert-danger">Erro ao buscar servidores de plantão. Veja console.</div>`;
       }
     }
+
 
     window.fetchServidoresPlantao = fetchServidoresPlantao;
 
@@ -937,21 +998,34 @@ document.addEventListener('DOMContentLoaded', () => {
         Programar atividades para o dia ${dataBR}
       `;
 
-      await Promise.all([loadMetas(), loadServidores(info.dateStr)]);
+      // 👇 MOSTRA O MODAL ANTES DE CARREGAR
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
 
-      try{
-        const r = await fetch(`${window.programacaoURL}?data=${info.dateStr}`, { headers:{'X-Requested-With':'XMLHttpRequest'} });
+      try {
+        await Promise.all([
+          loadMetas(),
+          loadServidores(info.dateStr)
+        ]);
+
+        const r = await fetch(`${window.programacaoURL}?data=${info.dateStr}`, {
+          headers: {'X-Requested-With': 'XMLHttpRequest'}
+        });
         const data = await r.json();
-        currentProgId = null; setDeleteEnabled(false);
+
+        currentProgId = null;
+        setDeleteEnabled(false);
+
         if (data && data.ok && data.programacao) {
           currentProgId = data.programacao.id || null;
           setDeleteEnabled(!!currentProgId);
           applyProgramacao(data.programacao);
         }
-      } catch{}
 
-      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      } catch (err) {
+        console.error('Erro ao carregar programação:', err);
+      }
     }
+
   });
   calendar.render();
 
@@ -965,20 +1039,53 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // helper pra escrever/atualizar o cabeçalho "Semana ..." no DOM
-  function writeSelectedWeekLabel(label) {
-    if (!label) return;
-    const relCont = document.getElementById('relatoriosContainer');
-    if (!relCont) return;
-    // procura elemento existente com classe plantao-week-label
-    let el = document.querySelector('.plantao-week-label');
-    if (!el) {
-      el = document.createElement('div');
-      el.className = 'plantao-week-label fw-semibold mb-2';
-      if (relCont.parentNode) relCont.parentNode.insertBefore(el, relCont);
-      else document.body.insertBefore(el, document.body.firstChild);
+    function writeSelectedWeekLabel(...args) {
+      // aceita:
+      // - writeSelectedWeekLabel("Texto já formatado")
+      // - writeSelectedWeekLabel(startISO, endISO)
+      // - writeSelectedWeekLabel(labelString, startISO, endISO) (compatível)
+      if (!args || args.length === 0) return;
+
+      // monta o texto do label
+      let label = '';
+      if (args.length === 1) {
+        label = String(args[0] || '').trim();
+      } else if (args.length >= 2) {
+        const a = String(args[0] || '').trim();
+        const b = String(args[1] || '').trim();
+        // se o primeiro já contém uma seta, assume que é label pronto
+        if (a.includes('→') || a.includes('->')) {
+          label = a;
+        } else {
+          // formata ISO para BR
+          const format = s => formatBRFromISO(s);
+          label = `${format(a)} → ${format(b)}`;
+        }
+      }
+      if (!label) return;
+
+      // remove separador antigo (se houver) para evitar duplicatas
+      const old = document.querySelector('.plantao-week-sep');
+      if (old) old.remove();
+
+      // elemento container onde vamos inserir (antes de #relatoriosContainer)
+      const relCont = document.getElementById('relatoriosContainer');
+      if (!relCont) return;
+
+      // cria separador: linha + texto centralizado + linha
+      const sep = document.createElement('div');
+      sep.className = 'plantao-week-sep d-flex align-items-center my-3';
+      sep.innerHTML = `
+        <div class="plantao-week-line flex-grow-1" aria-hidden="true"></div>
+        <div class="plantao-week-text mx-3 text-muted fw-semibold small">${label}</div>
+        <div class="plantao-week-line flex-grow-1" aria-hidden="true"></div>
+      `;
+
+      // insere antes do container de relatórios
+      if (relCont.parentNode) relCont.parentNode.insertBefore(sep, relCont);
+      else document.body.insertBefore(sep, document.body.firstChild);
     }
-    el.textContent = label;
-  }
+
 
   // ---------- popula select com semanas alinhadas ao view do calendário (Sáb->Sex) ----------
   (function(){
@@ -1016,7 +1123,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!opt || !opt.dataset.inicio) return;
       const s = opt.dataset.inicio, e = opt.dataset.fim;
       const globalIdx = opt.dataset.globalIndex || opt.value || '1';
-      const label = `Semana ${globalIdx} — ${formatBR(s)} → ${formatBR(e)}`;
+      writeSelectedWeekLabel(s, e);
 
       // atualiza label imediatamente
       try { writeSelectedWeekLabel(label); } catch(e){ console.error(e); }
@@ -1042,115 +1149,103 @@ document.addEventListener('DOMContentLoaded', () => {
     const debouncedOnChange = debounce(opt => onSelectSemanaChange(opt), 100);
 
     // função principal que popula o select (exportada)
-    window.populateWeeksSelect = function(arg){
+    window.populateWeeksSelect = function(arg) {
       const relCont = document.getElementById('relatoriosContainer');
-      // remove select(s) que foram injetados dentro do próprio relatório (server-side)
-      if (relCont) {
-        Array.from(relCont.querySelectorAll('#select-semana')).forEach(s=>{
-          const parentWrap = s.closest('#select-semana-wrapper');
-          if (parentWrap) parentWrap.remove(); else s.remove();
-        });
+
+      // Limpa apenas o <select> antigo dentro do wrapper, sem remover o container completo
+      const wrapper = document.getElementById('select-semana-wrapper');
+      if (wrapper) {
+        const oldSelect = wrapper.querySelector('#select-semana');
+        if (oldSelect) oldSelect.remove();
       }
 
-      // cria/obtém select + wrapper
-      let select = document.getElementById('select-semana');
-      let wrapper = document.getElementById('select-semana-wrapper');
+      // Cria <select> novo
+      const select = document.createElement('select');
+      select.id = 'select-semana';
+      select.className = 'form-select form-select-sm w-auto';
+      select.innerHTML = `<option value="">Selecione a semana</option>`;
 
-      if (!select && !wrapper) {
-        wrapper = document.createElement('div');
-        wrapper.id = 'select-semana-wrapper';
-        wrapper.className = 'mt-3 d-flex align-items-center gap-2';
-        wrapper.innerHTML = `
-          <label for="select-semana" class="mb-0 small text-muted">Semana:</label>
-          <select id="select-semana" class="form-select form-select-sm w-auto">
-            <option value="">Selecione a semana</option>
-          </select>
-        `;
-        select = wrapper.querySelector('#select-semana');
-      } else if (select && !wrapper) {
-        wrapper = document.createElement('div');
-        wrapper.id = 'select-semana-wrapper';
-        wrapper.className = 'mt-3 d-flex align-items-center gap-2';
+      // Se wrapper já existe, insere o select nele
+      let wrapperFinal = wrapper;
+      if (!wrapperFinal) {
+        wrapperFinal = document.createElement('div');
+        wrapperFinal.id = 'select-semana-wrapper';
+        wrapperFinal.className = 'mt-3 d-flex align-items-center gap-2';
+
         const label = document.createElement('label');
-        label.setAttribute('for','select-semana');
+        label.setAttribute('for', 'select-semana');
         label.className = 'mb-0 small text-muted';
         label.textContent = 'Semana:';
-        const originalParent = select.parentNode;
-        wrapper.appendChild(label);
-        wrapper.appendChild(select);
-        if (originalParent) originalParent.insertBefore(wrapper, select);
-      } else if (wrapper && !select) {
-        select = document.createElement('select');
-        select.id = 'select-semana';
-        select.className = 'form-select form-select-sm w-auto';
-        select.innerHTML = `<option value="">Selecione a semana</option>`;
-        wrapper.appendChild(select);
-      }
 
-      // insere logo após título "Relatórios"
+        wrapperFinal.appendChild(label);
+      }
+      wrapperFinal.appendChild(select);
+
+      // Insere o wrapper após o título "Relatórios"
       const titulo = Array.from(document.querySelectorAll('h1,h2,h3,h4')).find(h => /relat[oó]rios/i.test(h.textContent));
-      if (titulo && wrapper) {
-        if (titulo.nextSibling) titulo.parentNode.insertBefore(wrapper, titulo.nextSibling);
-        else titulo.parentNode.appendChild(wrapper);
-      } else if (relCont && wrapper) {
-        relCont.parentNode.insertBefore(wrapper, relCont);
-      } else if (wrapper) {
-        document.body.appendChild(wrapper);
+      if (titulo && wrapperFinal && !wrapperFinal.parentNode) {
+        if (titulo.nextSibling) titulo.parentNode.insertBefore(wrapperFinal, titulo.nextSibling);
+        else titulo.parentNode.appendChild(wrapperFinal);
+      } else if (relCont && !wrapperFinal.parentNode) {
+        relCont.parentNode.insertBefore(wrapperFinal, relCont);
+      } else if (!wrapperFinal.parentNode) {
+        document.body.appendChild(wrapperFinal);
       }
 
-      // garante select atualizado
-      select = document.getElementById('select-semana');
-      if (!select) return;
-
-      // build plantaoWeeks (Sáb -> Sex) usando arg.start / arg.end
+      // -- Gera as semanas baseadas em sáb→sex
       const startView = new Date(arg.start.getFullYear(), arg.start.getMonth(), arg.start.getDate());
-      const endViewEx = new Date(arg.end.getFullYear(), arg.end.getMonth(), arg.end.getDate()); // exclusive
+      const endViewEx = new Date(arg.end.getFullYear(), arg.end.getMonth(), arg.end.getDate());
 
       const plantaoWeeks = [];
       let curSat = prevOrSameSaturday(startView);
       while (curSat < endViewEx) {
         const ws = new Date(curSat);
-        const we = new Date(curSat); we.setDate(ws.getDate() + 6);
-        plantaoWeeks.push({ inicioObj: new Date(ws), inicio: isoDate(ws), fim: isoDate(we) });
-        curSat = new Date(curSat); curSat.setDate(curSat.getDate() + 7);
+        const we = new Date(curSat);
+        we.setDate(ws.getDate() + 6);
+        plantaoWeeks.push({
+          inicioObj: new Date(ws),
+          inicio: isoDate(ws),
+          fim: isoDate(we)
+        });
+        curSat.setDate(curSat.getDate() + 7);
       }
 
-      // primeiro Monday de referência dentro da view
+      // Calcula offset a partir da primeira segunda-feira visível
       const firstMondayInView = nextOrSameMonday(startView);
-
-      // encontra offsetIndex — primeira plantaoWeek cuja segunda-feira (dentro do Sáb->Sex) >= firstMondayInView
       let offsetIndex = 0;
-      for (let i=0;i<plantaoWeeks.length;i++){
-        const wk = plantaoWeeks[i];
-        const mondayOfWeek = nextOrSameMonday(wk.inicioObj);
-        if (mondayOfWeek.getTime() >= firstMondayInView.getTime()) { offsetIndex = i; break; }
+      for (let i = 0; i < plantaoWeeks.length; i++) {
+        const mondayOfWeek = nextOrSameMonday(plantaoWeeks[i].inicioObj);
+        if (mondayOfWeek.getTime() >= firstMondayInView.getTime()) {
+          offsetIndex = i;
+          break;
+        }
       }
 
-      // cria options A PARTIR do offsetIndex, numerando com índice global correto
+      // Cria options do select
       const sliceWeeks = plantaoWeeks.slice(offsetIndex);
-      const placeholder = `<option value="">Selecione a semana</option>`;
       const opts = sliceWeeks.map((wk, idx) => {
-        const globalIndex = offsetIndex + idx + 1; // índice global (começa em 1)
-        const label = `Semana ${globalIndex} — ${formatBR(wk.inicio)} → ${formatBR(wk.fim)}`;
+        const globalIndex = offsetIndex + idx + 1;
+        const label = `${formatBR(wk.inicio)} → ${formatBR(wk.fim)}`;
         return `<option value="${globalIndex}" data-inicio="${wk.inicio}" data-fim="${wk.fim}" data-global-index="${globalIndex}">${label}</option>`;
       }).join('');
-      select.innerHTML = placeholder + opts;
 
-      // (re)anexa handler de mudança de forma segura — remove antigo se existir
+      select.innerHTML = `<option value="">Selecione a semana</option>` + opts;
+
+      // Handler de mudança
       if (select.__weekHandler) {
         select.removeEventListener('change', select.__weekHandler, true);
         delete select.__weekHandler;
       }
-      const localHandler = function(ev){
+      const handler = function(ev) {
         const opt = select.options[select.selectedIndex];
         debouncedOnChange(opt);
       };
-      select.addEventListener('change', localHandler, true);
-      select.__weekHandler = localHandler;
+      select.addEventListener('change', handler, true);
+      select.__weekHandler = handler;
 
-      // se houver já uma option selecionada (por exemplo, server-side), dispara a ação uma vez
+      // Se já tiver uma opção selecionada do servidor, dispara a mudança
       if (select.selectedIndex > 0) {
-        setTimeout(()=> {
+        setTimeout(() => {
           const opt = select.options[select.selectedIndex];
           debouncedOnChange(opt);
         }, 50);
@@ -1183,7 +1278,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const s = opt.dataset.inicio || null;
     const e = opt.dataset.fim || null;
     const globalIdx = opt.dataset.globalIndex || opt.value || '1';
-    const labelText = `Semana ${globalIdx} — ${formatBRFromISO(s)} → ${formatBRFromISO(e)}`;
+    const labelText = `${formatBRFromISO(s)} → ${formatBRFromISO(e)}`;
+
 
     // atualiza o cabeçalho de plantão com o texto da option
     try { writeSelectedWeekLabel(labelText); }
