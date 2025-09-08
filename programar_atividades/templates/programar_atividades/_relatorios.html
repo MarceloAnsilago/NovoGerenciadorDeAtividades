@@ -1,23 +1,141 @@
-<div class="mt-5">
-  <h2 class="h4 d-flex align-items-center gap-2">
-    <i class="bi bi-graph-up"></i> Relatórios
-    <small class="text-muted ms-2">
-      {{ start|date:"d/m/Y" }} &rarr; {{ end|date:"d/m/Y" }}
-    </small>
-  </h2>
+{# templates/programar_atividades/_relatorios.html - corrigido: plantonistas somente no final #}
 
-  <!-- Aqui colocamos o wrapper que o JS procura -->
-  <div id="select-semana-wrapper" class="mt-3 d-flex align-items-center gap-2">
-    <label for="select-semana" class="mb-0 small text-muted">Semana:</label>
-    <select id="select-semana" class="form-select form-select-sm w-auto">
-      <option value="">Selecione a semana</option>
-      {% for s in semanas %}
-        <option
-          value="{{ s.index }}"
-          data-inicio="{{ s.inicio.isoformat }}"
-          data-fim="{{ s.fim.isoformat }}"
-        >{{ s.label }}</option>
-      {% endfor %}
-    </select>
-  </div>
+<style>
+/* estilos locais */
+.square-radio { -webkit-appearance:none; appearance:none; width:16px; height:16px; border:1px solid #6c757d; border-radius:3px; display:inline-block; vertical-align:middle; margin-right:6px; cursor:pointer; background:white; }
+.square-radio:checked{ background:#0d6efd; border-color:#0d6efd; }
+.small-label{ font-size:.9rem; vertical-align:middle; margin-left:6px; }
+.serv-list{ display:flex; flex-direction:column; gap:6px; align-items:stretch; }
+.serv-list-item{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 0; }
+.serv-name{ flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-right:12px; font-weight:600; font-size:.95rem; }
+
+@media (max-width:767.98px){ .serv-list-item{ flex-direction:column; align-items:flex-start; } .serv-name{ width:100%; } }
+@media print{ .table{ font-size:11px } .small-label{font-size:11px} h5{font-size:14px} .square-radio{width:12px;height:12px} }
+</style>
+
+<div class="mb-3">
+  <h4 class="fw-bold mb-1">Relatório semanal</h4>
+  <div class="text-muted small">{{ start|date:"d/m/Y" }} &rarr; {{ end|date:"d/m/Y" }}</div>
 </div>
+
+{% comment %} O template não renderiza nenhuma legenda de plantonistas no topo. A lista aparece apenas ao final. {% endcomment %}
+
+{% for dia in semana %}
+  {% if dia.atividades or not dia.is_weekend %}
+    <h5 class="mt-4 mb-2">
+      <i class="bi bi-calendar-event me-1 text-primary" aria-hidden="true"></i>
+      {{ dia.nome_semana }} ({{ dia.data|date:"d/m/Y" }})
+      {% if dia.plantonista %}
+        <span class="badge bg-info text-dark ms-3">
+          Plantonista:
+          {% for p in dia.plantonista %}{{ p.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}
+        </span>
+      {% endif %}
+    </h5>
+
+    {% if dia.atividades %}
+      <div class="table-responsive mb-3">
+        <table class="table table-bordered table-sm align-middle">
+          <thead class="table-light text-center">
+            <tr>
+              <th style="min-width:220px">Atividade</th>
+              <th style="min-width:300px">Servidores</th>
+              <th style="min-width:160px">Veículo</th>
+              <th style="width:140px">Realizada</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for atividade in dia.atividades %}
+              <tr>
+                <td class="align-middle">{{ atividade.titulo }}</td>
+                <td class="align-middle">
+                  <div class="serv-list">
+                    {% for servidor in atividade.servidores %}
+                      <div class="serv-list-item">
+                        <div class="serv-name" title="{{ servidor.nome }}">{{ servidor.nome }}</div>
+
+                        <div class="d-flex align-items-center">
+                          <label class="d-flex align-items-center me-2" title="Participou - Sim">
+                            <input type="radio" class="square-radio"
+                              name="srv-d{{ forloop.parentloop.parentloop.counter0 }}-a{{ forloop.parentloop.counter0 }}-s{{ forloop.counter0 }}"
+                              value="sim" aria-label="Sim">
+                            <span class="small-label">Sim</span>
+                          </label>
+
+                          <label class="d-flex align-items-center" title="Participou - Não">
+                            <input type="radio" class="square-radio"
+                              name="srv-d{{ forloop.parentloop.parentloop.counter0 }}-a{{ forloop.parentloop.counter0 }}-s{{ forloop.counter0 }}"
+                              value="nao" aria-label="Não">
+                            <span class="small-label">Não</span>
+                          </label>
+                        </div>
+                      </div>
+                    {% empty %}
+                      <div class="text-muted">— nenhum servidor listado —</div>
+                    {% endfor %}
+                  </div>
+                </td>
+
+                <td class="align-middle text-center">{{ atividade.veiculo|default:"—" }}</td>
+
+                <td class="align-middle text-center">
+                  <div class="d-flex align-items-center justify-content-center gap-3">
+                    <label class="d-flex align-items-center" title="Atividade realizada - Sim">
+                      <input type="radio" class="square-radio"
+                        name="act-d{{ forloop.parentloop.counter0 }}-a{{ forloop.counter0 }}-status"
+                        value="sim" aria-label="Atividade realizada - Sim">
+                      <span class="small-label">Sim</span>
+                    </label>
+
+                    <label class="d-flex align-items-center" title="Atividade realizada - Não">
+                      <input type="radio" class="square-radio"
+                        name="act-d{{ forloop.parentloop.counter0 }}-a{{ forloop.counter0 }}-status"
+                        value="nao" aria-label="Atividade realizada - Não">
+                      <span class="small-label">Não</span>
+                    </label>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-muted mb-3">Nenhuma atividade registrada neste dia.</div>
+    {% endif %}
+  {% endif %}
+{% endfor %}
+
+
+<div class="text-muted small mt-3">
+  Observação: marque "Sim" para a atividade / servidor caso tenham participado ou a atividade
+  tenha sido realizada. Esses controles são visuais — implemente o envio ao servidor no backend para persistência quando estiver pronto.
+</div>
+
+<script>
+  // Segurança: se houver LEGENDAS antigas "Plantonista(s) da semana" injetadas
+  // por versões anteriores do partial, removemos as duplicatas e mantemos
+  // somente a última ocorrência (a que acabamos de renderizar aqui).
+  (function(){
+    try {
+      // coleta todos os elementos que contenham o texto "Plantonista(s) da semana"
+      const candidates = Array.from(document.querySelectorAll('h6,h5,div,span,li'))
+        .filter(n => n.textContent && /plantonista/i.test(n.textContent));
+
+      if (candidates.length > 1) {
+        // queremos manter apenas a última ocorrência visível
+        const toKeep = candidates[candidates.length - 1];
+        for (let i = 0; i < candidates.length - 1; i++) {
+          const node = candidates[i];
+          const container = node.closest('div') || node.parentNode;
+          if (container && container !== toKeep) {
+            container.remove();
+          }
+        }
+      }
+    } catch (e) {
+      // não quebra a renderização se algo falhar
+      console.error('clean-plantonistas:', e);
+    }
+  })();
+</script>

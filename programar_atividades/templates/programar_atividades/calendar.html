@@ -892,7 +892,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // faz fetch e renderiza
-  
+
     async function fetchServidoresPlantao(startISO, endISO) {
       const container = getOrCreatePlantaoContainer();
       container.innerHTML = `<div class="small text-muted">Carregando servidores de plantão…</div>`;
@@ -932,12 +932,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const merged = [];
         for (let i = 0; i < data.semanas.length; i++) {
           const wk = data.semanas[i];
-          const weekIndex = i + 1;
           const normalized = {
             inicio: wk.inicio,
             fim: wk.fim,
             servidores: wk.servidores || [],
-            indexStart: weekIndex,
             count: 1
           };
 
@@ -955,27 +953,37 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        const html = merged.map((wk) => {
-          const periodoLabel = `${formatBRFromISO(wk.inicio)} → ${formatBRFromISO(wk.fim)}`;
-          const agrupamento = wk.count > 1 ? ` <span class="text-muted">(agrupando ${wk.count} semanas)</span>` : '';
-          const header = `<div class="fw-semibold mb-1">${periodoLabel}${agrupamento}</div>`;
+        // legenda/título (só se houver servidores)
+        const totalServidores = merged.reduce((acc, w) => acc + ((w.servidores || []).length), 0);
+        const legendHtml = totalServidores > 0
+          ? `<div class="d-flex align-items-center gap-2 mb-2">
+              <span class="badge bg-light border text-primary" style="font-size:1.05rem;"><i class="bi bi-person-badge"></i></span>
+              <div class="fw-semibold">Plantonista(s) da semana</div>
+            </div>`
+          : '';
 
+        // monta o HTML — **REMOVIDA A LINHA DE PERÍODO (datas)** aqui
+        // mantém as listas de servidores agrupadas (se preferir, podemos agregar únicos ao invés de repetir)
+        const html = merged.map((wk) => {
+          // const periodoLabel = `${formatBRFromISO(wk.inicio)} → ${formatBRFromISO(wk.fim)}`; // removido
+          const agrupamento = wk.count > 1 ? ` <span class="text-muted">(agrupando ${wk.count} semanas)</span>` : '';
+          // não renderizamos header/período, apenas a lista de servidores
           const list = (wk.servidores || []).length
-            ? `<ul class="mb-2">${(wk.servidores || []).map(s => `
-                <li>${s.nome}${s.telefone ? ` — ${s.telefone}` : ''}</li>
-              `).join('')}</ul>`
+            ? `<ul class="mb-2">${(wk.servidores || []).map(s => `<li>${s.nome}${s.telefone ? ` — ${s.telefone}` : ''}</li>`).join('')}</ul>`
             : `<div class="text-muted mb-2">Nenhum servidor atribuído nesta semana</div>`;
 
-          return `<div class="mb-2">${header}${list}</div>`;
+          return `<div class="mb-2">${list}</div>`;
         }).join('');
 
-        container.innerHTML = html;
+        container.innerHTML = (legendHtml ? `<div class="mb-2">${legendHtml}</div>` : '') + html;
 
       } catch (err) {
         console.error('[plantao] fetch error', err);
         container.innerHTML = `<div class="alert alert-danger">Erro ao buscar servidores de plantão. Veja console.</div>`;
       }
     }
+
+
 
 
     window.fetchServidoresPlantao = fetchServidoresPlantao;

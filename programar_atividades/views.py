@@ -21,6 +21,9 @@ from django.template.loader import render_to_string
 from django.utils.dateparse import parse_date
 from django.db import models
 from datetime import date, timedelta
+import calendar
+import traceback  # adicione no topo do arquivo (se ainda não existir)
+
 # Veículo é opcional (ambientes sem o app)
 try:
     from veiculos.models import Veiculo  # type: ignore
@@ -614,24 +617,23 @@ def _weeks_sat_to_fri(dt_ini: date, dt_fim: date):
 def _ordinal_pt(n: int) -> str:
     ord_map = {1: "Primeira", 2: "Segunda", 3: "Terceira", 4: "Quarta", 5: "Quinta", 6: "Sexta", 7: "Sétima"}
     return ord_map.get(n, f"{n}ª")
-
 @login_required
 @require_GET
 def relatorios_parcial(request: HttpRequest):
     """
-    Retorna partial com título/intervalo e selectbox de semanas alinhadas Sábado→Sexta.
-    Query params:
-      - start=YYYY-MM-DD
-      - end=YYYY-MM-DD
+    Retorna partial com título/intervalo, selectbox de semanas alinhadas Sábado→Sexta,
+    e um resumo da programação da semana atual (plantonistas + atividades por dia).
     """
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
-        return JsonResponse({"ok": False, "html": "<div class='alert alert-warning'>Unidade não definida.</div>"})
+        return JsonResponse({
+            "ok": False,
+            "html": "<div class='alert alert-warning'>Unidade não definida.</div>"
+        })
 
     today = date.today()
     start_qs = parse_date(request.GET.get("start") or "") or today.replace(day=1)
 
-    # calcula último dia do mês corrente (fallback)
     if today.month == 12:
         month_end = date(today.year, 12, 31)
     else:
@@ -640,17 +642,153 @@ def relatorios_parcial(request: HttpRequest):
 
     end_qs = parse_date(request.GET.get("end") or "") or month_end
 
-    # monta semanas alinhadas Sáb→Sex (mesma forma de persistência do Plantao)
     raw_weeks = _weeks_sat_to_fri(start_qs, end_qs)
     semanas = []
     for i, (ini, fim) in enumerate(raw_weeks, start=1):
-        # se o último fim ultrapassar `end_qs`, mantemos fim como calculado (Plantao grava Sáb→Sex completo)
         label = f"{_ordinal_pt(i)} ({ini.strftime('%d/%m/%Y')} → {fim.strftime('%d/%m/%Y')})"
         semanas.append({"index": i, "inicio": ini, "fim": fim, "label": label})
 
-    html = render_to_string(
-        "programar_atividades/_relatorios.html",
-        {"start": start_qs, "end": end_qs, "semanas": semanas},
-        request=request,
-    )
+    semana_detalhada = []
+
+    if len(semanas) == 1:
+        ini = semanas[0]['inicio']
+        fim = semanas[0]['fim']
+        dias_da_semana = [ini + timedelta(days=i) for i in range(7)]
+
+        # carrega programações da semana com itens/servidores/veiculo/meta
+        programacoes = (
+            Programacao.objects
+            .filter(unidade_id=unidade_id, data__range=(ini, fim))
+            .prefetch_related(
+                models.Prefetch(
+                    "itens",
+                    queryset=ProgramacaoItem.objects
+                        .select_related("meta", "veiculo")
+                        .prefetch_related("servidores__servidor")
+                )
+            )
+        )
+        prog_map = {p.data: p for p in programacoes}
+
+        for dia in dias_da_semana:
+            prog = prog_map.get(dia)
+            atividades = []
+
+            if prog:
+                for item in prog.itens.all():
+                    # coleta servidores como dicts: {id, nome, telefone}
+                    servidores = []
+                    for ps in item.servidores.all():
+                        srv = getattr(ps, "servidor", None)
+                        if srv:
+                            # tenta vários nomes comuns de campo de telefone
+                            tel = (
+                                getattr(srv, "telefone", None)
+                                or getattr(srv, "telefone_celular", None)
+                                or getattr(srv, "celular", None)
+                                or getattr(srv, "fone", None)
+                                or None
+                            )
+                            servidores.append({
+                                "id": getattr(srv, "id", None),
+                                "nome": getattr(srv, "nome", str(srv)),
+                                "telefone": tel
+                            })
+                        else:
+                            servidores.append({"id": None, "nome": str(ps), "telefone": None})
+
+                    # veículo (label)
+                    veiculo_label = None
+                    if getattr(item, "veiculo", None):
+                        nome_v = getattr(item.veiculo, "nome", "") or "Veículo"
+                        placa_v = getattr(item.veiculo, "placa", "") or ""
+                        veiculo_label = f"{nome_v} - {placa_v}".strip(" -")
+
+                    atividades.append({
+                        "titulo": getattr(item.meta, "nome", getattr(item.meta, "titulo", str(item.meta))),
+                        "servidores": servidores,
+                        "veiculo": veiculo_label
+                    })
+
+            # heurística plantonista: procura por palavras-chave na atividade
+            plantonista = None
+            for atv in atividades:
+                titulo = (atv.get("titulo") or "").lower()
+                if any(p in titulo for p in ["vacina", "agrotóxico", "biológico"]):
+                    # guardamos lista de dicts (nome, telefone)
+                    plantonista = [
+                        {"nome": s["nome"], "telefone": s.get("telefone")}
+                        for s in atv.get("servidores", [])
+                    ]
+                    break
+
+            is_weekend = dia.weekday() in (5, 6)
+
+            semana_detalhada.append({
+                "data": dia,
+                "nome_semana": nome_dia_semana(dia),
+                "plantonista": plantonista,        # lista de dicts ou None
+                "atividades": atividades,
+                "is_weekend": is_weekend,
+            })
+
+    # --- Agrega plantonistas únicos da semana (se houver), com telefone quando disponível ---
+    plantonistas_map = {}
+    for dia in semana_detalhada:
+        p_list = dia.get("plantonista")
+        if p_list:
+            for p in p_list:
+                nome = (p.get("nome") or "").strip()
+                tel = (p.get("telefone") or "").strip() if p.get("telefone") else None
+                if nome and nome not in plantonistas_map:
+                    plantonistas_map[nome] = tel
+
+    # Fallback: se não houver plantonistas identificados, agregue TODOS os servidores da semana
+    if not plantonistas_map:
+        for dia in semana_detalhada:
+            for atv in dia.get("atividades", []):
+                for s in atv.get("servidores", []):
+                    nome = (s.get("nome") or "").strip()
+                    tel = (s.get("telefone") or "").strip() if s.get("telefone") else None
+                    if nome and nome not in plantonistas_map:
+                        plantonistas_map[nome] = tel
+
+    # converte para lista ordenada de dicts para o template
+    plantonistas_semana = [
+        {"nome": nome, "telefone": plantonistas_map[nome]}
+        for nome in sorted(plantonistas_map.keys())
+    ]
+
+    # ---- renderiza O HTML UMA ÚNICA VEZ (fora do loop) e captura erros ----
+    try:
+        html = render_to_string(
+            "programar_atividades/_relatorios.html",
+            {
+                "start": start_qs,
+                "end": end_qs,
+                "semanas": semanas,
+                "semana": semana_detalhada,
+                "plantonistas_semana": plantonistas_semana,
+            },
+            request=request,
+        )
+    except Exception as e:
+        tb_str = traceback.format_exc()
+        print("ERRO ao renderizar _relatorios.html:\n", tb_str)
+        return JsonResponse({
+            "ok": False,
+            "html": (
+                "<div class='alert alert-danger'>"
+                "<strong>Erro ao renderizar relatório (ver console/server logs)</strong><br>"
+                f"<pre style='white-space:pre-wrap; font-size:12px'>{tb_str}</pre>"
+                "</div>"
+            )
+        })
+
     return JsonResponse({"ok": True, "html": html})
+
+
+
+def nome_dia_semana(data: date) -> str:
+    dias = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]
+    return dias[data.weekday()] if 0 <= data.weekday() < 7 else data.strftime("%A")
