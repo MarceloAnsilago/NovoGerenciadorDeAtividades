@@ -23,6 +23,7 @@ from django.db import models
 from datetime import date, timedelta
 import calendar
 import traceback  # adicione no topo do arquivo (se ainda não existir)
+from typing import List, Dict, Tuple
 
 # Veículo é opcional (ambientes sem o app)
 try:
@@ -30,6 +31,10 @@ try:
 except Exception:
     Veiculo = None  # type: ignore
 
+try:
+    from plantao.models import Plantao  # type: ignore
+except Exception:
+    Plantao = None 
 
 # ---------------------- PÁGINA DO CALENDÁRIO ---------------------- #
 @login_required
@@ -51,6 +56,75 @@ def calendar_view(request: HttpRequest):
 
 
 # ---------------------- HELPERS NUMÉRICOS ---------------------- #
+from django.db import models  # já existe no arquivo
+
+def _plantonistas_do_intervalo(unidade_id, ini, fim):
+    """
+    Retorna lista única de {'nome', 'telefone'} para semanas do PLANTÃO
+    que intersectam [ini, fim], respeitando unidade quando houver.
+    Usa telefone_snapshot do item; fallback para campos do Servidor.
+    """
+    if Plantao is None or ini is None or fim is None:
+        return []
+
+    # respeita unidade se o model Plantao tiver o campo
+    try:
+        field_names = [f.name for f in Plantao._meta.fields]
+    except Exception:
+        field_names = []
+    unidade_filter = {}
+    if ("unidade" in field_names or "unidade_id" in field_names) and unidade_id:
+        unidade_filter = {"unidade_id": unidade_id}
+
+    plantoes = Plantao.objects.filter(inicio__lte=fim, fim__gte=ini, **unidade_filter)
+
+    seen = set()
+    out = []
+
+    for p in plantoes:
+        # tenta .semanas, senão .semana_set
+        if hasattr(p, "semanas"):
+            semanas_qs = p.semanas.all()
+        elif hasattr(p, "semana_set"):
+            semanas_qs = p.semana_set.all()
+        else:
+            semanas_qs = []
+
+        for sem in semanas_qs:
+            # intersecta?
+            if getattr(sem, "fim", None) and getattr(sem, "inicio", None):
+                if sem.fim < ini or sem.inicio > fim:
+                    continue
+            # itens/servidores (tenta .itens, senão .semanaservidor_set)
+            if hasattr(sem, "itens"):
+                itens_qs = sem.itens.all()
+            elif hasattr(sem, "semanaservidor_set"):
+                itens_qs = sem.semanaservidor_set.all()
+            else:
+                itens_qs = []
+
+            for item in itens_qs.order_by("ordem"):
+                srv = getattr(item, "servidor", None)
+                nome = (getattr(srv, "nome", "") or "").strip()
+                if not nome:
+                    continue
+
+                tel_snapshot = getattr(item, "telefone_snapshot", "") or ""
+                tel = (
+                    tel_snapshot
+                    or getattr(srv, "telefone", None)
+                    or getattr(srv, "telefone_celular", None)
+                    or getattr(srv, "celular", None)
+                    or getattr(srv, "fone", None)
+                    or ""
+                )
+                key = nome.lower()
+                if key not in seen:
+                    seen.add(key)
+                    out.append({"nome": nome, "telefone": tel})
+    return out
+
+
 def _num_or_none(v: Any) -> Optional[int]:
     if v is None:
         return None
@@ -617,45 +691,53 @@ def _weeks_sat_to_fri(dt_ini: date, dt_fim: date):
 def _ordinal_pt(n: int) -> str:
     ord_map = {1: "Primeira", 2: "Segunda", 3: "Terceira", 4: "Quarta", 5: "Quinta", 6: "Sexta", 7: "Sétima"}
     return ord_map.get(n, f"{n}ª")
+
 @login_required
 @require_GET
 def relatorios_parcial(request: HttpRequest):
     """
-    Retorna partial com título/intervalo, selectbox de semanas alinhadas Sábado→Sexta,
-    e um resumo da programação da semana atual (plantonistas + atividades por dia).
+    Partial de 'Relatório semanal' (Sáb→Sex) sem o bloco agregado de plantonistas.
     """
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
-        return JsonResponse({
-            "ok": False,
-            "html": "<div class='alert alert-warning'>Unidade não definida.</div>"
-        })
+        return JsonResponse({"ok": False, "html": "<div class='alert alert-warning'>Unidade não definida.</div>"})
 
+    # --- intervalo base ---
     today = date.today()
     start_qs = parse_date(request.GET.get("start") or "") or today.replace(day=1)
 
-    if today.month == 12:
-        month_end = date(today.year, 12, 31)
+    # >>> fallback do fim do mês com base em start_qs (e não em today)
+    if start_qs.month == 12:
+        month_end = date(start_qs.year, 12, 31)
     else:
-        next_month = date(today.year, today.month + 1, 1)
+        next_month = date(start_qs.year, start_qs.month + 1, 1)
         month_end = next_month - timedelta(days=1)
 
     end_qs = parse_date(request.GET.get("end") or "") or month_end
 
+    # --- semanas Sáb->Sex ---
     raw_weeks = _weeks_sat_to_fri(start_qs, end_qs)
     semanas = []
     for i, (ini, fim) in enumerate(raw_weeks, start=1):
         label = f"{_ordinal_pt(i)} ({ini.strftime('%d/%m/%Y')} → {fim.strftime('%d/%m/%Y')})"
         semanas.append({"index": i, "inicio": ini, "fim": fim, "label": label})
 
-    semana_detalhada = []
+    # --- escolhe a semana que contém start_qs (fallback: primeira) ---
+    selected_week = None
+    for wk in semanas:
+        if wk["inicio"] <= start_qs <= wk["fim"]:
+            selected_week = wk
+            break
+    if not selected_week and semanas:
+        selected_week = semanas[0]
 
-    if len(semanas) == 1:
-        ini = semanas[0]['inicio']
-        fim = semanas[0]['fim']
+    # --- monta a semana detalhada (por dia) ---
+    semana_detalhada = []
+    if selected_week:
+        ini = selected_week["inicio"]
+        fim = selected_week["fim"]
         dias_da_semana = [ini + timedelta(days=i) for i in range(7)]
 
-        # carrega programações da semana com itens/servidores/veiculo/meta
         programacoes = (
             Programacao.objects
             .filter(unidade_id=unidade_id, data__range=(ini, fim))
@@ -673,15 +755,13 @@ def relatorios_parcial(request: HttpRequest):
         for dia in dias_da_semana:
             prog = prog_map.get(dia)
             atividades = []
-
             if prog:
                 for item in prog.itens.all():
-                    # coleta servidores como dicts: {id, nome, telefone}
+                    # servidores do item (com tentativa de telefone)
                     servidores = []
                     for ps in item.servidores.all():
                         srv = getattr(ps, "servidor", None)
                         if srv:
-                            # tenta vários nomes comuns de campo de telefone
                             tel = (
                                 getattr(srv, "telefone", None)
                                 or getattr(srv, "telefone_celular", None)
@@ -697,10 +777,9 @@ def relatorios_parcial(request: HttpRequest):
                         else:
                             servidores.append({"id": None, "nome": str(ps), "telefone": None})
 
-                    # veículo (label)
                     veiculo_label = None
                     if getattr(item, "veiculo", None):
-                        nome_v = getattr(item.veiculo, "nome", "") or "Veículo"
+                        nome_v  = getattr(item.veiculo, "nome", "") or "Veículo"
                         placa_v = getattr(item.veiculo, "placa", "") or ""
                         veiculo_label = f"{nome_v} - {placa_v}".strip(" -")
 
@@ -710,56 +789,17 @@ def relatorios_parcial(request: HttpRequest):
                         "veiculo": veiculo_label
                     })
 
-            # heurística plantonista: procura por palavras-chave na atividade
-            plantonista = None
-            for atv in atividades:
-                titulo = (atv.get("titulo") or "").lower()
-                if any(p in titulo for p in ["vacina", "agrotóxico", "biológico"]):
-                    # guardamos lista de dicts (nome, telefone)
-                    plantonista = [
-                        {"nome": s["nome"], "telefone": s.get("telefone")}
-                        for s in atv.get("servidores", [])
-                    ]
-                    break
-
-            is_weekend = dia.weekday() in (5, 6)
-
             semana_detalhada.append({
                 "data": dia,
                 "nome_semana": nome_dia_semana(dia),
-                "plantonista": plantonista,        # lista de dicts ou None
+                # mantemos sem 'plantonista' agregado aqui; se precisar por-dia, você já tem 'atividades/servidores'
                 "atividades": atividades,
-                "is_weekend": is_weekend,
+                "is_weekend": dia.weekday() in (5, 6),
             })
 
-    # --- Agrega plantonistas únicos da semana (se houver), com telefone quando disponível ---
-    plantonistas_map = {}
-    for dia in semana_detalhada:
-        p_list = dia.get("plantonista")
-        if p_list:
-            for p in p_list:
-                nome = (p.get("nome") or "").strip()
-                tel = (p.get("telefone") or "").strip() if p.get("telefone") else None
-                if nome and nome not in plantonistas_map:
-                    plantonistas_map[nome] = tel
+    # >>> BLOCO REMOVIDO: não agregamos mais plantonistas_semana no parcial
+    plantonistas_semana = []  # mantém compatibilidade com template usando um IF
 
-    # Fallback: se não houver plantonistas identificados, agregue TODOS os servidores da semana
-    if not plantonistas_map:
-        for dia in semana_detalhada:
-            for atv in dia.get("atividades", []):
-                for s in atv.get("servidores", []):
-                    nome = (s.get("nome") or "").strip()
-                    tel = (s.get("telefone") or "").strip() if s.get("telefone") else None
-                    if nome and nome not in plantonistas_map:
-                        plantonistas_map[nome] = tel
-
-    # converte para lista ordenada de dicts para o template
-    plantonistas_semana = [
-        {"nome": nome, "telefone": plantonistas_map[nome]}
-        for nome in sorted(plantonistas_map.keys())
-    ]
-
-    # ---- renderiza O HTML UMA ÚNICA VEZ (fora do loop) e captura erros ----
     try:
         html = render_to_string(
             "programar_atividades/_relatorios.html",
@@ -768,11 +808,12 @@ def relatorios_parcial(request: HttpRequest):
                 "end": end_qs,
                 "semanas": semanas,
                 "semana": semana_detalhada,
-                "plantonistas_semana": plantonistas_semana,
+                "plantonistas_semana": plantonistas_semana,  # vazio => não renderiza se houver {% if %}
+                "selected_week": selected_week,
             },
             request=request,
         )
-    except Exception as e:
+    except Exception:
         tb_str = traceback.format_exc()
         print("ERRO ao renderizar _relatorios.html:\n", tb_str)
         return JsonResponse({
@@ -787,8 +828,315 @@ def relatorios_parcial(request: HttpRequest):
 
     return JsonResponse({"ok": True, "html": html})
 
-
-
 def nome_dia_semana(data: date) -> str:
     dias = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]
     return dias[data.weekday()] if 0 <= data.weekday() < 7 else data.strftime("%A")
+
+
+
+# assume get_unidade_atual_id e _weeks_sat_to_fri, _ordinal_pt, nome_dia_semana já definidos no mesmo módulo
+
+
+@login_required
+def imprimir_programacao(request):
+    """
+    Página de impressão: mostra grupos semanais (Sáb→Sex) com servidores e telefones.
+    Query params (opcional): ?start=YYYY-MM-DD&end=YYYY-MM-DD
+    Fallback: se não vier, usa mês do parâmetro start (ou mês atual).
+    """
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        # mostra template vazio / mensagem amigável
+        return render(request, "programar_atividades/print_programacao.html", {
+            "plantao": {"inicio": None, "fim": None},
+            "grupos": [],
+            "now": datetime.now(),
+            "request": request,
+        })
+
+    # parse dos parâmetros: start (fallback para 1º do mês atual), end (fallback fim do mês de start)
+    today = date.today()
+    start_qs = parse_date(request.GET.get("start") or "") or today.replace(day=1)
+
+    if start_qs.month == 12:
+        month_end = date(start_qs.year, 12, 31)
+    else:
+        next_month = date(start_qs.year, start_qs.month + 1, 1)
+        month_end = next_month - timedelta(days=1)
+
+    end_qs = parse_date(request.GET.get("end") or "") or month_end
+
+    # calcula semanas sáb→sex
+    raw_weeks = _weeks_sat_to_fri(start_qs, end_qs)
+
+    # Carrega todas as programações do intervalo (uma única query) com itens e servidores para prefetch
+    programacoes_qs = (
+        Programacao.objects
+        .filter(unidade_id=unidade_id, data__range=(start_qs, end_qs))
+        .prefetch_related(
+            models.Prefetch(
+                "itens",
+                queryset=ProgramacaoItem.objects
+                    .select_related("meta", "veiculo")
+                    .prefetch_related(
+                        models.Prefetch(
+                            "servidores",
+                            queryset=ProgramacaoItemServidor.objects.select_related("servidor")
+                        )
+                    )
+            )
+        )
+    )
+
+    # índice por data para acesso rápido
+    prog_map = {}
+    for p in programacoes_qs:
+        prog_map.setdefault(p.data, []).append(p)
+
+    grupos: List[Dict] = []
+    for ini, fim in raw_weeks:
+        # junta programacoes no período [ini,fim]
+        servidores_ids = set()
+        # percorre programacoes daquele período usando prog_map
+        d = ini
+        while d <= fim:
+            for p in prog_map.get(d, []):
+                for item in p.itens.all():
+                    for pis in item.servidores.all():
+                        sid = getattr(pis, "servidor_id", None)
+                        if sid:
+                            servidores_ids.add(sid)
+            d = d + timedelta(days=1)
+
+        servidores = []
+        if servidores_ids:
+            qs = Servidor.objects.filter(id__in=servidores_ids, unidade_id=unidade_id).order_by("nome")
+            for s in qs:
+                telefone = (
+                    getattr(s, "telefone", None)
+                    or getattr(s, "telefone_celular", None)
+                    or getattr(s, "celular", None)
+                    or getattr(s, "fone", None)
+                    or ""
+                )
+                servidores.append({"id": s.id, "nome": s.nome, "telefone": telefone})
+
+        grupos.append({"periodo": (ini, fim), "servidores": servidores})
+
+    plantao = {"inicio": raw_weeks[0][0] if raw_weeks else start_qs,
+               "fim": raw_weeks[-1][1] if raw_weeks else end_qs}
+
+    return render(request, "programar_atividades/print_programacao.html", {
+        "plantao": plantao,
+        "grupos": grupos,
+        "now": datetime.now(),
+        "request": request,
+    })
+
+@login_required
+def print_programacao(request):
+    """
+    Gera uma versão para impressão da programação entre ?start=YYYY-MM-DD&end=YYYY-MM-DD.
+    Agrupa por dia (cada Programacao => um grupo com lista de servidores únicos).
+    """
+    start_str = request.GET.get("start")
+    end_str = request.GET.get("end")
+    if not start_str or not end_str:
+        return HttpResponseBadRequest("Parâmetros 'start' e 'end' são obrigatórios (YYYY-MM-DD).")
+
+    try:
+        inicio = date.fromisoformat(start_str)
+        fim = date.fromisoformat(end_str)
+    except Exception:
+        return HttpResponseBadRequest("Formato inválido para 'start' ou 'end'. Use YYYY-MM-DD.")
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return HttpResponseBadRequest("Unidade do usuário não definida.")
+
+    # Carrega programações do intervalo com itens/servidores/veículos/meta
+    programacoes = (
+        Programacao.objects
+        .filter(unidade_id=unidade_id, data__gte=inicio, data__lte=fim)
+        .select_related()  # ajuste se quiser
+        .prefetch_related(
+            models.Prefetch(
+                "itens",
+                queryset=ProgramacaoItem.objects
+                    .select_related("meta", "veiculo")
+                    .prefetch_related("servidores__servidor")
+            )
+        )
+        .order_by("data")
+    )
+
+    grupos = []
+    for prog in programacoes:
+        servidores_map: dict = {}  # nome -> telefone (mantém únicos)
+        # percorre itens do dia e coleta servidores
+        for item in prog.itens.all():
+            for pis in item.servidores.all():
+                srv = getattr(pis, "servidor", None)
+                if not srv:
+                    continue
+                nome = getattr(srv, "nome", str(srv)).strip()
+                # tenta vários campos comuns para telefone
+                tel = (
+                    getattr(srv, "telefone", None)
+                    or getattr(srv, "telefone_celular", None)
+                    or getattr(srv, "celular", None)
+                    or getattr(srv, "fone", None)
+                    or None
+                )
+                tel = tel.strip() if isinstance(tel, str) else tel
+                if nome and nome not in servidores_map:
+                    servidores_map[nome] = tel
+
+        servidores = [{"nome": n, "telefone": servidores_map[n]} for n in sorted(servidores_map.keys())]
+
+        grupos.append({
+            "periodo": (prog.data, prog.data),  # template espera tupla (inicio, fim)
+            "servidores": servidores,
+        })
+
+    plantao = {"inicio": inicio, "fim": fim}
+
+    context = {
+        "plantao": plantao,
+        "grupos": grupos,
+        "now": datetime.now(),
+        "request": request,
+    }
+
+    return render(request, "programar_atividades/print_programacao.html", context)
+
+
+
+@login_required
+@require_GET
+def print_relatorio_semana(request):
+    """
+    Página de impressão do RELATÓRIO SEMANAL (tabela).
+    Usa a semana Sáb→Sex que contém 'start'. Os plantonistas vêm do app Plantão.
+    Fallback por palavras-chave só é usado se não houver dados no Plantão.
+    """
+    start_str = request.GET.get("start")
+    end_str   = request.GET.get("end")
+    if not start_str or not end_str:
+        return HttpResponseBadRequest("Parâmetros 'start' e 'end' são obrigatórios (YYYY-MM-DD).")
+
+    try:
+        start = date.fromisoformat(start_str)
+        end   = date.fromisoformat(end_str)
+    except Exception:
+        return HttpResponseBadRequest("Formato inválido para 'start' ou 'end'. Use YYYY-MM-DD.")
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return HttpResponseBadRequest("Unidade do usuário não definida.")
+
+    # --------- determina a semana Sáb→Sex que contém 'start' ---------
+    weeks = _weeks_sat_to_fri(start, end)
+    if not weeks:
+        weeks = [(start, end)]
+    sel_ini, sel_fim = None, None
+    for ini, fim in weeks:
+        if ini <= start <= fim:
+            sel_ini, sel_fim = ini, fim
+            break
+    if sel_ini is None:
+        sel_ini, sel_fim = weeks[0]
+
+    # --------- carrega programações do range com itens/servidores/veículo ---------
+    programacoes = (
+        Programacao.objects
+        .filter(unidade_id=unidade_id, data__range=(sel_ini, sel_fim))
+        .prefetch_related(
+            models.Prefetch(
+                "itens",
+                queryset=ProgramacaoItem.objects
+                    .select_related("meta", "veiculo")
+                    .prefetch_related("servidores__servidor")
+            )
+        )
+    )
+    prog_map = {p.data: p for p in programacoes}
+
+    # --------- monta estrutura da semana (7 dias) ---------
+    dias = [sel_ini + timedelta(days=i) for i in range(7)]
+    semana = []
+    for dia in dias:
+        prog = prog_map.get(dia)
+        atividades = []
+        if prog:
+            for item in prog.itens.all():
+                # servidores do item
+                servidores = []
+                for ps in item.servidores.all():
+                    srv = getattr(ps, "servidor", None)
+                    if not srv:
+                        continue
+                    tel = (
+                        getattr(srv, "telefone", None)
+                        or getattr(srv, "telefone_celular", None)
+                        or getattr(srv, "celular", None)
+                        or getattr(srv, "fone", None)
+                        or None
+                    )
+                    servidores.append({
+                        "id": getattr(srv, "id", None),
+                        "nome": getattr(srv, "nome", str(srv)),
+                        "telefone": tel,
+                    })
+
+                # veículo (rótulo amigável)
+                veiculo_label = None
+                if getattr(item, "veiculo", None):
+                    nome_v  = getattr(item.veiculo, "nome", "") or "Veículo"
+                    placa_v = getattr(item.veiculo, "placa", "") or ""
+                    veiculo_label = f"{nome_v} - {placa_v}".strip(" -")
+
+                atividades.append({
+                    "titulo": getattr(item.meta, "nome", getattr(item.meta, "titulo", str(item.meta))),
+                    "servidores": servidores,
+                    "veiculo": veiculo_label or "Nenhum - veículo",
+                })
+
+        semana.append({
+            "data": dia,
+            "nome_semana": nome_dia_semana(dia),
+            "atividades": atividades,
+            "is_weekend": dia.weekday() in (5, 6),
+        })
+
+    # --------- PLANTONISTAS: oficial do app Plantão ---------
+    plantonistas_semana = _plantonistas_do_intervalo(unidade_id, sel_ini, sel_fim)
+
+    # Fallback por palavras-chave (se vazio)
+    if not plantonistas_semana:
+        KEYWORDS = ("vacina", "agrotóxico", "agrotoxico", "biológico", "biologico", "plantão", "plantao")
+        seen = set()
+        for d in semana:
+            for a in d.get("atividades", []):
+                t = (a.get("titulo") or "").lower()
+                if any(k in t for k in KEYWORDS):
+                    for s in a.get("servidores", []):
+                        k = (s["nome"] or "").strip().lower()
+                        if k and k not in seen:
+                            seen.add(k)
+                            plantonistas_semana.append({"nome": s["nome"], "telefone": s.get("telefone")})
+                    break  # só a primeira atividade “especial” do dia
+
+    context = {
+        "periodo": (sel_ini, sel_fim),
+        "semana": semana,
+        "plantonistas_semana": plantonistas_semana,
+        "now": datetime.now(),
+        "request": request,
+    }
+
+    # suporta renderização inline dentro da página
+    tpl = "programar_atividades/print_relatorio_semana.html"
+    if request.GET.get("inline") in ("1", "true", "yes", "on"):
+        tpl = "programar_atividades/_print_relatorio_semana_fragment.html"
+    return render(request, tpl, context)

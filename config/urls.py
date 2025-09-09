@@ -32,5 +32,7 @@ urlpatterns = [
     path("calendar/", include(("programar_atividades.urls", "programar_atividades"), namespace="programar_atividades")),
     path("programar_atividades/", include("programar_atividades.urls")),
     path("calendar/", include("programar_atividades.urls")),
+    path('programar_atividades/', include('programar_atividades.urls')), 
+    path('programar/', include('programar_atividades.urls')),
     
 ]

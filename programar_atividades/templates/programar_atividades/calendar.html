@@ -211,6 +211,7 @@
   window.programacaoURL  = "{% url 'programar_atividades:programacao_do_dia' %}";
   window.excluirURL      = "{% url 'programar_atividades:excluir_programacao' %}";
   window.plantaoSemanaURL = "{% url 'plantao:servidores_por_intervalo' %}";
+  window.printProgramacaoURL = "{% url 'programar_atividades:print_relatorio_semana' %}";
 </script>
 
 <script>
@@ -709,6 +710,9 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadRelatoriosForRange(startISO, endISO) {
     const container = document.getElementById('relatoriosContainer');
     if (!container) return;
+
+    const prevScrollY = window.scrollY || window.pageYOffset || 0;
+
     container.innerHTML = `
       <div class="text-center my-4">
         <div class="spinner-border" role="status"></div>
@@ -716,289 +720,127 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
 
     try {
-      const resp = await fetch(`${window.relatoriosURL}?start=${startISO}&end=${endISO}`, { headers: {'X-Requested-With':'XMLHttpRequest'} });
-      const data = await resp.json();
+      const resp = await fetch(`${window.relatoriosURL}?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`, {
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+      });
 
-      container.innerHTML = data.ok ? data.html :
-        `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
+      let data;
+      try { data = await resp.json(); }
+      catch {
+        container.innerHTML = `<div class="alert alert-danger">Resposta inválida do servidor (não JSON).</div>`;
+        window.scrollTo(0, prevScrollY);
+        return;
+      }
 
-      // ---- REMOVE selects duplicados que o HTML do relatório possa ter injetado ----
+      if (data && data.ok && typeof data.html === 'string') {
+        container.innerHTML = data.html;
+      } else {
+        container.innerHTML = `<div class="alert alert-danger">${(data && data.error) || 'Erro ao carregar relatórios.'}</div>`;
+        window.scrollTo(0, prevScrollY);
+        return;
+      }
+
+      // === NÃO removemos #plantonistas-semana-final aqui ===
+
+      // Conecta botões (onde quer que estejam no parcial)
+      try {
+        const scope = container; // botões estão no próprio parcial
+        const btnProg = scope.querySelector('#btnImprimirProgramacao');
+        const btnVista = scope.querySelector('#btnImprimirVista');
+
+        if (btnProg) {
+          const clone = btnProg.cloneNode(true);
+          btnProg.replaceWith(clone);
+          clone.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            const start = clone.dataset.start || startISO;
+            const end   = clone.dataset.end   || endISO;
+            const base  = window.printProgramacaoURL || '/programar/print-programacao/';
+            try {
+              const u = new URL(base, window.location.origin);
+              if (start) u.searchParams.set('start', start);
+              if (end)   u.searchParams.set('end', end);
+              window.open(String(u), '_blank');
+            } catch {
+              window.open(`${base}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, '_blank');
+            }
+          }, false);
+        }
+
+ 
+        if (btnVista) {
+          const cloneV = btnVista.cloneNode(true);
+          btnVista.replaceWith(cloneV);
+          cloneV.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            const start = cloneV.dataset.start || startISO;
+            const end   = cloneV.dataset.end   || endISO;
+
+            // ✅ ROTA CERTA para o RELATÓRIO SEMANAL
+            const base  = window.printRelatorioURL || '/calendar/print-relatorio/';
+
+            try {
+              const u = new URL(base, window.location.origin);
+              if (start) u.searchParams.set('start', start);
+              if (end)   u.searchParams.set('end', end);
+              // abre em nova aba/janela
+              window.open(String(u), '_blank', 'noopener');
+            } catch {
+              window.open(`${base}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, '_blank', 'noopener');
+            }
+          }, false);
+        }
+      } catch (e) {
+        console.error('attach print buttons error', e);
+      }
+
+      // (resto igual) — remover selects duplicados, repopular, etc.
       try {
         const dup = container.querySelectorAll('#select-semana');
         dup.forEach(s => {
           const wrap = s.closest('#select-semana-wrapper');
           if (wrap) wrap.remove(); else s.remove();
         });
-      } catch (e) { /* silent */ }
-
-      // ---- remover label/texto "Semana" sobrando dentro do relatório ----
-      try {
-        // labels explícitos
         container.querySelectorAll('label[for="select-semana"]').forEach(n => n.remove());
-        // wrappers ou selects eventuais
         container.querySelectorAll('#select-semana, #select-semana-wrapper').forEach(n => n.remove());
+      } catch {}
 
-        // limpar nós de texto soltos que iniciem com 'Semana'
-        Array.from(container.childNodes).forEach(node => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            if (node.textContent.trim().toLowerCase().startsWith('semana')) node.remove();
-          } else if (node.nodeType === Node.ELEMENT_NODE) {
-            const txt = (node.textContent || '').trim().toLowerCase();
-            if (txt === 'semana' || txt === 'semana:') node.remove();
-          }
-        });
-      } catch (e) { /* silent */ }
-
-      // ---- Reaplicar populateWeeksSelect com o arg salvo (se disponível) ----
       try {
         if (typeof populateWeeksSelect === 'function' && window._lastCalendarArg) {
           populateWeeksSelect(window._lastCalendarArg);
         }
       } catch (e) { console.error('populateWeeksSelect error after inject:', e); }
 
-      // Se houver um select e uma opção já selecionada, atualiza o cabeçalho com o texto da option
       try {
         const sel = document.getElementById('select-semana');
         if (sel && sel.selectedIndex > 0) {
-          writeSelectedWeekLabel(sel.options[sel.selectedIndex].textContent.trim());
+          const txt = sel.options[sel.selectedIndex].textContent.trim();
+          if (txt) writeSelectedWeekLabel(txt);
         }
-      } catch (e) { /* silent */ }
+      } catch {}
 
+      window.scrollTo(0, prevScrollY);
     } catch (err) {
       console.error('loadRelatoriosForRange erro', err);
       container.innerHTML = `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
+      window.scrollTo(0, prevScrollY);
     }
   }
 
+
+
+
   /* ---------- Plantão: fetch por intervalo (UNICO) ---------- */
-  (function(){
-    function toDate(dstr){ return new Date(dstr + 'T00:00:00Z'); } // parse ISO (UTC)
-    function isoDate(d){ return d.toISOString().slice(0,10); }
-
-    // converte intervalo (p.ex. Mon->Sun) para a convenção do app plantao (Sat->Fri)
-    // parse YYYY-MM-DD como data LOCAL (meia-noite local)
-    function parseYMDLocal(dstr){
-      if (!dstr) return null;
-      const parts = String(dstr).split('-').map(x => parseInt(x,10));
-      if (parts.length !== 3 || parts.some(isNaN)) return null;
-      const [y,m,d] = parts;
-      return new Date(y, m - 1, d); // midnight local
+  document.addEventListener('change', (ev) => {
+    const sel = ev.target;
+    if (sel && sel.id === 'select-semana') {
+      const opt = sel.options[sel.selectedIndex];
+      if (!opt || !opt.dataset.inicio) return;
+      const s = opt.dataset.inicio, e = opt.dataset.fim;
+      writeSelectedWeekLabel(`${formatBRFromISO(s)} → ${formatBRFromISO(e)}`);
+      if (typeof loadRelatoriosForRange === 'function') loadRelatoriosForRange(s, e);
     }
-
-    // formata Date local para 'YYYY-MM-DD' sem passar por toISOString()
-    function formatLocalYMD(d){
-      if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
-      const Y = d.getFullYear();
-      const M = String(d.getMonth() + 1).padStart(2,'0');
-      const D = String(d.getDate()).padStart(2,'0');
-      return `${Y}-${M}-${D}`;
-    }
-
-    function normalizeToPlantaoRange(startISO, endISO){
-      // usa parse local para evitar drift por timezone/UTC
-      const s = parseYMDLocal(startISO);
-      const e = parseYMDLocal(endISO);
-      if (!s || !e) return { inicio_plantao: startISO, fim_plantao: endISO };
-
-      // prev_or_same_saturday (local)
-      const dowS = s.getDay(); // 0=Sun..6=Sat
-      const shiftToSat = (dowS - 6 + 7) % 7;
-      const sat = new Date(s);
-      sat.setDate(s.getDate() - shiftToSat);
-
-      // next_or_same_friday (local)
-      const dowE = e.getDay(); // 0=Sun..6=Sat
-      const shiftToFri = (5 - dowE + 7) % 7; // 5 == Friday
-      const fri = new Date(e);
-      fri.setDate(e.getDate() + shiftToFri);
-
-      return { inicio_plantao: formatLocalYMD(sat), fim_plantao: formatLocalYMD(fri) };
-    }
-
-    // cria/retorna container para mostrar servidores de plantão
-    function getOrCreatePlantaoContainer() {
-      let cont = document.getElementById('servidoresPlantaoContainer');
-      if (cont) return cont;
-
-      cont = document.createElement('div');
-      cont.id = 'servidoresPlantaoContainer';
-      cont.className = 'mt-4';
-      // estilos defensivos para evitar ficar sob a sidebar
-      cont.style.position = 'relative';
-      cont.style.zIndex = '1';
-      cont.style.clear = 'both';
-
-      // 1) tenta inserir após o wrapper do select (se existir)
-      const wrapper = document.getElementById('select-semana-wrapper');
-      if (wrapper && wrapper.parentNode) {
-        wrapper.parentNode.insertBefore(cont, wrapper.nextSibling);
-        console.debug('[plantao] container inserido após select-semana-wrapper');
-        return cont;
-      }
-
-      // 2) tenta inserir após título "Relatórios" (procura h1..h4 com texto)
-      const titulo = Array.from(document.querySelectorAll('h1,h2,h3,h4'))
-        .find(h => /relat[oó]rios/i.test(h.textContent || ''));
-      if (titulo && titulo.parentNode) {
-        if (titulo.nextSibling) titulo.parentNode.insertBefore(cont, titulo.nextSibling);
-        else titulo.parentNode.appendChild(cont);
-        console.debug('[plantao] container inserido após título Relatórios');
-        return cont;
-      }
-
-      // 3) tenta colocar dentro do container principal da página (mais seguro que .container genérico)
-      const mainContainer = document.querySelector('.container.my-4') 
-                        || document.querySelector('.container') 
-                        || document.querySelector('main');
-      if (mainContainer) {
-        mainContainer.appendChild(cont);
-        console.debug('[plantao] container anexado ao mainContainer');
-        return cont;
-      }
-
-      // 4) fallback final
-      document.body.appendChild(cont);
-      console.debug('[plantao] container anexado ao body (fallback)');
-      return cont;
-    }
-
-    // Observador leve para recriar o container se um re-render do relatório o remover.
-    // Debounce simples para não ficar recriando sem parar.
-    (function ensurePlantaoContainerSurvive() {
-      let timer = null;
-      const ensure = () => {
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-          if (!document.getElementById('servidoresPlantaoContainer')) {
-            console.debug('[plantao] container ausente — recriando');
-            getOrCreatePlantaoContainer();
-          }
-        }, 120);
-      };
-
-      // Observe mutações que provavelmente removem o relatório
-      if (window.MutationObserver) {
-        const mo = new MutationObserver(ensure);
-        mo.observe(document.body, { childList: true, subtree: true });
-      } else {
-        // fallback: checa periodicamente
-        setInterval(() => {
-          if (!document.getElementById('servidoresPlantaoContainer')) getOrCreatePlantaoContainer();
-        }, 2000);
-      }
-    })();
-
-
-
-
-    // faz fetch e renderiza
-
-    async function fetchServidoresPlantao(startISO, endISO) {
-      const container = getOrCreatePlantaoContainer();
-      container.innerHTML = `<div class="small text-muted">Carregando servidores de plantão…</div>`;
-
-      const norm = normalizeToPlantaoRange(startISO, endISO);
-
-      const url = new URL(window.plantaoSemanaURL, window.location.origin);
-      url.searchParams.set('start', norm.inicio_plantao);
-      url.searchParams.set('end', norm.fim_plantao);
-      url.searchParams.set('orig_start', startISO);
-      url.searchParams.set('orig_end', endISO);
-
-      console.debug('[plantao] fetch URL:', String(url));
-
-      try {
-        const resp = await fetch(String(url), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-        const text = await resp.text();
-
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          container.innerHTML = `<div class="alert alert-danger">Resposta inválida do servidor (não JSON). Veja console.</div>`;
-          console.error('[plantao] parse JSON failed', e, text);
-          return;
-        }
-
-        if (!data || data.ok === false || !Array.isArray(data.semanas)) {
-          container.innerHTML = `<div class="alert alert-warning">Nenhum plantão encontrado ou erro: ${data?.error || 'sem dados'}</div>`;
-          return;
-        }
-
-        function serverIdSet(sem) {
-          return (sem.servidores || []).map(s => String(s.id)).sort().join(',');
-        }
-
-        const merged = [];
-        for (let i = 0; i < data.semanas.length; i++) {
-          const wk = data.semanas[i];
-          const normalized = {
-            inicio: wk.inicio,
-            fim: wk.fim,
-            servidores: wk.servidores || [],
-            count: 1
-          };
-
-          if (merged.length === 0) {
-            merged.push(normalized);
-            continue;
-          }
-
-          const prev = merged[merged.length - 1];
-          if (serverIdSet(prev) === serverIdSet(normalized)) {
-            prev.fim = normalized.fim;
-            prev.count = (prev.count || 1) + 1;
-          } else {
-            merged.push(normalized);
-          }
-        }
-
-        // legenda/título (só se houver servidores)
-        const totalServidores = merged.reduce((acc, w) => acc + ((w.servidores || []).length), 0);
-        const legendHtml = totalServidores > 0
-          ? `<div class="d-flex align-items-center gap-2 mb-2">
-              <span class="badge bg-light border text-primary" style="font-size:1.05rem;"><i class="bi bi-person-badge"></i></span>
-              <div class="fw-semibold">Plantonista(s) da semana</div>
-            </div>`
-          : '';
-
-        // monta o HTML — **REMOVIDA A LINHA DE PERÍODO (datas)** aqui
-        // mantém as listas de servidores agrupadas (se preferir, podemos agregar únicos ao invés de repetir)
-        const html = merged.map((wk) => {
-          // const periodoLabel = `${formatBRFromISO(wk.inicio)} → ${formatBRFromISO(wk.fim)}`; // removido
-          const agrupamento = wk.count > 1 ? ` <span class="text-muted">(agrupando ${wk.count} semanas)</span>` : '';
-          // não renderizamos header/período, apenas a lista de servidores
-          const list = (wk.servidores || []).length
-            ? `<ul class="mb-2">${(wk.servidores || []).map(s => `<li>${s.nome}${s.telefone ? ` — ${s.telefone}` : ''}</li>`).join('')}</ul>`
-            : `<div class="text-muted mb-2">Nenhum servidor atribuído nesta semana</div>`;
-
-          return `<div class="mb-2">${list}</div>`;
-        }).join('');
-
-        container.innerHTML = (legendHtml ? `<div class="mb-2">${legendHtml}</div>` : '') + html;
-
-      } catch (err) {
-        console.error('[plantao] fetch error', err);
-        container.innerHTML = `<div class="alert alert-danger">Erro ao buscar servidores de plantão. Veja console.</div>`;
-      }
-    }
-
-
-
-
-    window.fetchServidoresPlantao = fetchServidoresPlantao;
-
-    // anexa listener (se já existir handler anterior, mantemos; este faz a requisição adicional)
-    document.addEventListener('change', (ev) => {
-      const sel = ev.target;
-      if (sel && sel.id === 'select-semana') {
-        const opt = sel.options[sel.selectedIndex];
-        if (!opt || !opt.dataset.inicio) return;
-        const s = opt.dataset.inicio, e = opt.dataset.fim;
-        fetchServidoresPlantao(s, e);
-      }
-    }, true);
-  })();
+  }, true);
 
   /* ---------- Calendar ---------- */
   const calendar = new FullCalendar.Calendar(calendarEl, {
