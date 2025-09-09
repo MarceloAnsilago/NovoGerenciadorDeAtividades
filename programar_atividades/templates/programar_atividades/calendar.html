@@ -703,7 +703,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCounts();
   }
 
-
   window.relatoriosURL = "{% url 'programar_atividades:relatorios_parcial' %}";
 
   /* ---------- loadRelatoriosForRange (UNICA VERSÃO, global) ---------- */
@@ -740,60 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // === NÃO removemos #plantonistas-semana-final aqui ===
-
-      // Conecta botões (onde quer que estejam no parcial)
-      try {
-        const scope = container; // botões estão no próprio parcial
-        const btnProg = scope.querySelector('#btnImprimirProgramacao');
-        const btnVista = scope.querySelector('#btnImprimirVista');
-
-        if (btnProg) {
-          const clone = btnProg.cloneNode(true);
-          btnProg.replaceWith(clone);
-          clone.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            const start = clone.dataset.start || startISO;
-            const end   = clone.dataset.end   || endISO;
-            const base  = window.printProgramacaoURL || '/programar/print-programacao/';
-            try {
-              const u = new URL(base, window.location.origin);
-              if (start) u.searchParams.set('start', start);
-              if (end)   u.searchParams.set('end', end);
-              window.open(String(u), '_blank');
-            } catch {
-              window.open(`${base}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, '_blank');
-            }
-          }, false);
-        }
-
- 
-        if (btnVista) {
-          const cloneV = btnVista.cloneNode(true);
-          btnVista.replaceWith(cloneV);
-          cloneV.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            const start = cloneV.dataset.start || startISO;
-            const end   = cloneV.dataset.end   || endISO;
-
-            // ✅ ROTA CERTA para o RELATÓRIO SEMANAL
-            const base  = window.printRelatorioURL || '/calendar/print-relatorio/';
-
-            try {
-              const u = new URL(base, window.location.origin);
-              if (start) u.searchParams.set('start', start);
-              if (end)   u.searchParams.set('end', end);
-              // abre em nova aba/janela
-              window.open(String(u), '_blank', 'noopener');
-            } catch {
-              window.open(`${base}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, '_blank', 'noopener');
-            }
-          }, false);
-        }
-      } catch (e) {
-        console.error('attach print buttons error', e);
-      }
-
+      
       // (resto igual) — remover selects duplicados, repopular, etc.
       try {
         const dup = container.querySelectorAll('#select-semana');
@@ -826,21 +772,6 @@ document.addEventListener('DOMContentLoaded', () => {
       window.scrollTo(0, prevScrollY);
     }
   }
-
-
-
-
-  /* ---------- Plantão: fetch por intervalo (UNICO) ---------- */
-  document.addEventListener('change', (ev) => {
-    const sel = ev.target;
-    if (sel && sel.id === 'select-semana') {
-      const opt = sel.options[sel.selectedIndex];
-      if (!opt || !opt.dataset.inicio) return;
-      const s = opt.dataset.inicio, e = opt.dataset.fim;
-      writeSelectedWeekLabel(`${formatBRFromISO(s)} → ${formatBRFromISO(e)}`);
-      if (typeof loadRelatoriosForRange === 'function') loadRelatoriosForRange(s, e);
-    }
-  }, true);
 
   /* ---------- Calendar ---------- */
   const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -900,8 +831,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
   });
   calendar.render();
+  /* Liga impressão em fragmento para botões injetados via AJAX */
+  (function () {
+    if (window.__fragmentPrintInstalled) return;
+    window.__fragmentPrintInstalled = true;
 
-  // ---------- helper para popular o select de semanas (UNICA VERSÃO) ----------
+    function doFragmentPrint(btn){
+      const prevTitle = document.title;
+      const s = btn?.dataset.start || '';
+      const e = btn?.dataset.end   || '';
+      if (s && e) document.title = `Relatório semanal ${s} a ${e}`;
+
+      document.body.classList.add('fragment-print');
+
+      // cleanup confiável (Chrome/Firefox/Safari)
+      const mm = window.matchMedia('print');
+      const cleanup = () => {
+        document.body.classList.remove('fragment-print');
+        document.title = prevTitle;
+        window.onafterprint = null;
+        mm.removeEventListener?.('change', onChange);
+      };
+      const onChange = (e) => { if (!e.matches) cleanup(); };
+
+      window.onafterprint = cleanup;
+      mm.addEventListener?.('change', onChange);
+
+      window.print();
+    }
+
+    // Delegação em CAPTURA: funciona para conteúdo dinâmico
+    document.addEventListener('click', function (ev) {
+      const target = ev.target.closest('#btnImprimirProgramacao, #btnImprimirVista');
+      if (!target) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      ev.stopImmediatePropagation?.();
+      if (target.tagName === 'BUTTON' && !target.hasAttribute('type')) {
+        target.setAttribute('type','button'); // evita submit
+      }
+      doFragmentPrint(target);
+    }, true);
+  })();
+
+  // ---------- helper para formatar data BR ----------
   function formatBRFromISO(iso){
     // iso esperado: 'YYYY-MM-DD'
     if (!iso) return '';
@@ -911,53 +884,52 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // helper pra escrever/atualizar o cabeçalho "Semana ..." no DOM
-    function writeSelectedWeekLabel(...args) {
-      // aceita:
-      // - writeSelectedWeekLabel("Texto já formatado")
-      // - writeSelectedWeekLabel(startISO, endISO)
-      // - writeSelectedWeekLabel(labelString, startISO, endISO) (compatível)
-      if (!args || args.length === 0) return;
+  function writeSelectedWeekLabel(...args) {
+    // aceita:
+    // - writeSelectedWeekLabel("Texto já formatado")
+    // - writeSelectedWeekLabel(startISO, endISO)
+    // - writeSelectedWeekLabel(labelString, startISO, endISO) (compatível)
+    if (!args || args.length === 0) return;
 
-      // monta o texto do label
-      let label = '';
-      if (args.length === 1) {
-        label = String(args[0] || '').trim();
-      } else if (args.length >= 2) {
-        const a = String(args[0] || '').trim();
-        const b = String(args[1] || '').trim();
-        // se o primeiro já contém uma seta, assume que é label pronto
-        if (a.includes('→') || a.includes('->')) {
-          label = a;
-        } else {
-          // formata ISO para BR
-          const format = s => formatBRFromISO(s);
-          label = `${format(a)} → ${format(b)}`;
-        }
+    // monta o texto do label
+    let label = '';
+    if (args.length === 1) {
+      label = String(args[0] || '').trim();
+    } else if (args.length >= 2) {
+      const a = String(args[0] || '').trim();
+      const b = String(args[1] || '').trim();
+      // se o primeiro já contém uma seta, assume que é label pronto
+      if (a.includes('→') || a.includes('->')) {
+        label = a;
+      } else {
+        // formata ISO para BR
+        const format = s => formatBRFromISO(s);
+        label = `${format(a)} → ${format(b)}`;
       }
-      if (!label) return;
-
-      // remove separador antigo (se houver) para evitar duplicatas
-      const old = document.querySelector('.plantao-week-sep');
-      if (old) old.remove();
-
-      // elemento container onde vamos inserir (antes de #relatoriosContainer)
-      const relCont = document.getElementById('relatoriosContainer');
-      if (!relCont) return;
-
-      // cria separador: linha + texto centralizado + linha
-      const sep = document.createElement('div');
-      sep.className = 'plantao-week-sep d-flex align-items-center my-3';
-      sep.innerHTML = `
-        <div class="plantao-week-line flex-grow-1" aria-hidden="true"></div>
-        <div class="plantao-week-text mx-3 text-muted fw-semibold small">${label}</div>
-        <div class="plantao-week-line flex-grow-1" aria-hidden="true"></div>
-      `;
-
-      // insere antes do container de relatórios
-      if (relCont.parentNode) relCont.parentNode.insertBefore(sep, relCont);
-      else document.body.insertBefore(sep, document.body.firstChild);
     }
+    if (!label) return;
 
+    // remove separador antigo (se houver) para evitar duplicatas
+    const old = document.querySelector('.plantao-week-sep');
+    if (old) old.remove();
+
+    // elemento container onde vamos inserir (antes de #relatoriosContainer)
+    const relCont = document.getElementById('relatoriosContainer');
+    if (!relCont) return;
+
+    // cria separador: linha + texto centralizado + linha
+    const sep = document.createElement('div');
+    sep.className = 'plantao-week-sep d-flex align-items-center my-3';
+    sep.innerHTML = `
+      <div class="plantao-week-line flex-grow-1" aria-hidden="true"></div>
+      <div class="plantao-week-text mx-3 text-muted fw-semibold small">${label}</div>
+      <div class="plantao-week-line flex-grow-1" aria-hidden="true"></div>
+    `;
+
+    // insere antes do container de relatórios
+    if (relCont.parentNode) relCont.parentNode.insertBefore(sep, relCont);
+    else document.body.insertBefore(sep, document.body.firstChild);
+  }
 
   // ---------- popula select com semanas alinhadas ao view do calendário (Sáb->Sex) ----------
   (function(){
@@ -994,11 +966,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function onSelectSemanaChange(opt){
       if (!opt || !opt.dataset.inicio) return;
       const s = opt.dataset.inicio, e = opt.dataset.fim;
-      const globalIdx = opt.dataset.globalIndex || opt.value || '1';
-      writeSelectedWeekLabel(s, e);
-
-      // atualiza label imediatamente
-      try { writeSelectedWeekLabel(label); } catch(e){ console.error(e); }
+      const labelText = `${formatBRFromISO(s)} → ${formatBRFromISO(e)}`;
+      writeSelectedWeekLabel(labelText);
 
       // evita concorrência
       if (window.__loadingWeek) {
@@ -1103,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       select.innerHTML = `<option value="">Selecione a semana</option>` + opts;
 
-      // Handler de mudança
+      // Handler de mudança (único)
       if (select.__weekHandler) {
         select.removeEventListener('change', select.__weekHandler, true);
         delete select.__weekHandler;
@@ -1140,32 +1109,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   })(); // end IIFE for populateWeeksSelect helpers
 
-  // Listener global: qualquer mudança no select-semana usa o texto da option para atualizar header e buscar plantao
-  document.addEventListener('change', (ev) => {
-    const sel = ev.target;
-    if (!sel || sel.id !== 'select-semana') return;
-    const opt = sel.options[sel.selectedIndex];
-    if (!opt) return;
-
-    const s = opt.dataset.inicio || null;
-    const e = opt.dataset.fim || null;
-    const globalIdx = opt.dataset.globalIndex || opt.value || '1';
-    const labelText = `${formatBRFromISO(s)} → ${formatBRFromISO(e)}`;
-
-
-    // atualiza o cabeçalho de plantão com o texto da option
-    try { writeSelectedWeekLabel(labelText); }
-    catch(e){ console.error('writeSelectedWeekLabel erro', e); }
-
-    // chama fetchServidoresPlantao (se existir)
-    try { if (typeof fetchServidoresPlantao === 'function') fetchServidoresPlantao(s, e); }
-    catch(e){ console.error('fetchServidoresPlantao erro', e); }
-
-    // também atualiza o relatório parcial (comportamento anterior)
-    try { if (typeof loadRelatoriosForRange === 'function') loadRelatoriosForRange(s, e); }
-    catch(e){ /* não bloqueia */ }
-  }, true);
-
   // Depois de injetar o relatório via AJAX, se houver um select e uma option selecionada,
   // escreve o label (caso o servidor já tenha injetado um "Semana X ...").
   (function ensureSelectedWeekLabelAfterLoad(){
@@ -1173,7 +1116,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const relCont = document.getElementById('relatoriosContainer');
     if (!relCont || !window.MutationObserver) return;
     const obs = new MutationObserver((mutations) => {
-      // se já houver select com opção selecionada, escreve o label
       const sel = document.getElementById('select-semana');
       if (sel && sel.selectedIndex > 0) {
         const opt = sel.options[sel.selectedIndex];
@@ -1351,4 +1293,5 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 </script>
+
 {% endblock %}

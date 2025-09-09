@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+import traceback
+from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from django.contrib.auth.decorators import login_required
-from django.db import transaction
-from django.http import JsonResponse, Http404, HttpResponseBadRequest, HttpRequest
+from django.db import models, transaction
+from django.http import Http404, HttpRequest, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_POST
 
@@ -17,13 +19,6 @@ from metas.models import Meta, MetaAlocacao
 from servidores.models import Servidor
 from descanso.models import Descanso
 from .models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
-from django.template.loader import render_to_string
-from django.utils.dateparse import parse_date
-from django.db import models
-from datetime import date, timedelta
-import calendar
-import traceback  # adicione no topo do arquivo (se ainda não existir)
-from typing import List, Dict, Tuple
 
 # Veículo é opcional (ambientes sem o app)
 try:
@@ -34,7 +29,8 @@ except Exception:
 try:
     from plantao.models import Plantao  # type: ignore
 except Exception:
-    Plantao = None 
+    Plantao = None
+
 
 # ---------------------- PÁGINA DO CALENDÁRIO ---------------------- #
 @login_required
@@ -55,10 +51,133 @@ def calendar_view(request: HttpRequest):
     )
 
 
-# ---------------------- HELPERS NUMÉRICOS ---------------------- #
-from django.db import models  # já existe no arquivo
+# ---------------------- HELPERS ---------------------- #
+def nome_dia_semana(d: date) -> str:
+    dias = [
+        "Segunda-feira",
+        "Terça-feira",
+        "Quarta-feira",
+        "Quinta-feira",
+        "Sexta-feira",
+        "Sábado",
+        "Domingo",
+    ]
+    return dias[d.weekday()] if 0 <= d.weekday() < 7 else d.strftime("%A")
 
-def _plantonistas_do_intervalo(unidade_id, ini, fim):
+
+def _num_or_none(v: Any) -> Optional[int]:
+    if v is None:
+        return None
+    if isinstance(v, (int, float, Decimal)):
+        try:
+            return int(v)
+        except Exception:
+            return None
+    try:
+        return int(v)
+    except Exception:
+        try:
+            return int(float(v))
+        except Exception:
+            return None
+
+
+def _find_numeric_attr(
+    obj: Any, include_substr, exclude_substr=()
+) -> Tuple[Optional[str], Optional[int]]:
+    inc = tuple(s.lower() for s in include_substr)
+    exc = tuple(s.lower() for s in exclude_substr)
+
+    favoritos = [
+        "qtd_alocada",
+        "quantidade_alocada",
+        "alocado",
+        "quantidade",
+        "alocado_unidade",
+        "valor_alocado",
+        "alocada",
+        "executado",
+        "qtd_executado",
+        "quantidade_executada",
+        "realizado",
+        "feito",
+        "progresso",
+        "quantidade_total",
+        "qtd_total",
+        "alvo",
+        "meta",
+    ]
+    for name in favoritos:
+        if hasattr(obj, name):
+            v = getattr(obj, name)
+            if not callable(v):
+                nv = _num_or_none(v)
+                if nv is not None:
+                    low = name.lower()
+                    if any(t in low for t in inc) and not any(t in low for t in exc):
+                        return name, nv
+
+    for name in dir(obj):
+        if name.startswith("_"):
+            continue
+        if any(t in name.lower() for t in exc):
+            continue
+        if not any(t in name.lower() for t in inc):
+            continue
+        try:
+            v = getattr(obj, name)
+        except Exception:
+            continue
+        if callable(v):
+            continue
+        nv = _num_or_none(v)
+        if nv is not None:
+            return name, nv
+
+    return None, None
+
+
+def _prev_or_same_saturday(d: date) -> date:
+    """Retorna o sábado anterior ou o próprio se d for sábado.
+    weekday(): Mon=0 .. Sun=6 ; Saturday=5
+    """
+    return d - timedelta(days=(d.weekday() - 5) % 7)
+
+
+def _next_or_same_friday(d: date) -> date:
+    """Retorna a próxima sexta (ou a própria se d for sexta). Friday=4"""
+    return d + timedelta(days=(4 - d.weekday()) % 7)
+
+
+def _weeks_sat_to_fri(dt_ini: date, dt_fim: date) -> List[Tuple[date, date]]:
+    """
+    Gera uma lista de (inicio, fim) onde cada semana começa no sábado e termina na sexta.
+    O primeiro início é o sábado <= dt_ini; o último fim é a sexta >= dt_fim.
+    """
+    start = _prev_or_same_saturday(dt_ini)
+    last = _next_or_same_friday(dt_fim)
+    weeks = []
+    cur = start
+    while cur <= last:
+        weeks.append((cur, cur + timedelta(days=6)))  # sábado -> sexta (6 dias depois)
+        cur += timedelta(days=7)
+    return weeks
+
+
+def _ordinal_pt(n: int) -> str:
+    ord_map = {
+        1: "Primeira",
+        2: "Segunda",
+        3: "Terceira",
+        4: "Quarta",
+        5: "Quinta",
+        6: "Sexta",
+        7: "Sétima",
+    }
+    return ord_map.get(n, f"{n}ª")
+
+
+def _plantonistas_do_intervalo(unidade_id, ini: Optional[date], fim: Optional[date]):
     """
     Retorna lista única de {'nome', 'telefone'} para semanas do PLANTÃO
     que intersectam [ini, fim], respeitando unidade quando houver.
@@ -103,7 +222,13 @@ def _plantonistas_do_intervalo(unidade_id, ini, fim):
             else:
                 itens_qs = []
 
-            for item in itens_qs.order_by("ordem"):
+            # Se for QuerySet, ordena; se for lista vazia, usa direto
+            if hasattr(itens_qs, "order_by"):
+                itens_iter = itens_qs.order_by("ordem")
+            else:
+                itens_iter = itens_qs
+
+            for item in itens_iter:
                 srv = getattr(item, "servidor", None)
                 nome = (getattr(srv, "nome", "") or "").strip()
                 if not nome:
@@ -125,63 +250,6 @@ def _plantonistas_do_intervalo(unidade_id, ini, fim):
     return out
 
 
-def _num_or_none(v: Any) -> Optional[int]:
-    if v is None:
-        return None
-    if isinstance(v, (int, float, Decimal)):
-        try:
-            return int(v)
-        except Exception:
-            return None
-    try:
-        return int(v)
-    except Exception:
-        try:
-            return int(float(v))
-        except Exception:
-            return None
-
-
-def _find_numeric_attr(obj: Any, include_substr, exclude_substr=()) -> Tuple[Optional[str], Optional[int]]:
-    inc = tuple(s.lower() for s in include_substr)
-    exc = tuple(s.lower() for s in exclude_substr)
-
-    favoritos = [
-        "qtd_alocada", "quantidade_alocada", "alocado", "quantidade",
-        "alocado_unidade", "valor_alocado", "alocada",
-        "executado", "qtd_executado", "quantidade_executada", "realizado", "feito",
-        "progresso", "quantidade_total", "qtd_total", "alvo", "meta",
-    ]
-    for name in favoritos:
-        if hasattr(obj, name):
-            v = getattr(obj, name)
-            if not callable(v):
-                nv = _num_or_none(v)
-                if nv is not None:
-                    low = name.lower()
-                    if any(t in low for t in inc) and not any(t in low for t in exc):
-                        return name, nv
-
-    for name in dir(obj):
-        if name.startswith("_"):
-            continue
-        if any(t in name.lower() for t in exc):
-            continue
-        if not any(t in name.lower() for t in inc):
-            continue
-        try:
-            v = getattr(obj, name)
-        except Exception:
-            continue
-        if callable(v):
-            continue
-        nv = _num_or_none(v)
-        if nv is not None:
-            return name, nv
-
-    return None, None
-
-
 # ---------------------- METAS DISPONÍVEIS ---------------------- #
 @login_required
 @require_GET
@@ -199,10 +267,7 @@ def metas_disponiveis(request: HttpRequest):
     if not unidade:
         return JsonResponse({"metas": metas})
 
-    qs = (
-        MetaAlocacao.objects.select_related("meta", "meta__atividade")
-        .filter(unidade=unidade)
-    )
+    qs = MetaAlocacao.objects.select_related("meta", "meta__atividade").filter(unidade=unidade)
     if atividade_id:
         qs = qs.filter(meta__atividade_id=atividade_id)
 
@@ -217,14 +282,13 @@ def metas_disponiveis(request: HttpRequest):
         _, alocado_val = _find_numeric_attr(
             al, include_substr=("aloc", "qtd", "quant"), exclude_substr=("exec", "realiz", "feito")
         )
-        _, executado_val = _find_numeric_attr(
-            al, include_substr=("exec", "realiz", "feito")
-        )
+        _, executado_val = _find_numeric_attr(al, include_substr=("exec", "realiz", "feito"))
 
         if mid not in bucket:
             atividade = getattr(meta, "atividade", None)
             _, meta_total_val = _find_numeric_attr(
-                meta, include_substr=("total", "alvo", "quant", "qtd", "meta"),
+                meta,
+                include_substr=("total", "alvo", "quant", "qtd", "meta"),
                 exclude_substr=("exec", "realiz", "feito"),
             )
 
@@ -236,12 +300,18 @@ def metas_disponiveis(request: HttpRequest):
 
             bucket[mid] = {
                 "id": mid,
-                "nome": getattr(meta, "titulo", None) or getattr(meta, "nome", None) or str(meta),
+                "nome": getattr(meta, "titulo", None)
+                or getattr(meta, "nome", None)
+                or str(meta),
                 "atividade_id": getattr(atividade, "id", None),
                 "atividade_nome": (
-                    getattr(atividade, "nome", None) or getattr(atividade, "titulo", None) or (str(atividade) if atividade else None)
+                    getattr(atividade, "nome", None)
+                    or getattr(atividade, "titulo", None)
+                    or (str(atividade) if atividade else None)
                 ),
-                "data_limite": data_limite.isoformat() if hasattr(data_limite, "isoformat") else data_limite,
+                "data_limite": data_limite.isoformat()
+                if hasattr(data_limite, "isoformat")
+                else data_limite,
                 "alocado_unidade": 0,
                 "executado_unidade": 0,
                 "meta_total": meta_total_val or 0,
@@ -280,20 +350,15 @@ def servidores_para_data(request: HttpRequest):
 
     todos = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).order_by("nome")
 
-    descansos_qs = (
-        Descanso.objects.filter(
-            servidor__unidade_id=unidade_id,
-            data_inicio__lte=dia,
-            data_fim__gte=dia,
-        )
-        .select_related("servidor")
-    )
+    descansos_qs = Descanso.objects.filter(
+        servidor__unidade_id=unidade_id,
+        data_inicio__lte=dia,
+        data_fim__gte=dia,
+    ).select_related("servidor")
 
     motivo_map = {}
     for d in descansos_qs:
-        motivo_map[d.servidor_id] = getattr(
-            d, "get_tipo_display", lambda: getattr(d, "tipo", "Descanso")
-        )()
+        motivo_map[d.servidor_id] = getattr(d, "get_tipo_display", lambda: getattr(d, "tipo", "Descanso"))()
 
     impedidos_ids = set(motivo_map.keys())
     livres_qs = todos.exclude(id__in=impedidos_ids)
@@ -309,6 +374,7 @@ def servidores_para_data(request: HttpRequest):
         }
     )
 
+
 # ---------------------- SALVAR PROGRAMAÇÃO ---------------------- #
 def _to_pk(v):
     """Converte para PK int > 0. '', 'null', None ou inválidos => None."""
@@ -320,15 +386,22 @@ def _to_pk(v):
     except (TypeError, ValueError):
         return None
 
-# Detecta o tipo da PK do Veiculo para coerção correta
+
 def _coerce_veiculo_pk(raw):
+    """
+    Converte PK do veículo respeitando tipo do campo (UUID x inteiro).
+    Retorna None quando não aplicável/instalado.
+    """
     if raw in (None, "", "null", "undefined"):
         return None
     if Veiculo is None:
         return None
+
+    pk_field = Veiculo._meta.pk
     # UUID? então preserve string
-    if isinstance(Veiculo._meta.pk, models.UUIDField):
+    if isinstance(pk_field, models.UUIDField):
         return str(raw).strip()
+
     # Inteiro? tente converter com segurança
     try:
         iv = int(str(raw).strip())
@@ -336,9 +409,10 @@ def _coerce_veiculo_pk(raw):
     except (TypeError, ValueError):
         return None
 
+
 @login_required
 @require_POST
-def salvar_programacao(request):
+def salvar_programacao(request: HttpRequest):
     """
     Snapshot do dia: recria os itens exatamente como o front enviou.
     - Se itens == []: limpa o dia (sem erro).
@@ -376,13 +450,15 @@ def salvar_programacao(request):
         if len(itens) == 0:
             # opcional: remover a própria programação quando fica vazia
             prog.delete()
-            return JsonResponse({
-                "ok": True,
-                "programacao_id": None,
-                "itens": 0,
-                "servidores_vinculados": 0,
-                "itens_com_veiculo": 0,
-            })
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "programacao_id": None,
+                    "itens": 0,
+                    "servidores_vinculados": 0,
+                    "itens_com_veiculo": 0,
+                }
+            )
 
         created_items = 0
         servidores_vinculados = 0
@@ -414,10 +490,6 @@ def salvar_programacao(request):
             if veiculo_pk is not None and Veiculo is not None:
                 if Veiculo.objects.filter(pk=veiculo_pk, unidade=unidade).exists():
                     veiculo_kw = {"veiculo_id": veiculo_pk}
-                else:
-                    # se quiser, pode ignorar unidade na checagem:
-                    # if Veiculo.objects.filter(pk=veiculo_pk).exists(): ...
-                    pass
 
             item = ProgramacaoItem.objects.create(
                 programacao=prog,
@@ -427,8 +499,7 @@ def salvar_programacao(request):
             created_items += 1
 
             s_ok = list(
-                Servidor.objects.filter(pk__in=servidores_ids, unidade=unidade)
-                .values_list("pk", flat=True)
+                Servidor.objects.filter(pk__in=servidores_ids, unidade=unidade).values_list("pk", flat=True)
             )
             ProgramacaoItemServidor.objects.bulk_create(
                 [ProgramacaoItemServidor(item=item, servidor_id=sid) for sid in s_ok],
@@ -438,26 +509,33 @@ def salvar_programacao(request):
 
         if created_items == 0:
             prog.delete()
-            return JsonResponse({
-                "ok": True,
-                "programacao_id": None,
-                "itens": 0,
-                "servidores_vinculados": 0,
-                "itens_com_veiculo": 0,
-            })
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "programacao_id": None,
+                    "itens": 0,
+                    "servidores_vinculados": 0,
+                    "itens_com_veiculo": 0,
+                }
+            )
 
         # Métrica extra p/ conferência
-        itens_com_veiculo = ProgramacaoItem.objects.filter(
-            programacao=prog
-        ).exclude(veiculo_id__isnull=True).count()
+        itens_com_veiculo = (
+            ProgramacaoItem.objects.filter(programacao=prog)
+            .exclude(veiculo_id__isnull=True)
+            .count()
+        )
 
-    return JsonResponse({
-        "ok": True,
-        "programacao_id": prog.id,
-        "itens": created_items,
-        "servidores_vinculados": servidores_vinculados,
-        "itens_com_veiculo": itens_com_veiculo,
-    })
+    return JsonResponse(
+        {
+            "ok": True,
+            "programacao_id": prog.id,
+            "itens": created_items,
+            "servidores_vinculados": servidores_vinculados,
+            "itens_com_veiculo": itens_com_veiculo,
+        }
+    )
+
 
 # ---------------------- ATUALIZAÇÕES ---------------------- #
 @login_required
@@ -539,8 +617,10 @@ def events_feed(request: HttpRequest):
         return JsonResponse([], safe=False)
 
     qs = Programacao.objects.filter(unidade_id=unidade_id)
-    if start_date and end_date:
-        qs = qs.filter(data__gte=start_date, data__lte=end_date)
+    if start_date:
+        qs = qs.filter(data__gte=start_date)
+    if end_date:
+        qs = qs.filter(data__lte=end_date)
 
     data = []
     for prog in qs.select_related("unidade"):
@@ -548,10 +628,9 @@ def events_feed(request: HttpRequest):
         title = f"({qtd_itens} atividade{'s' if qtd_itens != 1 else ''})"
         if getattr(prog, "concluida", False):
             title = "✅ " + title
-        data.append(
-            {"id": prog.id, "title": title, "start": prog.data.isoformat(), "allDay": True}
-        )
+        data.append({"id": prog.id, "title": title, "start": prog.data.isoformat(), "allDay": True})
     return JsonResponse(data, safe=False)
+
 
 @login_required
 @require_GET
@@ -570,19 +649,16 @@ def programacao_do_dia(request: HttpRequest):
 
     try:
         prog = (
-            Programacao.objects
-            .select_related("unidade")
+            Programacao.objects.select_related("unidade")
             .prefetch_related(
                 models.Prefetch(
                     "itens",
-                    queryset=ProgramacaoItem.objects
-                        .select_related("meta", "veiculo")
-                        .prefetch_related(
-                            models.Prefetch(
-                                "servidores",
-                                queryset=ProgramacaoItemServidor.objects.select_related("servidor")
-                            )
+                    queryset=ProgramacaoItem.objects.select_related("meta", "veiculo").prefetch_related(
+                        models.Prefetch(
+                            "servidores",
+                            queryset=ProgramacaoItemServidor.objects.select_related("servidor"),
                         )
+                    ),
                 )
             )
             .get(unidade_id=unidade_id, data=dia)
@@ -596,32 +672,45 @@ def programacao_do_dia(request: HttpRequest):
 
         veiculo_label = None
         if getattr(it, "veiculo", None):
-            nome  = getattr(it.veiculo, "nome", "") or "Veículo"
+            nome = getattr(it.veiculo, "nome", "") or "Veículo"
             placa = getattr(it.veiculo, "placa", "") or ""
             veiculo_label = f"{nome} - {placa}".strip(" -")
         elif veiculo_id:
             veiculo_label = f"Veículo #{veiculo_id} (indisponível)"
 
-        itens.append({
-            "id": it.id,
-            "meta_id": it.meta_id,
-            "meta_nome": getattr(it.meta, "titulo", None) or getattr(it.meta, "nome", None) or str(it.meta),
-            "veiculo_id": veiculo_id,
-            "veiculo_label": veiculo_label,
-            "servidores": [{"id": pis.servidor_id, "nome": pis.servidor.nome} for pis in it.servidores.all()],
-            "observacao": it.observacao,
-            "concluido": it.concluido,
-        })
+        itens.append(
+            {
+                "id": it.id,
+                "meta_id": it.meta_id,
+                "meta_nome": getattr(it.meta, "titulo", None)
+                or getattr(it.meta, "nome", None)
+                or str(it.meta),
+                "veiculo_id": veiculo_id,
+                "veiculo_label": veiculo_label,
+                "servidores": [
+                    {"id": pis.servidor_id, "nome": pis.servidor.nome} for pis in it.servidores.all()
+                ],
+                "observacao": it.observacao,
+                "concluido": it.concluido,
+            }
+        )
 
-    return JsonResponse({"ok": True, "programacao": {
-        "id": prog.id,
-        "data": prog.data.isoformat(),
-        "observacao": prog.observacao,
-        "concluida": prog.concluida,
-        "itens": itens,
-    }})
+    return JsonResponse(
+        {
+            "ok": True,
+            "programacao": {
+                "id": prog.id,
+                "data": prog.data.isoformat(),
+                "observacao": prog.observacao,
+                "concluida": prog.concluida,
+                "itens": itens,
+            },
+        }
+    )
 
-login_required
+
+# ---------------------- EXCLUIR PROGRAMAÇÃO ---------------------- #
+@login_required
 @require_POST
 def excluir_programacao(request: HttpRequest):
     """
@@ -661,37 +750,7 @@ def excluir_programacao(request: HttpRequest):
     return JsonResponse({"ok": True, "deleted": True})
 
 
-# programar_atividades/views.py (adicione ao seu arquivo)
-
-# --- helpers para semanas Sáb → Sex (compatível com Plantao) ---
-def _prev_or_same_saturday(d: date) -> date:
-    """Retorna o sábado anterior ou o próprio se d for sábado.
-    weekday(): Mon=0 .. Sun=6 ; Saturday=5"""
-    return d - timedelta(days=(d.weekday() - 5) % 7)
-
-def _next_or_same_friday(d: date) -> date:
-    """Retorna a próxima sexta (ou a própria se d for sexta). Friday=4"""
-    return d + timedelta(days=(4 - d.weekday()) % 7)
-
-def _weeks_sat_to_fri(dt_ini: date, dt_fim: date):
-    """
-    Gera uma lista de (inicio, fim) onde cada semana começa no sábado e termina na sexta.
-    O primeiro início é o sábado <= dt_ini; o último fim é a sexta >= dt_fim.
-    Retorna lista de tuples (inicio: date, fim: date).
-    """
-    start = _prev_or_same_saturday(dt_ini)
-    last = _next_or_same_friday(dt_fim)
-    weeks = []
-    cur = start
-    while cur <= last:
-        weeks.append((cur, cur + timedelta(days=6)))  # sábado -> sexta (6 dias depois)
-        cur += timedelta(days=7)
-    return weeks
-
-def _ordinal_pt(n: int) -> str:
-    ord_map = {1: "Primeira", 2: "Segunda", 3: "Terceira", 4: "Quarta", 5: "Quinta", 6: "Sexta", 7: "Sétima"}
-    return ord_map.get(n, f"{n}ª")
-
+# ---------------------- RELATÓRIOS (parcial) ---------------------- #
 @login_required
 @require_GET
 def relatorios_parcial(request: HttpRequest):
@@ -700,19 +759,20 @@ def relatorios_parcial(request: HttpRequest):
     """
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
-        return JsonResponse({"ok": False, "html": "<div class='alert alert-warning'>Unidade não definida.</div>"})
+        return JsonResponse(
+            {"ok": False, "html": "<div class='alert alert-warning'>Unidade não definida.</div>"}
+        )
 
     # --- intervalo base ---
     today = date.today()
     start_qs = parse_date(request.GET.get("start") or "") or today.replace(day=1)
 
-    # >>> fallback do fim do mês com base em start_qs (e não em today)
+    # fim do mês com base em start_qs
     if start_qs.month == 12:
         month_end = date(start_qs.year, 12, 31)
     else:
         next_month = date(start_qs.year, start_qs.month + 1, 1)
         month_end = next_month - timedelta(days=1)
-
     end_qs = parse_date(request.GET.get("end") or "") or month_end
 
     # --- semanas Sáb->Sex ---
@@ -738,16 +798,12 @@ def relatorios_parcial(request: HttpRequest):
         fim = selected_week["fim"]
         dias_da_semana = [ini + timedelta(days=i) for i in range(7)]
 
-        programacoes = (
-            Programacao.objects
-            .filter(unidade_id=unidade_id, data__range=(ini, fim))
-            .prefetch_related(
-                models.Prefetch(
-                    "itens",
-                    queryset=ProgramacaoItem.objects
-                        .select_related("meta", "veiculo")
-                        .prefetch_related("servidores__servidor")
-                )
+        programacoes = Programacao.objects.filter(unidade_id=unidade_id, data__range=(ini, fim)).prefetch_related(
+            models.Prefetch(
+                "itens",
+                queryset=ProgramacaoItem.objects.select_related("meta", "veiculo").prefetch_related(
+                    "servidores__servidor"
+                ),
             )
         )
         prog_map = {p.data: p for p in programacoes}
@@ -769,36 +825,40 @@ def relatorios_parcial(request: HttpRequest):
                                 or getattr(srv, "fone", None)
                                 or None
                             )
-                            servidores.append({
-                                "id": getattr(srv, "id", None),
-                                "nome": getattr(srv, "nome", str(srv)),
-                                "telefone": tel
-                            })
+                            servidores.append(
+                                {
+                                    "id": getattr(srv, "id", None),
+                                    "nome": getattr(srv, "nome", str(srv)),
+                                    "telefone": tel,
+                                }
+                            )
                         else:
                             servidores.append({"id": None, "nome": str(ps), "telefone": None})
 
                     veiculo_label = None
                     if getattr(item, "veiculo", None):
-                        nome_v  = getattr(item.veiculo, "nome", "") or "Veículo"
+                        nome_v = getattr(item.veiculo, "nome", "") or "Veículo"
                         placa_v = getattr(item.veiculo, "placa", "") or ""
                         veiculo_label = f"{nome_v} - {placa_v}".strip(" -")
 
-                    atividades.append({
-                        "titulo": getattr(item.meta, "nome", getattr(item.meta, "titulo", str(item.meta))),
-                        "servidores": servidores,
-                        "veiculo": veiculo_label
-                    })
+                    atividades.append(
+                        {
+                            "titulo": getattr(item.meta, "nome", getattr(item.meta, "titulo", str(item.meta))),
+                            "servidores": servidores,
+                            "veiculo": veiculo_label,
+                        }
+                    )
 
-            semana_detalhada.append({
-                "data": dia,
-                "nome_semana": nome_dia_semana(dia),
-                # mantemos sem 'plantonista' agregado aqui; se precisar por-dia, você já tem 'atividades/servidores'
-                "atividades": atividades,
-                "is_weekend": dia.weekday() in (5, 6),
-            })
+            semana_detalhada.append(
+                {
+                    "data": dia,
+                    "nome_semana": nome_dia_semana(dia),
+                    "atividades": atividades,
+                    "is_weekend": dia.weekday() in (5, 6),
+                }
+            )
 
-    # >>> BLOCO REMOVIDO: não agregamos mais plantonistas_semana no parcial
-    plantonistas_semana = []  # mantém compatibilidade com template usando um IF
+    plantonistas_semana = []  # removido no parcial
 
     try:
         html = render_to_string(
@@ -808,7 +868,7 @@ def relatorios_parcial(request: HttpRequest):
                 "end": end_qs,
                 "semanas": semanas,
                 "semana": semana_detalhada,
-                "plantonistas_semana": plantonistas_semana,  # vazio => não renderiza se houver {% if %}
+                "plantonistas_semana": plantonistas_semana,
                 "selected_week": selected_week,
             },
             request=request,
@@ -816,29 +876,24 @@ def relatorios_parcial(request: HttpRequest):
     except Exception:
         tb_str = traceback.format_exc()
         print("ERRO ao renderizar _relatorios.html:\n", tb_str)
-        return JsonResponse({
-            "ok": False,
-            "html": (
-                "<div class='alert alert-danger'>"
-                "<strong>Erro ao renderizar relatório (ver console/server logs)</strong><br>"
-                f"<pre style='white-space:pre-wrap; font-size:12px'>{tb_str}</pre>"
-                "</div>"
-            )
-        })
+        return JsonResponse(
+            {
+                "ok": False,
+                "html": (
+                    "<div class='alert alert-danger'>"
+                    "<strong>Erro ao renderizar relatório (ver console/server logs)</strong><br>"
+                    f"<pre style='white-space:pre-wrap; font-size:12px'>{tb_str}</pre>"
+                    "</div>"
+                ),
+            }
+        )
 
     return JsonResponse({"ok": True, "html": html})
 
-def nome_dia_semana(data: date) -> str:
-    dias = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]
-    return dias[data.weekday()] if 0 <= data.weekday() < 7 else data.strftime("%A")
 
-
-
-# assume get_unidade_atual_id e _weeks_sat_to_fri, _ordinal_pt, nome_dia_semana já definidos no mesmo módulo
-
-
+# ---------------------- PRINTS ---------------------- #
 @login_required
-def imprimir_programacao(request):
+def imprimir_programacao(request: HttpRequest):
     """
     Página de impressão: mostra grupos semanais (Sáb→Sex) com servidores e telefones.
     Query params (opcional): ?start=YYYY-MM-DD&end=YYYY-MM-DD
@@ -847,12 +902,16 @@ def imprimir_programacao(request):
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
         # mostra template vazio / mensagem amigável
-        return render(request, "programar_atividades/print_programacao.html", {
-            "plantao": {"inicio": None, "fim": None},
-            "grupos": [],
-            "now": datetime.now(),
-            "request": request,
-        })
+        return render(
+            request,
+            "programar_atividades/print_programacao.html",
+            {
+                "plantao": {"inicio": None, "fim": None},
+                "grupos": [],
+                "now": datetime.now(),
+                "request": request,
+            },
+        )
 
     # parse dos parâmetros: start (fallback para 1º do mês atual), end (fallback fim do mês de start)
     today = date.today()
@@ -870,26 +929,22 @@ def imprimir_programacao(request):
     raw_weeks = _weeks_sat_to_fri(start_qs, end_qs)
 
     # Carrega todas as programações do intervalo (uma única query) com itens e servidores para prefetch
-    programacoes_qs = (
-        Programacao.objects
-        .filter(unidade_id=unidade_id, data__range=(start_qs, end_qs))
-        .prefetch_related(
-            models.Prefetch(
-                "itens",
-                queryset=ProgramacaoItem.objects
-                    .select_related("meta", "veiculo")
-                    .prefetch_related(
-                        models.Prefetch(
-                            "servidores",
-                            queryset=ProgramacaoItemServidor.objects.select_related("servidor")
-                        )
-                    )
-            )
+    programacoes_qs = Programacao.objects.filter(
+        unidade_id=unidade_id, data__range=(start_qs, end_qs)
+    ).prefetch_related(
+        models.Prefetch(
+            "itens",
+            queryset=ProgramacaoItem.objects.select_related("meta", "veiculo").prefetch_related(
+                models.Prefetch(
+                    "servidores",
+                    queryset=ProgramacaoItemServidor.objects.select_related("servidor"),
+                )
+            ),
         )
     )
 
     # índice por data para acesso rápido
-    prog_map = {}
+    prog_map: Dict[date, List[Programacao]] = {}
     for p in programacoes_qs:
         prog_map.setdefault(p.data, []).append(p)
 
@@ -897,7 +952,6 @@ def imprimir_programacao(request):
     for ini, fim in raw_weeks:
         # junta programacoes no período [ini,fim]
         servidores_ids = set()
-        # percorre programacoes daquele período usando prog_map
         d = ini
         while d <= fim:
             for p in prog_map.get(d, []):
@@ -923,18 +977,22 @@ def imprimir_programacao(request):
 
         grupos.append({"periodo": (ini, fim), "servidores": servidores})
 
-    plantao = {"inicio": raw_weeks[0][0] if raw_weeks else start_qs,
-               "fim": raw_weeks[-1][1] if raw_weeks else end_qs}
+    plantao = {"inicio": raw_weeks[0][0] if raw_weeks else start_qs, "fim": raw_weeks[-1][1] if raw_weeks else end_qs}
 
-    return render(request, "programar_atividades/print_programacao.html", {
-        "plantao": plantao,
-        "grupos": grupos,
-        "now": datetime.now(),
-        "request": request,
-    })
+    return render(
+        request,
+        "programar_atividades/print_programacao.html",
+        {
+            "plantao": plantao,
+            "grupos": grupos,
+            "now": datetime.now(),
+            "request": request,
+        },
+    )
+
 
 @login_required
-def print_programacao(request):
+def print_programacao(request: HttpRequest):
     """
     Gera uma versão para impressão da programação entre ?start=YYYY-MM-DD&end=YYYY-MM-DD.
     Agrupa por dia (cada Programacao => um grupo com lista de servidores únicos).
@@ -956,15 +1014,13 @@ def print_programacao(request):
 
     # Carrega programações do intervalo com itens/servidores/veículos/meta
     programacoes = (
-        Programacao.objects
-        .filter(unidade_id=unidade_id, data__gte=inicio, data__lte=fim)
-        .select_related()  # ajuste se quiser
+        Programacao.objects.filter(unidade_id=unidade_id, data__gte=inicio, data__lte=fim)
         .prefetch_related(
             models.Prefetch(
                 "itens",
-                queryset=ProgramacaoItem.objects
-                    .select_related("meta", "veiculo")
-                    .prefetch_related("servidores__servidor")
+                queryset=ProgramacaoItem.objects.select_related("meta", "veiculo").prefetch_related(
+                    "servidores__servidor"
+                ),
             )
         )
         .order_by("data")
@@ -972,7 +1028,7 @@ def print_programacao(request):
 
     grupos = []
     for prog in programacoes:
-        servidores_map: dict = {}  # nome -> telefone (mantém únicos)
+        servidores_map: Dict[str, Optional[str]] = {}  # nome -> telefone (mantém únicos)
         # percorre itens do dia e coleta servidores
         for item in prog.itens.all():
             for pis in item.servidores.all():
@@ -980,7 +1036,6 @@ def print_programacao(request):
                 if not srv:
                     continue
                 nome = getattr(srv, "nome", str(srv)).strip()
-                # tenta vários campos comuns para telefone
                 tel = (
                     getattr(srv, "telefone", None)
                     or getattr(srv, "telefone_celular", None)
@@ -994,10 +1049,12 @@ def print_programacao(request):
 
         servidores = [{"nome": n, "telefone": servidores_map[n]} for n in sorted(servidores_map.keys())]
 
-        grupos.append({
-            "periodo": (prog.data, prog.data),  # template espera tupla (inicio, fim)
-            "servidores": servidores,
-        })
+        grupos.append(
+            {
+                "periodo": (prog.data, prog.data),  # template espera tupla (inicio, fim)
+                "servidores": servidores,
+            }
+        )
 
     plantao = {"inicio": inicio, "fim": fim}
 
@@ -1011,23 +1068,22 @@ def print_programacao(request):
     return render(request, "programar_atividades/print_programacao.html", context)
 
 
-
 @login_required
 @require_GET
-def print_relatorio_semana(request):
+def print_relatorio_semana(request: HttpRequest):
     """
     Página de impressão do RELATÓRIO SEMANAL (tabela).
     Usa a semana Sáb→Sex que contém 'start'. Os plantonistas vêm do app Plantão.
     Fallback por palavras-chave só é usado se não houver dados no Plantão.
     """
     start_str = request.GET.get("start")
-    end_str   = request.GET.get("end")
+    end_str = request.GET.get("end")
     if not start_str or not end_str:
         return HttpResponseBadRequest("Parâmetros 'start' e 'end' são obrigatórios (YYYY-MM-DD).")
 
     try:
         start = date.fromisoformat(start_str)
-        end   = date.fromisoformat(end_str)
+        end = date.fromisoformat(end_str)
     except Exception:
         return HttpResponseBadRequest("Formato inválido para 'start' ou 'end'. Use YYYY-MM-DD.")
 
@@ -1048,16 +1104,12 @@ def print_relatorio_semana(request):
         sel_ini, sel_fim = weeks[0]
 
     # --------- carrega programações do range com itens/servidores/veículo ---------
-    programacoes = (
-        Programacao.objects
-        .filter(unidade_id=unidade_id, data__range=(sel_ini, sel_fim))
-        .prefetch_related(
-            models.Prefetch(
-                "itens",
-                queryset=ProgramacaoItem.objects
-                    .select_related("meta", "veiculo")
-                    .prefetch_related("servidores__servidor")
-            )
+    programacoes = Programacao.objects.filter(unidade_id=unidade_id, data__range=(sel_ini, sel_fim)).prefetch_related(
+        models.Prefetch(
+            "itens",
+            queryset=ProgramacaoItem.objects.select_related("meta", "veiculo").prefetch_related(
+                "servidores__servidor"
+            ),
         )
     )
     prog_map = {p.data: p for p in programacoes}
@@ -1083,31 +1135,37 @@ def print_relatorio_semana(request):
                         or getattr(srv, "fone", None)
                         or None
                     )
-                    servidores.append({
-                        "id": getattr(srv, "id", None),
-                        "nome": getattr(srv, "nome", str(srv)),
-                        "telefone": tel,
-                    })
+                    servidores.append(
+                        {
+                            "id": getattr(srv, "id", None),
+                            "nome": getattr(srv, "nome", str(srv)),
+                            "telefone": tel,
+                        }
+                    )
 
                 # veículo (rótulo amigável)
                 veiculo_label = None
                 if getattr(item, "veiculo", None):
-                    nome_v  = getattr(item.veiculo, "nome", "") or "Veículo"
+                    nome_v = getattr(item.veiculo, "nome", "") or "Veículo"
                     placa_v = getattr(item.veiculo, "placa", "") or ""
                     veiculo_label = f"{nome_v} - {placa_v}".strip(" -")
 
-                atividades.append({
-                    "titulo": getattr(item.meta, "nome", getattr(item.meta, "titulo", str(item.meta))),
-                    "servidores": servidores,
-                    "veiculo": veiculo_label or "Nenhum - veículo",
-                })
+                atividades.append(
+                    {
+                        "titulo": getattr(item.meta, "nome", getattr(item.meta, "titulo", str(item.meta))),
+                        "servidores": servidores,
+                        "veiculo": veiculo_label or "Nenhum veículo",
+                    }
+                )
 
-        semana.append({
-            "data": dia,
-            "nome_semana": nome_dia_semana(dia),
-            "atividades": atividades,
-            "is_weekend": dia.weekday() in (5, 6),
-        })
+        semana.append(
+            {
+                "data": dia,
+                "nome_semana": nome_dia_semana(dia),
+                "atividades": atividades,
+                "is_weekend": dia.weekday() in (5, 6),
+            }
+        )
 
     # --------- PLANTONISTAS: oficial do app Plantão ---------
     plantonistas_semana = _plantonistas_do_intervalo(unidade_id, sel_ini, sel_fim)

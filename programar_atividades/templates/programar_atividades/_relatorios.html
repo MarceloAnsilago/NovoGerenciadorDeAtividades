@@ -1,121 +1,167 @@
-{# templates/programar_atividades/_relatorios.html — corrigido #}
+{# templates/programar_atividades/_relatorios.html — PRINT via IFRAME (robusto) #}
 {% load static %}
 
 <style>
-/* estilos locais */
-.square-radio { -webkit-appearance:none; appearance:none; width:16px; height:16px; border:1px solid #6c757d; border-radius:3px; display:inline-block; vertical-align:middle; margin-right:6px; cursor:pointer; background:white; }
+/* ---------------- Base ---------------- */
+.square-radio { -webkit-appearance:none; appearance:none; width:16px; height:16px; border:1px solid #6c757d; border-radius:3px; display:inline-block; vertical-align:middle; margin-right:6px; cursor:pointer; background:#fff; }
 .square-radio:checked{ background:#0d6efd; border-color:#0d6efd; }
 .small-label{ font-size:.9rem; vertical-align:middle; margin-left:6px; }
 .serv-list{ display:flex; flex-direction:column; gap:6px; align-items:stretch; }
 .serv-list-item{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 0; }
 .serv-name{ flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-right:12px; font-weight:600; font-size:.95rem; }
-
-@media (max-width:767.98px){ .serv-list-item{ flex-direction:column; align-items:flex-start; } .serv-name{ width:100%; } }
-@media print{ .table{ font-size:11px } .small-label{font-size:11px} h5{font-size:14px} .square-radio{width:12px;height:12px} }
+@media (max-width:767.98px){
+  .serv-list-item{ flex-direction:column; align-items:flex-start; }
+  .serv-name{ width:100%; }
+}
 .plantonistas-box { margin-top:1.25rem; margin-bottom:1rem; }
 .plantonistas-box h6 { display:flex; align-items:center; gap:.5rem; }
 .print-buttons, #relatorio-actions { margin-top:0.75rem; display:flex; gap:0.5rem; }
+
+/* ---------------- PRINT ---------------- */
+@media print{
+  @page{ size:auto; margin:12mm; }
+
+  /* cores e base */
+  html, body{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body{ padding-top:0 !important; background:#fff !important; }
+  .content{ margin:0 !important; padding:0 !important; }
+  .container-fluid{ padding:0 !important; }
+
+  /* tipografia/tabelas */
+  .table{ font-size:11px }
+  .small-label{ font-size:11px }
+  h5{ font-size:14px }
+  .square-radio{ width:12px; height:12px }
+  .table-responsive{ overflow:visible !important; }
+  .table-responsive > .table{ width:100% !important; }
+  thead{ display:table-header-group; }
+  table{ width:100% !important; border-collapse:collapse !important; }
+  tr, th, td, img{ break-inside:avoid; page-break-inside:avoid; }
+
+  /* === MOSTRAR SOMENTE #relatorioPrintArea (sem esconder ancestrais) === */
+  body *{ visibility:hidden !important; }
+  #relatorioPrintArea, #relatorioPrintArea *{ visibility:visible !important; }
+
+  /* posiciona o relatório no topo e ocupa a largura toda */
+  #relatorioPrintArea{
+    position:absolute !important;
+    left:0 !important; top:0 !important;
+    margin:0 !important; max-width:100% !important; width:100% !important;
+  }
+}
 </style>
 
-<div class="mb-3">
-  <h4 class="fw-bold mb-1">Relatório semanal</h4>
-  <div class="text-muted small">{{ start|date:"d/m/Y" }} &rarr; {{ end|date:"d/m/Y" }}</div>
-</div>
 
-{# --- Corpo: dias da semana --- #}
-{% for dia in semana %}
-  {% if dia.atividades or not dia.is_weekend %}
-    <h5 class="mt-4 mb-2">
-      <i class="bi bi-calendar-event me-1 text-primary" aria-hidden="true"></i>
-      {{ dia.nome_semana }} ({{ dia.data|date:"d/m/Y" }})
-      {% if dia.plantonista %}
-        <span class="badge bg-info text-dark ms-3">
-          Plantonista:
-          {% for p in dia.plantonista %}{{ p.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}
-        </span>
-      {% endif %}
-    </h5>
+{# ---------------- ÁREA IMPRESSA ---------------- #}
+<div id="relatorioPrintArea" class="print-area">
 
-    {% if dia.atividades %}
-      <div class="table-responsive mb-3">
-        <table class="table table-bordered table-sm align-middle">
-          <thead class="table-light text-center">
-            <tr>
-              <th style="min-width:220px">Atividade</th>
-              <th style="min-width:300px">Servidores</th>
-              <th style="min-width:160px">Veículo</th>
-              <th style="width:140px">Realizada</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for atividade in dia.atividades %}
+  <div class="mb-3">
+    <h4 class="fw-bold mb-1">Relatório semanal</h4>
+    <div class="text-muted small">{{ start|date:"d/m/Y" }} &rarr; {{ end|date:"d/m/Y" }}</div>
+  </div>
+
+  {% for dia in semana %}
+    {% if dia.atividades or not dia.is_weekend %}
+      <h5 class="mt-4 mb-2">
+        <i class="bi bi-calendar-event me-1 text-primary" aria-hidden="true"></i>
+        {{ dia.nome_semana }} ({{ dia.data|date:"d/m/Y" }})
+        {% if dia.plantonista %}
+          <span class="badge bg-info text-dark ms-3">
+            Plantonista:
+            {% for p in dia.plantonista %}{{ p.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}
+          </span>
+        {% endif %}
+      </h5>
+
+      {% if dia.atividades %}
+        <div class="table-responsive mb-3">
+          <table class="table table-bordered table-sm align-middle">
+            <thead class="table-light text-center">
               <tr>
-                <td class="align-middle">{{ atividade.titulo }}</td>
-
-                <td class="align-middle">
-                  <div class="serv-list">
-                    {% for servidor in atividade.servidores %}
-                      <div class="serv-list-item">
-                        <div class="serv-name" title="{{ servidor.nome }}">{{ servidor.nome }}</div>
-
-                        <div class="d-flex align-items-center">
-                          <label class="d-flex align-items-center me-2" title="Participou - Sim">
-                            <input type="radio" class="square-radio"
-                                   name="srv-d{{ forloop.parentloop.parentloop.counter0 }}-a{{ forloop.parentloop.counter0 }}-s{{ forloop.counter0 }}"
-                                   value="sim" aria-label="Sim">
-                            <span class="small-label">Sim</span>
-                          </label>
-
-                          <label class="d-flex align-items-center" title="Participou - Não">
-                            <input type="radio" class="square-radio"
-                                   name="srv-d{{ forloop.parentloop.parentloop.counter0 }}-a{{ forloop.parentloop.counter0 }}-s{{ forloop.counter0 }}"
-                                   value="nao" aria-label="Não">
-                            <span class="small-label">Não</span>
-                          </label>
-                        </div>
-                      </div>
-                    {% empty %}
-                      <div class="text-muted">— nenhum servidor listado —</div>
-                    {% endfor %}
-                  </div>
-                </td>
-
-                <td class="align-middle text-center">{{ atividade.veiculo|default:"—" }}</td>
-
-                <td class="align-middle text-center">
-                  <div class="d-flex align-items-center justify-content-center gap-3">
-                    <label class="d-flex align-items-center" title="Atividade realizada - Sim">
-                      <input type="radio" class="square-radio"
-                             name="act-d{{ forloop.parentloop.counter0 }}-a{{ forloop.counter0 }}-status"
-                             value="sim" aria-label="Atividade realizada - Sim">
-                      <span class="small-label">Sim</span>
-                    </label>
-
-                    <label class="d-flex align-items-center" title="Atividade realizada - Não">
-                      <input type="radio" class="square-radio"
-                             name="act-d{{ forloop.parentloop.counter0 }}-a{{ forloop.counter0 }}-status"
-                             value="nao" aria-label="Atividade realizada - Não">
-                      <span class="small-label">Não</span>
-                    </label>
-                  </div>
-                </td>
+                <th style="min-width:220px">Atividade</th>
+                <th style="min-width:300px">Servidores</th>
+                <th style="min-width:160px">Veículo</th>
+                <th style="width:140px">Realizada</th>
               </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <div class="text-muted mb-3">Nenhuma atividade registrada neste dia.</div>
+            </thead>
+            <tbody>
+              {% for atividade in dia.atividades %}
+                <tr>
+                  <td class="align-middle">{{ atividade.titulo }}</td>
+                  <td class="align-middle">
+                    <div class="serv-list">
+                      {% for servidor in atividade.servidores %}
+                        <div class="serv-list-item">
+                          <div class="serv-name" title="{{ servidor.nome }}">{{ servidor.nome }}</div>
+                          <div class="d-flex align-items-center">
+                            <label class="d-flex align-items-center me-2" title="Participou - Sim">
+                              <input type="radio" class="square-radio"
+                                     name="srv-d{{ forloop.parentloop.parentloop.counter0 }}-a{{ forloop.parentloop.counter0 }}-s{{ forloop.counter0 }}"
+                                     value="sim" aria-label="Sim">
+                              <span class="small-label">Sim</span>
+                            </label>
+                            <label class="d-flex align-items-center" title="Participou - Não">
+                              <input type="radio" class="square-radio"
+                                     name="srv-d{{ forloop.parentloop.parentloop.counter0 }}-a{{ forloop.parentloop.counter0 }}-s{{ forloop.counter0 }}"
+                                     value="nao" aria-label="Não">
+                              <span class="small-label">Não</span>
+                            </label>
+                          </div>
+                        </div>
+                      {% empty %}
+                        <div class="text-muted">— nenhum servidor listado —</div>
+                      {% endfor %}
+                    </div>
+                  </td>
+                  <td class="align-middle text-center">{{ atividade.veiculo|default:"—" }}</td>
+                  <td class="align-middle text-center">
+                    <div class="d-flex align-items-center justify-content-center gap-3">
+                      <label class="d-flex align-items-center" title="Atividade realizada - Sim">
+                        <input type="radio" class="square-radio"
+                               name="act-d{{ forloop.parentloop.counter0 }}-a{{ forloop.counter0 }}-status"
+                               value="sim" aria-label="Atividade realizada - Sim">
+                        <span class="small-label">Sim</span>
+                      </label>
+                      <label class="d-flex align-items-center" title="Atividade realizada - Não">
+                        <input type="radio" class="square-radio"
+                               name="act-d{{ forloop.parentloop.counter0 }}-a{{ forloop.counter0 }}-status"
+                               value="nao" aria-label="Atividade realizada - Não">
+                        <span class="small-label">Não</span>
+                      </label>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-muted mb-3">Nenhuma atividade registrada neste dia.</div>
+      {% endif %}
     {% endif %}
-  {% endif %}
-{% endfor %}
+  {% endfor %}
 
-<div class="text-muted small mt-3">
-  Observação: marque "Sim" para a atividade / servidor caso tenham participado ou a atividade
-  tenha sido realizada. Esses controles são visuais — implemente o envio ao servidor no backend para persistência quando estiver pronto.
+  <div class="text-muted small mt-3">
+    Observação: marque "Sim" para a atividade / servidor caso tenham participado ou a atividade
+    tenha sido realizada. Esses controles são visuais — implemente o envio ao servidor no backend para persistência quando estiver pronto.
+  </div>
+
+  {% if plantonistas_semana and plantonistas_semana|length %}
+    <div id="plantonistas-semana-final" class="plantonistas-box">
+      <h6 class="fw-semibold mb-2">
+        <span class="badge bg-light border me-2"><i class="bi bi-person-badge text-primary"></i></span>
+        Plantonista(s) da semana
+      </h6>
+      <ul class="mb-0">
+        {% for p in plantonistas_semana %}
+          <li>{{ p.nome }}{% if p.telefone %} — ({{ p.telefone }}){% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
 </div>
 
-{# --- BOTÕES: sempre visíveis (fora do bloco de plantonistas) --- #}
+{# ---------------- Botões ---------------- #}
 <div id="relatorio-actions" class="mt-2 d-flex gap-2">
   <button id="btnImprimirProgramacao"
           class="btn btn-sm btn-outline-primary"
@@ -132,17 +178,163 @@
   </button>
 </div>
 
-{# --- PLANTONISTAS da semana: apenas aqui no final, quando existir --- #}
-{% if plantonistas_semana and plantonistas_semana|length %}
-  <div id="plantonistas-semana-final" class="plantonistas-box">
-    <h6 class="fw-semibold mb-2">
-      <span class="badge bg-light border me-2"><i class="bi bi-person-badge text-primary"></i></span>
-      Plantonista(s) da semana
-    </h6>
-    <ul class="mb-0">
-      {% for p in plantonistas_semana %}
-        <li>{{ p.nome }}{% if p.telefone %} — ({{ p.telefone }}){% endif %}</li>
-      {% endfor %}
-    </ul>
-  </div>
-{% endif %}
+<script>
+/* ===== Print via IFRAME oculto (sem overlay, anti “página em branco”) ===== */
+(function(){
+  if (window.__relPrintIframeInstalled) return;
+  window.__relPrintIframeInstalled = true;
+
+  function createHiddenIframe() {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.tabIndex = -1;
+    document.body.appendChild(iframe);
+    return iframe;
+  }
+
+  function cloneNodeDeep(node){
+    return node.cloneNode(true);
+  }
+
+  function copyStylesToIframe(doc){
+    const parentDocs = [document];
+    const frag = doc.createDocumentFragment();
+
+    // <base> para resolver URLs relativas (static, imagens etc.)
+    const base = doc.createElement('base');
+    base.href = document.baseURI || window.location.href;
+    frag.appendChild(base);
+
+    for (const parentDoc of parentDocs){
+      // Links (Bootstrap, ícones, seu CSS, etc.)
+      parentDoc.querySelectorAll('link[rel="stylesheet"]').forEach(link=>{
+        const l = doc.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = link.href;
+        frag.appendChild(l);
+      });
+
+      // Estilos inline
+      parentDoc.querySelectorAll('style').forEach(style=>{
+        const s = doc.createElement('style');
+        // evita copiar regras de "overlay print" antigas se existirem
+        const txt = style.textContent || '';
+        s.textContent = txt;
+        frag.appendChild(s);
+      });
+    }
+
+    // Pequenos ajustes específicos para imprimir o relatório
+    const tune = doc.createElement('style');
+    tune.textContent = `
+      @page{ margin:12mm; }
+      html,body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .table{ font-size:11px }
+      .small-label{ font-size:11px }
+      h5{ font-size:14px }
+      .square-radio{ width:12px; height:12px }
+      .table-responsive{ overflow:visible !important; }
+      .table-responsive > .table{ width:100% !important; }
+      thead{ display:table-header-group; }
+      table{ width:100% !important; border-collapse:collapse !important; }
+      tr, th, td, img{ break-inside:avoid; page-break-inside:avoid; }
+      /* garante contraste de impressão */
+      body{ color:#111827; background:#fff; }
+    `;
+    frag.appendChild(tune);
+
+    doc.head.appendChild(frag);
+  }
+
+  function waitForStyles(doc){
+    const links = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'));
+    if (links.length === 0) return Promise.resolve();
+
+    return Promise.all(links.map(link => new Promise(res=>{
+      if (link.sheet) return res(); // pode já estar pronto
+      link.addEventListener('load', res, {once:true});
+      link.addEventListener('error', res, {once:true}); // segue mesmo se algum falhar
+    })));
+  }
+
+  function waitForImages(doc){
+    const imgs = Array.from(doc.images || []);
+    if (imgs.length === 0) return Promise.resolve();
+    return Promise.all(imgs.map(img => new Promise(res=>{
+      if (img.complete) return res();
+      img.addEventListener('load', res, {once:true});
+      img.addEventListener('error', res, {once:true});
+    })));
+  }
+
+  async function printInIframe(btn){
+    const src = document.getElementById('relatorioPrintArea') || document.querySelector('.print-area');
+    if (!src){ alert('Área de impressão não encontrada.'); return; }
+
+    const iframe = createHiddenIframe();
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+
+    // título
+    const s = btn?.dataset.start || '', e = btn?.dataset.end || '';
+    const title = (s && e) ? `Relatório semanal ${s} a ${e}` : document.title;
+
+    // Esqueleto do documento
+    doc.open();
+    doc.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body></body></html>');
+    doc.close();
+
+    doc.title = title;
+
+    // Copia estilos
+    copyStylesToIframe(doc);
+
+    // Clona conteúdo
+    const clone = cloneNodeDeep(src);
+    // opcional: remover atributos de id duplicados no clone, se necessário
+    // (não é obrigatório no iframe, mas evita warnings)
+    doc.body.appendChild(clone);
+
+    // Aguarda CSS, fontes e imagens
+    try {
+      await waitForStyles(doc);
+      if (doc.fonts && doc.fonts.ready) { await doc.fonts.ready; }
+      await waitForImages(doc);
+    } catch(e){ /* segue mesmo se algo falhar */ }
+
+    // Reflow antes de imprimir
+    void doc.body.offsetHeight;
+
+    // Imprime o IFRAME
+    const w = iframe.contentWindow;
+    const cleanup = () => {
+      // remove o iframe após imprimir
+      setTimeout(()=>{ try{ iframe.remove(); }catch(_){} }, 200);
+      if (w) { w.onafterprint = null; }
+    };
+    if (w) {
+      w.focus();
+      w.onafterprint = cleanup;
+      try { w.print(); } catch(e){ cleanup(); }
+      // fallback caso onafterprint não dispare (alguns browsers móveis)
+      setTimeout(cleanup, 3000);
+    } else {
+      cleanup();
+    }
+  }
+
+  // delegação — funciona com conteúdo dinâmico
+  document.addEventListener('click', function(ev){
+    const target = ev.target.closest('#btnImprimirProgramacao, #btnImprimirVista');
+    if (!target) return;
+    ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation?.();
+    if (target.tagName === 'BUTTON' && !target.hasAttribute('type')) target.setAttribute('type','button');
+    printInIframe(target);
+  }, true);
+})();
+</script>
