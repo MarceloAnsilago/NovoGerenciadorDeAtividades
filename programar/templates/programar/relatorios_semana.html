@@ -1,0 +1,22 @@
+{% extends "programar/base.html" %}
+
+{% block page_header %}
+  <div class="container my-4 d-flex align-items-center justify-content-between">
+    <h1 class="mb-0">Relatórios da Semana</h1>
+    <div class="btn-group">
+      <button id="btnImprimirProgramacao" class="btn btn-outline-primary btn-sm">Imprimir programação</button>
+      <button id="btnImprimirVista" class="btn btn-outline-secondary btn-sm">Imprimir vista</button>
+    </div>
+  </div>
+{% endblock %}
+
+{% block page_body %}
+  <div class="container">
+    {% include "programar/partials/_calendar_toolbar.html" %}
+    {% include "programar/partials/_relatorios_container.html" %}
+  </div>
+{% endblock %}
+
+{% block page_scripts %}
+  {% include "programar/scripts/_relatorios_logic.html" %}
+{% endblock %}

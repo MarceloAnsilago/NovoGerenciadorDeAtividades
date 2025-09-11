@@ -19,7 +19,7 @@ from metas.models import Meta, MetaAlocacao
 from servidores.models import Servidor
 from descanso.models import Descanso
 from .models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
-
+from programar_atividades.services.plantao import aplicar_plantonistas_na_semana_context
 # Veículo é opcional (ambientes sem o app)
 try:
     from veiculos.models import Veiculo  # type: ignore
@@ -1198,3 +1198,77 @@ def print_relatorio_semana(request: HttpRequest):
     if request.GET.get("inline") in ("1", "true", "yes", "on"):
         tpl = "programar_atividades/_print_relatorio_semana_fragment.html"
     return render(request, tpl, context)
+
+
+def relatorio_semana(request):
+    # você já deve estar recebendo estes parâmetros
+    start_str = request.GET.get("start")  # 'YYYY-MM-DD'
+    end_str   = request.GET.get("end")    # 'YYYY-MM-DD'
+
+    dt_start = datetime.strptime(start_str, "%Y-%m-%d").date()
+    dt_end   = datetime.strptime(end_str, "%Y-%m-%d").date()
+
+    # construa sua lista 'semana' como já faz hoje (exemplo simplificado):
+    semana = [
+        # cada item precisa de 'data' no mínimo
+        # {"data": date(...), "nome_semana": "Segunda", "atividades": [...], "is_weekend": False, ...}
+    ]
+
+    # ✨ Anota 'dia.plantonista' e obtém a lista única para o rodapé:
+    plantonistas_semana = aplicar_plantonistas_na_semana_context(
+        semana, dt_start, dt_end, request=request
+    )
+
+    context = {
+        "start": dt_start,
+        "end": dt_end,
+        "semana": semana,
+        "plantonistas_semana": plantonistas_semana,
+    }
+    return render(request, "programar_atividades/_relatorios.html", context)
+
+def _monta_semana(dt_start, dt_end, atividades_por_data=None):
+    nomes = ["Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado","Domingo"]
+    atividades_por_data = atividades_por_data or {}
+    out, cur = [], dt_start
+    while cur <= dt_end:
+        out.append({"data": cur, "nome_semana": nomes[cur.weekday()], "is_weekend": cur.weekday() >= 5, "atividades": atividades_por_data.get(cur, [])})
+        cur += timedelta(days=1)
+    return out
+
+@login_required
+@require_GET
+def relatorios_parcial(request):
+    try:
+        start_str = request.GET.get("start")
+        end_str   = request.GET.get("end")
+        apenas_titular = request.GET.get("titular") in ("1","true","True","yes")
+
+        if not start_str or not end_str:
+            return JsonResponse({"ok": False, "error": "start/end required"}, status=400)
+
+        try:
+            dt_start = datetime.strptime(start_str, "%Y-%m-%d").date()
+            dt_end   = datetime.strptime(end_str, "%Y-%m-%d").date()
+        except ValueError:
+            return JsonResponse({"ok": False, "error": "invalid date format (use YYYY-MM-DD)"}, status=400)
+
+        if dt_end < dt_start:
+            dt_start, dt_end = dt_end, dt_start
+
+        semana = _monta_semana(dt_start, dt_end)
+
+        plantonistas_semana = aplicar_plantonistas_na_semana_context(
+            semana, dt_start, dt_end, request=request, apenas_titular=apenas_titular
+        )
+
+        html = render_to_string(
+            "programar_atividades/_relatorios.html",
+            {"start": dt_start, "end": dt_end, "semana": semana, "plantonistas_semana": plantonistas_semana},
+            request=request,
+        )
+
+        return JsonResponse({"ok": True, "html": html, "start": dt_start.isoformat(), "end": dt_end.isoformat()})
+    except Exception as e:
+        # Nunca devolve HTML: se algo quebrar, retorna JSON com o erro
+        return JsonResponse({"ok": False, "error": str(e)}, status=500)

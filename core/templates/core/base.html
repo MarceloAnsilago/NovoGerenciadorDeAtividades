@@ -315,14 +315,34 @@
         <i class="bi bi-clipboard-check"></i> <span>Minhas Metas</span>
       </a>
     </li>
-    <li class="nav-item">
-      <a class="nav-link {% if request.resolver_match.app_name == 'programar_atividades' %}active{% endif %}"
-        href="{% url 'programar_atividades:calendar' %}"
-        data-bs-title="Programar Atividades">
-        <i class="bi bi-calendar-event"></i> <span>Programar Atividades</span>
-      </a>
-    </li>
+    {% with ns=request.resolver_match.namespace app=request.resolver_match.app_name %}
 
+      {# Antigo #}
+      <li class="nav-item">
+        <a class="nav-link {% if ns == 'programar_atividades' or app == 'programar_atividades' %}active{% endif %}"
+          href="{% url 'programar_atividades:calendar' %}"
+          data-bs-toggle="tooltip"
+          data-bs-title="Programar Atividades (antigo)">
+          <i class="bi bi-calendar-event"></i>
+          <span>Programar Atividades</span>
+          <span class="badge text-bg-secondary ms-1">antigo</span>
+        </a>
+      </li>
+
+      {# Novo #}
+      <li class="nav-item">
+        <a class="nav-link {% if ns == 'programar' or app == 'programar' %}active{% endif %}"
+          href="{% url 'programar:calendario' %}"
+          data-bs-toggle="tooltip"
+          data-bs-title="Programação (novo)"
+          aria-current="{% if ns == 'programar' or app == 'programar' %}page{% endif %}">
+          <i class="bi bi-calendar-event"></i>
+          <span>Programação</span>
+          <span class="badge text-bg-success ms-1">novo</span>
+        </a>
+      </li>
+
+    {% endwith %}
 
     {% if request.user.is_superuser %}
       <li class="nav-item mt-3"><div class="nav-section-title">Administração</div></li>

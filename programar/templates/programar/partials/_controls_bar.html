@@ -1,0 +1,24 @@
+{# antes a barra estava “solta”; agora ela herda a mesma largura do container #}
+<div class="container">
+  <div class="programar-controls my-3">
+    <div class="row g-2 align-items-center">
+      <div class="col-12 col-md d-flex align-items-center gap-2">
+        <label for="programar-select-semana" class="mb-0 small text-muted">Semana:</label>
+        <select id="programar-select-semana" class="form-select form-select-sm" style="min-width: 220px;">
+          <option value="">Selecione a semana</option>
+        </select>
+      </div>
+
+      <div class="col-12 col-md-auto ms-md-auto text-md-end">
+        <div class="btn-group">
+          <button id="programar-btnImprimirProgramacao" class="btn btn-outline-primary btn-sm">
+            Imprimir programação
+          </button>
+          <button id="programar-btnImprimirVista" class="btn btn-outline-secondary btn-sm">
+            Imprimir vista
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

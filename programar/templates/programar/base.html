@@ -1,0 +1,41 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block extra_head %}
+  {% include "programar/styles/_programacao_styles.html" %}
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <script>
+    // marca técnica para guards/diagnóstico
+    document.addEventListener('DOMContentLoaded', () => {
+      document.body.dataset.app = 'programar';  // <body data-app="programar">
+    });
+  </script>
+{% endblock %}
+
+{% block content %}
+  {% block page_header %}
+    <div class="container my-4 d-flex align-items-center gap-2">
+      <h1 class="mb-0">Programação</h1>
+      <span class="badge bg-success">novo</span>
+    </div>
+  {% endblock %}
+
+  {% block page_body %}{% endblock %}
+
+  {# ---- MARCADORES VISUAIS DO APP NOVO ---- #}
+  <div id="programar-ribbon" class="no-print">NOVO</div>
+  <div id="programar-marker" class="no-print">
+    <span class="badge">App: Programação (novo)</span>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales-all.global.min.js"></script>
+
+  {% include "programar/scripts/_urls_context.html" %}
+  {% include "programar/scripts/_print_helper.html" %}
+  {% block page_scripts %}{% endblock %}
+{% endblock %}

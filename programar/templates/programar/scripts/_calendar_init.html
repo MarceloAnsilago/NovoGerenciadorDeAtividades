@@ -1,0 +1,66 @@
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const root = document.getElementById('programar-root');
+  if (!root) return;
+
+  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+  const el = document.getElementById('programar-calendar');
+
+  const calendar = new FullCalendar.Calendar(el, {
+    locale: 'pt-br',
+    timeZone: 'local',
+    firstDay: 1,
+    height: 'auto',
+    headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+
+    // 🔌 usa feed do app antigo (bridge)
+    events: NS.urls.eventsFeed,
+
+    datesSet(arg){
+      const endAdj = new Date(arg.end.getTime() - 24*60*60*1000);
+      const iso = d => d.toISOString().slice(0,10);
+      if (typeof NS.loadRelatoriosForRange === 'function') {
+        NS.loadRelatoriosForRange(iso(arg.start), iso(endAdj));
+      }
+      populateWeeksSelect(arg);
+    },
+
+    dateClick(info){
+      const dateBR = info.date.toLocaleDateString('pt-BR', { timeZone:'UTC' });
+      if (typeof NS.openProgramarModal === 'function') {
+        NS.openProgramarModal(info.dateStr, dateBR);
+      } else {
+        alert(`(Pré-migração) Clique em ${dateBR}. Em breve abriremos o modal completo aqui.`);
+      }
+    }
+  });
+  calendar.render();
+
+  // -------- seletor de semana (Sáb→Sex) --------
+  function isoDate(d){ return d.toISOString().slice(0,10); }
+  function prevOrSameSaturday(d){ const x = new Date(d); const sh = (x.getDay()-6+7)%7; x.setDate(x.getDate()-sh); return x; }
+  function populateWeeksSelect(arg){
+    const select = document.getElementById('programar-select-semana');
+    if (!select) return;
+    select.innerHTML = `<option value="">Selecione a semana</option>`;
+    const viewStart = new Date(arg.start), viewEndEx = new Date(arg.end);
+
+    let sat = prevOrSameSaturday(viewStart);
+    while (sat < viewEndEx){
+      const ini = new Date(sat), fim = new Date(sat); fim.setDate(fim.getDate()+6);
+      const opt = document.createElement('option');
+      opt.value = isoDate(ini) + '_' + isoDate(fim);
+      opt.dataset.inicio = isoDate(ini);
+      opt.dataset.fim = isoDate(fim);
+      opt.textContent = `${ini.toLocaleDateString('pt-BR')} → ${fim.toLocaleDateString('pt-BR')}`;
+      select.appendChild(opt);
+      sat.setDate(sat.getDate()+7);
+    }
+  }
+  document.getElementById('programar-select-semana')?.addEventListener('change', function(){
+    const opt = this.options[this.selectedIndex];
+    const s = opt?.dataset?.inicio, e = opt?.dataset?.fim;
+    if (s && e && typeof NS.loadRelatoriosForRange === 'function') NS.loadRelatoriosForRange(s, e);
+  });
+});
+</script>

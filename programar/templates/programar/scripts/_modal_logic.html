@@ -1,0 +1,17 @@
+<script>
+(function(){
+  const modalEl = document.getElementById('programar-modalAtividade');
+  const inputData = document.getElementById('programar-dataAtividade');
+  const btnSalvar = document.getElementById('programar-btnSalvar');
+
+  window.PROGRAMAR = window.PROGRAMAR || {};
+  window.PROGRAMAR.openProgramarModal = function(dateStr, labelText){
+    if (!modalEl) return;
+    inputData.value = dateStr || '';
+    const lbl = document.getElementById('programar-modalAtividadeLabel');
+    if (lbl) lbl.textContent = labelText ? `Programar atividades — ${labelText}` : 'Programar atividades';
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    btnSalvar.disabled = true;
+  };
+})();
+</script>

@@ -1,0 +1,22 @@
+<script>
+  (function () {
+    window.PROGRAMAR = window.PROGRAMAR || {};
+    window.PROGRAMAR.urls = {
+      // continua usando o feed do app antigo
+      eventsFeed: "{% url 'programar_atividades:events_feed' %}",
+      metas: "{% url 'programar_atividades:metas_disponiveis' %}",
+      servidores: "{% url 'programar_atividades:servidores_para_data' %}",
+      salvar: "{% url 'programar_atividades:salvar_programacao' %}",
+      programacaoDia: "{% url 'programar_atividades:programacao_do_dia' %}",
+      excluir: "{% url 'programar_atividades:excluir_programacao' %}",
+
+      // plantão (outro app)
+      plantaoSemana: "{% url 'plantao:servidores_por_intervalo' %}",
+
+      // 🔁 AGORA: relatórios e impressão pelo app novo
+      printSemana: "{% url 'programar:print_relatorio_semana' %}",
+      relatorios:  "{% url 'programar:relatorios_parcial' %}",
+    };
+    console.info('[programar] urls bridge → eventos no legado, relatórios no novo', window.PROGRAMAR.urls);
+  })();
+</script>

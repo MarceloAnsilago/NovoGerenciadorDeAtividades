@@ -1,0 +1,71 @@
+<style id="programar-styles">
+  /* ===== Escopo do app novo (evita conflito com telas antigas) ===== */
+  :root {
+    --prog-card-bg: #fff;
+    --prog-card-bd: #e9ecef;
+    --prog-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+
+  /* Calendário do app novo */
+  /* ⚠️ substitui #calendar por #programar-calendar */
+  #programar-calendar{
+    background: var(--prog-card-bg);
+    border: 1px solid var(--prog-card-bd);
+    border-radius: .5rem;
+    padding: 8px;
+    min-height: 520px;
+  }
+  /* centraliza no container via grid do bootstrap (o container já cuida da largura) */
+
+  /* Barra de controles (semana + botões) */
+  .programar-controls{
+    background: var(--prog-card-bg);
+    border: 1px solid var(--prog-card-bd);
+    border-radius: .5rem;
+    padding: .6rem .75rem;
+    box-shadow: var(--prog-shadow);
+  }
+  .programar-controls .btn-group .btn{ min-width: 160px; }
+  @media (max-width: 576px){
+    .programar-controls .btn-group{ display:flex; gap:.5rem; width:100%; }
+    .programar-controls .btn-group .btn{ width: 100%; min-width: 0; }
+  }
+
+  /* Ribbon canto superior direito (marca “novo”) */
+  #programar-ribbon{
+    position: fixed;
+    top: 62px;           /* abaixo da navbar do seu layout */
+    right: -42px;
+    transform: rotate(45deg);
+    background: #198754; /* verde: novo */
+    color: #fff;
+    padding: 6px 54px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    z-index: 2000;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+
+  /* Marcador flutuante canto inferior esquerdo */
+  #programar-marker{
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    z-index: 2000;
+  }
+  #programar-marker .badge{
+    background: #e9f7ef;
+    color: #0f5132;
+    border: 1px solid #a3cfbb;
+    font-weight: 600;
+  }
+
+  /* Impressão: oculta marcações e barra de controle */
+  @media print{
+    #programar-ribbon,
+    #programar-marker,
+    .programar-controls { display:none !important; }
+  }
+</style>

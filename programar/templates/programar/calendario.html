@@ -1,0 +1,25 @@
+{% extends "programar/base.html" %}
+
+{% block page_body %}
+
+  {# GRID do calendário #}
+  {% include "programar/partials/_calendar_grid.html" %}
+
+  {# ⬇️ Barra de controles (agora entre o calendário e o relatório) #}
+  {% include "programar/partials/_controls_bar.html" %}
+
+  {# Container dos relatórios #}
+  {% include "programar/partials/_relatorios_container.html" %}
+
+  {# Modal (fica no fim do body) #}
+  {% include "programar/partials/_modal_programacao.html" %}
+
+{% endblock %}
+
+{% block page_scripts %}
+  {% include "programar/scripts/_urls_context.html" %}
+  {% include "programar/scripts/_print_helper.html" %}
+  {% include "programar/scripts/_relatorios_logic.html" %}
+  {% include "programar/scripts/_modal_logic.html" %}
+  {% include "programar/scripts/_calendar_init.html" %}
+{% endblock %}

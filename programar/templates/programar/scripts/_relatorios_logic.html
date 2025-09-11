@@ -1,0 +1,98 @@
+<script>
+(function(){
+  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+  const DEBUG = true; // mude para false se não quiser logs
+
+  function setLoading(container){
+    container.innerHTML = `
+      <div class="text-center my-4">
+        <div class="spinner-border" role="status" aria-hidden="true"></div>
+        <div class="small text-muted mt-2">Carregando relatório…</div>
+      </div>`;
+  }
+
+  function showError(container, msg){
+    container.innerHTML = `
+      <div class="alert alert-danger mb-0">
+        ${msg || 'Erro ao carregar relatórios.'}
+      </div>`;
+  }
+
+  NS.loadRelatoriosForRange = async function(startISO, endISO){
+    const container = document.getElementById('programar-relatoriosContainer');
+    if (!container) return;
+
+    if (!NS.urls || !NS.urls.relatorios){
+      showError(container, 'Endpoint de relatórios não configurado.');
+      return;
+    }
+
+    setLoading(container);
+
+    const url = `${NS.urls.relatorios}?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+    if (DEBUG) console.info('[programar] fetch relatorios:', url);
+
+    try{
+      const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+
+      // erros HTTP explícitos
+      if (!resp.ok){
+        if (resp.status === 401 || resp.status === 302){
+          showError(container, 'Sessão expirada. Faça login novamente.');
+        } else {
+          showError(container, `Erro ao gerar relatório (HTTP ${resp.status}).`);
+        }
+        if (DEBUG) console.warn('[programar] relatorios HTTP fail', resp.status, resp.statusText);
+        return;
+      }
+
+      const ctype = (resp.headers.get('content-type') || '').toLowerCase();
+
+      // 1) JSON { ok, html } (formato do app antigo que combinamos)
+      if (ctype.includes('application/json')){
+        const data = await resp.json().catch(()=>null);
+        if (DEBUG) console.debug('[programar] relatorios JSON:', data);
+
+        if (data && data.ok && typeof data.html === 'string'){
+          container.innerHTML = data.html;
+        } else if (data && typeof data.html === 'string'){
+          // sem "ok", mas tem "html"
+          container.innerHTML = data.html;
+        } else {
+          showError(container, 'Resposta JSON inválida do servidor.');
+          return;
+        }
+      }
+      // 2) HTML direto (algumas versões antigas retornam template renderizado)
+      else if (ctype.includes('text/html')){
+        const html = await resp.text();
+        if (DEBUG) console.debug('[programar] relatorios HTML length:', html.length);
+        // heurística simples para login
+        if (/name=["']username["']|csrfmiddlewaretoken/i.test(html)){
+          showError(container, 'Sessão expirada. Faça login novamente.');
+          return;
+        }
+        container.innerHTML = html;
+      }
+      // 3) fallback: tenta como texto
+      else {
+        const text = await resp.text();
+        if (DEBUG) console.debug('[programar] relatorios Fallback text length:', text.length);
+        container.innerHTML = text || `<div class="alert alert-danger">Resposta vazia do servidor.</div>`;
+      }
+
+      // reexpõe o intervalo nos botões de imprimir (do nosso toolbar)
+      try{
+        ['programar-btnImprimirProgramacao','programar-btnImprimirVista'].forEach(id=>{
+          const b = document.getElementById(id);
+          if (b){ b.dataset.start = startISO; b.dataset.end = endISO; }
+        });
+      }catch(e){ if (DEBUG) console.warn('print buttons dataset fail', e); }
+
+    }catch(err){
+      if (DEBUG) console.error('[programar] relatorios fetch error', err);
+      showError(container, 'Erro ao carregar relatórios.');
+    }
+  };
+})();
+</script>

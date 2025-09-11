@@ -703,75 +703,39 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCounts();
   }
 
-  window.relatoriosURL = "{% url 'programar_atividades:relatorios_parcial' %}";
 
-  /* ---------- loadRelatoriosForRange (UNICA VERSÃO, global) ---------- */
-  async function loadRelatoriosForRange(startISO, endISO) {
-    const container = document.getElementById('relatoriosContainer');
-    if (!container) return;
 
-    const prevScrollY = window.scrollY || window.pageYOffset || 0;
+    /* ---------- loadRelatoriosForRange (UNICA VERSÃO, global) ---------- */
+    window.relatoriosURL = "{% url 'programar_atividades:relatorios_parcial' %}";
 
-    container.innerHTML = `
-      <div class="text-center my-4">
-        <div class="spinner-border" role="status"></div>
-        <div class="small text-muted mt-2">Carregando relatório…</div>
-      </div>`;
+    // SUBSTITUI sua loadRelatoriosForRange por esta, se preferir:
+    async function loadRelatoriosForRange(startISO, endISO) {
+      const container = document.getElementById('relatoriosContainer');
+      if (!container) return;
 
-    try {
+      container.innerHTML = `
+        <div class="text-center my-4">
+          <div class="spinner-border" role="status"></div>
+          <div class="small text-muted mt-2">Carregando relatório…</div>
+        </div>`;
+
       const resp = await fetch(`${window.relatoriosURL}?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`, {
         headers: {'X-Requested-With': 'XMLHttpRequest'}
       });
 
-      let data;
-      try { data = await resp.json(); }
-      catch {
-        container.innerHTML = `<div class="alert alert-danger">Resposta inválida do servidor (não JSON).</div>`;
-        window.scrollTo(0, prevScrollY);
-        return;
-      }
-
-      if (data && data.ok && typeof data.html === 'string') {
-        container.innerHTML = data.html;
+      const ct = (resp.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('application/json')) {
+        const data = await resp.json();
+        if (!data.ok) {
+          container.innerHTML = `<div class="alert alert-danger">${data.error || 'Erro ao carregar relatórios.'}</div>`;
+          return;
+        }
+        container.innerHTML = data.html || '';
       } else {
-        container.innerHTML = `<div class="alert alert-danger">${(data && data.error) || 'Erro ao carregar relatórios.'}</div>`;
-        window.scrollTo(0, prevScrollY);
-        return;
+        // fallback caso o servidor responda HTML (login/debug)
+        container.innerHTML = await resp.text();
       }
-
-      
-      // (resto igual) — remover selects duplicados, repopular, etc.
-      try {
-        const dup = container.querySelectorAll('#select-semana');
-        dup.forEach(s => {
-          const wrap = s.closest('#select-semana-wrapper');
-          if (wrap) wrap.remove(); else s.remove();
-        });
-        container.querySelectorAll('label[for="select-semana"]').forEach(n => n.remove());
-        container.querySelectorAll('#select-semana, #select-semana-wrapper').forEach(n => n.remove());
-      } catch {}
-
-      try {
-        if (typeof populateWeeksSelect === 'function' && window._lastCalendarArg) {
-          populateWeeksSelect(window._lastCalendarArg);
-        }
-      } catch (e) { console.error('populateWeeksSelect error after inject:', e); }
-
-      try {
-        const sel = document.getElementById('select-semana');
-        if (sel && sel.selectedIndex > 0) {
-          const txt = sel.options[sel.selectedIndex].textContent.trim();
-          if (txt) writeSelectedWeekLabel(txt);
-        }
-      } catch {}
-
-      window.scrollTo(0, prevScrollY);
-    } catch (err) {
-      console.error('loadRelatoriosForRange erro', err);
-      container.innerHTML = `<div class="alert alert-danger">Erro ao carregar relatórios.</div>`;
-      window.scrollTo(0, prevScrollY);
     }
-  }
 
   /* ---------- Calendar ---------- */
   const calendar = new FullCalendar.Calendar(calendarEl, {

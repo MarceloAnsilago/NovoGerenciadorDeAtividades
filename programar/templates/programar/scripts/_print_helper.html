@@ -1,0 +1,30 @@
+<script>
+(function(){
+  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+  function getRange(){
+    const sel = document.getElementById('programar-select-semana');
+    if (!sel || sel.selectedIndex <= 0) return null;
+    const opt = sel.options[sel.selectedIndex];
+    return { start: opt.dataset.inicio, end: opt.dataset.fim };
+  }
+  async function printFromUrl(url){
+    const r = await fetch(url, { headers:{ 'X-Requested-With':'XMLHttpRequest' }});
+    const html = await r.text();
+    const w = window.open('', '_blank'); if (!w){ alert('Permita popups para imprimir.'); return; }
+    w.document.open(); w.document.write(html); w.document.close(); w.focus(); w.print();
+  }
+  async function onPrintClick(ev){
+    const btn = ev.currentTarget;
+    const rg = getRange();
+    if (!rg){ alert('Selecione uma semana.'); return; }
+    const params = new URLSearchParams({ start: rg.start, end: rg.end, inline: '1' });
+    const url = NS.urls.printSemana + '?' + params.toString();
+    btn.disabled = true; try { await printFromUrl(url); } finally { btn.disabled = false; }
+  }
+  document.addEventListener('click', (e)=>{
+    if (e.target.id === 'programar-btnImprimirProgramacao' || e.target.id === 'programar-btnImprimirVista'){
+      onPrintClick(e);
+    }
+  });
+})();
+</script>
