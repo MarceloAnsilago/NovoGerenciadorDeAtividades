@@ -170,7 +170,7 @@ def _fetch_programacao_dia_via_bridge(request, iso: str) -> list[dict[str, Any]]
     """
     Chama programar_atividades.views.programacao_do_dia(data=YYYY-MM-DD)
     e retorna itens normalizados:
-        { meta, servidores[nomes], servidor_ids[list], veiculo }
+      { meta, servidores[nomes], servidor_ids[ids], veiculo }
     """
     try:
         from programar_atividades import views as legacy  # type: ignore
@@ -196,14 +196,17 @@ def _fetch_programacao_dia_via_bridge(request, iso: str) -> list[dict[str, Any]]
 
     for it in itens:
         meta_nome = it.get("meta_nome") or it.get("meta") or f"Atividade #{it.get('meta_id','')}".strip()
-
         servidores = it.get("servidores") or []
+
         serv_nomes: list[str] = []
         serv_ids: list[str] = []
         for s in servidores:
             sid = s.get("id")
-            serv_ids.append(str(sid) if sid is not None else "")
-            nome = s.get("nome") or s.get("servidor") or (f"Servidor #{sid}" if sid else "Servidor")
+            if sid is not None:
+                serv_ids.append(str(sid))
+            nome = s.get("nome") or s.get("servidor")
+            if not nome:
+                nome = f"Servidor #{sid}" if sid else "Servidor"
             serv_nomes.append(nome)
 
         veic = it.get("veiculo_label") or it.get("veiculo") or it.get("veiculo_nome") or ""
@@ -214,19 +217,26 @@ def _fetch_programacao_dia_via_bridge(request, iso: str) -> list[dict[str, Any]]
         out.append({
             "meta": meta_nome,
             "servidores": serv_nomes,
-            "servidor_ids": [v for v in serv_ids if v],  # mantém apenas ids válidos
+            "servidor_ids": serv_ids,
             "veiculo": veic,
         })
     return out
-def _fetch_expediente_admin_via_bridge(request, iso: str, alocados_ids: set[str]) -> list[str]:
+
+
+def _fetch_expediente_admin_via_bridge(
+    request,
+    iso: str,
+    alocados_ids: set[str],
+) -> tuple[list[str], list[dict[str, str]]]:
     """
-    Usa servidores_para_data (livres) e subtrai os que estão alocados em atividades.
-    Retorna lista de nomes em ordem alfabética.
+    Usa servidores_para_data (livres/impedidos) e monta:
+      - expediente (nomes) = livres - alocados - impedidos
+      - impedidos: lista [{nome, motivo}]
     """
     try:
         from programar_atividades import views as legacy  # type: ignore
     except Exception:
-        return []
+        return [], []
 
     rf = RequestFactory()
     req = rf.get("/programar_atividades/servidores_para_data/", {"data": iso})
@@ -242,14 +252,31 @@ def _fetch_expediente_admin_via_bridge(request, iso: str, alocados_ids: set[str]
         data = {}
 
     livres = data.get("livres") or []
-    nomes = []
-    for s in livres:
-        sid = str(s.get("id", ""))
-        if sid and sid not in alocados_ids:
-            nome = s.get("nome") or f"Servidor #{sid}"
-            nomes.append(nome)
+    impedidos = data.get("impedidos") or []
 
-    return sorted(nomes, key=str.casefold)
+    # mapas/sets auxiliares
+    livres_map: dict[str, str] = {}
+    for s in livres:
+        sid = str(s.get("id", "")).strip()
+        if sid:
+            nome = s.get("nome") or f"Servidor #{sid}"
+            livres_map[sid] = nome
+
+    impedidos_ids: set[str] = set()
+    impedidos_list: list[dict[str, str]] = []
+    for s in impedidos:
+        sid = str(s.get("id", "")).strip()
+        nome = s.get("nome") or (f"Servidor #{sid}" if sid else "Servidor")
+        motivo = s.get("motivo") or "Impedido"
+        impedidos_list.append({"nome": nome, "motivo": motivo})
+        if sid:
+            impedidos_ids.add(sid)
+
+    # expediente = livres - alocados - impedidos
+    ok_ids = (set(livres_map.keys()) - alocados_ids) - impedidos_ids
+    expediente_nomes = sorted([livres_map[i] for i in ok_ids], key=str.casefold)
+
+    return expediente_nomes, impedidos_list
 
 
 def _daterange_inclusive(d0: date, d1: date):
@@ -266,20 +293,29 @@ def _weekday_pt_short(idx: int) -> str:
 def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> str:
     """
     Tabela por dia:
-      - Atividade(s)
-      - Servidores (cada nome com S/N à direita)
-      - Veículo
-      - Coluna 'Realizada'
-      - + Linha 'Expediente administrativo' (livres - alocados)
+      1) Expediente administrativo (primeiro)
+      2) Atividades do dia
+      3) Impedidos (informativo)
+    Regras:
+      - Coluna Atividade centralizada (.atividade-cell)
+      - Servidores de atividade: uma linha por nome + S/N
+      - Servidores do expediente: inline, separados por vírgula, sem S/N
+      - Coluna 'Realizada': S/N só para atividades; '—' para expediente/impedidos
     """
     ds = _parse_iso(start_iso)
     de = _parse_iso(end_iso)
     if not ds or not de:
         return "<div class='text-muted'>Intervalo inválido.</div>"
 
-    def _srv_list_html(nomes: list[str]) -> str:
+    def _srv_list_html(nomes: list[str], *, with_boxes: bool = True, inline: bool = False) -> str:
         if not nomes:
             return "<span class='text-muted'>—</span>"
+
+        if inline or not with_boxes:
+            # compacto: "ALICE, BOB, CAROL"
+            return "<span class='srv-inline'>" + ", ".join(html.escape(n) for n in nomes) + "</span>"
+
+        # padrão: uma linha por servidor com caixinhas
         parts = []
         for nm in nomes:
             safe = html.escape(nm)
@@ -309,6 +345,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         iso = dt.strftime("%Y-%m-%d")
         dia_label = f"{dt.strftime('%d/%m')} ({_weekday_pt_short(dt.weekday())})"
 
+        # Atividades via bridge legado
         itens = _fetch_programacao_dia_via_bridge(request, iso)
 
         # ids alocados em qualquer atividade do dia
@@ -318,14 +355,25 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 if sid:
                     alocados_ids.add(str(sid))
 
-        # servidores do expediente (livres - alocados)
-        expediente = _fetch_expediente_admin_via_bridge(request, iso, alocados_ids)
+        # expediente (livres - alocados) e impedidos
+        expediente, impedidos = _fetch_expediente_admin_via_bridge(request, iso, alocados_ids)
 
-        # quantas linhas teremos para este dia?
-        total_linhas = len(itens) + (1 if expediente else 0)
+        # ---- ORDEM: expediente -> atividades -> impedidos ----
+        blocks: list[dict] = []
+        if expediente:
+            blocks.append({"kind": "expediente", "servidores": expediente})
+        for it in itens:
+            blocks.append({
+                "kind": "atividade",
+                "meta": it["meta"],
+                "servidores": it["servidores"],
+                "veiculo": it["veiculo"],
+            })
+        if impedidos:
+            blocks.append({"kind": "impedidos", "dados": impedidos})
 
-        if total_linhas == 0:
-            # nada mesmo
+        total = len(blocks)
+        if total == 0:
             rows_html.append(
                 "<tr>"
                 f"<td class='dia-cell'>{html.escape(dia_label)}</td>"
@@ -336,54 +384,48 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 
         tem_algum = True
 
-        # 1) Primeira linha do dia
-        if itens:
-            first = itens[0]
-            rows_html.append(
-                "<tr>"
-                f"<td class='dia-cell' rowspan='{total_linhas}'>{html.escape(dia_label)}</td>"
-                f"<td>{html.escape(first['meta'])}</td>"
-                f"<td>{_srv_list_html(first['servidores'])}</td>"
-                f"<td class='text-nowrap'>{html.escape(first['veiculo'])}</td>"
-                f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
-                "</tr>"
-            )
-            # Demais atividades do dia
-            for it in itens[1:]:
-                rows_html.append(
-                    "<tr>"
-                    f"<td>{html.escape(it['meta'])}</td>"
-                    f"<td>{_srv_list_html(it['servidores'])}</td>"
-                    f"<td class='text-nowrap'>{html.escape(it['veiculo'])}</td>"
-                    f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
-                    "</tr>"
-                )
-        else:
-            # não há atividades; a célula 'Dia' vai junto com o Expediente (única linha)
-            pass
+        for idx, b in enumerate(blocks):
+            open_tr = "<tr>"
+            dia_td = ""
+            if idx == 0:
+                dia_td = f"<td class='dia-cell' rowspan='{total}'>{html.escape(dia_label)}</td>"
 
-        # 2) Linha do Expediente administrativo (se houver)
-        if expediente:
-            if itens:
-                # já usamos a coluna 'Dia' na 1ª linha; aqui vem sem 'Dia'
+            if b["kind"] == "expediente":
                 rows_html.append(
-                    "<tr>"
-                    "<td><em>Expediente administrativo</em></td>"
-                    f"<td>{_srv_list_html(expediente)}</td>"
-                    "<td class='text-nowrap'>—</td>"
-                    f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
-                    "</tr>"
+                    open_tr
+                    + dia_td
+                    + "<td class='atividade-cell'><em>Expediente administrativo</em></td>"
+                    + f"<td>{_srv_list_html(b['servidores'], with_boxes=False, inline=True)}</td>"
+                    + "<td class='text-nowrap'>—</td>"
+                    + "<td class='realizada-cell'>—</td>"
+                    + "</tr>"
                 )
-            else:
-                # único conteúdo do dia: o Expediente + 'Dia' com rowspan 1
+
+            elif b["kind"] == "atividade":
                 rows_html.append(
-                    "<tr>"
-                    f"<td class='dia-cell' rowspan='1'>{html.escape(dia_label)}</td>"
-                    "<td><em>Expediente administrativo</em></td>"
-                    f"<td>{_srv_list_html(expediente)}</td>"
-                    "<td class='text-nowrap'>—</td>"
-                    f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
-                    "</tr>"
+                    open_tr
+                    + dia_td
+                    + f"<td class='atividade-cell'>{html.escape(b['meta'])}</td>"
+                    + f"<td>{_srv_list_html(b['servidores'], with_boxes=True, inline=False)}</td>"
+                    + f"<td class='text-nowrap'>{html.escape(b['veiculo'])}</td>"
+                    + f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
+                    + "</tr>"
+                )
+
+            else:  # impedidos (informativo)
+                imp_lines = "".join(
+                    f"<div class='text-muted'><span class='fw-semibold'>{html.escape(i['nome'])}</span>"
+                    f" — {html.escape(i['motivo'])}</div>"
+                    for i in b["dados"]
+                )
+                rows_html.append(
+                    open_tr
+                    + dia_td
+                    + "<td class='atividade-cell'><em>Impedidos</em></td>"
+                    + f"<td>{imp_lines}</td>"
+                    + "<td class='text-nowrap'>—</td>"
+                    + "<td class='realizada-cell'>—</td>"
+                    + "</tr>"
                 )
 
     table = (
