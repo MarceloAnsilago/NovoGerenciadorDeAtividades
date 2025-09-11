@@ -1,71 +1,96 @@
 <style id="programar-styles">
-  /* ===== Escopo do app novo (evita conflito com telas antigas) ===== */
-  :root {
-    --prog-card-bg: #fff;
-    --prog-card-bd: #e9ecef;
-    --prog-shadow: 0 1px 3px rgba(0,0,0,.04);
+  /* ===== Escopo do app novo ===== */
+  :root{
+    --prog-card-bg:#fff;
+    --prog-card-bd:#e9ecef;
+    --prog-shadow:0 1px 3px rgba(0,0,0,.04);
   }
 
-  /* Calendário do app novo */
-  /* ⚠️ substitui #calendar por #programar-calendar */
+  /* ===== Calendário ===== */
   #programar-calendar{
-    background: var(--prog-card-bg);
-    border: 1px solid var(--prog-card-bd);
-    border-radius: .5rem;
-    padding: 8px;
-    min-height: 520px;
+    background:var(--prog-card-bg);
+    border:1px solid var(--prog-card-bd);
+    border-radius:.5rem;
+    padding:8px;
+    min-height:520px;
   }
-  /* centraliza no container via grid do bootstrap (o container já cuida da largura) */
 
-  /* Barra de controles (semana + botões) */
+  /* ===== Barra de controles ===== */
   .programar-controls{
-    background: var(--prog-card-bg);
-    border: 1px solid var(--prog-card-bd);
-    border-radius: .5rem;
-    padding: .6rem .75rem;
-    box-shadow: var(--prog-shadow);
+    background:var(--prog-card-bg);
+    border:1px solid var(--prog-card-bd);
+    border-radius:.5rem;
+    padding:.6rem .75rem;
+    box-shadow:var(--prog-shadow);
   }
-  .programar-controls .btn-group .btn{ min-width: 160px; }
-  @media (max-width: 576px){
+  .programar-controls .btn-group .btn{ min-width:160px; }
+  @media (max-width:576px){
     .programar-controls .btn-group{ display:flex; gap:.5rem; width:100%; }
-    .programar-controls .btn-group .btn{ width: 100%; min-width: 0; }
+    .programar-controls .btn-group .btn{ width:100%; min-width:0; }
   }
 
-  /* Ribbon canto superior direito (marca “novo”) */
+  /* ===== Ribbon "novo" ===== */
   #programar-ribbon{
-    position: fixed;
-    top: 62px;           /* abaixo da navbar do seu layout */
-    right: -42px;
-    transform: rotate(45deg);
-    background: #198754; /* verde: novo */
-    color: #fff;
-    padding: 6px 54px;
-    font-weight: 700;
-    letter-spacing: .5px;
-    z-index: 2000;
-    box-shadow: 0 2px 8px rgba(0,0,0,.25);
-    text-transform: uppercase;
-    pointer-events: none;
+    position:fixed; top:62px; right:-42px; transform:rotate(45deg);
+    background:#198754; color:#fff; padding:6px 54px; font-weight:700;
+    letter-spacing:.5px; z-index:2000; box-shadow:0 2px 8px rgba(0,0,0,.25);
+    text-transform:uppercase; pointer-events:none;
   }
 
-  /* Marcador flutuante canto inferior esquerdo */
-  #programar-marker{
-    position: fixed;
-    left: 12px;
-    bottom: 12px;
-    z-index: 2000;
-  }
+  /* ===== Marcador flutuante ===== */
+  #programar-marker{ position:fixed; left:12px; bottom:12px; z-index:2000; }
   #programar-marker .badge{
-    background: #e9f7ef;
-    color: #0f5132;
-    border: 1px solid #a3cfbb;
-    font-weight: 600;
+    background:#e9f7ef; color:#0f5132; border:1px solid #a3cfbb; font-weight:600;
   }
 
-  /* Impressão: oculta marcações e barra de controle */
+  /* ===== Caixinha para marcação (impressão) ===== */
+  .print-cbx{
+    display:inline-block; width:12px; height:12px;
+    border:1.6px solid #222; border-radius:2px;
+    margin:0 4px 0 6px; vertical-align:-2px; background:#fff;
+  }
+  @media print{ .print-cbx{ border-color:#000 } }
+
+  /* ===== Tabela da programação ===== */
+  .programacao-semana-table{
+    border-collapse:separate; border-spacing:0;
+  }
+  .programacao-semana-table th,
+  .programacao-semana-table td{ vertical-align:top; }
+
+  .programacao-semana-table thead th{
+    border-top:1px solid var(--prog-card-bd);
+    border-bottom:2px solid var(--prog-card-bd);
+    border-right:1px solid var(--prog-card-bd);
+  }
+  .programacao-semana-table thead th:first-child{
+    border-left:1px solid var(--prog-card-bd);
+  }
+
+  .programacao-semana-table tbody td{ border-right:1px solid var(--prog-card-bd); }
+  .programacao-semana-table tbody tr td:first-child{ border-left:1px solid var(--prog-card-bd); }
+  .programacao-semana-table tbody tr:not(:last-child) td{ border-bottom:1px solid #f1f3f5; }
+
+  /* Dia centralizado (inclusive com rowspan) */
+  .programacao-semana-table td.dia-cell{
+    text-align:center; vertical-align:middle; white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* Servidores: nome à esquerda, S/N à direita */
+  .programacao-semana-table .srv-line{
+    display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+  }
+  .programacao-semana-table .srv-choices{ white-space:nowrap; }
+
+  /* Coluna "Realizada" com S/N alinhado à direita */
+  .programacao-semana-table td.realizada-cell{ text-align:right; }
+  .programacao-semana-table td.realizada-cell .choice{ white-space:nowrap; }
+
+  .programacao-semana-table small{ color:#6c757d; font-size:.78rem; }
+
+  /* ===== Impressão: oculta elementos não necessários ===== */
   @media print{
-    #programar-ribbon,
-    #programar-marker,
-    .programar-controls { display:none !important; }
+    #programar-ribbon, #programar-marker, .programar-controls{ display:none !important; }
   }
 </style>
