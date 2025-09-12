@@ -10,7 +10,12 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.test.client import RequestFactory
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.utils.dateparse import parse_date
 
+from core.utils import get_unidade_atual
+from metas.models import Meta, MetaAlocacao
 
 # =============================================================================
 # Página
@@ -28,8 +33,6 @@ def events_feed(request):
     return JsonResponse([], safe=False)
 
 
-def metas_disponiveis(request):
-    return JsonResponse({"metas": []})
 
 
 def servidores_para_data(request):
@@ -449,6 +452,69 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
     )
     return table
 
+
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.utils.dateparse import parse_date
+
+from core.utils import get_unidade_atual
+from metas.models import Meta, MetaAlocacao
+
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.utils.dateparse import parse_date
+
+from core.utils import get_unidade_atual
+from metas.models import Meta, MetaAlocacao
+
+@login_required
+def metas_disponiveis(request):
+    """
+    Retorna SOMENTE metas com alocação para a unidade atual.
+    """
+    unidade = get_unidade_atual(request)
+    if not unidade:
+        return JsonResponse({"ok": False, "error": "Unidade não definida na sessão."}, status=400)
+
+    # (opcional) usa a data escolhida no calendário
+    iso_date = request.GET.get("date")
+    _ = parse_date(iso_date) if iso_date else None
+
+    # pega os ids de metas alocadas à unidade atual
+    meta_ids = (
+        MetaAlocacao.objects
+        .filter(unidade=unidade)
+        .values_list("meta_id", flat=True)
+        .distinct()
+    )
+
+    metas_qs = (
+        Meta.objects
+        .select_related("atividade")
+        .filter(encerrada=False, id__in=meta_ids)
+        .order_by("data_limite", "titulo")
+    )
+
+    # mapa de alocação
+    alocado_map = {
+        a.meta_id: int(a.quantidade_alocada or 0)
+        for a in MetaAlocacao.objects.filter(unidade=unidade, meta_id__in=meta_ids)
+    }
+
+    # TODO: se existir execução por meta/unidade, popular aqui
+    executado_map = {m.id: 0 for m in metas_qs}
+
+    metas_list = [{
+        "id": m.id,
+        "titulo": m.titulo,
+        "atividade": getattr(m.atividade, "titulo", None),
+        "data_limite": m.data_limite.isoformat() if m.data_limite else None,
+        "quantidade_alvo": int(m.quantidade_alvo or 0),
+        "alocado_unidade": alocado_map.get(m.id, 0),
+        "executado_unidade": executado_map.get(m.id, 0),
+    } for m in metas_qs]
+
+    return JsonResponse({"ok": True, "metas": metas_list})
 
 
 

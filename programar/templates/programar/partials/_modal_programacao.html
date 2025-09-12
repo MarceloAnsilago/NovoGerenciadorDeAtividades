@@ -1,20 +1,57 @@
+<!-- templates/programar/partials/_modal_programacao.html -->
 <div class="modal fade" id="programar-modalAtividade" tabindex="-1" aria-labelledby="programar-modalAtividadeLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title w-100 text-center" id="programar-modalAtividadeLabel">Programar atividades</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-      </div>
-      <div class="modal-body">
-        <form id="programar-formAtividade">
-          <input type="hidden" id="programar-dataAtividade" name="data">
-          <p class="text-muted mb-0">Modal do app <strong>programar</strong> pronto para ser preenchido.</p>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
-        <button id="programar-btnSalvar" class="btn btn-primary" disabled>Salvar</button>
-      </div>
+      <form id="programar-form" method="post" class="needs-validation" novalidate>
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title" id="programar-modalAtividadeLabel">Programar atividades</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Data selecionada (preenchida via JS) -->
+          <input type="date" id="programar-dataAtividade" name="data" class="form-control" hidden required>
+
+          <!-- ====== CARDS DE METAS ====== -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Escolha a meta</label>
+            <input type="hidden" id="programar-meta" name="meta" required>
+            <div id="programar-metasCards" class="row g-3"></div>
+            <div class="invalid-feedback d-block" id="programar-metaFeedback" style="display:none;">
+              Selecione uma meta.
+            </div>
+          </div>
+
+          <hr class="my-3">
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Servidor</label>
+              <select id="programar-servidor" name="servidor" class="form-select" required>
+                <option value="">Selecione…</option>
+              </select>
+              <div class="invalid-feedback">Selecione um servidor.</div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Atividade</label>
+              <input type="text" id="programar-atividade" name="atividade" class="form-control" placeholder="Descrição da atividade" required>
+              <div class="invalid-feedback">Informe a descrição da atividade.</div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Observações (opcional)</label>
+              <textarea id="programar-obs" name="observacao" class="form-control" rows="3" placeholder="Notas, detalhes, etc."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" id="programar-btnSalvar" class="btn btn-primary" disabled>Salvar</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

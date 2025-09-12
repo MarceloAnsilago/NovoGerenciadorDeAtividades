@@ -1,17 +1,143 @@
 <script>
 (function(){
-  const modalEl = document.getElementById('programar-modalAtividade');
+  const modalEl   = document.getElementById('programar-modalAtividade');
   const inputData = document.getElementById('programar-dataAtividade');
+  const inputMeta = document.getElementById('programar-meta');
+  const cardsWrap = document.getElementById('programar-metasCards');
+  const metaFeedback = document.getElementById('programar-metaFeedback');
   const btnSalvar = document.getElementById('programar-btnSalvar');
+  const formEl    = document.getElementById('programar-form');
 
-  window.PROGRAMAR = window.PROGRAMAR || {};
-  window.PROGRAMAR.openProgramarModal = function(dateStr, labelText){
-    if (!modalEl) return;
-    inputData.value = dateStr || '';
+  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+  const DEBUG = true;
+
+  // Helper: formato BR de data ISO
+  function formatDateBR(iso){
+    if (!iso) return '-';
+    const d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('pt-BR');
+  }
+
+  function renderMetasCards(metas){
+    cardsWrap.innerHTML = '';
+    if (!Array.isArray(metas) || !metas.length){
+      cardsWrap.innerHTML = `
+        <div class="col-12">
+          <div class="alert alert-light border mb-0">Nenhuma meta disponível para sua unidade.</div>
+        </div>`;
+      return;
+    }
+
+    metas.forEach(m => {
+      const col = document.createElement('div');
+      col.className = 'col-12 col-md-6 col-lg-4';
+      col.innerHTML = `
+        <div class="prog-meta-card" data-id="${m.id}" role="button" tabindex="0" aria-pressed="false">
+          <div class="prog-meta-title">${m.titulo || '(Sem título)'}</div>
+          <div class="prog-meta-sep"></div>
+          <div class="prog-meta-line">
+            <i class="bi bi-calendar-event"></i>
+            <span>Data limite:&nbsp;<strong>${formatDateBR(m.data_limite)}</strong></span>
+          </div>
+          <div class="prog-meta-sub">Alocado nesta unidade: <strong>${m.alocado_unidade || 0}</strong></div>
+          <div class="prog-meta-foot">
+            <span class="text-muted small">Executado (unidade)</span>
+            <span class="fw-semibold">${m.executado_unidade || 0} / ${m.alocado_unidade || 0}</span>
+          </div>
+        </div>`;
+      cardsWrap.appendChild(col);
+    });
+
+    // seleção
+    cardsWrap.querySelectorAll('.prog-meta-card').forEach(card => {
+      card.addEventListener('click', () => selectMeta(card));
+      card.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); selectMeta(card); }
+      });
+    });
+  }
+
+  function selectMeta(card){
+    cardsWrap.querySelectorAll('.prog-meta-card.selected').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    inputMeta.value = card.dataset.id;
+    if (metaFeedback) metaFeedback.style.display = 'none';
+    checkRequired();
+  }
+
+  async function loadMetasForDate(isoDate){
+    if (!NS.urls || !NS.urls.metas){
+      cardsWrap.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Endpoint de metas não configurado.</div></div>`;
+      return;
+    }
+    cardsWrap.innerHTML = `<div class="col-12 text-center my-3">
+        <div class="spinner-border" role="status" aria-hidden="true"></div>
+        <div class="small text-muted mt-2">Carregando metas…</div>
+      </div>`;
+    try{
+      const url = NS.urls.metas + '?date=' + encodeURIComponent(isoDate || '');
+      const r = await fetch(url, { headers:{ 'X-Requested-With':'XMLHttpRequest' }});
+      const ctype = (r.headers.get('content-type') || '').toLowerCase();
+
+      if (!r.ok){
+        const msg = `Erro ao carregar metas (HTTP ${r.status}).`;
+        throw new Error(msg);
+      }
+      const data = ctype.includes('application/json') ? await r.json() : {};
+      if (!data.ok){
+        throw new Error(data.error || 'Falha ao carregar metas.');
+      }
+      renderMetasCards(data.metas || []);
+    }catch(err){
+      console.error('[programar] metas:', err);
+      cardsWrap.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">${err.message || 'Erro ao carregar metas.'}</div></div>`;
+    }
+  }
+
+  // Exposta para o calendário abrir o modal
+  NS.openProgramarModal = function(dateStr, labelText){
+    if (inputData) inputData.value = dateStr || '';
     const lbl = document.getElementById('programar-modalAtividadeLabel');
     if (lbl) lbl.textContent = labelText ? `Programar atividades — ${labelText}` : 'Programar atividades';
+
+    // reset seleção
+    inputMeta.value = '';
+    cardsWrap.innerHTML = '';
+    metaFeedback && (metaFeedback.style.display = 'block');
+
+    // reset validação
+    formEl?.classList.remove('was-validated');
+    if (btnSalvar) btnSalvar.disabled = true;
+
+    // carrega metas e exibe modal
+    loadMetasForDate(dateStr);
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
-    btnSalvar.disabled = true;
   };
+
+  // Habilita "Salvar" quando obrigatórios ok
+  const requiredIds = ['programar-dataAtividade','programar-meta','programar-servidor','programar-atividade'];
+  function checkRequired(){
+    const ok = requiredIds.every(id => {
+      const el = document.getElementById(id);
+      return el && el.value && String(el.value).trim().length > 0;
+    });
+    if (btnSalvar) btnSalvar.disabled = !ok;
+  }
+  ['programar-servidor','programar-atividade'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('input', checkRequired);
+    document.getElementById(id)?.addEventListener('change', checkRequired);
+  });
+
+  // Validação do form
+  formEl?.addEventListener('submit', function(e){
+    // feedback de meta
+    if (!inputMeta.value){
+      metaFeedback && (metaFeedback.style.display = 'block');
+    }
+    if (!formEl.checkValidity()){
+      e.preventDefault(); e.stopPropagation();
+    }
+    formEl.classList.add('was-validated');
+  });
 })();
 </script>

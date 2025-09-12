@@ -103,6 +103,24 @@
     display:inline;            /* flui como texto */
     color:#212529;
   }
-
+  /* ===== Cards de Metas no Modal ===== */
+  .prog-meta-card{
+    background:#fff; border:1px solid var(--prog-card-bd); border-radius:.5rem;
+    padding:.9rem .95rem; box-shadow:var(--prog-shadow); height:100%;
+    transition: box-shadow .15s ease, border-color .15s ease, transform .05s ease;
+    cursor:pointer; outline:0;
+  }
+  .prog-meta-card:hover{ border-color:#b6d4fe; box-shadow:0 4px 16px rgba(13,110,253,.08); }
+  .prog-meta-card.selected{ border-color:#0d6efd; box-shadow:0 0 0 2px rgba(13,110,253,.15); transform: translateY(-1px); }
+  .prog-meta-title{
+    font-weight:700; letter-spacing:.3px; text-transform:uppercase; font-size:.95rem;
+  }
+  .prog-meta-sep{ height:1px; background:#eef2f5; margin:.6rem 0 .5rem; }
+  .prog-meta-line{ display:flex; align-items:center; gap:.4rem; color:#0d6efd; margin-bottom:.25rem; }
+  .prog-meta-sub{ color:#6c757d; margin-bottom:.5rem; }
+  .prog-meta-foot{
+    display:flex; align-items:center; justify-content:space-between;
+    border-top:1px dashed #e9ecef; padding-top:.45rem; color:#6c757d;
+  }
 </style>
 
