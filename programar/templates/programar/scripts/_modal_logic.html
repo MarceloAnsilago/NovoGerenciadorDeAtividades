@@ -53,6 +53,7 @@
   }
 
   // ===== CARDS (com barra .bar e seleção) =====
+  
   function renderMetasCards(metas){
     const wrap = document.getElementById('programar-metasCards');
     const inputMeta = document.getElementById('programar-meta');
@@ -70,7 +71,6 @@
       return;
     }
 
-    // template
     wrap.innerHTML = metas.map(m=>{
       const al = Number(m.alocado_unidade||0);
       const ex = Number(m.executado_unidade||0);
@@ -82,7 +82,6 @@
         <div class="col-12 col-md-6 col-lg-4">
           <div class="prog-meta-card" data-id="${m.id}" role="button" tabindex="0" aria-pressed="false">
             <div class="prog-meta-head">
-              <span class="prog-meta-icon"><i class="bi bi-journal-text"></i></span>
               <h6 class="prog-meta-title mb-0">${(m.titulo||'(Sem título)')}</h6>
             </div>
             <div class="prog-meta-sep"></div>
@@ -104,7 +103,7 @@
         </div>`;
     }).join('');
 
-    // ===== Inline styles que GANHAM de qualquer CSS externo =====
+    /* ===== seleção: inline styles para vencer CSS global ===== */
     const baseStyle = (card)=>{
       card.style.border = '1.5px solid #d0d7de';
       card.style.borderRadius = '12px';
@@ -124,7 +123,8 @@
     };
 
     const cards = [...wrap.querySelectorAll('.prog-meta-card')];
-    cards.forEach(baseStyle);                       // <- todos com borda visível
+    cards.forEach(baseStyle);
+
     const select = (card)=>{
       cards.forEach(c=>applySelected(c,false));
       applySelected(card,true);
@@ -140,8 +140,8 @@
       });
     });
 
-    // já deixa o 1º selecionado e todos os outros com borda cinza
-    if (cards.length){ requestAnimationFrame(()=>select(cards[0])); }
+    // seleciona o primeiro
+    if (cards.length && !inputMeta.value){ requestAnimationFrame(()=>select(cards[0])); }
   }
   // ===== LOAD METAS =====
   NS.loadMetasForDate = async function(iso){
