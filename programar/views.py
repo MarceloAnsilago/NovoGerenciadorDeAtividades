@@ -35,8 +35,55 @@ def events_feed(request):
 
 
 
+@login_required
 def servidores_para_data(request):
-    return JsonResponse({"livres": [], "impedidos": []})
+    iso = request.GET.get("date") or request.GET.get("data") or ""
+    if not iso:
+        return JsonResponse({"ok": False, "error": "Informe ?date=YYYY-MM-DD"}, status=400)
+
+    itens = _fetch_programacao_dia_via_bridge(request, iso)
+    alocados_ids = {str(sid) for it in itens for sid in it.get("servidor_ids", []) if sid}
+
+    expediente_nomes, impedidos_list = _fetch_expediente_admin_via_bridge(request, iso, alocados_ids)
+
+    # --- pegar 'livres' do legado para montar 'disponíveis' (livres - alocados)
+    data = {}
+    try:
+        from programar_atividades import views as legacy  # type: ignore
+        rf = RequestFactory()
+        req = rf.get("/programar_atividades/servidores_para_data/", {"data": iso})
+        req.user = getattr(request, "user", None)
+        req.session = getattr(request, "session", None)
+        req._dont_enforce_csrf_checks = True  # type: ignore
+
+        resp = legacy.servidores_para_data(req)  # type: ignore
+        raw = getattr(resp, "content", b"").decode(getattr(resp, "charset", "utf-8")) if hasattr(resp, "content") else ""
+        data = json.loads(raw) if raw.strip() else {}
+    except Exception:
+        data = {}
+
+    livres = data.get("livres") or []
+    livres_map = {}
+    for s in livres:
+        sid = str(s.get("id") or "").strip()
+        if sid:
+            livres_map[sid] = s.get("nome") or f"Servidor #{sid}"
+
+    disponiveis_ids = set(livres_map.keys()) - alocados_ids
+    disponiveis = [{"id": sid, "nome": livres_map[sid]} for sid in sorted(disponiveis_ids, key=lambda x: livres_map[x].casefold())]
+
+    return JsonResponse({
+        "ok": True,
+        "date": iso,
+        "contadores": {
+            "expediente": len(expediente_nomes),
+            "disponiveis": len(disponiveis),
+            "impedidos": len(impedidos_list),
+        },
+        "expediente": expediente_nomes,
+        "disponiveis": disponiveis,
+        "impedidos": impedidos_list,
+    })
 
 
 @csrf_exempt

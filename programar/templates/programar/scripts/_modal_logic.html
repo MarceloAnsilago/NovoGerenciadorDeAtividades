@@ -1,143 +1,252 @@
 <script>
 (function(){
-  const modalEl   = document.getElementById('programar-modalAtividade');
-  const inputData = document.getElementById('programar-dataAtividade');
-  const inputMeta = document.getElementById('programar-meta');
-  const cardsWrap = document.getElementById('programar-metasCards');
-  const metaFeedback = document.getElementById('programar-metaFeedback');
-  const btnSalvar = document.getElementById('programar-btnSalvar');
-  const formEl    = document.getElementById('programar-form');
-
   const NS = window.PROGRAMAR = window.PROGRAMAR || {};
   const DEBUG = true;
+  const $ = (id)=>document.getElementById(id);
+  const esc = (s)=>String(s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+  const getCsrf = ()=>document.querySelector('#programar-form input[name=csrfmiddlewaretoken]')?.value || '';
 
-  // Helper: formato BR de data ISO
-  function formatDateBR(iso){
-    if (!iso) return '-';
-    const d = new Date(iso + 'T00:00:00');
-    return d.toLocaleDateString('pt-BR');
+  // ⚙️ força visual mesmo se CSS externo interferir
+  const INLINE_FALLBACK = true;
+
+  const formatDateBR = (iso)=>{
+    if(!iso) return '-';
+    const d = new Date(iso+'T00:00:00');
+    return isNaN(d) ? '-' : d.toLocaleDateString('pt-BR');
+  };
+
+  function checkRequired(){
+    const ok = ['programar-dataAtividade','programar-meta']
+      .every(id => { const el=$(id); return el && String(el.value||'').trim(); });
+    const btn = $('programar-btnSalvar'); if (btn) btn.disabled = !ok;
   }
 
+  // ---- estilos inline (fallback) ----
+  function styleTrackInline(track){
+    if (!INLINE_FALLBACK || !track) return;
+    track.style.display = 'block';
+    track.style.height = '10px';
+    track.style.marginTop = '8px';
+    track.style.background = '#e9ecef';
+    track.style.border = '1px solid #d0d7de';
+    track.style.borderRadius = '999px';
+    track.style.overflow = 'hidden';
+  }
+  function styleBarInline(bar, pct){
+    if (!INLINE_FALLBACK || !bar) return;
+    bar.style.height = '100%';
+    bar.style.width = (pct|0) + '%';
+    bar.style.background = 'linear-gradient(90deg,#0d6efd,#66b2ff)';
+    bar.style.transition = 'width .25s ease';
+  }
+  function styleCardSelectedInline(card, selected){
+    if (!INLINE_FALLBACK || !card) return;
+    if (selected){
+      card.style.borderColor = '#0d6efd';
+      card.style.boxShadow = '0 0 0 2px rgba(13,110,253,.18)';
+      card.style.transform = 'translateY(-1px)';
+    }else{
+      card.style.borderColor = '';
+      card.style.boxShadow = '';
+      card.style.transform = '';
+    }
+  }
+
+  // ===== CARDS (com barra .bar e seleção) =====
   function renderMetasCards(metas){
-    cardsWrap.innerHTML = '';
+    const wrap = document.getElementById('programar-metasCards');
+    const inputMeta = document.getElementById('programar-meta');
+    const metaFeedback = document.getElementById('programar-metaFeedback');
+    if (!wrap) return;
+
     if (!Array.isArray(metas) || !metas.length){
-      cardsWrap.innerHTML = `
+      wrap.innerHTML = `
         <div class="col-12">
           <div class="alert alert-light border mb-0">Nenhuma meta disponível para sua unidade.</div>
         </div>`;
+      inputMeta && (inputMeta.value='');
+      metaFeedback && (metaFeedback.style.display='block');
+      checkRequired();
       return;
     }
 
-    metas.forEach(m => {
-      const col = document.createElement('div');
-      col.className = 'col-12 col-md-6 col-lg-4';
-      col.innerHTML = `
-        <div class="prog-meta-card" data-id="${m.id}" role="button" tabindex="0" aria-pressed="false">
-          <div class="prog-meta-title">${m.titulo || '(Sem título)'}</div>
-          <div class="prog-meta-sep"></div>
-          <div class="prog-meta-line">
-            <i class="bi bi-calendar-event"></i>
-            <span>Data limite:&nbsp;<strong>${formatDateBR(m.data_limite)}</strong></span>
-          </div>
-          <div class="prog-meta-sub">Alocado nesta unidade: <strong>${m.alocado_unidade || 0}</strong></div>
-          <div class="prog-meta-foot">
-            <span class="text-muted small">Executado (unidade)</span>
-            <span class="fw-semibold">${m.executado_unidade || 0} / ${m.alocado_unidade || 0}</span>
+    // template
+    wrap.innerHTML = metas.map(m=>{
+      const al = Number(m.alocado_unidade||0);
+      const ex = Number(m.executado_unidade||0);
+      const pct = (al>0) ? Math.max(0, Math.min(100, Math.round(100*ex/al))) : 0;
+      const dt = new Date((m.data_limite||'')+'T00:00:00');
+      const dtbr = isNaN(dt) ? '-' : dt.toLocaleDateString('pt-BR');
+
+      return `
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="prog-meta-card" data-id="${m.id}" role="button" tabindex="0" aria-pressed="false">
+            <div class="prog-meta-head">
+              <span class="prog-meta-icon"><i class="bi bi-journal-text"></i></span>
+              <h6 class="prog-meta-title mb-0">${(m.titulo||'(Sem título)')}</h6>
+            </div>
+            <div class="prog-meta-sep"></div>
+
+            <div class="prog-meta-line">
+              <i class="bi bi-calendar-event"></i>
+              <span>Data limite:&nbsp;<strong>${dtbr}</strong></span>
+            </div>
+
+            <div class="prog-meta-sub">Alocado nesta unidade: <strong>${al}</strong></div>
+
+            <div class="prog-meta-foot">
+              <span class="text-muted small">Executado (unidade)</span>
+              <span class="fw-semibold">${ex} / ${al}</span>
+            </div>
+
+            <div class="prog-progress mt-2"><div class="bar" style="width:${pct}%"></div></div>
           </div>
         </div>`;
-      cardsWrap.appendChild(col);
-    });
+    }).join('');
 
-    // seleção
-    cardsWrap.querySelectorAll('.prog-meta-card').forEach(card => {
-      card.addEventListener('click', () => selectMeta(card));
-      card.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); selectMeta(card); }
+    // ===== Inline styles que GANHAM de qualquer CSS externo =====
+    const baseStyle = (card)=>{
+      card.style.border = '1.5px solid #d0d7de';
+      card.style.borderRadius = '12px';
+      card.style.background = '#ffffff';
+      card.style.boxShadow = '0 1px 2px rgba(0,0,0,.06)';
+    };
+    const applySelected = (card, on)=>{
+      card.classList.toggle('selected', !!on);
+      card.setAttribute('aria-pressed', on ? 'true' : 'false');
+      if (on){
+        card.style.borderColor = '#0d6efd';
+        card.style.boxShadow   = '0 0 0 3px rgba(13,110,253,.20)';
+        card.style.background  = '#eaf3ff';
+      }else{
+        baseStyle(card);
+      }
+    };
+
+    const cards = [...wrap.querySelectorAll('.prog-meta-card')];
+    cards.forEach(baseStyle);                       // <- todos com borda visível
+    const select = (card)=>{
+      cards.forEach(c=>applySelected(c,false));
+      applySelected(card,true);
+      if (inputMeta) inputMeta.value = card.dataset.id || '';
+      if (metaFeedback) metaFeedback.style.display = 'none';
+      checkRequired();
+    };
+
+    cards.forEach(card=>{
+      card.addEventListener('click', ()=>select(card));
+      card.addEventListener('keydown', e=>{
+        if(e.key==='Enter'||e.key===' '){ e.preventDefault(); select(card); }
       });
     });
-  }
 
-  function selectMeta(card){
-    cardsWrap.querySelectorAll('.prog-meta-card.selected').forEach(c => c.classList.remove('selected'));
-    card.classList.add('selected');
-    inputMeta.value = card.dataset.id;
-    if (metaFeedback) metaFeedback.style.display = 'none';
-    checkRequired();
+    // já deixa o 1º selecionado e todos os outros com borda cinza
+    if (cards.length){ requestAnimationFrame(()=>select(cards[0])); }
   }
-
-  async function loadMetasForDate(isoDate){
-    if (!NS.urls || !NS.urls.metas){
-      cardsWrap.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Endpoint de metas não configurado.</div></div>`;
+  // ===== LOAD METAS =====
+  NS.loadMetasForDate = async function(iso){
+    const wrap = $('programar-metasCards');
+    if (!NS.urls?.metas){
+      wrap && (wrap.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Endpoint de metas não configurado.</div></div>`);
       return;
     }
-    cardsWrap.innerHTML = `<div class="col-12 text-center my-3">
-        <div class="spinner-border" role="status" aria-hidden="true"></div>
-        <div class="small text-muted mt-2">Carregando metas…</div>
-      </div>`;
+    wrap && (wrap.innerHTML = `<div class="col-12 text-center my-3"><div class="spinner-border"></div><div class="small text-muted mt-2">Carregando metas…</div></div>`);
     try{
-      const url = NS.urls.metas + '?date=' + encodeURIComponent(isoDate || '');
+      const url = NS.urls.metas + '?date=' + encodeURIComponent(iso || '');
+      DEBUG && console.info('[programar] fetch metas:', url);
       const r = await fetch(url, { headers:{ 'X-Requested-With':'XMLHttpRequest' }});
-      const ctype = (r.headers.get('content-type') || '').toLowerCase();
-
-      if (!r.ok){
-        const msg = `Erro ao carregar metas (HTTP ${r.status}).`;
-        throw new Error(msg);
-      }
-      const data = ctype.includes('application/json') ? await r.json() : {};
-      if (!data.ok){
-        throw new Error(data.error || 'Falha ao carregar metas.');
-      }
+      const data = await r.json();
+      if (!r.ok || !data.ok) throw new Error(data.error || ('HTTP '+r.status));
       renderMetasCards(data.metas || []);
     }catch(err){
-      console.error('[programar] metas:', err);
-      cardsWrap.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">${err.message || 'Erro ao carregar metas.'}</div></div>`;
+      console.error('[programar] metas error', err);
+      wrap && (wrap.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Erro ao carregar metas.</div></div>`);
     }
-  }
-
-  // Exposta para o calendário abrir o modal
-  NS.openProgramarModal = function(dateStr, labelText){
-    if (inputData) inputData.value = dateStr || '';
-    const lbl = document.getElementById('programar-modalAtividadeLabel');
-    if (lbl) lbl.textContent = labelText ? `Programar atividades — ${labelText}` : 'Programar atividades';
-
-    // reset seleção
-    inputMeta.value = '';
-    cardsWrap.innerHTML = '';
-    metaFeedback && (metaFeedback.style.display = 'block');
-
-    // reset validação
-    formEl?.classList.remove('was-validated');
-    if (btnSalvar) btnSalvar.disabled = true;
-
-    // carrega metas e exibe modal
-    loadMetasForDate(dateStr);
-    bootstrap.Modal.getOrCreateInstance(modalEl).show();
   };
 
-  // Habilita "Salvar" quando obrigatórios ok
-  const requiredIds = ['programar-dataAtividade','programar-meta','programar-servidor','programar-atividade'];
-  function checkRequired(){
-    const ok = requiredIds.every(id => {
-      const el = document.getElementById(id);
-      return el && el.value && String(el.value).trim().length > 0;
-    });
-    if (btnSalvar) btnSalvar.disabled = !ok;
-  }
-  ['programar-servidor','programar-atividade'].forEach(id=>{
-    document.getElementById(id)?.addEventListener('input', checkRequired);
-    document.getElementById(id)?.addEventListener('change', checkRequired);
-  });
+  // ===== Servidores (informativo) =====
+  const pill = (n)=>`<div class="d-flex align-items-center gap-2 py-1 px-2 border rounded mb-2" style="background:#f8f9fa;"><i class="bi bi-person text-primary"></i><span>${esc(n)}</span></div>`;
+  function renderPillList(c, nomes){ if(!c) return; c.innerHTML = (!Array.isArray(nomes)||!nomes.length) ? `<div class="text-muted">Nenhum.</div>` : nomes.map(pill).join(''); }
+  function renderDisponiveis(c, lista){ if(!c) return; c.innerHTML = (!Array.isArray(lista)||!lista.length) ? `<div class="text-muted">Nenhum disponível.</div>` : lista.map(s=>pill(s.nome)).join(''); }
+  function renderImpedidos(t, imp){ if(!t) return; t.innerHTML = (!Array.isArray(imp)||!imp.length) ? `<tr><td colspan="2" class="text-muted">Nenhum impedido.</td></tr>` : imp.map(i=>`<tr><td>${esc(i.nome)}</td><td>${esc(i.motivo)}</td></tr>`).join(''); }
+  function setCounts(c){ ['prog-expedienteCount','prog-disponiveisCount','prog-impedidosCount'].forEach((id,i)=>{ const el=$(id); if(el) el.textContent = [c?.expediente??0, c?.disponiveis??0, c?.impedidos??0][i]; }); }
 
-  // Validação do form
-  formEl?.addEventListener('submit', function(e){
-    // feedback de meta
-    if (!inputMeta.value){
-      metaFeedback && (metaFeedback.style.display = 'block');
+  NS.loadServidoresForDate = async function(iso){
+    const exp=$('prog-expedienteList'), disp=$('prog-disponiveisList'), imp=$('prog-impedidosTbody');
+    if (!NS.urls?.servidores){ renderPillList(exp,[]); renderDisponiveis(disp,[]); renderImpedidos(imp,[]); return; }
+    exp&&(exp.innerHTML=`<div class="text-muted">Carregando…</div>`);
+    disp&&(disp.innerHTML=`<div class="text-muted">Carregando…</div>`);
+    imp&&(imp.innerHTML=`<tr><td colspan="2" class="text-muted">Carregando…</td></tr>`);
+    setCounts({expediente:0,disponiveis:0,impedidos:0});
+    try{
+      const url = NS.urls.servidores + '?date=' + encodeURIComponent(iso || '');
+      DEBUG && console.info('[programar] fetch servidores:', url);
+      const r = await fetch(url, { headers:{ 'X-Requested-With':'XMLHttpRequest' }});
+      const data = await r.json();
+      if (!r.ok || !data.ok) throw new Error(data.error || ('HTTP '+r.status));
+      renderPillList(exp, data.expediente || []);
+      renderDisponiveis(disp, data.disponiveis || []);
+      renderImpedidos(imp, data.impedidos || []);
+      setCounts(data.contadores || {});
+    }catch(e){
+      console.error('[programar] servidores error', e);
+      renderPillList(exp,[]); renderDisponiveis(disp,[]); renderImpedidos(imp,[]);
     }
-    if (!formEl.checkValidity()){
-      e.preventDefault(); e.stopPropagation();
+  };
+
+  // ===== Abrir modal =====
+  NS.openProgramarModal = function(dateStr, labelText){
+    const modalEl = $('programar-modalAtividade'); if(!modalEl){console.error('modal não encontrado');return;}
+    $('programar-modalAtividadeLabel') && ( $('programar-modalAtividadeLabel').innerHTML =
+      `<i class="bi bi-calendar2-event"></i> ${labelText ? 'Programar atividades para o dia ' + labelText : 'Programar atividades'}`);
+    $('programar-dataAtividade') && ( $('programar-dataAtividade').value = dateStr || '' );
+    $('programar-meta') && ( $('programar-meta').value = '' );
+    $('programar-btnSalvar') && ( $('programar-btnSalvar').disabled = true );
+    const metaFeedback = $('programar-metaFeedback'); if (metaFeedback) metaFeedback.style.display = 'block';
+
+    NS.loadMetasForDate(dateStr);
+    NS.loadServidoresForDate(dateStr);
+
+    checkRequired();
+    window.bootstrap?.Modal.getOrCreateInstance(modalEl).show();
+  };
+
+  // ===== Submit AJAX =====
+  async function onSubmitProgramacao(e){
+    e.preventDefault();
+    const form = e.currentTarget;
+    const meta = $('programar-meta')?.value?.trim();
+    if (!meta){ alert('Selecione uma meta.'); return; }
+    if (!NS.urls?.salvar){ alert('Endpoint de salvar não configurado.'); return; }
+
+    const btn = $('programar-btnSalvar'); btn && (btn.disabled = true);
+    try{
+      const fd = new FormData(form);
+      const resp = await fetch(NS.urls.salvar, {
+        method: 'POST',
+        headers: { 'X-Requested-With':'XMLHttpRequest', 'X-CSRFToken': getCsrf() },
+        body: fd
+      });
+      const data = await resp.json().catch(()=>({ok:false}));
+      if (!resp.ok || !data.ok) throw new Error(data.error || ('HTTP '+resp.status));
+
+      bootstrap.Modal.getOrCreateInstance($('programar-modalAtividade')).hide();
+
+      const sel = $('programar-select-semana');
+      const opt = sel?.options?.[sel.selectedIndex];
+      if (opt?.dataset?.inicio && opt?.dataset?.fim && typeof NS.loadRelatoriosForRange === 'function'){
+        await NS.loadRelatoriosForRange(opt.dataset.inicio, opt.dataset.fim);
+      }
+    }catch(err){
+      console.error('[programar] salvar erro', err);
+      alert('Falha ao salvar programação.');
+    }finally{
+      btn && (btn.disabled = false);
     }
-    formEl.classList.add('was-validated');
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    $('programar-form')?.addEventListener('submit', onSubmitProgramacao);
   });
 })();
 </script>

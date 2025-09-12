@@ -1,11 +1,15 @@
 <!-- templates/programar/partials/_modal_programacao.html -->
-<div class="modal fade" id="programar-modalAtividade" tabindex="-1" aria-labelledby="programar-modalAtividadeLabel" aria-hidden="true">
+<div class="modal fade" id="programar-modalAtividade" tabindex="-1"
+     aria-labelledby="programar-modalAtividadeLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <form id="programar-form" method="post" class="needs-validation" novalidate>
         {% csrf_token %}
+
         <div class="modal-header">
-          <h5 class="modal-title" id="programar-modalAtividadeLabel">Programar atividades</h5>
+          <h5 class="modal-title" id="programar-modalAtividadeLabel">
+            <i class="bi bi-calendar2-event"></i> Programar atividades
+          </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
         </div>
 
@@ -25,24 +29,54 @@
 
           <hr class="my-3">
 
+          <!-- ====== PAINÉIS LADO-A-LADO: EXPEDIENTE / DISPONÍVEIS ====== -->
           <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">Servidor</label>
-              <select id="programar-servidor" name="servidor" class="form-select" required>
-                <option value="">Selecione…</option>
-              </select>
-              <div class="invalid-feedback">Selecione um servidor.</div>
+            <!-- Expediente -->
+            <div class="col-12 col-lg-6">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white d-flex align-items-center justify-content-between py-2">
+                  <span class="fw-semibold">Expediente administrativo</span>
+                  <span class="badge rounded-pill bg-secondary" id="prog-expedienteCount">0</span>
+                </div>
+                <div class="card-body" id="prog-expedienteList">
+                  <div class="text-muted">Carregando…</div>
+                </div>
+              </div>
             </div>
 
-            <div class="col-md-6">
-              <label class="form-label">Atividade</label>
-              <input type="text" id="programar-atividade" name="atividade" class="form-control" placeholder="Descrição da atividade" required>
-              <div class="invalid-feedback">Informe a descrição da atividade.</div>
+            <!-- Disponíveis -->
+            <div class="col-12 col-lg-6">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white d-flex align-items-center justify-content-between py-2">
+                  <span class="fw-semibold">Servidores disponíveis</span>
+                  <span class="badge rounded-pill bg-secondary" id="prog-disponiveisCount">0</span>
+                </div>
+                <div class="card-body" id="prog-disponiveisList">
+                  <div class="text-muted">Carregando…</div>
+                </div>
+              </div>
             </div>
+          </div>
 
-            <div class="col-12">
-              <label class="form-label">Observações (opcional)</label>
-              <textarea id="programar-obs" name="observacao" class="form-control" rows="3" placeholder="Notas, detalhes, etc."></textarea>
+          <hr class="my-3">
+
+          <!-- ====== IMPEDIDOS (ABAIXO) ====== -->
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex align-items-center justify-content-between py-2">
+              <span class="fw-semibold">Servidores impedidos</span>
+              <span class="badge rounded-pill bg-secondary" id="prog-impedidosCount">0</span>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                  <thead class="table-light">
+                    <tr><th>Nome</th><th>Motivo</th></tr>
+                  </thead>
+                  <tbody id="prog-impedidosTbody">
+                    <tr><td colspan="2" class="text-muted">Carregando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
