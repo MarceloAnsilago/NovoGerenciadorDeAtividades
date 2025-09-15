@@ -103,6 +103,110 @@
     display:inline;            /* flui como texto */
     color:#212529;
   }
+  /* ===== Cards de Metas (topo do modal) ===== */
+  #programar-modalAtividade .metas-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+    gap:14px;
+  }
 
+  /* botão-card “flat” */
+  #programar-modalAtividade .meta-card{
+    appearance:none;
+    -webkit-appearance:none;
+    border:1px solid var(--prog-card-bd);
+    border-radius:.75rem;
+    background:var(--prog-card-bg);
+    color:inherit;
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    box-shadow:var(--prog-shadow);
+    cursor:pointer;
+    text-align:left;
+    transition:border-color .15s ease, box-shadow .15s ease, background-color .15s ease, transform .06s ease;
+  }
+  #programar-modalAtividade .meta-card:hover{
+    box-shadow:0 6px 20px rgba(2,6,23,.08);
+    border-color:#cfd6e4;
+    background:#fbfdff;
+  }
+  #programar-modalAtividade .meta-card:active{ transform:scale(.995); }
+
+  #programar-modalAtividade .meta-card.selected{
+    border-color:#0d6efd;
+    box-shadow:0 0 0 3px rgba(13,110,253,.12);
+  }
+  #programar-modalAtividade .meta-card:focus{
+    outline:none;
+    box-shadow:0 0 0 3px rgba(13,110,253,.22);
+  }
+
+  /* Cabeçalho do card */
+  #programar-modalAtividade .meta-head{
+    display:flex; align-items:center; gap:.5rem;
+  }
+  #programar-modalAtividade .meta-head .icon{
+    width:28px;height:28px;
+    display:inline-flex;align-items:center;justify-content:center;
+    border-radius:.55rem;
+    background:#eef5ff; color:#0d6efd; font-size:14px;
+    flex-shrink:0;
+  }
+  #programar-modalAtividade .meta-title{
+    margin:0; font-weight:700; line-height:1.2;
+  }
+
+  /* divisor fino */
+  #programar-modalAtividade .meta-sep{ height:1px; background:#eef1f5; }
+
+  /* Linha “Data limite” */
+  #programar-modalAtividade .meta-date{
+    display:flex; align-items:center; gap:.5rem;
+    font-size:.9rem; color:#495057;
+  }
+  #programar-modalAtividade .meta-date i{ color:#0d6efd; }
+  #programar-modalAtividade .meta-date strong{ color:#111827; }
+
+  /* textos menores */
+  #programar-modalAtividade .meta-small{ font-size:.875rem; color:#6c757d; }
+
+  /* Progresso */
+  #programar-modalAtividade .meta-progress .summary{ font-size:.8rem; color:#6c757d; }
+  #programar-modalAtividade .meta-progress .progress{
+    height:6px; background:#edf2f7; border-radius:.375rem; overflow:hidden;
+  }
+  #programar-modalAtividade .meta-progress .progress-bar{
+    background:#0d6efd;
+  }
+
+  /* Modo compacto (telas menores) */
+  @media (max-width: 991.98px){
+    #programar-modalAtividade .metas-grid{ grid-template-columns:1fr; }
+    #programar-modalAtividade .meta-card{ padding:12px; }
+    #programar-modalAtividade .meta-head .icon{ width:24px;height:24px;font-size:12px; border-radius:.45rem; }
+    #programar-modalAtividade .meta-small, 
+    #programar-modalAtividade .meta-date, 
+    #programar-modalAtividade .meta-progress .summary{ font-size:.82rem; }
+    #programar-modalAtividade .meta-progress .progress{ height:5px; }
+  }
+
+  /* Impressão: ocultar grid de seleção de metas */
+  @media print{
+    #programar-modalAtividade .metas-grid{ display:none !important; }
+  }
+  /* ===== Separador dentro do modal ===== */
+  #programar-modalAtividade .programar-separator{
+    display:flex; align-items:center; gap:.75rem;
+    margin:.75rem 0 1rem 0;
+  }
+  #programar-modalAtividade .programar-separator .line{
+    flex:1; height:1px; background:var(--prog-card-bd);
+  }
+  #programar-modalAtividade .programar-separator .text{
+    font-weight:600; color:#6c757d; font-size:.85rem; white-space:nowrap;
+    padding:0 .25rem; border-radius:.25rem; background:transparent;
+  }
 </style>
 

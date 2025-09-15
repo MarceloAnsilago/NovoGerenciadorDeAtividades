@@ -1,0 +1,33 @@
+<script>
+(function(){
+  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+
+  function getContainer(){ return document.getElementById('metaCardsContainer'); }
+
+  NS.ensureMetaCard = function(metaId, metaTitle){
+    const cont = getContainer(); if (!cont) return;
+    let card = cont.querySelector(`[data-meta-id="${metaId}"]`);
+    if (card){ card.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'}); return card; }
+
+    card = document.createElement('div');
+    card.className = 'card shadow-sm servidor-cardbox';
+    card.dataset.metaId = metaId;
+    card.style.minWidth = '340px'; card.style.maxWidth = '370px';
+    card.innerHTML = `
+      <div class="card-header bg-light border-bottom py-2 d-flex align-items-center justify-content-between">
+        <b>${metaTitle}</b>
+        <button type="button" class="btn-close" aria-label="Remover" title="Remover card"></button>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info py-2 mb-1">
+          Configuração de atividades<br>
+          <span class="text-muted">Aqui virá o conteúdo detalhado do card.</span>
+        </div>
+      </div>`;
+    cont.appendChild(card);
+    card.querySelector('.btn-close')?.addEventListener('click',()=>card.remove());
+    card.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
+    return card;
+  };
+})();
+</script>

@@ -1,0 +1,61 @@
+<script>
+(function(){
+  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+
+  NS.loadMetas = async function(dateStr = null){
+    const grid = document.getElementById('metasGrid');
+    if (!grid) return;
+
+    grid.innerHTML = `<div class="placeholder-glow"><span class="placeholder col-12 mb-2"></span></div>`;
+
+    let url = NS.urls?.metas;
+    if (!url){ grid.innerHTML = `<div class="alert alert-danger">Endpoint de metas não configurado.</div>`; return; }
+    if (dateStr){ url += (url.includes('?') ? '&' : '?') + 'data=' + encodeURIComponent(dateStr); }
+
+    try{
+      const resp = await fetch(url, { headers:{'X-Requested-With':'XMLHttpRequest'} });
+      const data = await resp.json();
+
+      if (!data.metas || !Array.isArray(data.metas) || data.metas.length === 0){
+        grid.innerHTML = `<div class="alert alert-light border mb-0">Nenhuma meta disponível.</div>`;
+        return;
+      }
+
+      grid.innerHTML = data.metas.map(m => `
+        <button type="button" class="meta-card" data-id="${m.id}">
+          <div class="meta-head">
+            <span class="icon"><i class="bi bi-flag"></i></span>
+            <h6 class="meta-title">${m.nome}</h6>
+          </div>
+          <div class="meta-sep"></div>
+          ${m.data_limite ? `
+            <div class="meta-date">
+              <i class="bi bi-calendar-event"></i>
+              <span>Data limite:</span>
+              <strong>${new Date(m.data_limite).toLocaleDateString('pt-BR')}</strong>
+            </div>` : ``}
+          <div class="meta-small mt-2">Alocado nesta unidade: <b>${m.alocado_unidade || 0}</b></div>
+          <div class="meta-progress mt-1">
+            <div class="d-flex justify-content-between summary mb-1">
+              <span>Executado (unidade)</span>
+              <span><b>${m.executado_unidade || 0}</b> / ${m.alocado_unidade || 0}</span>
+            </div>
+            <div class="progress"><div class="progress-bar bg-primary" style="width:${(m.alocado_unidade ? Math.min(100, Math.round((m.executado_unidade/m.alocado_unidade)*100)) : 0)}%"></div></div>
+          </div>
+        </button>
+      `).join('');
+
+      grid.querySelectorAll('.meta-card').forEach(card=>{
+        card.addEventListener('click', ()=>{
+          grid.querySelectorAll('.meta-card').forEach(c=>c.classList.remove('selected'));
+          card.classList.add('selected');
+          NS.ensureMetaCard?.(card.dataset.id, card.querySelector('.meta-title').textContent.trim());
+        });
+      });
+    }catch(err){
+      console.error(err);
+      grid.innerHTML = `<div class="alert alert-danger">Erro ao carregar metas.</div>`;
+    }
+  };
+})();
+</script>

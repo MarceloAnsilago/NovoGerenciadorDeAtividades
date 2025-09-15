@@ -12,6 +12,9 @@
     if (lbl) lbl.textContent = labelText ? `Programar atividades — ${labelText}` : 'Programar atividades';
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
     btnSalvar.disabled = true;
+
+    // 🔑 carrega as metas da data
+    try { window.PROGRAMAR.loadMetas?.(dateStr); } catch(e){ console.warn('loadMetas falhou', e); }
   };
 })();
 </script>

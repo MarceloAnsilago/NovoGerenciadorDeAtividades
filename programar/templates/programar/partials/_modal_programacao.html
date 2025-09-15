@@ -6,10 +6,19 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
+
         <form id="programar-formAtividade">
           <input type="hidden" id="programar-dataAtividade" name="data">
+          
+          {# Inclua os partials aqui: #}
+          {% include "programar/partials/_cards_metas.html" %}
+          {% include "programar/partials/_separator.html" with label="Atividades selecionadas" %}
+          {% include "programar/partials/_cards_atividades.html" %}
+          {% include "programar/partials/_cards_indisponiveis.html" %}
+          
           <p class="text-muted mb-0">Modal do app <strong>programar</strong> pronto para ser preenchido.</p>
         </form>
+
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
