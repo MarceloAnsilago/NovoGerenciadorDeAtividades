@@ -208,5 +208,102 @@
     font-weight:600; color:#6c757d; font-size:.85rem; white-space:nowrap;
     padding:0 .25rem; border-radius:.25rem; background:transparent;
   }
-</style>
+
+  /* ===== Linha dos cards: 2 colunas fixas + faixa de metas ===== */
+  #programar-modalAtividade #programar-atividadesRow{
+    display:grid;
+    grid-template-columns:340px 340px auto; /* fixo: expediente + servidores + coluna de metas */
+    gap:12px;
+    overflow-x:auto;     /* ⬅️ scroll horizontal AQUI (na linha inteira) */
+    overflow-y:hidden;
+    padding-bottom:8px;  /* espaço para a barra de rolagem não colar na borda */
+  }
+
+  /* caixas fixas para as duas primeiras colunas */
+  #programar-modalAtividade .servidor-cardbox{
+    min-width:340px; max-width:340px;
+  }
+
+  /* grade simples para listar servidores */
+  #programar-modalAtividade .servidores-grid{
+    display:grid; grid-template-columns:1fr; gap:8px;
+  }
+
+  /* ===== Faixa de metas (sem scroll aqui; a largura cresce com o conteúdo) ===== */
+  #programar-modalAtividade #metaCardsContainer{
+    display:flex;
+    gap:12px;
+    flex-wrap:nowrap;       /* NÃO quebrar linha */
+    align-items:stretch;
+    width:max-content;      /* ⬅️ faz a coluna de metas expandir conforme os cards */
+    overflow:visible;       /* nenhuma barra aqui */
+  }
+
+  /* cada card de meta ocupa uma coluna fixa dentro da faixa */
+  #programar-modalAtividade #metaCardsContainer .servidor-cardbox{
+    flex:0 0 340px;
+  }
+
+  /* (opcional) custom do scrollbar da linha */
+  #programar-modalAtividade #programar-atividadesRow::-webkit-scrollbar{ height:8px; }
+  #programar-modalAtividade #programar-atividadesRow::-webkit-scrollbar-thumb{
+    background:#cfd6e4; border-radius:999px;
+  }
+  #programar-modalAtividade #programar-atividadesRow{
+    scrollbar-color:#cfd6e4 transparent; scrollbar-width:thin;
+  }
+
+  /* ---- cartão visual padrão para servidores (livres/expediente) ---- */
+  #programar-modalAtividade .servidor-card{
+    display:flex; align-items:center; gap:.625rem;
+    padding:10px 12px;
+    border:1px solid #dee2e6; border-radius:.65rem;
+    background:linear-gradient(145deg,#fafafa,#fff);
+    font-size:.875rem; color:#1f2937; font-weight:600;
+    min-height:40px; cursor:grab; user-select:none;
+    transition:box-shadow .15s, transform .06s, background-color .15s, border-color .15s;
+    box-shadow:0 1px 4px rgba(0,0,0,.04);
+  }
+  #programar-modalAtividade .servidor-card:hover{
+    background:#eef5ff; border-color:#cbd6ee; box-shadow:0 2px 8px rgba(13,110,253,.1);
+  }
+  #programar-modalAtividade .srv-icon{
+    width:22px;height:22px;border-radius:50%;
+    display:inline-flex;align-items:center;justify-content:center;
+    background:#e8f1ff;color:#0d6efd;font-size:12px;flex-shrink:0;
+    box-shadow:inset 0 0 0 2px #cfe2ff;
+  }
+  #programar-modalAtividade .srv-name{ flex:1; text-align:center; letter-spacing:.2px; text-transform:uppercase; font-size:.8rem; }
+  #programar-modalAtividade .srv-count-badge{
+    margin-left:auto;background:#0d6efd;color:#fff;border-radius:999px;font-size:.7rem;
+    padding:2px 6px; line-height:1; display:none; box-shadow:0 0 0 2px #fff;
+  }
+  #programar-modalAtividade .servidor-card.has-count .srv-count-badge{ display:inline-block; }
+
+  /* drop target visual */
+  #programar-modalAtividade .drop-target{ min-height:240px; }
+  #programar-modalAtividade .drop-target.dz-hover{ outline:2px dashed #0d6efd; outline-offset:-4px; background:#eef5ff; }
+
+  /* chips dentro do card de meta */
+  #programar-modalAtividade .servidor-chip{
+    display:flex; align-items:center; gap:.6rem;
+    padding:8px 10px; border:1px solid #cfd7e6; border-radius:.6rem;
+    background:#eef2f9; font-size:.82rem; font-weight:600;
+  }
+  #programar-modalAtividade .servidor-chip .chip-icon{
+    width:18px;height:18px;border-radius:50%;
+    display:inline-flex;align-items:center;justify-content:center;
+    background:#e8f1ff;color:#0d6efd;font-size:10px;flex-shrink:0;
+    box-shadow:inset 0 0 0 1px #cfe2ff;
+  }
+  #programar-modalAtividade .servidor-chip .chip-remove{
+    border:0;background:#dee6f5;color:#374151;border-radius:.45rem;padding:2px 8px;font-weight:700;font-size:.72rem;cursor:pointer;
+  }
+
+  /* cabeçalho do card de meta criado à direita */
+  #programar-modalAtividade .meta-header-title{ display:flex; align-items:center; gap:.5rem; }
+  #programar-modalAtividade .meta-header-sep{ height:1px; background:#e9edf3; margin-top:6px; }
+
+
+  </style>
 

@@ -7,14 +7,19 @@
   window.PROGRAMAR = window.PROGRAMAR || {};
   window.PROGRAMAR.openProgramarModal = function(dateStr, labelText){
     if (!modalEl) return;
+
+    /* 🔧 anti-duplicação: mantém só a PRIMEIRA linha de cards, remove demais */
+    const rows = modalEl.querySelectorAll('#programar-atividadesRow, .cards-row');
+    if (rows.length > 1) rows.forEach((r, i) => { if (i > 0) r.remove(); });
+
     inputData.value = dateStr || '';
     const lbl = document.getElementById('programar-modalAtividadeLabel');
     if (lbl) lbl.textContent = labelText ? `Programar atividades — ${labelText}` : 'Programar atividades';
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
     btnSalvar.disabled = true;
 
-    // 🔑 carrega as metas da data
-    try { window.PROGRAMAR.loadMetas?.(dateStr); } catch(e){ console.warn('loadMetas falhou', e); }
+    window.PROGRAMAR.loadMetas?.(dateStr);
+    window.PROGRAMAR.loadServidores?.(dateStr);
   };
 })();
 </script>
