@@ -3,74 +3,73 @@
   window.PROGRAMAR = window.PROGRAMAR || {};
 
   // ======= CONFIG/Padrões ====================================================
-    const DEFAULTS = {
+  const DEFAULTS = {
     targetSelector:  '#servidoresLivres, #poolServidores, .js-servidores-livres',
     badgeSelector:   '#countLivres, .js-count-livres',
 
-    // ⬇️ NOVO: onde renderizar o "Expediente administrativo"
+    // Expediente administrativo
     expedienteSelector: '#expedienteAdmin, .js-expediente-admin',
     expedienteBadgeSelector: '#countExpediente, .js-count-expediente',
 
     excludeAllocated: true,
     cardSelectorInMetas: '.servidor-chip, .srv-chip, .chip-servidor',
-    cardIdAttr:      'data-id',
-    itemIdAttr:      'data-id',
-    renderItem: defaultRenderItem
-    };
+    cardIdAttr:  'data-id',
+    itemIdAttr:  'data-id',
+    renderItem:  defaultRenderItem
+  };
 
   // ======= Utils DOM/HTML ====================================================
-  function $(sel, root=document){ return root.querySelector(sel); }
   function escapeHtml(s){
     return String(s ?? '')
-      .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
-      .replaceAll('"','&quot;').replaceAll("'","&#039;");
+      .replaceAll('&','&amp;').replaceAll('<','&lt;')
+      .replaceAll('>','&gt;').replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+  function getContainer(sel){ return document.querySelector(sel); }
+
+  function getBadgeForContainer(containerEl, explicitSelector) {
+    // 1) tenta seletor explícito (ex.: #countLivres)
+    if (explicitSelector) {
+      const el = document.querySelector(explicitSelector);
+      if (el) return el;
+    }
+    // 2) fallback: badge no header do card pai
+    const card = containerEl?.closest?.('.card');
+    return card ? card.querySelector('.card-header .badge') : null;
+  }
+
+  function setBadgeFor(containerEl, count, explicitSelector) {
+    const badge = getBadgeForContainer(containerEl, explicitSelector);
+    if (badge) badge.textContent = String(count);
+  }
+
+  function updateBadges(opts){
+    const pool = document.querySelector(opts.targetSelector);
+    const exp  = document.querySelector(opts.expedienteSelector);
+    if (pool) setBadgeFor(pool, pool.children.length, opts.badgeSelector);
+    if (exp)  setBadgeFor(exp,  exp.children.length,  opts.expedienteBadgeSelector);
   }
 
   function defaultRenderItem(servidor){
     const el = document.createElement('div');
     el.className = 'servidor-card';
-    el.setAttribute('draggable','true'); // se você já usa drag&drop, isso mantém o comportamento
+    el.setAttribute('draggable','true'); // mantém DnD
     el.dataset.id = servidor.id;
     el.innerHTML = `
       <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
       <span class="srv-name">${escapeHtml(servidor.nome)}</span>`;
     return el;
   }
-    function defaultRenderExpedienteItem(servidor){
+  function defaultRenderExpedienteItem(servidor){
     const el = document.createElement('div');
-    el.className = 'servidor-card';   // mesmo visual dos disponíveis
-    el.dataset.id = servidor.id;      // sem draggable no expediente
+    el.className = 'servidor-card';
+    el.dataset.id = servidor.id;   // no expediente não arrasta
     el.innerHTML = `
-        <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
-        <span class="srv-name">${escapeHtml(servidor.nome)}</span>`;
+      <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+      <span class="srv-name">${escapeHtml(servidor.nome)}</span>`;
     return el;
-    }
+  }
 
-    function getContainer(sel){ return document.querySelector(sel); }
-
-    function setBadgeCount(n, opts){
-    const b = document.querySelector(opts.badgeSelector);
-    if (b) b.textContent = String(n);
-    }
-    function setBadgeCountExp(n, opts){
-    const b = document.querySelector(opts.expedienteBadgeSelector);
-    if (b) b.textContent = String(n);
-    }
-
-    function updateBadges(opts){
-    const pool = getContainer(opts.targetSelector);
-    const exp  = getContainer(opts.expedienteSelector);
-    if (pool) setBadgeCount(pool.children.length, opts);
-    if (exp)  setBadgeCountExp(exp.children.length, opts);
-    }
-
-    function renderExpedienteFromLivres(livres, opts){
-    const exp = getContainer(opts.expedienteSelector);
-    if (!exp) return;
-    exp.innerHTML = '';
-    livres.forEach(s => exp.appendChild(defaultRenderExpedienteItem(s)));
-    setBadgeCountExp(exp.children.length, opts);
-    }
   function getAllocatedIds(opts){
     if (!opts.excludeAllocated) return new Set();
     const ids = new Set();
@@ -81,50 +80,41 @@
     return ids;
   }
 
-  function getTarget(opts){
-    const target = document.querySelector(opts.targetSelector);
-    if (!target) {
-      console.warn('[programar] Pool de servidores não encontrada pelos seletores:', opts.targetSelector);
-    }
-    return target;
-  }
-
-  function setBadgeCount(n, opts){
-    const badge = document.querySelector(opts.badgeSelector);
-    if (badge) badge.textContent = String(n);
-  }
-
   // ======= Render "por diff" (preserva a ordem atual) ========================
   function diffRenderPool(target, livres, opts){
-    // índice por id vindo da API
     const livresIds = new Set(livres.map(s => String(s.id)));
 
-    // remove itens que não estão mais na lista livres
+    // remove quem não está mais na lista
     Array.from(target.children).forEach(child => {
       const sid = child.getAttribute(opts.itemIdAttr) || child.dataset.id || child.dataset.servidorId;
       if (!sid || !livresIds.has(String(sid))) child.remove();
     });
 
-    // conjunto dos ids já presentes (após remoções)
     const presentes = new Set(
       Array.from(target.children).map(ch => String(ch.getAttribute(opts.itemIdAttr) || ch.dataset.id || ch.dataset.servidorId))
     );
 
-    // adiciona ao final apenas os novos
     livres.forEach(s => {
       const sid = String(s.id);
       if (presentes.has(sid)) return;
       const el = opts.renderItem(s);
-      // garanta atributo id para diffs futuros
       if (!el.getAttribute(opts.itemIdAttr)) el.setAttribute(opts.itemIdAttr, sid);
       target.appendChild(el);
     });
 
-    setBadgeCount(target.children.length, opts);
+    setBadgeFor(target, target.children.length, opts.badgeSelector);
+  }
+
+  function renderExpedienteFromLivres(livres, opts){
+    const exp = getContainer(opts.expedienteSelector);
+    if (!exp) return;
+    exp.innerHTML = '';
+    livres.forEach(s => exp.appendChild(defaultRenderExpedienteItem(s)));
+    setBadgeFor(exp, exp.children.length, opts.expedienteBadgeSelector);
   }
 
   // ======= Fetch + aplicar ===================================================
-  async function loadServidoresDisponiveis(iso, options={}){
+  async function loadServidoresDisponiveis(iso, options = {}){
     const opts = { ...DEFAULTS, ...options };
 
     const urlBase = window.PROGRAMAR?.urls?.servidores;
@@ -137,12 +127,12 @@
       return { livres: [], impedidos: [] };
     }
 
-    const target = getTarget(opts);
+    const target = getContainer(opts.targetSelector);
     if (target) {
       target.classList.add('is-loading');
       target.innerHTML = `<div class="text-muted">Carregando…</div>`;
+      setBadgeFor(target, 0, opts.badgeSelector);
     }
-    setBadgeCount(0, opts);
 
     try {
       const url = new URL(urlBase, window.location.origin);
@@ -154,26 +144,23 @@
       let livres = Array.isArray(json.livres) ? json.livres : [];
       const impedidos = Array.isArray(json.impedidos) ? json.impedidos : [];
 
-      // opcional: não mostrar na pool quem já está alocado nos teus cards
+      // não mostrar na pool quem já está alocado nos cards
       const alocados = getAllocatedIds(opts);
       if (alocados.size) {
         livres = livres.filter(s => !alocados.has(String(s.id)));
       }
 
-      if (!target) return { livres, impedidos };
+      if (target) {
+        target.classList.add('servidores-grid');
+        target.innerHTML = '';
+        diffRenderPool(target, livres, opts);
+        target.classList.remove('is-loading');
+      }
 
-      // Se você tiver grid/estilos específicos, garanta a classe do container aqui:
-      target.classList.add('servidores-grid');
-      target.innerHTML = ''; // limpa "Carregando…"
-      diffRenderPool(target, livres, opts);
-      target.classList.remove('is-loading');
-      // Preenche o Expediente com a mesma lista de livres (inicialmente)
-        renderExpedienteFromLivres(livres, opts);
+      // expediente = cópia dos livres inicialmente
+      renderExpedienteFromLivres(livres, opts);
+      updateBadges(opts);
 
-        // Garante badges corretos
-        updateBadges(opts);
-
-      // sinaliza para quem quiser escutar
       document.dispatchEvent(new CustomEvent('programar:servidoresLoaded', {
         detail: { iso, livres, impedidos }
       }));
@@ -189,41 +176,49 @@
     }
   }
 
+  // ======= Observers (mantém badges atualizados) ============================
+  function wireBadgeObservers(options = {}){
+    const opts = { ...DEFAULTS, ...options };
+    let poolObsAttached = false;
+    let expObsAttached  = false;
+
+    const tryAttach = () => {
+      const pool = getContainer(opts.targetSelector);
+      const exp  = getContainer(opts.expedienteSelector);
+
+      if (pool && !poolObsAttached) {
+        new MutationObserver(() => updateBadges(opts)).observe(pool, { childList: true });
+        poolObsAttached = true;
+      }
+      if (exp && !expObsAttached) {
+        new MutationObserver(() => updateBadges(opts)).observe(exp, { childList: true });
+        expObsAttached = true;
+      }
+      if (poolObsAttached && expObsAttached) installer.disconnect();
+    };
+
+    const installer = new MutationObserver(tryAttach);
+    installer.observe(document.documentElement, { childList: true, subtree: true });
+    tryAttach(); // tentativa imediata
+  }
+  document.addEventListener('DOMContentLoaded', () => wireBadgeObservers());
+
   // ======= Integrações convenientes =========================================
-  // 1) quando abrir a modal, tenta carregar usando a data presente
-  document.addEventListener('shown.bs.modal', () => {
+  document.addEventListener('shown.bs.modal', (ev) => {
+    // se quiser filtrar: if (!ev.target.matches('#programar-modalAtividade')) return;
     const hidden = document.getElementById('programar-dataAtividade') ||
                    document.getElementById('programar-data') ||
                    document.querySelector('[data-programar-data]');
     const iso = hidden?.value || hidden?.getAttribute?.('data-programar-data');
     if (iso) loadServidoresDisponiveis(iso);
   });
-function wireBadgeObservers(options={}){
-  const opts = { ...DEFAULTS, ...options };
-  const pool = getContainer(opts.targetSelector);
-  const exp  = getContainer(opts.expedienteSelector);
-  const upd  = () => updateBadges(opts);
 
-  if (pool) new MutationObserver(upd).observe(pool, { childList: true });
-  if (exp)  new MutationObserver(upd).observe(exp,  { childList: true });
-
-  // também observa inclusão tardia dos containers (caso a modal injete depois)
-  new MutationObserver(() => {
-    const p = getContainer(opts.targetSelector);
-    const e = getContainer(opts.expedienteSelector);
-    if (p) new MutationObserver(upd).observe(p, { childList: true });
-    if (e) new MutationObserver(upd).observe(e, { childList: true });
-  }).observe(document.documentElement, { childList: true, subtree: true });
-}
-document.addEventListener('DOMContentLoaded', () => wireBadgeObservers());
-  // 2) quando o calendário trocar o dia
-  //    document.dispatchEvent(new CustomEvent('programar:diaSelecionado', { detail: { iso:'YYYY-MM-DD' }}));
   document.addEventListener('programar:diaSelecionado', (e) => {
     const iso = e?.detail?.iso;
     if (iso) loadServidoresDisponiveis(iso);
   });
 
-  // 3) expõe API pública
+  // API pública
   window.PROGRAMAR.loadServidoresDisponiveis = loadServidoresDisponiveis;
 })();
 </script>
