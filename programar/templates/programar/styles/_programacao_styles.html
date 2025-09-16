@@ -303,7 +303,45 @@
   /* cabeçalho do card de meta criado à direita */
   #programar-modalAtividade .meta-header-title{ display:flex; align-items:center; gap:.5rem; }
   #programar-modalAtividade .meta-header-sep{ height:1px; background:#e9edf3; margin-top:6px; }
+  
+  /* ===== Card de impedidos (rodapé do modal) ===== */
+  #programar-modalAtividade #programar-impedidosCard .card-header{
+    background:#f8fafc; border-bottom:1px solid var(--prog-card-bd);
+  }
+  #programar-modalAtividade #programar-impedidosCard .table{
+    --bs-table-bg: transparent;
+    font-size:.9rem;
+  }
+  #programar-modalAtividade #programar-impedidosCard td,
+  #programar-modalAtividade #programar-impedidosCard th{
+    padding:.4rem .6rem;
+    vertical-align:middle;
+  }
+  #programar-modalAtividade #programar-impedidosCard thead th{
+    font-weight:600; color:#495057;
+  }
+  /* Modal mais largo só para o app Programar */
+  #programar-modalAtividade .modal-dialog{
+    /* controla a largura do modal no Bootstrap 5 */
+    --bs-modal-width: clamp(1100px, 96vw, 1500px);
+  }
 
-
+  /* (opcional) um pouco menos de margem lateral em telas grandes */
+  @media (min-width: 1200px){
+    #programar-modalAtividade .modal-dialog{
+      margin-left: 10px;
+      margin-right: 10px;
+    }
+  }
+  /* Faixa de metas: últimos itens aparecem à esquerda */
+  #programar-modalAtividade #metaCardsContainer{
+    display:flex;
+    flex-direction: row-reverse !important; /* 👈 chave do truque */
+    gap:12px;
+    flex-wrap:nowrap;
+    align-items:stretch;
+    width:max-content;
+    overflow:visible;
+  }
   </style>
 

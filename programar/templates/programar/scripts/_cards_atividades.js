@@ -50,14 +50,14 @@
     const list = expList();
     if (!list) return;
     if (!list.querySelector(`.servidor-card[data-id="${srv.id}"]`)) {
-      const el = document.createElement('div');
-      el.className = 'servidor-card';
-      el.dataset.id = srv.id;
-      el.innerHTML = `
+      const elx = document.createElement('div');
+      elx.className = 'servidor-card';
+      elx.dataset.id = srv.id;
+      elx.innerHTML = `
         <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
         <span class="srv-name">${srv.nome}</span>
       `;
-      list.appendChild(el);
+      list.appendChild(elx);
     }
   }
   function removeOneFromExpediente(sid){
@@ -98,22 +98,55 @@
         if (badge) badge.textContent = String(n);
       });
     }
+
+    // contador de impedidos (se existir)
+    const cImp = el('countServidoresImpedidos');
+    const impTbody = document.querySelector('#tabelaImpedidos tbody');
+    if (cImp && impTbody) {
+      const rows = Array.from(impTbody.querySelectorAll('tr'));
+      const isPlaceholder = rows.length === 1 && rows[0].querySelector('td[colspan]');
+      cImp.textContent = String(isPlaceholder ? 0 : rows.length);
+    }
   }
 
-  // ---- cards de meta (lado direito) ----
+  // ---- cards de meta (faixa à direita) ----
+
+  // cria/pega um âncora invisível no início da faixa de metas
+  function getMetaRegion(){
+    const cont = document.getElementById('metaCardsContainer');
+    if (!cont) return null;
+    let anchor = cont.querySelector('#metaCardsAnchor');
+    if (!anchor) {
+      anchor = document.createElement('span');
+      anchor.id = 'metaCardsAnchor';
+      anchor.style.display = 'none';
+      cont.insertBefore(anchor, cont.firstChild);
+    }
+    return { cont, anchor };
+  }
+
+  // insere SEMPRE logo após o anchor (primeira posição “real”)
+  function placeAtStart(cont, anchor, element){
+    cont.insertBefore(element, anchor.nextSibling);
+  }
+
   NS.ensureMetaCard = function(metaId, metaTitle, options = {}){
     const { forceNew = false } = options;
     const container = metaCardsContainer();
     if (!container) return;
 
-    if (!forceNew) {
-      let card = container.querySelector(`[data-meta-id="${metaId}"]`);
-      if (card) {
-        card.querySelector('.meta-title-text').textContent = metaTitle;
-        return card;
-      }
+    // Se já existir, atualiza título e move para a "extrema esquerda" (row-reverse => append)
+    let existing = container.querySelector(`[data-meta-id="${metaId}"]`);
+    if (existing && !forceNew) {
+      const t = existing.querySelector('.meta-title-text');
+      if (t) t.textContent = metaTitle;
+      container.appendChild(existing); // 👈 por causa do row-reverse, isso o coloca à esquerda
+      const row = el('programar-atividadesRow');
+      if (row) row.scroll({ left: Math.max(0, container.offsetLeft - 8), behavior: 'smooth' });
+      return existing;
     }
 
+    // Cria o novo card
     const wrapper = document.createElement('div');
     wrapper.className = 'card shadow-sm servidor-cardbox';
     wrapper.dataset.metaId = metaId;
@@ -139,14 +172,14 @@
           <label class="form-label mb-1">Veículo da unidade</label>
           <select class="form-select form-select-sm veiculo-select" name="veiculo_id" data-meta-id="${metaId}">
             <option value="" selected disabled>Escolha um veículo</option>
-            ${ (window.PROGRAMAR?.veiculosAtivos || [])
-                .map(v => `<option value="${v.id}">${v.nome} - ${v.placa}</option>`).join('') }
+            ${(window.PROGRAMAR?.veiculosAtivos || [])
+              .map(v => `<option value="${v.id}">${v.nome} - ${v.placa}</option>`).join('')}
           </select>
         </div>
       </div>
     `;
 
-    // fechar card: retorna alocações
+    // Fechar card: devolve alocações e atualiza contagens
     wrapper.querySelector('.meta-close').addEventListener('click', () => {
       const removedCounts = {};
       wrapper.querySelectorAll('.servidor-chip').forEach(ch => {
@@ -162,14 +195,22 @@
         }
       });
       wrapper.remove();
+      renumberMetaCopies(metaId);
       updateCounts();
     });
 
-    container.prepend(wrapper);
+    // 👉 SEMPRE adiciona no fim do DOM; com row-reverse, isso é a 1ª posição visual
+    container.appendChild(wrapper);
+
+    // rola a linha para o início da faixa (mostrar o novo coladinho no "Servidores disponíveis")
+    const row = el('programar-atividadesRow');
+    if (row) row.scroll({ left: Math.max(0, container.offsetLeft - 8), behavior: 'smooth' });
+
     renumberMetaCopies(metaId);
     updateCounts();
     return wrapper;
   };
+
 
   function renumberMetaCopies(metaId){
     const container = metaCardsContainer();
