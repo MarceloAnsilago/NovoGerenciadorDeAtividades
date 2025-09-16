@@ -326,13 +326,6 @@
     --bs-modal-width: clamp(1100px, 96vw, 1500px);
   }
 
-  /* (opcional) um pouco menos de margem lateral em telas grandes */
-  @media (min-width: 1200px){
-    #programar-modalAtividade .modal-dialog{
-      margin-left: 10px;
-      margin-right: 10px;
-    }
-  }
   /* Faixa de metas: últimos itens aparecem à esquerda */
   #programar-modalAtividade #metaCardsContainer{
     display:flex;
@@ -342,6 +335,11 @@
     align-items:stretch;
     width:max-content;
     overflow:visible;
+  }
+
+  /* Quando muito alto, mantém margem superior e inferior bonitas */
+  #programar-modalAtividade .modal.fade .modal-dialog{
+    margin-block: 1rem;               /* topo/baixo */
   }
   </style>
 
