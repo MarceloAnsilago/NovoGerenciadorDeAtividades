@@ -1,0 +1,168 @@
+<script>
+(function(){
+  window.PROGRAMAR = window.PROGRAMAR || {};
+
+  // ======= CONFIG/Padrões ====================================================
+  const DEFAULTS = {
+    targetSelector:  '#servidoresLivres, #poolServidores, .js-servidores-livres',
+    badgeSelector:   '#countLivres, .js-count-livres',
+    excludeAllocated: true,   // se true, não mostra na pool quem já está em cards
+    cardSelectorInMetas: '.servidor-chip, .srv-chip, .chip-servidor', // elementos que representam alocação
+    cardIdAttr:      'data-id',   // atributo nos chips dos cards contendo o id do servidor
+    itemIdAttr:      'data-id',   // atributo nos itens da pool contendo o id do servidor
+    renderItem: defaultRenderItem // como desenhar um item na pool
+  };
+
+  // ======= Utils DOM/HTML ====================================================
+  function $(sel, root=document){ return root.querySelector(sel); }
+  function escapeHtml(s){
+    return String(s ?? '')
+      .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+      .replaceAll('"','&quot;').replaceAll("'","&#039;");
+  }
+
+  function defaultRenderItem(servidor){
+    const el = document.createElement('div');
+    el.className = 'servidor-card';
+    el.setAttribute('draggable','true'); // se você já usa drag&drop, isso mantém o comportamento
+    el.dataset.id = servidor.id;
+    el.innerHTML = `
+      <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+      <span class="srv-name">${escapeHtml(servidor.nome)}</span>`;
+    return el;
+  }
+
+  function getAllocatedIds(opts){
+    if (!opts.excludeAllocated) return new Set();
+    const ids = new Set();
+    document.querySelectorAll(opts.cardSelectorInMetas).forEach(chip => {
+      const sid = chip.getAttribute(opts.cardIdAttr) || chip.dataset.id || chip.dataset.servidorId;
+      if (sid) ids.add(String(sid));
+    });
+    return ids;
+  }
+
+  function getTarget(opts){
+    const target = document.querySelector(opts.targetSelector);
+    if (!target) {
+      console.warn('[programar] Pool de servidores não encontrada pelos seletores:', opts.targetSelector);
+    }
+    return target;
+  }
+
+  function setBadgeCount(n, opts){
+    const badge = document.querySelector(opts.badgeSelector);
+    if (badge) badge.textContent = String(n);
+  }
+
+  // ======= Render "por diff" (preserva a ordem atual) ========================
+  function diffRenderPool(target, livres, opts){
+    // índice por id vindo da API
+    const livresIds = new Set(livres.map(s => String(s.id)));
+
+    // remove itens que não estão mais na lista livres
+    Array.from(target.children).forEach(child => {
+      const sid = child.getAttribute(opts.itemIdAttr) || child.dataset.id || child.dataset.servidorId;
+      if (!sid || !livresIds.has(String(sid))) child.remove();
+    });
+
+    // conjunto dos ids já presentes (após remoções)
+    const presentes = new Set(
+      Array.from(target.children).map(ch => String(ch.getAttribute(opts.itemIdAttr) || ch.dataset.id || ch.dataset.servidorId))
+    );
+
+    // adiciona ao final apenas os novos
+    livres.forEach(s => {
+      const sid = String(s.id);
+      if (presentes.has(sid)) return;
+      const el = opts.renderItem(s);
+      // garanta atributo id para diffs futuros
+      if (!el.getAttribute(opts.itemIdAttr)) el.setAttribute(opts.itemIdAttr, sid);
+      target.appendChild(el);
+    });
+
+    setBadgeCount(target.children.length, opts);
+  }
+
+  // ======= Fetch + aplicar ===================================================
+  async function loadServidoresDisponiveis(iso, options={}){
+    const opts = { ...DEFAULTS, ...options };
+
+    const urlBase = window.PROGRAMAR?.urls?.servidores;
+    if (!urlBase) {
+      console.error('[programar] URL programar:servidores_para_data não definida.');
+      return { livres: [], impedidos: [] };
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso||''))) {
+      console.warn('[programar] Data inválida:', iso);
+      return { livres: [], impedidos: [] };
+    }
+
+    const target = getTarget(opts);
+    if (target) {
+      target.classList.add('is-loading');
+      target.innerHTML = `<div class="text-muted">Carregando…</div>`;
+    }
+    setBadgeCount(0, opts);
+
+    try {
+      const url = new URL(urlBase, window.location.origin);
+      url.searchParams.set('data', iso);
+      const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const json = await resp.json();
+
+      let livres = Array.isArray(json.livres) ? json.livres : [];
+      const impedidos = Array.isArray(json.impedidos) ? json.impedidos : [];
+
+      // opcional: não mostrar na pool quem já está alocado nos teus cards
+      const alocados = getAllocatedIds(opts);
+      if (alocados.size) {
+        livres = livres.filter(s => !alocados.has(String(s.id)));
+      }
+
+      if (!target) return { livres, impedidos };
+
+      // Se você tiver grid/estilos específicos, garanta a classe do container aqui:
+      target.classList.add('servidores-grid');
+      target.innerHTML = ''; // limpa "Carregando…"
+      diffRenderPool(target, livres, opts);
+      target.classList.remove('is-loading');
+
+      // sinaliza para quem quiser escutar
+      document.dispatchEvent(new CustomEvent('programar:servidoresLoaded', {
+        detail: { iso, livres, impedidos }
+      }));
+
+      return { livres, impedidos };
+    } catch (err) {
+      console.error('[programar] Falha ao carregar servidores:', err);
+      if (target) {
+        target.innerHTML = `<div class="text-danger">Erro ao carregar.</div>`;
+        target.classList.remove('is-loading');
+      }
+      return { livres: [], impedidos: [] };
+    }
+  }
+
+  // ======= Integrações convenientes =========================================
+  // 1) quando abrir a modal, tenta carregar usando a data presente
+  document.addEventListener('shown.bs.modal', () => {
+    const hidden = document.getElementById('programar-dataAtividade') ||
+                   document.getElementById('programar-data') ||
+                   document.querySelector('[data-programar-data]');
+    const iso = hidden?.value || hidden?.getAttribute?.('data-programar-data');
+    if (iso) loadServidoresDisponiveis(iso);
+  });
+
+  // 2) quando o calendário trocar o dia
+  //    document.dispatchEvent(new CustomEvent('programar:diaSelecionado', { detail: { iso:'YYYY-MM-DD' }}));
+  document.addEventListener('programar:diaSelecionado', (e) => {
+    const iso = e?.detail?.iso;
+    if (iso) loadServidoresDisponiveis(iso);
+  });
+
+  // 3) expõe API pública
+  window.PROGRAMAR.loadServidoresDisponiveis = loadServidoresDisponiveis;
+})();
+</script>
