@@ -3,15 +3,20 @@
   window.PROGRAMAR = window.PROGRAMAR || {};
 
   // ======= CONFIG/Padrões ====================================================
-  const DEFAULTS = {
+    const DEFAULTS = {
     targetSelector:  '#servidoresLivres, #poolServidores, .js-servidores-livres',
     badgeSelector:   '#countLivres, .js-count-livres',
-    excludeAllocated: true,   // se true, não mostra na pool quem já está em cards
-    cardSelectorInMetas: '.servidor-chip, .srv-chip, .chip-servidor', // elementos que representam alocação
-    cardIdAttr:      'data-id',   // atributo nos chips dos cards contendo o id do servidor
-    itemIdAttr:      'data-id',   // atributo nos itens da pool contendo o id do servidor
-    renderItem: defaultRenderItem // como desenhar um item na pool
-  };
+
+    // ⬇️ NOVO: onde renderizar o "Expediente administrativo"
+    expedienteSelector: '#expedienteAdmin, .js-expediente-admin',
+    expedienteBadgeSelector: '#countExpediente, .js-count-expediente',
+
+    excludeAllocated: true,
+    cardSelectorInMetas: '.servidor-chip, .srv-chip, .chip-servidor',
+    cardIdAttr:      'data-id',
+    itemIdAttr:      'data-id',
+    renderItem: defaultRenderItem
+    };
 
   // ======= Utils DOM/HTML ====================================================
   function $(sel, root=document){ return root.querySelector(sel); }
@@ -31,7 +36,41 @@
       <span class="srv-name">${escapeHtml(servidor.nome)}</span>`;
     return el;
   }
+    function defaultRenderExpedienteItem(servidor){
+    const el = document.createElement('div');
+    el.className = 'servidor-card';   // mesmo visual dos disponíveis
+    el.dataset.id = servidor.id;      // sem draggable no expediente
+    el.innerHTML = `
+        <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+        <span class="srv-name">${escapeHtml(servidor.nome)}</span>`;
+    return el;
+    }
 
+    function getContainer(sel){ return document.querySelector(sel); }
+
+    function setBadgeCount(n, opts){
+    const b = document.querySelector(opts.badgeSelector);
+    if (b) b.textContent = String(n);
+    }
+    function setBadgeCountExp(n, opts){
+    const b = document.querySelector(opts.expedienteBadgeSelector);
+    if (b) b.textContent = String(n);
+    }
+
+    function updateBadges(opts){
+    const pool = getContainer(opts.targetSelector);
+    const exp  = getContainer(opts.expedienteSelector);
+    if (pool) setBadgeCount(pool.children.length, opts);
+    if (exp)  setBadgeCountExp(exp.children.length, opts);
+    }
+
+    function renderExpedienteFromLivres(livres, opts){
+    const exp = getContainer(opts.expedienteSelector);
+    if (!exp) return;
+    exp.innerHTML = '';
+    livres.forEach(s => exp.appendChild(defaultRenderExpedienteItem(s)));
+    setBadgeCountExp(exp.children.length, opts);
+    }
   function getAllocatedIds(opts){
     if (!opts.excludeAllocated) return new Set();
     const ids = new Set();
@@ -128,6 +167,11 @@
       target.innerHTML = ''; // limpa "Carregando…"
       diffRenderPool(target, livres, opts);
       target.classList.remove('is-loading');
+      // Preenche o Expediente com a mesma lista de livres (inicialmente)
+        renderExpedienteFromLivres(livres, opts);
+
+        // Garante badges corretos
+        updateBadges(opts);
 
       // sinaliza para quem quiser escutar
       document.dispatchEvent(new CustomEvent('programar:servidoresLoaded', {
@@ -154,7 +198,24 @@
     const iso = hidden?.value || hidden?.getAttribute?.('data-programar-data');
     if (iso) loadServidoresDisponiveis(iso);
   });
+function wireBadgeObservers(options={}){
+  const opts = { ...DEFAULTS, ...options };
+  const pool = getContainer(opts.targetSelector);
+  const exp  = getContainer(opts.expedienteSelector);
+  const upd  = () => updateBadges(opts);
 
+  if (pool) new MutationObserver(upd).observe(pool, { childList: true });
+  if (exp)  new MutationObserver(upd).observe(exp,  { childList: true });
+
+  // também observa inclusão tardia dos containers (caso a modal injete depois)
+  new MutationObserver(() => {
+    const p = getContainer(opts.targetSelector);
+    const e = getContainer(opts.expedienteSelector);
+    if (p) new MutationObserver(upd).observe(p, { childList: true });
+    if (e) new MutationObserver(upd).observe(e, { childList: true });
+  }).observe(document.documentElement, { childList: true, subtree: true });
+}
+document.addEventListener('DOMContentLoaded', () => wireBadgeObservers());
   // 2) quando o calendário trocar o dia
   //    document.dispatchEvent(new CustomEvent('programar:diaSelecionado', { detail: { iso:'YYYY-MM-DD' }}));
   document.addEventListener('programar:diaSelecionado', (e) => {
