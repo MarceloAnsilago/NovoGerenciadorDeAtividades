@@ -1,19 +1,17 @@
 {# templates/programar/partials/_cards_indisponiveis.html #}
-<div class="card shadow-sm" id="programar-impedidosCard">
-  <div class="card-header d-flex justify-content-between align-items-center">
+<div id="programar-impedidosCard" class="card border-0 shadow-sm mt-3">
+  <div class="card-header d-flex align-items-center justify-content-between">
     <span class="fw-semibold">Servidores impedidos</span>
-    <span class="badge bg-secondary" id="countServidoresImpedidos">0</span>
+    <span id="countImpedidos" class="badge bg-secondary">0</span>
   </div>
-  <div class="card-body">
-    <div class="table-responsive">
-      <table class="table table-sm table-striped align-middle mb-0" id="tabelaImpedidos">
-        <thead class="table-light">
-          <tr><th>Nome</th><th>Motivo</th></tr>
-        </thead>
-        <tbody>
-          {# preenchido via JS #}
-        </tbody>
-      </table>
-    </div>
+  <div class="card-body p-2">
+    <table id="tabelaImpedidos" class="table table-sm mb-0">
+      <thead class="table-light">
+        <tr><th>Nome</th><th>Motivo</th></tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="2" class="text-muted">Carregando…</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>

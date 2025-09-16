@@ -1,22 +1,160 @@
 <script>
-  (function () {
-    window.PROGRAMAR = window.PROGRAMAR || {};
-    window.PROGRAMAR.urls = {
-      // continua usando o feed do app antigo
-      eventsFeed: "{% url 'programar_atividades:events_feed' %}",
-      metas: "{% url 'programar_atividades:metas_disponiveis' %}",
-      servidores: "{% url 'programar_atividades:servidores_para_data' %}",
-      salvar: "{% url 'programar_atividades:salvar_programacao' %}",
-      programacaoDia: "{% url 'programar_atividades:programacao_do_dia' %}",
-      excluir: "{% url 'programar_atividades:excluir_programacao' %}",
+(function(){
+  window.PROGRAMAR = window.PROGRAMAR || {};
+  window.PROGRAMAR.urls = {
+    eventsFeed:    "{% url 'programar_atividades:events_feed' %}",
+    metas:         "{% url 'programar_atividades:metas_disponiveis' %}",
+    servidores:    "{% url 'programar:servidores_para_data' %}",  
+    salvar:        "{% url 'programar_atividades:salvar_programacao' %}",
+    programacaoDia:"{% url 'programar_atividades:programacao_do_dia' %}",
+    excluir:       "{% url 'programar_atividades:excluir_programacao' %}",
+    plantaoSemana: "{% url 'plantao:servidores_por_intervalo' %}",
+    printSemana:   "{% url 'programar:print_relatorio_semana' %}",
+    relatorios:    "{% url 'programar:relatorios_parcial' %}",
+  };
+})();
+</script>
 
-      // plantão (outro app)
-      plantaoSemana: "{% url 'plantao:servidores_por_intervalo' %}",
+<<script>
+(function () {
+  // Namespace
+  window.PROGRAMAR = window.PROGRAMAR || {};
 
-      // 🔁 AGORA: relatórios e impressão pelo app novo
-      printSemana: "{% url 'programar:print_relatorio_semana' %}",
-      relatorios:  "{% url 'programar:relatorios_parcial' %}",
-    };
-    console.info('[programar] urls bridge → eventos no legado, relatórios no novo', window.PROGRAMAR.urls);
-  })();
+  // ---------------- DOM helpers ----------------
+  const $tbody = () => document.querySelector('#tabelaImpedidos tbody');
+  const $badge = () => document.getElementById('countImpedidos');
+
+  function escapeHtml(s) {
+    return String(s ?? '')
+      .replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;').replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  // ---------------- data detection ----------------
+  function ddmmyyyyToIso(s) {
+    const m = String(s || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+  }
+
+  function detectarDataDaTela() {
+    // prioridade 1: hidden/attr que você pode manter atualizado quando o dia mudar
+    const holder = document.querySelector('#programar-data, [data-programar-data]');
+    if (holder) {
+      const v = holder.value || holder.getAttribute('data-programar-data') || '';
+      if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+      const iso = ddmmyyyyToIso(v);
+      if (iso) return iso;
+    }
+    // prioridade 2: título da modal "Programar atividades — 17/09/2025"
+    const title = document.querySelector('.modal.show .modal-title, .modal .modal-title');
+    if (title) {
+      const m = title.textContent.match(/(\d{2}\/\d{2}\/\d{4})/);
+      if (m) return ddmmyyyyToIso(m[1]);
+    }
+    // fallback: hoje
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  // ---------------- fetch + render ----------------
+  let _ultimoIso = null; // evita requisições repetidas
+
+  async function carregarServidoresImpedidos(dataISO) {
+    try {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dataISO || ''))) {
+        console.warn('Data inválida para impedidos:', dataISO);
+        return;
+      }
+      if (_ultimoIso === dataISO && $tbody()?.dataset.rendered === '1') {
+        return; // já renderizado para esta data
+      }
+
+      const urlBase = window.PROGRAMAR?.urls?.servidores;
+      if (!urlBase) {
+        console.error('URL programar:servidores_para_data não definida.');
+        return;
+      }
+      const url = new URL(urlBase, window.location.origin);
+      url.searchParams.set('data', dataISO);
+
+      _ultimoIso = dataISO;
+      if ($tbody()) {
+        $tbody().innerHTML = `<tr><td colspan="2" class="text-muted">Carregando…</td></tr>`;
+        delete $tbody().dataset.rendered;
+      }
+      if ($badge()) $badge().textContent = '0';
+
+      const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const json = await resp.json();
+
+      const impedidos = Array.isArray(json.impedidos) ? json.impedidos : [];
+      if ($badge()) $badge().textContent = String(impedidos.length);
+
+      if (!impedidos.length) {
+        if ($tbody()) {
+          $tbody().innerHTML = `<tr><td colspan="2" class="text-muted">Nenhum servidor impedido.</td></tr>`;
+          $tbody().dataset.rendered = '1';
+        }
+        return;
+      }
+
+      const rows = impedidos.map(i => {
+        const nome = i.nome ?? i.name ?? i.servidor ?? i.servidor_nome ?? '';
+        const motivo = i.motivo ?? i.reason ?? i.justificativa ?? '';
+        return `<tr><td>${escapeHtml(nome)}</td><td>${escapeHtml(motivo)}</td></tr>`;
+      });
+      if ($tbody()) {
+        $tbody().innerHTML = rows.join('');
+        $tbody().dataset.rendered = '1';
+      }
+    } catch (e) {
+      console.error('Falha ao carregar impedidos:', e);
+      if ($tbody()) $tbody().innerHTML = `<tr><td colspan="2" class="text-danger">Erro ao carregar a lista.</td></tr>`;
+      if ($badge()) $badge().textContent = '0';
+    }
+  }
+
+  // ---------------- gatilhos ----------------
+  function atualizarPelaUI() {
+    const iso = detectarDataDaTela();
+    carregarServidoresImpedidos(iso);
+  }
+
+  // 1) quando a modal abrir (Bootstrap 5)
+  document.addEventListener('shown.bs.modal', atualizarPelaUI);
+
+  // 2) quando o app trocar o dia do calendário, dispare este evento no seu código:
+  //    document.dispatchEvent(new CustomEvent('programar:diaSelecionado', { detail: { iso: 'YYYY-MM-DD' }}));
+  document.addEventListener('programar:diaSelecionado', (e) => {
+    const iso = e?.detail?.iso;
+    if (iso) carregarServidoresImpedidos(iso);
+  });
+
+  // 3) quando o card/tabela for injetado no DOM depois do load inicial, detecta e carrega
+  const mo = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node.id === 'tabelaImpedidos' || node.querySelector?.('#tabelaImpedidos')) {
+          // pequena espera para título/hidden já estarem atualizados
+          setTimeout(atualizarPelaUI, 0);
+          return;
+        }
+      }
+    }
+  });
+  mo.observe(document.documentElement, { childList: true, subtree: true });
+
+  // 4) se a tabela já existir (ex.: página server-rendered), carrega imediatamente
+  document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('tabelaImpedidos')) {
+      atualizarPelaUI();
+    }
+  });
+
+  // 5) expõe helpers (útil para testes/integração)
+  window.PROGRAMAR.carregarServidoresImpedidos = carregarServidoresImpedidos;
+  window.PROGRAMAR.atualizarImpedidosPelaUI = atualizarPelaUI;
+})();
 </script>
