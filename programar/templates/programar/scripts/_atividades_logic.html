@@ -2,31 +2,68 @@
 (function(){
   const NS = window.PROGRAMAR = window.PROGRAMAR || {};
 
-  function getContainer(){ return document.getElementById('metaCardsContainer'); }
+  const allocations = (NS._allocations = NS._allocations || Object.create(null));
+  const el = (id) => document.getElementById(id);
+  const metaCardsContainer = () => el('metaCardsContainer');
+
+  function updateCounts(){ NS.updateCounts?.(); }
 
   NS.ensureMetaCard = function(metaId, metaTitle){
-    const cont = getContainer(); if (!cont) return;
-    let card = cont.querySelector(`[data-meta-id="${metaId}"]`);
-    if (card){ card.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'}); return card; }
+    const cont = metaCardsContainer(); 
+    if (!cont) return null;
 
+    // já existe? apenas foca/rola e sai
+    let card = cont.querySelector(`[data-meta-id="${metaId}"]`);
+    if (card){
+      card.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
+      return card;
+    }
+
+    // cria card NOVO com dropzone (sem tarja)
     card = document.createElement('div');
     card.className = 'card shadow-sm servidor-cardbox';
     card.dataset.metaId = metaId;
-    card.style.minWidth = '340px'; card.style.maxWidth = '370px';
+    card.style.minWidth = '340px';
+    card.style.maxWidth = '370px';
+
     card.innerHTML = `
-      <div class="card-header bg-light border-bottom py-2 d-flex align-items-center justify-content-between">
-        <b>${metaTitle}</b>
-        <button type="button" class="btn-close" aria-label="Remover" title="Remover card"></button>
-      </div>
-      <div class="card-body">
-        <div class="alert alert-info py-2 mb-1">
-          Configuração de atividades<br>
-          <span class="text-muted">Aqui virá o conteúdo detalhado do card.</span>
+      <div class="card-header bg-light border-bottom py-2">
+        <div class="d-flex align-items-center justify-content-between">
+          <b class="meta-title-text">${metaTitle}</b>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary count-meta">0</span>
+            <button type="button" class="btn-close" aria-label="Remover" title="Remover card"></button>
+          </div>
         </div>
-      </div>`;
+      </div>
+      <div class="card-body meta-body">
+        <!-- ⬇️ dropzone que recebe os chips -->
+        <div class="servidores-grid meta-dropzone dropzone mb-3"></div>
+      </div>
+    `;
+
     cont.appendChild(card);
-    card.querySelector('.btn-close')?.addEventListener('click',()=>card.remove());
+
+    // remove qualquer tarja/alert legado que outro script tenha colocado
+    card.querySelectorAll('.alert').forEach(n => n.remove());
+
+    // Fechar card: limpa chips (se houver), ajusta allocations e contadores
+    card.querySelector('.btn-close')?.addEventListener('click', () => {
+      const removed = {};
+      card.querySelectorAll('.servidor-chip').forEach(ch => {
+        const sid = ch.dataset.id;
+        removed[sid] = (removed[sid] || 0) + 1;
+        ch.remove();
+      });
+      Object.entries(removed).forEach(([sid, q]) => {
+        allocations[sid] = Math.max(0, (allocations[sid] || 0) - q);
+      });
+      card.remove();
+      updateCounts();
+    });
+
     card.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
+    updateCounts();
     return card;
   };
 })();

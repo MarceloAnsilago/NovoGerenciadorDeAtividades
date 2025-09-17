@@ -1,16 +1,16 @@
 <script>
-(function(){
-  window.PROGRAMAR = window.PROGRAMAR || {};
-  window.PROGRAMAR.urls = {
-    eventsFeed:    "{% url 'programar_atividades:events_feed' %}",
-    metas:         "{% url 'programar_atividades:metas_disponiveis' %}",
-    servidores:    "{% url 'programar:servidores_para_data' %}",  
-    salvar:        "{% url 'programar_atividades:salvar_programacao' %}",
-    programacaoDia:"{% url 'programar_atividades:programacao_do_dia' %}",
-    excluir:       "{% url 'programar_atividades:excluir_programacao' %}",
-    plantaoSemana: "{% url 'plantao:servidores_por_intervalo' %}",
-    printSemana:   "{% url 'programar:print_relatorio_semana' %}",
-    relatorios:    "{% url 'programar:relatorios_parcial' %}",
+(function () {
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
+  NS.urls = {
+    eventsFeed:     "{% url 'programar_atividades:events_feed' %}",
+    metas:          "{% url 'programar_atividades:metas_disponiveis' %}",
+    servidores:     "{% url 'programar:servidores_para_data' %}",
+    salvar:         "{% url 'programar_atividades:salvar_programacao' %}",
+    programacaoDia: "{% url 'programar_atividades:programacao_do_dia' %}",
+    excluir:        "{% url 'programar_atividades:excluir_programacao' %}",
+    plantaoSemana:  "{% url 'plantao:servidores_por_intervalo' %}",
+    printSemana:    "{% url 'programar:print_relatorio_semana' %}",
+    relatorios:     "{% url 'programar:relatorios_parcial' %}"
   };
 })();
 </script>

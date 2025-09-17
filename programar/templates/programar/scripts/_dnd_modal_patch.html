@@ -1,0 +1,235 @@
+<script>
+(function () {
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
+  const el = (id) => document.getElementById(id);
+
+  // ---------- estado compartilhado / fallbacks ----------
+  const allocations = (NS._allocations = NS._allocations || Object.create(null));
+  const DRAG = (NS._dragState = NS._dragState || { id: null });
+
+  function findServerNameById(sid) {
+    const div = document.querySelector(`.servidor-card[data-id="${sid}"]`);
+    const name = div?.querySelector(".srv-name")?.textContent || div?.textContent || sid;
+    return String(name).trim();
+  }
+  function appendToExpedienteIfMissing(sid, name) {
+    const list = el("expedienteAdmin");
+    if (!list) return;
+    if (!list.querySelector(`.servidor-card[data-id="${sid}"]`)) {
+      const d = document.createElement("div");
+      d.className = "servidor-card";
+      d.dataset.id = sid;
+      d.setAttribute("draggable", "true");
+      d.innerHTML = `
+        <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+        <span class="srv-name">${name}</span>
+      `;
+      list.appendChild(d);
+    }
+  }
+  function removeFromExpediente(sid) {
+    el("expedienteAdmin")?.querySelector(`.servidor-card[data-id="${sid}"]`)?.remove();
+  }
+  function updateCounts() {
+    const livres = el("servidoresLivres");
+    const cLivres = el("countServidoresLivres");
+    const cExp = el("countExpedienteAdmin");
+    if (cLivres && livres) cLivres.textContent = String(livres.querySelectorAll(".servidor-card").length);
+    if (cExp && el("expedienteAdmin")) cExp.textContent = String(el("expedienteAdmin").querySelectorAll(".servidor-card").length);
+
+    // badges na pool
+    if (livres) {
+      livres.querySelectorAll('.servidor-card[data-id]').forEach((div) => {
+        const sid = div.dataset.id;
+        const n = allocations[sid] || 0;
+        let b = div.querySelector(".srv-count-badge");
+        if (!b) {
+          b = document.createElement("span");
+          b.className = "srv-count-badge";
+          div.appendChild(b);
+        }
+        if (n > 0) { div.classList.add("has-count"); b.textContent = n; }
+        else { div.classList.remove("has-count"); b.textContent = ""; }
+      });
+    }
+
+    // contagem dentro de cada card de meta
+    const cont = el("metaCardsContainer");
+    if (cont) {
+      cont.querySelectorAll("[data-meta-id]").forEach((card) => {
+        const n = card.querySelectorAll(".servidor-chip").length;
+        const badge = card.querySelector(".count-meta");
+        if (badge) badge.textContent = String(n);
+      });
+    }
+  }
+  NS.updateCounts = NS.updateCounts || updateCounts;
+
+  // ---------- injeta/garante a dropzone ----------
+  function ensureDropzone(card) {
+    if (!card) return null;
+    let dz = card.querySelector(".meta-dropzone");
+    if (!dz) {
+      const body = card.querySelector(".meta-body, .card-body") || card;
+      dz = document.createElement("div");
+      dz.className = "servidores-grid meta-dropzone dropzone mb-3";
+      body.prepend(dz); // insere no topo
+    }
+    return dz;
+  }
+
+  function upgradeExistingCards() {
+    const container = el("metaCardsContainer");
+    if (!container) return;
+    container.querySelectorAll("[data-meta-id]").forEach(ensureDropzone);
+  }
+
+  // envelopa ensureMetaCard existente para sempre criar dropzone
+  const _ensureMetaCard = NS.ensureMetaCard;
+  NS.ensureMetaCard = function (metaId, title, options) {
+    const card = typeof _ensureMetaCard === "function"
+      ? _ensureMetaCard.call(NS, metaId, title, options)
+      : document.querySelector(`#metaCardsContainer [data-meta-id="${metaId}"]`);
+    ensureDropzone(card);
+    return card;                 // <<< retorna o CARD, não a dropzone
+  };
+
+  // observa novos cards adicionados à faixa
+  const cont = el("metaCardsContainer");
+  if (cont) {
+    const mo = new MutationObserver((ms) => {
+      for (const m of ms) {
+        m.addedNodes.forEach((n) => {
+          if (n.nodeType === 1) {
+            if (n.matches?.("[data-meta-id]")) ensureDropzone(n);
+            n.querySelectorAll?.("[data-meta-id]").forEach(ensureDropzone);
+          }
+        });
+      }
+    });
+    mo.observe(cont, { childList: true, subtree: true });
+  }
+
+  // ---------- fallback addToMeta (usa o seu se existir) ----------
+  function fallbackAddToMeta(sid, metaId) {
+    const name = findServerNameById(sid);
+    const card = document.querySelector(`#metaCardsContainer [data-meta-id="${metaId}"]`) || NS.ensureMetaCard(metaId, "");
+    const dz = ensureDropzone(card);
+    if (!dz) return;
+
+    const exists = dz.querySelector(`.servidor-chip[data-id="${sid}"]`);
+    if (exists) { exists.classList.add("dup-anim"); setTimeout(() => exists.classList.remove("dup-anim"), 450); return; }
+
+    const chip = document.createElement("div");
+    chip.className = "servidor-chip"; chip.dataset.id = sid;
+    chip.innerHTML = `
+      <span class="chip-icon"><i class="bi bi-person-fill"></i></span>
+      <span class="chip-name">${name}</span>
+      <button type="button" class="chip-remove" title="Remover">&times;</button>
+    `;
+    chip.querySelector(".chip-remove").addEventListener("click", () => {
+      chip.remove();
+      allocations[sid] = Math.max(0, (allocations[sid] || 0) - 1);
+      if ((allocations[sid] || 0) === 0) appendToExpedienteIfMissing(sid, name);
+      updateCounts();
+    });
+
+    dz.appendChild(chip);
+    const prev = allocations[sid] || 0;
+    allocations[sid] = prev + 1;
+    if (prev === 0) removeFromExpediente(sid);
+    updateCounts();
+  }
+
+  function addToMeta(sid, metaId) {
+    if (typeof NS.addToMeta === "function" && NS.addToMeta !== addToMeta) {
+      return NS.addToMeta(sid, metaId); // usa a sua, se existir
+    }
+    return fallbackAddToMeta(sid, metaId);
+  }
+
+  // ---------- DnD (delegação) ----------
+  function setDraggableOnCards(root = document) {
+    root.querySelectorAll('.servidor-card[data-id]').forEach(el => {
+      if (!el.hasAttribute('draggable')) el.setAttribute('draggable', 'true');
+    });
+  }
+  setDraggableOnCards();
+  const moPool = new MutationObserver(ms => ms.forEach(m =>
+    m.addedNodes.forEach(n => n.nodeType === 1 && setDraggableOnCards(n))
+  ));
+  moPool.observe(document.documentElement, { childList: true, subtree: true });
+
+  document.addEventListener("dragstart", (e) => {
+    const card = e.target.closest(".servidor-card[data-id]");
+    if (!card) return;
+    const sid = card.dataset.id;
+    DRAG.id = sid;
+    if (e.dataTransfer) {
+      e.dataTransfer.setData("text/plain", sid);
+      e.dataTransfer.setData("application/x-sid", sid);
+      e.dataTransfer.effectAllowed = "move";
+    }
+  }, true);
+
+  document.addEventListener("dragend", () => { DRAG.id = null; }, true);
+
+  document.addEventListener("dragover", (e) => {
+    const dz = e.target.closest(".meta-dropzone");
+    if (!dz) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    dz.classList.add("drop-hover");
+  }, true);
+
+  document.addEventListener("dragleave", (e) => {
+    const dz = e.target.closest(".meta-dropzone");
+    if (dz) dz.classList.remove("drop-hover");
+  }, true);
+
+  document.addEventListener("drop", (e) => {
+    const dz = e.target.closest(".meta-dropzone");
+    if (!dz) return;
+    e.preventDefault();
+    dz.classList.remove("drop-hover");
+
+    const metaId = dz.closest("[data-meta-id]")?.dataset.metaId;
+    let sid = (e.dataTransfer && (e.dataTransfer.getData("application/x-sid") || e.dataTransfer.getData("text/plain"))) || DRAG.id;
+    if (!metaId || !sid) return;
+
+    addToMeta(sid, metaId);
+  }, true);
+
+  // habilita drop no expediente (opcional)
+  const expBody = el("expedienteBody");
+  if (expBody) {
+    expBody.addEventListener("dragover", (e) => { e.preventDefault(); }, true);
+    expBody.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const sid = (e.dataTransfer && (e.dataTransfer.getData("application/x-sid") || e.dataTransfer.getData("text/plain"))) || DRAG.id;
+      if (!sid) return;
+      const name = findServerNameById(sid);
+      appendToExpedienteIfMissing(sid, name);
+      updateCounts();
+    }, true);
+  }
+
+  // 🔴 AQUI ESTAVA O PROBLEMA: ouça a abertura da modal certa
+  // Escuta qualquer modal do Bootstrap e filtra pelo ID do seu modal
+  document.addEventListener("shown.bs.modal", (e) => {
+    const tgt = e.target;
+    if (!tgt) return;
+    if (tgt.id === "programar-modalAtividade" || tgt.id === "programarModal") {
+      upgradeExistingCards();
+      updateCounts();
+    }
+  });
+
+  // fallback inicial
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => { upgradeExistingCards(); updateCounts(); });
+  } else {
+    upgradeExistingCards(); updateCounts();
+  }
+})();
+</script>

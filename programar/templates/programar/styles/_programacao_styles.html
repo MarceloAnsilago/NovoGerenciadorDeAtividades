@@ -239,107 +239,135 @@
     overflow:visible;       /* nenhuma barra aqui */
   }
 
-  /* cada card de meta ocupa uma coluna fixa dentro da faixa */
-  #programar-modalAtividade #metaCardsContainer .servidor-cardbox{
-    flex:0 0 340px;
-  }
+    /* cada card de meta ocupa uma coluna fixa dentro da faixa */
+    #programar-modalAtividade #metaCardsContainer .servidor-cardbox{
+      flex:0 0 340px;
+    }
 
-  /* (opcional) custom do scrollbar da linha */
-  #programar-modalAtividade #programar-atividadesRow::-webkit-scrollbar{ height:8px; }
-  #programar-modalAtividade #programar-atividadesRow::-webkit-scrollbar-thumb{
-    background:#cfd6e4; border-radius:999px;
-  }
-  #programar-modalAtividade #programar-atividadesRow{
-    scrollbar-color:#cfd6e4 transparent; scrollbar-width:thin;
-  }
+    /* (opcional) custom do scrollbar da linha */
+    #programar-modalAtividade #programar-atividadesRow::-webkit-scrollbar{ height:8px; }
+    #programar-modalAtividade #programar-atividadesRow::-webkit-scrollbar-thumb{
+      background:#cfd6e4; border-radius:999px;
+    }
+    #programar-modalAtividade #programar-atividadesRow{
+      scrollbar-color:#cfd6e4 transparent; scrollbar-width:thin;
+    }
 
-  /* ---- cartão visual padrão para servidores (livres/expediente) ---- */
-  #programar-modalAtividade .servidor-card{
-    display:flex; align-items:center; gap:.625rem;
-    padding:10px 12px;
-    border:1px solid #dee2e6; border-radius:.65rem;
-    background:linear-gradient(145deg,#fafafa,#fff);
-    font-size:.875rem; color:#1f2937; font-weight:600;
-    min-height:40px; cursor:grab; user-select:none;
-    transition:box-shadow .15s, transform .06s, background-color .15s, border-color .15s;
-    box-shadow:0 1px 4px rgba(0,0,0,.04);
-  }
-  #programar-modalAtividade .servidor-card:hover{
-    background:#eef5ff; border-color:#cbd6ee; box-shadow:0 2px 8px rgba(13,110,253,.1);
-  }
-  #programar-modalAtividade .srv-icon{
-    width:22px;height:22px;border-radius:50%;
-    display:inline-flex;align-items:center;justify-content:center;
-    background:#e8f1ff;color:#0d6efd;font-size:12px;flex-shrink:0;
-    box-shadow:inset 0 0 0 2px #cfe2ff;
-  }
-  #programar-modalAtividade .srv-name{ flex:1; text-align:center; letter-spacing:.2px; text-transform:uppercase; font-size:.8rem; }
-  #programar-modalAtividade .srv-count-badge{
-    margin-left:auto;background:#0d6efd;color:#fff;border-radius:999px;font-size:.7rem;
-    padding:2px 6px; line-height:1; display:none; box-shadow:0 0 0 2px #fff;
-  }
-  #programar-modalAtividade .servidor-card.has-count .srv-count-badge{ display:inline-block; }
+    /* ---- cartão visual padrão para servidores (livres/expediente) ---- */
+    #programar-modalAtividade .servidor-card{
+      display:flex; align-items:center; gap:.625rem;
+      padding:10px 12px;
+      border:1px solid #dee2e6; border-radius:.65rem;
+      background:linear-gradient(145deg,#fafafa,#fff);
+      font-size:.875rem; color:#1f2937; font-weight:600;
+      min-height:40px; cursor:grab; user-select:none;
+      transition:box-shadow .15s, transform .06s, background-color .15s, border-color .15s;
+      box-shadow:0 1px 4px rgba(0,0,0,.04);
+    }
+    #programar-modalAtividade .servidor-card:hover{
+      background:#eef5ff; border-color:#cbd6ee; box-shadow:0 2px 8px rgba(13,110,253,.1);
+    }
+    #programar-modalAtividade .srv-icon{
+      width:22px;height:22px;border-radius:50%;
+      display:inline-flex;align-items:center;justify-content:center;
+      background:#e8f1ff;color:#0d6efd;font-size:12px;flex-shrink:0;
+      box-shadow:inset 0 0 0 2px #cfe2ff;
+    }
+    #programar-modalAtividade .srv-name{ flex:1; text-align:center; letter-spacing:.2px; text-transform:uppercase; font-size:.8rem; }
+    #programar-modalAtividade .srv-count-badge{
+      margin-left:auto;background:#0d6efd;color:#fff;border-radius:999px;font-size:.7rem;
+      padding:2px 6px; line-height:1; display:none; box-shadow:0 0 0 2px #fff;
+    }
+    #programar-modalAtividade .servidor-card.has-count .srv-count-badge{ display:inline-block; }
 
-  /* drop target visual */
-  #programar-modalAtividade .drop-target{ min-height:240px; }
-  #programar-modalAtividade .drop-target.dz-hover{ outline:2px dashed #0d6efd; outline-offset:-4px; background:#eef5ff; }
+    /* drop target visual */
+    #programar-modalAtividade .drop-target{ min-height:240px; }
+    #programar-modalAtividade .drop-target.dz-hover{ outline:2px dashed #0d6efd; outline-offset:-4px; background:#eef5ff; }
 
-  /* chips dentro do card de meta */
-  #programar-modalAtividade .servidor-chip{
-    display:flex; align-items:center; gap:.6rem;
-    padding:8px 10px; border:1px solid #cfd7e6; border-radius:.6rem;
-    background:#eef2f9; font-size:.82rem; font-weight:600;
-  }
-  #programar-modalAtividade .servidor-chip .chip-icon{
-    width:18px;height:18px;border-radius:50%;
-    display:inline-flex;align-items:center;justify-content:center;
-    background:#e8f1ff;color:#0d6efd;font-size:10px;flex-shrink:0;
-    box-shadow:inset 0 0 0 1px #cfe2ff;
-  }
-  #programar-modalAtividade .servidor-chip .chip-remove{
-    border:0;background:#dee6f5;color:#374151;border-radius:.45rem;padding:2px 8px;font-weight:700;font-size:.72rem;cursor:pointer;
-  }
+    /* chips dentro do card de meta */
+    #programar-modalAtividade .servidor-chip{
+      display:flex; align-items:center; gap:.6rem;
+      padding:8px 10px; border:1px solid #cfd7e6; border-radius:.6rem;
+      background:#eef2f9; font-size:.82rem; font-weight:600;
+    }
+    #programar-modalAtividade .servidor-chip .chip-icon{
+      width:18px;height:18px;border-radius:50%;
+      display:inline-flex;align-items:center;justify-content:center;
+      background:#e8f1ff;color:#0d6efd;font-size:10px;flex-shrink:0;
+      box-shadow:inset 0 0 0 1px #cfe2ff;
+    }
+    #programar-modalAtividade .servidor-chip .chip-remove{
+      border:0;background:#dee6f5;color:#374151;border-radius:.45rem;padding:2px 8px;font-weight:700;font-size:.72rem;cursor:pointer;
+    }
 
-  /* cabeçalho do card de meta criado à direita */
-  #programar-modalAtividade .meta-header-title{ display:flex; align-items:center; gap:.5rem; }
-  #programar-modalAtividade .meta-header-sep{ height:1px; background:#e9edf3; margin-top:6px; }
-  
-  /* ===== Card de impedidos (rodapé do modal) ===== */
-  #programar-modalAtividade #programar-impedidosCard .card-header{
-    background:#f8fafc; border-bottom:1px solid var(--prog-card-bd);
-  }
-  #programar-modalAtividade #programar-impedidosCard .table{
-    --bs-table-bg: transparent;
-    font-size:.9rem;
-  }
-  #programar-modalAtividade #programar-impedidosCard td,
-  #programar-modalAtividade #programar-impedidosCard th{
-    padding:.4rem .6rem;
-    vertical-align:middle;
-  }
-  #programar-modalAtividade #programar-impedidosCard thead th{
-    font-weight:600; color:#495057;
-  }
-  /* Modal mais largo só para o app Programar */
-  #programar-modalAtividade .modal-dialog{
-    /* controla a largura do modal no Bootstrap 5 */
-    --bs-modal-width: clamp(1100px, 96vw, 1500px);
-  }
+    /* cabeçalho do card de meta criado à direita */
+    #programar-modalAtividade .meta-header-title{ display:flex; align-items:center; gap:.5rem; }
+    #programar-modalAtividade .meta-header-sep{ height:1px; background:#e9edf3; margin-top:6px; }
+    
+    /* ===== Card de impedidos (rodapé do modal) ===== */
+    #programar-modalAtividade #programar-impedidosCard .card-header{
+      background:#f8fafc; border-bottom:1px solid var(--prog-card-bd);
+    }
+    #programar-modalAtividade #programar-impedidosCard .table{
+      --bs-table-bg: transparent;
+      font-size:.9rem;
+    }
+    #programar-modalAtividade #programar-impedidosCard td,
+    #programar-modalAtividade #programar-impedidosCard th{
+      padding:.4rem .6rem;
+      vertical-align:middle;
+    }
+    #programar-modalAtividade #programar-impedidosCard thead th{
+      font-weight:600; color:#495057;
+    }
+    /* Modal mais largo só para o app Programar */
+    #programar-modalAtividade .modal-dialog{
+      /* controla a largura do modal no Bootstrap 5 */
+      --bs-modal-width: clamp(1100px, 96vw, 1500px);
+    }
 
-  /* Faixa de metas: últimos itens aparecem à esquerda */
-  #programar-modalAtividade #metaCardsContainer{
-    display:flex;
-    flex-direction: row-reverse !important; /* 👈 chave do truque */
-    gap:12px;
-    flex-wrap:nowrap;
-    align-items:stretch;
-    width:max-content;
-    overflow:visible;
-  }
+    /* Faixa de metas: últimos itens aparecem à esquerda */
+    #programar-modalAtividade #metaCardsContainer{
+      display:flex;
+      flex-direction: row-reverse !important; /* 👈 chave do truque */
+      gap:12px;
+      flex-wrap:nowrap;
+      align-items:stretch;
+      width:max-content;
+      overflow:visible;
+    }
 
-  /* Quando muito alto, mantém margem superior e inferior bonitas */
-  #programar-modalAtividade .modal.fade .modal-dialog{
-    margin-block: 1rem;               /* topo/baixo */
-  }
+    /* Quando muito alto, mantém margem superior e inferior bonitas */
+    #programar-modalAtividade .modal.fade .modal-dialog{
+      margin-block: 1rem;               /* topo/baixo */
+    }
+
+
+      .meta-dropzone {
+      min-height: 48px;
+      padding: .25rem;
+      border: 1px dashed var(--bs-border-color, #ced4da);
+      border-radius: .375rem;
+    }
+    .meta-dropzone.drop-hover {
+      background: #e7f1ff;
+      border-color: #0d6efd;
+    }
+
+    .servidor-chip {
+      border: 1px solid var(--bs-border-color, #dee2e6);
+      border-radius: .375rem;
+      padding: .375rem .5rem;
+      background: #f8f9fa;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .servidor-chip .chip-remove {
+      margin-left: auto; border: 0; background: none; color: #dc3545; font-size: 1.1rem; cursor: pointer;
+    }
+    .servidor-card.has-count .srv-count-badge { color: #0d6efd; font-weight: 600; }
+    .dup-anim { animation: dupPulse .45s ease; }
+    @keyframes dupPulse {
+      0%{transform:scale(1)} 50%{transform:scale(.98); background:#fff3cd} 100%{transform:scale(1)}
+    }
   </style>
 
