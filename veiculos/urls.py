@@ -10,4 +10,5 @@ urlpatterns = [
     path('<int:pk>/editar/', views.editar_veiculo, name='editar'),
     path('<int:pk>/ativar/', views.ativar_veiculo, name='ativar'),
     path('<int:pk>/inativar/', views.inativar_veiculo, name='inativar'),
+    path("api/lista-json/", views.veiculos_json, name="veiculos_json"),
 ]

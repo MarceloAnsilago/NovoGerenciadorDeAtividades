@@ -9,6 +9,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from .forms import VeiculoForm
 from .models import Veiculo
 from core.utils import _get_unidade_atual
+from django.views.decorators.http import require_GET
+from django.http import JsonResponse
 
 
 @login_required
@@ -115,3 +117,16 @@ def inativar_veiculo(request: HttpRequest, pk: int) -> HttpResponse:
         veiculo.save(update_fields=["ativo"])
         messages.success(request, f"{veiculo.nome} foi inativado.")
     return redirect("veiculos:lista")
+
+
+@require_GET
+@login_required
+def veiculos_json(request):
+    unidade = _get_unidade_atual(request)
+    if not unidade:
+        return JsonResponse({"veiculos": []})
+
+    veiculos = Veiculo.objects.filter(unidade=unidade, ativo=True).order_by("nome")
+    data = [{"id": v.id, "nome": v.nome, "placa": v.placa} for v in veiculos]
+
+    return JsonResponse({"veiculos": data})
