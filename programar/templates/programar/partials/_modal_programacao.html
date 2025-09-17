@@ -1,3 +1,4 @@
+{% load static %}
 <div class="modal fade" id="programar-modalAtividade" tabindex="-1" aria-labelledby="programar-modalAtividadeLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -5,21 +6,18 @@
         <h5 class="modal-title w-100 text-center" id="programar-modalAtividadeLabel">Programar atividades</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
-      <div class="modal-body">
-
-        <form id="programar-formAtividade">
-          <input type="hidden" id="programar-dataAtividade" name="data">
-          
-          {# Inclua os partials aqui: #}
-          {% include "programar/partials/_cards_metas.html" %}
-          {% include "programar/partials/_separator.html" with label="Atividades selecionadas" %}
-          {% include "programar/partials/_cards_atividades.html" %}
-          {% include "programar/partials/_separator.html" with label="Servidores impedidos" %}
-          {% include "programar/partials/_cards_indisponiveis.html" %}
-          {% include "programar/scripts/_dnd_modal_patch.html" %}
-        </form>
-
-      </div>
+        <div class="modal-body">
+          <form id="programar-formAtividade">
+            <input type="hidden" id="programar-dataAtividade" name="data">
+            {% include "programar/partials/_cards_metas.html" %}
+            {% include "programar/partials/_separator.html" with label="Atividades selecionadas" %}
+            {% include "programar/partials/_cards_atividades.html" %}
+            {% include "programar/partials/_separator.html" with label="Servidores impedidos" %}
+            {% include "programar/partials/_cards_indisponiveis.html" %}
+            {% include "programar/scripts/_dnd_modal_patch.html" %}
+            <script src="{% static 'programar/scripts/_cards_veiculos.js' %}"></script>
+          </form>
+        </div>
       <div class="modal-footer">
         <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
         <button id="programar-btnSalvar" class="btn btn-primary" disabled>Salvar</button>
