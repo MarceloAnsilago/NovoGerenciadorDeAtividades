@@ -1,0 +1,183 @@
+<style>
+/* realce quando a área de expediente for alvo do drag */
+#expedienteAdmin.drop-accept {
+  outline: 2px dashed #2ecc71;
+  transition: outline-color .15s ease;
+}
+#expedienteAdmin.drop-deny {
+  outline: 2px dashed #e74c3c;
+}
+.exp-toast {
+  position: absolute; z-index: 9999;
+  background: #222; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.2); transform: translateY(-8px);
+}
+</style>
+
+<script>
+(function(){
+  const TAG = 'DROP→EXP';
+  const CFG = {
+    // Se true, permite arrastar para o Expediente mesmo com allocations>0 (DUPLICA presença).
+    // Por padrão, NÃO permite (mantém a regra original: só volta quando não estiver alocado em metas).
+    ALLOW_WHEN_ALLOCATED: false
+  };
+  const SEL = {
+    exp: '#expedienteAdmin',
+    livres: '#servidoresLivres',
+    srvCard: '.servidor-card',
+    srvName: '.srv-name',
+    chip: '.servidor-chip',
+    chipName: '.chip-name'
+  };
+
+  const $  = (s,r=document)=>r.querySelector(s);
+  const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
+
+  const exp = $(SEL.exp);
+  if (!exp) { console.warn(TAG, 'Container do Expediente não encontrado:', SEL.exp); return; }
+
+  // ---------- util: pegar nome do servidor por qualquer lugar do DOM ----------
+  function resolveName(sid){
+    sid = String(sid);
+    // 1) card nos disponíveis
+    let el = $(SEL.livres)?.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+    if (el) return (el.querySelector(SEL.srvName)?.textContent || el.textContent || sid).trim();
+    // 2) chip em alguma meta
+    el = document.querySelector(`${SEL.chip}[data-id="${sid}"]`);
+    if (el) return (el.querySelector(SEL.chipName)?.textContent || el.textContent || sid).trim();
+    // 3) qualquer card no expediente (caso já exista)
+    el = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+    if (el) return (el.querySelector(SEL.srvName)?.textContent || el.textContent || sid).trim();
+    return sid;
+  }
+
+  // ---------- util: pegar sid a partir do drag ----------
+  const DT_KEY = 'application/x-sid';
+  function getSidFromDT(ev){
+    let raw = '';
+    try { raw = ev.dataTransfer.getData(DT_KEY) || ev.dataTransfer.getData('text/plain') || ''; } catch(_) {}
+    raw = (raw || '').trim();
+    if (!raw) {
+      const el = ev.target?.closest?.(SEL.srvCard);
+      if (el?.dataset?.id) return String(el.dataset.id);
+    }
+    // formatos "sid:123" ou "123"
+    return String(raw.replace(/^sid:/i,'').trim());
+  }
+
+  // ---------- aplica draggable nos cards de livres (se já não tiver) ----------
+  function ensureDraggable(){
+    $$(SEL.srvCard, $(SEL.livres) || document).forEach(card => {
+      if (!card.hasAttribute('draggable')) card.setAttribute('draggable','true');
+    });
+  }
+  ensureDraggable();
+
+  // ---------- feedback: mini-toast próximo ao mouse ----------
+  let toast;
+  function showToast(msg, x, y, color='#fff'){
+    try { hideToast(); } catch(_){}
+    toast = document.createElement('div');
+    toast.className = 'exp-toast';
+    toast.style.left = (x+10)+'px';
+    toast.style.top  = (y-10)+'px';
+    toast.style.color = color;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(hideToast, 1400);
+  }
+  function hideToast(){ if (toast && toast.parentNode) toast.parentNode.removeChild(toast); toast = null; }
+
+  // ---------- dragstart nos cards ----------
+  document.addEventListener('dragstart', (ev) => {
+    const card = ev.target.closest(SEL.srvCard);
+    if (!card) return;
+    const sid = String(card.dataset.id || '').trim();
+    if (!sid) return;
+    ev.dataTransfer.setData(DT_KEY, sid);
+    ev.dataTransfer.setData('text/plain', sid);
+    ev.dataTransfer.effectAllowed = 'move';
+  });
+
+  // ---------- permitir arrastar para o expediente ----------
+  exp.addEventListener('dragenter', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const sid = getSidFromDT(ev);
+    if (canDropSid(sid)) {
+      exp.classList.add('drop-accept');
+      exp.classList.remove('drop-deny');
+    } else {
+      exp.classList.add('drop-deny');
+      exp.classList.remove('drop-accept');
+    }
+  });
+
+  exp.addEventListener('dragover', (ev) => {
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = 'move';
+  });
+
+  ['dragleave','drop'].forEach(type => {
+    exp.addEventListener(type, () => {
+      exp.classList.remove('drop-accept','drop-deny');
+      hideToast();
+    });
+  });
+
+  // ---------- lógica de aceitação ----------
+  function canDropSid(sid){
+    if (!sid) return false;
+    if (CFG.ALLOW_WHEN_ALLOCATED) return true;
+    const allocs = (window.ProgramarCards?.allocations?.() || {});
+    return (allocs[sid] || 0) === 0;
+  }
+
+  // ---------- drop handler ----------
+  exp.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const sid = getSidFromDT(ev);
+    if (!sid) return;
+
+    const allocs = (window.ProgramarCards?.allocations?.() || {});
+    const isAllocated = (allocs[sid] || 0) > 0;
+
+    if (!CFG.ALLOW_WHEN_ALLOCATED && isAllocated) {
+      showToast('Servidor está alocado em Atividades', ev.clientX, ev.clientY, '#ffb3b3');
+      return;
+    }
+
+    // dedupe natural: appendToExpediente já evita duplicar e remove dos "livres"
+    const name = resolveName(sid);
+    try { window.ProgramarCards?.appendToExpediente?.({ id: sid, nome: name }); } catch(_){
+      // fallback mínimo (se API não existir por algum motivo)
+      let el = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+      if (!el){
+        el = document.createElement('div');
+        el.className = 'servidor-card';
+        el.dataset.id = sid;
+        el.setAttribute('draggable','true');
+        el.innerHTML = `<span class="srv-icon"><i class="bi bi-person-fill"></i></span><span class="srv-name">${name}</span>`;
+        exp.appendChild(el);
+      }
+      $(SEL.livres)?.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)?.remove();
+    }
+
+    // atualiza contagens
+    try { (window.PROGRAMAR?.updateCounts || window.ProgramarCards?.updateCounts)?.(); } catch(_){}
+
+    showToast('Movido para Expediente', ev.clientX, ev.clientY, '#b7ffb7');
+  });
+
+  // ---------- observar novos cards nos "livres" para garantir draggable ----------
+  const livres = $(SEL.livres);
+  if (livres){
+    const mo = new MutationObserver(() => ensureDraggable());
+    mo.observe(livres, { childList: true, subtree: true });
+  }
+
+  console.log('%c'+TAG+' pronto (drag → expediente ativo)', 'background:#111;color:#0f0;padding:2px 6px;border-radius:4px');
+})();
+</script>
