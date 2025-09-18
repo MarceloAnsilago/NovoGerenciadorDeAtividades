@@ -32,7 +32,8 @@
           <b class="meta-title-text">${metaTitle}</b>
           <div class="d-flex align-items-center gap-2">
             <span class="badge bg-primary count-meta">0</span>
-            <button type="button" class="btn-close" aria-label="Remover" title="Remover card"></button>
+            <button type="button" class="btn-close meta-close" aria-label="Remover" title="Remover card"></button>
+
           </div>
         </div>
       </div>
@@ -48,19 +49,25 @@
     card.querySelectorAll('.alert').forEach(n => n.remove());
 
     // Fechar card: limpa chips (se houver), ajusta allocations e contadores
-    card.querySelector('.btn-close')?.addEventListener('click', () => {
-      const removed = {};
-      card.querySelectorAll('.servidor-chip').forEach(ch => {
-        const sid = ch.dataset.id;
-        removed[sid] = (removed[sid] || 0) + 1;
-        ch.remove();
-      });
-      Object.entries(removed).forEach(([sid, q]) => {
-        allocations[sid] = Math.max(0, (allocations[sid] || 0) - q);
-      });
-      card.remove();
-      updateCounts();
-    });
+        
+    card.querySelector('.btn-close, .meta-close')?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+
+      // 1) replica o clique no X de cada chip (usa a MESMA lógica que já funciona)
+      const chipXs = Array.from(card.querySelectorAll('.servidor-chip .chip-remove'));
+      chipXs.forEach(b => { try { b.click(); } catch(_){} });
+
+      // 2) fallback: se sobrar algum chip por qualquer motivo
+      if (card.querySelector('.servidor-chip')) {
+        try { window.ProgramarCards?.returnAllFromCard?.(card); } catch(_) {}
+      }
+
+      // 3) remove o card e atualiza contadores
+      try { card.remove(); } catch(_) {}
+      try { (window.PROGRAMAR?.updateCounts || window.ProgramarCards?.updateCounts)?.(); } catch(_) {}
+    }, { capture: true });
 
     card.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
     updateCounts();

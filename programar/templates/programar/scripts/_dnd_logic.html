@@ -1,321 +1,176 @@
-<!-- templates/programar/scripts/_dnd_logic.html -->
 <script>
 (function () {
-  // Namespace
-  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
-
-  // ---- estado ----
-  const allocations = (NS._allocations = NS._allocations || Object.create(null)); // sid -> qtd chips
-  const DRAG = (NS._dragState = NS._dragState || { id: null });
-
-  // ---- DOM helpers ----
-  const el = (id) => document.getElementById(id);
-  const metaCardsContainer = () => el("metaCardsContainer");
-  const expList = () => el("expedienteAdmin");
-
-  function findServerNameById(sid) {
-    // tenta achar o nome em qualquer lista
-    const div = document.querySelector(`.servidor-card[data-id="${sid}"]`);
-    if (!div) return sid;
-    const name = div.querySelector(".srv-name")?.textContent || div.textContent || sid;
-    return name.trim();
-  }
-
-  function appendToExpediente(sid, name) {
-    const list = expList();
-    if (!list) return;
-    if (!list.querySelector(`.servidor-card[data-id="${sid}"]`)) {
-      const d = document.createElement("div");
-      d.className = "servidor-card";
-      d.dataset.id = sid;
-      d.setAttribute("draggable", "true");
-      d.innerHTML = `
-        <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
-        <span class="srv-name">${name}</span>
-      `;
-      list.appendChild(d);
-    }
-  }
-
-  function removeOneFromExpediente(sid) {
-    expList()?.querySelector(`.servidor-card[data-id="${sid}"]`)?.remove();
-  }
-
-  // ---- contador/badges (minimal) ----
-  function updateCounts() {
-    const livresBox = el("servidoresLivres");
-    const cLivres = el("countServidoresLivres");
-    const cExp = el("countExpedienteAdmin");
-
-    if (cLivres && livresBox) {
-      cLivres.textContent = String(livresBox.querySelectorAll(".servidor-card").length);
-    }
-    if (cExp && expList()) {
-      cExp.textContent = String(expList().querySelectorAll(".servidor-card").length);
-    }
-
-    // badge de alocações na pool
-    if (livresBox) {
-      livresBox.querySelectorAll('.servidor-card[data-id]').forEach((div) => {
-        const sid = div.dataset.id;
-        const n = allocations[sid] || 0;
-        let b = div.querySelector(".srv-count-badge");
-        if (!b) {
-          b = document.createElement("span");
-          b.className = "srv-count-badge";
-          div.appendChild(b);
-        }
-        if (n > 0) {
-          div.classList.add("has-count");
-          b.textContent = n;
-        } else {
-          div.classList.remove("has-count");
-          b.textContent = "";
-        }
-      });
-    }
-
-    // contagem dentro de cada card de meta
-    const metaCont = metaCardsContainer();
-    if (metaCont) {
-      metaCont.querySelectorAll("[data-meta-id]").forEach((card) => {
-        const n = card.querySelectorAll(".servidor-chip").length;
-        const badge = card.querySelector(".count-meta");
-        if (badge) badge.textContent = String(n);
-      });
-    }
-  }
-  NS.updateCounts = NS.updateCounts || updateCounts;
-
-  // ---- criação de chip dentro da meta ----
-  function makeMetaChip(sid, name) {
-    const chip = document.createElement("div");
-    chip.className = "servidor-chip";
-    chip.dataset.id = sid;
-    chip.innerHTML = `
-      <span class="chip-icon"><i class="bi bi-person-fill"></i></span>
-      <span class="chip-name">${name}</span>
-      <button type="button" class="chip-remove" title="Remover">&times;</button>
-    `;
-    chip.querySelector(".chip-remove").addEventListener("click", () => {
-      chip.remove();
-      allocations[sid] = Math.max(0, (allocations[sid] || 0) - 1);
-      if ((allocations[sid] || 0) === 0) {
-        appendToExpediente(sid, name);
-      }
-      updateCounts();
-    });
-    return chip;
-  }
-
-  // ---- criar (ou pegar) o card de meta ----
-  function ensureMetaCard(metaId, metaTitle) {
-    // Se já existir no namespace, use o do projeto
-    if (typeof NS.ensureMetaCard === "function" && NS.ensureMetaCard !== ensureMetaCard) {
-      return NS.ensureMetaCard(metaId, metaTitle);
-    }
-    // fallback simples (seu projeto já tem um, mas deixo aqui seguro)
-    const cont = metaCardsContainer();
-    if (!cont) return null;
-    let existing = cont.querySelector(`[data-meta-id="${metaId}"]`);
-    if (existing) return existing;
-
-    const wrap = document.createElement("div");
-    wrap.className = "card shadow-sm servidor-cardbox";
-    wrap.dataset.metaId = metaId;
-    wrap.innerHTML = `
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <strong class="meta-title-text">${metaTitle || "Atividade"}</strong>
-        <div class="d-flex align-items-center gap-2">
-          <span class="badge bg-primary count-meta">0</span>
-          <button type="button" class="btn btn-sm btn-outline-secondary meta-close" title="Fechar">&times;</button>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="servidores-grid meta-dropzone dropzone mb-2"></div>
-      </div>
-    `;
-    wrap.querySelector(".meta-close").addEventListener("click", () => {
-      const removed = {};
-      wrap.querySelectorAll(".servidor-chip").forEach((ch) => {
-        const sid = ch.dataset.id;
-        removed[sid] = (removed[sid] || 0) + 1;
-        ch.remove();
-      });
-      Object.entries(removed).forEach(([sid, q]) => {
-        allocations[sid] = Math.max(0, (allocations[sid] || 0) - q);
-        if ((allocations[sid] || 0) === 0) {
-          appendToExpediente(sid, findServerNameById(sid));
-        }
-      });
-      wrap.remove();
-      updateCounts();
-    });
-    cont.appendChild(wrap);
-    updateCounts();
-    return wrap;
-  }
-
-  // ---- adicionar servidor a uma meta ----
-  function addToMeta(sid, metaId, nameFromSource) {
-    const name = nameFromSource || findServerNameById(sid);
-    const card = ensureMetaCard(metaId, document.querySelector(`.meta-card[data-id="${metaId}"] .meta-title`)?.textContent?.trim());
-    if (!card) return;
-    const dropzone = card.querySelector(".meta-dropzone");
-    if (!dropzone) return;
-
-    // evita duplicar no MESMO card
-    const already = dropzone.querySelector(`.servidor-chip[data-id="${sid}"]`);
-    if (already) {
-      already.classList.add("dup-anim");
-      setTimeout(() => already.classList.remove("dup-anim"), 450);
-      return;
-    }
-
-    dropzone.appendChild(makeMetaChip(sid, name));
-
-    const prev = allocations[sid] || 0;
-    allocations[sid] = prev + 1;
-    if (prev === 0) removeOneFromExpediente(sid);
-    updateCounts();
-  }
-  NS.addToMeta = NS.addToMeta || addToMeta;
-
-  // ---- DnD (delegação) ----
-  function setDraggableOnCards(root=document) {
-    root.querySelectorAll('.servidor-card[data-id]').forEach(el => {
-      if (!el.hasAttribute('draggable')) el.setAttribute('draggable', 'true');
-    });
-  }
-
-  function setupDragAndDrop() {
-    setDraggableOnCards();
-
-    // DRAG START
-    document.addEventListener("dragstart", (e) => {
-      const card = e.target.closest(".servidor-card");
-      if (!card) return;
-      const sid = card.dataset.id;
-      if (!sid) return;
-      DRAG.id = sid;
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", sid);
-    });
-
-    // DRAG OVER (permite drop)
-    document.addEventListener("dragover", (e) => {
-      const dz = e.target.closest(".meta-dropzone");
-      if (!dz) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      dz.classList.add("drop-hover");
-    });
-
-    // DRAG LEAVE
-    document.addEventListener("dragleave", (e) => {
-      const dz = e.target.closest(".meta-dropzone");
-      if (dz) dz.classList.remove("drop-hover");
-    });
-
-    // DROP
-    document.addEventListener("drop", (e) => {
-      const dz = e.target.closest(".meta-dropzone");
-      if (!dz) return;
-      e.preventDefault();
-      dz.classList.remove("drop-hover");
-
-      const metaBox = dz.closest("[data-meta-id]");
-      const metaId = metaBox?.dataset.metaId;
-      const sid = DRAG.id || e.dataTransfer.getData("text/plain");
-      if (metaId && sid) addToMeta(sid, metaId, findServerNameById(sid));
-      DRAG.id = null;
-    });
-
-    // DRAG END
-    document.addEventListener("dragend", () => {
-      DRAG.id = null;
-      document.querySelectorAll(".meta-dropzone.drop-hover").forEach(el => el.classList.remove("drop-hover"));
-    });
-
-    // Se novos .servidor-card forem injetados depois, torná-los “draggable”
-    const mo = new MutationObserver((ms) => {
-      for (const m of ms) {
-        m.addedNodes.forEach((n) => {
-          if (n.nodeType === 1) setDraggableOnCards(n);
-        });
-      }
-    });
-    mo.observe(document.documentElement, { childList: true, subtree: true });
-  }
-
-  // ---- init ao abrir o modal ----
-  function initWhenModalShown() {
-    const modalEl = document.getElementById("programarModal");
-    if (modalEl && window.bootstrap) {
-      modalEl.addEventListener("shown.bs.modal", () => {
-        setupDragAndDrop();
-        updateCounts();
-      }, { once: true });
-    } else {
-      // fallback se não usar Bootstrap events
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => { setupDragAndDrop(); updateCounts(); }, { once: true });
-      } else {
-        setupDragAndDrop();
-        updateCounts();
-      }
-    }
-  }
-
-  initWhenModalShown();
-})();
-</script>
-<script>
-(function () {
-  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
-
-  // cria a dropzone se estiver faltando
-  function ensureDropzone(card) {
-    if (!card) return null;
-    let dz = card.querySelector('.meta-dropzone');
-    if (!dz) {
-      const body = card.querySelector('.meta-body, .card-body') || card;
-      dz = document.createElement('div');
-      dz.className = 'servidores-grid meta-dropzone dropzone mb-3';
-      // preferimos inserir ANTES do conteúdo de configuração
-      body.prepend(dz);
-    }
-    return dz;
-  }
-
-  // aplica em todos os cards já existentes
-  function upgradeExistingMetaCards() {
-    document
-      .querySelectorAll('#metaCardsContainer [data-meta-id]')
-      .forEach(ensureDropzone);
-  }
-
-  // envelopa o ensureMetaCard já existente para sempre criar a dropzone
-  const _ensureMetaCard = NS.ensureMetaCard;
-  NS.ensureMetaCard = function(metaId, title, options) {
-    const card = typeof _ensureMetaCard === 'function'
-      ? _ensureMetaCard.call(NS, metaId, title, options)
-      : document.querySelector(`#metaCardsContainer [data-meta-id="${metaId}"]`);
-    ensureDropzone(card);
-    return card;
+  const TAG = 'CARD-ATIVIDADES-CONSOLIDADO';
+  const SEL = {
+    metaContainer: '#metaCardsContainer',
+    metaCard:      '[data-meta-id]',
+    closeBtn:      '.meta-close, .btn-close',
+    chip:          '.servidor-chip',
+    chipX:         '.servidor-chip .chip-remove',
+    chipId:        'data-id',
+    chipName:      '.chip-name',
+    exp:           '#expedienteAdmin',
+    livres:        '#servidoresLivres',
+    srvCard:       '.servidor-card',
+    srvName:       '.srv-name'
   };
 
-  // roda ao abrir o modal e no load
-  document.getElementById('programarModal')
-    ?.addEventListener('shown.bs.modal', upgradeExistingMetaCards);
+  const $  = (s, r=document) => r.querySelector(s);
+  const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', upgradeExistingMetaCards);
-  } else {
-    upgradeExistingMetaCards();
+  // ----- helpers -----
+  function resolveName(sid){
+    const el = document.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+    return (el?.querySelector(SEL.srvName)?.textContent || el?.textContent || String(sid)).trim();
+  }
+  function appendToExpedienteNoDup(sid, name){
+    const exp = $(SEL.exp);
+    if (!exp) { console.warn(TAG, 'Expediente não encontrado'); return; }
+    let el = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+    if (!el){
+      el = document.createElement('div');
+      el.className = 'servidor-card';
+      el.dataset.id = sid;
+      el.setAttribute('draggable','true');
+      el.innerHTML = `
+        <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+        <span class="srv-name">${name || sid}</span>`;
+      exp.appendChild(el);
+    }
+    // garantir remoção de "livres"
+    $(SEL.livres)?.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)?.remove();
+  }
+  function collectChips(card){
+    return $$(SEL.chip, card).map(ch => {
+      const sid = String(ch.getAttribute(SEL.chipId) || '').trim();
+      const nm  = ch.querySelector(SEL.chipName)?.textContent?.trim() || resolveName(sid);
+      return sid ? { sid, name: nm || sid } : null;
+    }).filter(Boolean);
+  }
+  function updateCountsSafe(){
+    try { window.ProgramarCards?.updateCounts?.(); } catch {}
+    try { window.PROGRAMAR?.updateCounts?.(); } catch {}
   }
 
-  // (opcional) expose p/ teste
-  NS._ensureDropzone = ensureDropzone;
+  // ---- caminho 1: exatamente como o X do servidor ----
+  function removeLikeUserClicks(card){
+    const btns = Array.from(card.querySelectorAll(SEL.chipX));
+    for (const b of btns) { try { b.click(); } catch {} }
+  }
+
+  // ---- caminho 2: fallback oficial/visual ----
+  function returnAllOfficialOrVisual(card, backup){
+    let usedOfficial = false;
+    if (typeof window.ProgramarCards?.returnAllFromCard === 'function') {
+      try { window.ProgramarCards.returnAllFromCard(card); usedOfficial = true; } catch {}
+    } else if (typeof window.PROGRAMAR?.returnAllFromCard === 'function') {
+      try { window.PROGRAMAR.returnAllFromCard(card); usedOfficial = true; } catch {}
+    }
+    if (!usedOfficial) {
+      // visual
+      (backup || collectChips(card)).forEach(({sid,name}) => appendToExpedienteNoDup(sid, name));
+    }
+  }
+
+  function reinforce(backup){
+    // reforça destino correto (vence scripts que repovoam "livres")
+    const chips = backup || [];
+    setTimeout(() => {
+      chips.forEach(({sid,name}) => appendToExpedienteNoDup(sid, name));
+      updateCountsSafe();
+    }, 0);
+    setTimeout(() => {
+      chips.forEach(({sid,name}) => appendToExpedienteNoDup(sid, name));
+      updateCountsSafe();
+    }, 120);
+  }
+
+  // ---- fechamento determinístico do card ----
+  function closeCard(card){
+    if (!card || card.__closing__) return;
+    card.__closing__ = true;
+
+    const backup = card.__chipsBackup || collectChips(card);
+
+    // 1) replica o X de cada chip
+    removeLikeUserClicks(card);
+
+    // 2) se sobrou algo, usa o caminho oficial (allocations) ou visual
+    if (card.querySelector(SEL.chip)) {
+      returnAllOfficialOrVisual(card, backup);
+    }
+
+    // 3) remove card
+    try { card.remove(); } catch {}
+
+    // 4) reforços
+    reinforce(backup);
+
+    setTimeout(() => { delete card.__chipsBackup; delete card.__closing__; }, 300);
+  }
+
+  // ----- interceptores -----
+  // backup o mais cedo possível
+  document.addEventListener('pointerdown', (ev) => {
+    const btn = ev.target.closest(SEL.closeBtn);
+    if (!btn) return;
+    const card = btn.closest(SEL.metaCard);
+    if (!card) return;
+    card.__chipsBackup = collectChips(card);
+  }, true);
+
+  // click no X do card
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest(SEL.closeBtn);
+    if (!btn) return;
+    const card = btn.closest(SEL.metaCard);
+    if (!card) return;
+
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+
+    closeCard(card);
+  }, true);
+
+  // ----- rede de segurança -----
+  const mo = new MutationObserver(muts => {
+    for (const m of muts) {
+      m.removedNodes.forEach(n => {
+        if (n.nodeType !== 1) return;
+        if (n.matches?.(SEL.metaCard)) {
+          const backup = n.__chipsBackup || collectChips(n);
+          backup.forEach(({sid,name}) => appendToExpedienteNoDup(sid, name));
+        } else {
+          n.querySelectorAll?.(SEL.metaCard)?.forEach(c => {
+            const backup = c.__chipsBackup || collectChips(c);
+            backup.forEach(({sid,name}) => appendToExpedienteNoDup(sid, name));
+          });
+        }
+      });
+    }
+    updateCountsSafe();
+  });
+  function bootObserver(){
+    const cont = $(SEL.metaContainer);
+    if (cont) mo.observe(cont, { childList:true, subtree:true });
+    else      mo.observe(document.documentElement, { childList:true, subtree:true });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootObserver, { once:true });
+  } else {
+    bootObserver();
+  }
+
+  // ----- utils -----
+  window.PROGRAMAR = window.PROGRAMAR || {};
+  window.PROGRAMAR.returnAllFromAllCards = function(){
+    document.querySelectorAll(SEL.metaCard).forEach(c => {
+      c.__chipsBackup = collectChips(c);
+      closeCard(c);
+    });
+  };
+
+  console.log('%c'+TAG+' ativo', 'background:#111;color:#0f0;padding:2px 6px;border-radius:4px');
 })();
 </script>
