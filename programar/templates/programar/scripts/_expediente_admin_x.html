@@ -1,0 +1,149 @@
+<style>
+/* layout do card no Expediente */
+#expedienteAdmin .servidor-card{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* botão X — quadradinho centralizado e alinhado à direita */
+#expedienteAdmin .servidor-card .srv-close.btn{
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+/* contraste/houver */
+#expedienteAdmin .servidor-card .srv-close.btn.btn-outline-secondary { border-color:#cfd4da; color:#6c757d; }
+#expedienteAdmin .servidor-card .srv-close.btn:hover { background:#f1f3f5; }
+</style>
+
+<script>
+(function(){
+  const TAG = 'EXP-ADMIN-X v2';
+  if (window.PROGRAMAR?._expAdminXActive) return; // evita duplicar
+  window.PROGRAMAR = window.PROGRAMAR || {};
+  window.PROGRAMAR._expAdminXActive = true;
+
+  const SEL = {
+    exp:'#expedienteAdmin',
+    livres:'#servidoresLivres',
+    srvCard:'.servidor-card',
+    srvName:'.srv-name'
+  };
+  const $  = (s,r=document)=>r.querySelector(s);
+  const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
+
+  function resolveName(sid){
+    const el = document.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+    return (el?.querySelector(SEL.srvName)?.textContent || el?.textContent || String(sid)).trim();
+  }
+  function ensureDraggableOnLivres(){
+    $$(SEL.srvCard, $(SEL.livres) || document).forEach(c=>{
+      if (!c.hasAttribute('draggable')) c.setAttribute('draggable','true');
+    });
+  }
+
+  function ensureCloseButton(el){
+    if (!el || el.querySelector('.srv-close')) return;
+
+    const sid  = String(el.dataset.id || '').trim();
+    if (!sid) return;
+    const name = resolveName(sid);
+
+    // reforça layout flex do card
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.gap = '6px';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'srv-close btn btn-sm btn-outline-secondary';
+    btn.title = 'Remover do Expediente';
+    btn.setAttribute('aria-label','Remover do Expediente');
+    btn.textContent = '×';
+    el.appendChild(btn);
+
+    btn.addEventListener('click', (ev)=>{
+      ev.preventDefault();
+      ev.stopPropagation();
+
+      // volta para "Servidores disponíveis" se ainda não estiver lá
+      const livres = $(SEL.livres);
+      if (livres && !livres.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)) {
+        let novo = null;
+        try {
+          const fab = window.ProgramarCards?.makeDisponivelCard;
+          if (typeof fab === 'function') novo = fab({ id:sid, nome:name });
+        } catch {}
+        if (!novo) {
+          novo = document.createElement('div');
+          novo.className = 'servidor-card';
+          novo.dataset.id = sid;
+          novo.setAttribute('draggable','true');
+          novo.innerHTML = `
+            <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+            <span class="srv-name">${name}</span>
+            <span class="srv-count-badge"></span>`;
+        }
+        livres.appendChild(novo);
+        ensureDraggableOnLivres();
+      }
+
+      // remove do Expediente e recalcula badges
+      try { el.remove(); } catch {}
+      try { (window.ProgramarCards?.updateCounts || window.PROGRAMAR?.updateCounts)?.(); } catch {}
+    }, { capture:true });
+  }
+
+  function applyToAllInExpediente(){
+    const exp = $(SEL.exp);
+    if (!exp) return;
+    $$(SEL.srvCard, exp).forEach(ensureCloseButton);
+  }
+
+  // 1) wrap do appendToExpediente → todo novo no EXP ganha X
+  (function wrapAppend(){
+    const PC = window.ProgramarCards;
+    if (!PC || PC._wrappedAppendForExpX) return;
+    const orig = PC.appendToExpediente;
+    if (typeof orig !== 'function') return;
+    PC.appendToExpediente = function(){
+      const ret = orig.apply(PC, arguments);
+      try { applyToAllInExpediente(); } catch {}
+      return ret;
+    };
+    PC._wrappedAppendForExpX = true;
+  })();
+
+  // 2) observer → qualquer node novo no EXP recebe X
+  (function observeExp(){
+    const exp = $(SEL.exp);
+    if (!exp) return;
+    const mo = new MutationObserver(muts=>{
+      for (const m of muts){
+        m.addedNodes.forEach(n=>{
+          if (n.nodeType !== 1) return;
+          if (n.matches?.(SEL.srvCard)) ensureCloseButton(n);
+          n.querySelectorAll?.(SEL.srvCard)?.forEach(ensureCloseButton);
+        });
+      }
+    });
+    mo.observe(exp, { childList:true, subtree:true });
+  })();
+
+  // 3) primeira passada
+  applyToAllInExpediente();
+  setTimeout(applyToAllInExpediente, 0);
+
+  console.log('%c'+TAG+' ativo (X em todos do Expediente)', 'background:#111;color:#0f0;padding:2px 6px;border-radius:4px');
+})();
+</script>

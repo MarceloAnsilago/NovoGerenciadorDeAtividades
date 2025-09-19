@@ -16,10 +16,9 @@
 
 <script>
 (function(){
-  const TAG = 'DROP→EXP';
+  const TAG = 'DROP→EXP v4';
   const CFG = {
-    // Se true, permite arrastar para o Expediente mesmo com allocations>0 (DUPLICA presença).
-    // Por padrão, NÃO permite (mantém a regra original: só volta quando não estiver alocado em metas).
+    // Se true, permite arrastar para o Expediente mesmo com allocations>0 (duplica presença).
     ALLOW_WHEN_ALLOCATED: false
   };
   const SEL = {
@@ -37,7 +36,7 @@
   const exp = $(SEL.exp);
   if (!exp) { console.warn(TAG, 'Container do Expediente não encontrado:', SEL.exp); return; }
 
-  // ---------- util: pegar nome do servidor por qualquer lugar do DOM ----------
+  // ---------- util: nome do servidor ----------
   function resolveName(sid){
     sid = String(sid);
     // 1) card nos disponíveis
@@ -46,13 +45,57 @@
     // 2) chip em alguma meta
     el = document.querySelector(`${SEL.chip}[data-id="${sid}"]`);
     if (el) return (el.querySelector(SEL.chipName)?.textContent || el.textContent || sid).trim();
-    // 3) qualquer card no expediente (caso já exista)
+    // 3) no expediente
     el = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
     if (el) return (el.querySelector(SEL.srvName)?.textContent || el.textContent || sid).trim();
     return sid;
   }
 
-  // ---------- util: pegar sid a partir do drag ----------
+  // ---------- util: botão X no Expediente (idempotente) ----------
+  function ensureCloseButton(el, sid, name){
+    if (!el || el.querySelector('.srv-close')) return;
+    const btn = document.createElement('button');
+    btn.type  = 'button';
+    btn.className = 'srv-close btn btn-sm btn-outline-secondary';
+    btn.textContent = '×';
+    btn.title = 'Remover do Expediente';
+    // layout compacto
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.gap = '6px';
+    btn.style.marginLeft = 'auto';
+    btn.style.lineHeight = '1';
+    el.appendChild(btn);
+
+    btn.addEventListener('click', () => {
+      const livres = $(SEL.livres);
+      if (livres && !livres.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)) {
+        // criar card em Disponíveis
+        let novo = null;
+        try {
+          const factory = window.ProgramarCards?.makeDisponivelCard;
+          if (typeof factory === 'function') novo = factory({ id: sid, nome: name });
+        } catch {}
+        if (!novo) {
+          novo = document.createElement('div');
+          novo.className = 'servidor-card';
+          novo.dataset.id = sid;
+          novo.setAttribute('draggable','true');
+          novo.innerHTML = `
+            <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+            <span class="srv-name">${name}</span>
+            <span class="srv-count-badge"></span>`;
+        }
+        livres.appendChild(novo);
+      }
+      // remove do Expediente
+      try { el.remove(); } catch {}
+      try { (window.ProgramarCards?.updateCounts || window.PROGRAMAR?.updateCounts)?.(); } catch {}
+      ensureDraggable();
+    });
+  }
+
+  // ---------- util: pegar sid do DataTransfer ----------
   const DT_KEY = 'application/x-sid';
   function getSidFromDT(ev){
     let raw = '';
@@ -62,11 +105,10 @@
       const el = ev.target?.closest?.(SEL.srvCard);
       if (el?.dataset?.id) return String(el.dataset.id);
     }
-    // formatos "sid:123" ou "123"
     return String(raw.replace(/^sid:/i,'').trim());
   }
 
-  // ---------- aplica draggable nos cards de livres (se já não tiver) ----------
+  // ---------- garantir draggable nos "Disponíveis" ----------
   function ensureDraggable(){
     $$(SEL.srvCard, $(SEL.livres) || document).forEach(card => {
       if (!card.hasAttribute('draggable')) card.setAttribute('draggable','true');
@@ -74,7 +116,7 @@
   }
   ensureDraggable();
 
-  // ---------- feedback: mini-toast próximo ao mouse ----------
+  // ---------- feedback ----------
   let toast;
   function showToast(msg, x, y, color='#fff'){
     try { hideToast(); } catch(_){}
@@ -89,7 +131,7 @@
   }
   function hideToast(){ if (toast && toast.parentNode) toast.parentNode.removeChild(toast); toast = null; }
 
-  // ---------- dragstart nos cards ----------
+  // ---------- dragstart ----------
   document.addEventListener('dragstart', (ev) => {
     const card = ev.target.closest(SEL.srvCard);
     if (!card) return;
@@ -100,7 +142,16 @@
     ev.dataTransfer.effectAllowed = 'move';
   });
 
-  // ---------- permitir arrastar para o expediente ----------
+  // ---------- aceitar/recusar visualmente ----------
+  function canDropSid(sid){
+    if (!sid) return false;
+    // já existe no Expediente? nega drop (não duplica nem desconta)
+    if (exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)) return false;
+    if (CFG.ALLOW_WHEN_ALLOCATED) return true;
+    const allocs = (window.ProgramarCards?.allocations?.() || {});
+    return (allocs[sid] || 0) === 0;
+  }
+
   exp.addEventListener('dragenter', (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
@@ -126,58 +177,84 @@
     });
   });
 
-  // ---------- lógica de aceitação ----------
-  function canDropSid(sid){
-    if (!sid) return false;
-    if (CFG.ALLOW_WHEN_ALLOCATED) return true;
-    const allocs = (window.ProgramarCards?.allocations?.() || {});
-    return (allocs[sid] || 0) === 0;
-  }
-
-  // ---------- drop handler ----------
+  // ---------- DROP handler ----------
   exp.addEventListener('drop', (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
     const sid = getSidFromDT(ev);
     if (!sid) return;
 
+    const name = resolveName(sid);
+    const alreadyInExp = !!exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+
+    // 1) já está no Expediente → não faz nada, não desconta
+    if (alreadyInExp) {
+      const el = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+      if (el) {
+        el.classList.add('flash-exp');
+        setTimeout(() => el.classList.remove('flash-exp'), 800);
+      }
+      showToast('Já está no Expediente', ev.clientX, ev.clientY, '#ffd27f');
+      return;
+    }
+
+    // 2) respeita allocations (a menos que cfg permita)
     const allocs = (window.ProgramarCards?.allocations?.() || {});
     const isAllocated = (allocs[sid] || 0) > 0;
-
     if (!CFG.ALLOW_WHEN_ALLOCATED && isAllocated) {
       showToast('Servidor está alocado em Atividades', ev.clientX, ev.clientY, '#ffb3b3');
       return;
     }
 
-    // dedupe natural: appendToExpediente já evita duplicar e remove dos "livres"
-    const name = resolveName(sid);
-    try { window.ProgramarCards?.appendToExpediente?.({ id: sid, nome: name }); } catch(_){
-      // fallback mínimo (se API não existir por algum motivo)
+    // 3) Adiciona ao Expediente (COM X) e só então remove de "Disponíveis"
+    let usedAPI = false;
+    try {
+      if (window.ProgramarCards?.appendToExpediente) {
+        // envia a FLAG 'close' para que o wrapper crie o X
+        window.ProgramarCards.appendToExpediente({ id: sid, nome: name, close: true }, { close: true });
+        usedAPI = true;
+
+        // garante o X mesmo sem wrapper: agora e no próximo tick
+        let elNow = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+        if (elNow) ensureCloseButton(elNow, sid, name);
+        setTimeout(() => {
+          const elLater = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+          if (elLater) ensureCloseButton(elLater, sid, name);
+        }, 0);
+      }
+    } catch(_) {}
+
+    if (!usedAPI) {
+      // fallback manual
       let el = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
       if (!el){
         el = document.createElement('div');
         el.className = 'servidor-card';
         el.dataset.id = sid;
         el.setAttribute('draggable','true');
-        el.innerHTML = `<span class="srv-icon"><i class="bi bi-person-fill"></i></span><span class="srv-name">${name}</span>`;
+        el.innerHTML = `
+          <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+          <span class="srv-name">${name}</span>
+          <span class="srv-count-badge"></span>`;
         exp.appendChild(el);
       }
-      $(SEL.livres)?.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)?.remove();
+      ensureCloseButton(el, sid, name);
     }
 
-    // atualiza contagens
-    try { (window.PROGRAMAR?.updateCounts || window.ProgramarCards?.updateCounts)?.(); } catch(_){}
+    // agora sim: remove dos "Disponíveis"
+    $(SEL.livres)?.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)?.remove();
 
+    try { (window.PROGRAMAR?.updateCounts || window.ProgramarCards?.updateCounts)?.(); } catch(_){}
     showToast('Movido para Expediente', ev.clientX, ev.clientY, '#b7ffb7');
   });
 
-  // ---------- observar novos cards nos "livres" para garantir draggable ----------
+  // ---------- observar novos cards nos "Disponíveis" ----------
   const livres = $(SEL.livres);
   if (livres){
     const mo = new MutationObserver(() => ensureDraggable());
     mo.observe(livres, { childList: true, subtree: true });
   }
 
-  console.log('%c'+TAG+' pronto (drag → expediente ativo)', 'background:#111;color:#0f0;padding:2px 6px;border-radius:4px');
+  console.log('%c'+TAG+' pronto (drag → expediente sem duplicar e COM X)', 'background:#111;color:#0f0;padding:2px 6px;border-radius:4px');
 })();
 </script>
