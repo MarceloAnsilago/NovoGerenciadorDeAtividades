@@ -1,22 +1,17 @@
 <script>
-(function(){
-  window.PROGRAMAR = window.PROGRAMAR || {};
-
-  // ======= CONFIG/Padrões ====================================================
-  const DEFAULTS = {
-    targetSelector:  '#servidoresLivres, #poolServidores, .js-servidores-livres',
-    badgeSelector:   '#countLivres, .js-count-livres',
-
-    // Expediente administrativo
-    expedienteSelector: '#expedienteAdmin, .js-expediente-admin',
-    expedienteBadgeSelector: '#countExpediente, .js-count-expediente',
-
-    excludeAllocated: true,
-    cardSelectorInMetas: '.servidor-chip, .srv-chip, .chip-servidor',
-    cardIdAttr:  'data-id',
-    itemIdAttr:  'data-id',
-    renderItem:  defaultRenderItem
-  };
+  (function(){
+    window.PROGRAMAR = window.PROGRAMAR || {};
+    const DEFAULTS = {
+      targetSelector:  '#servidoresLivres, #poolServidores, .js-servidores-livres',
+      badgeSelector:   '#countServidoresLivres',       // 👈 atualize aqui
+      expedienteSelector: '#expedienteAdmin, .js-expediente-admin',
+      expedienteBadgeSelector: '#countExpedienteAdmin',// 👈 e aqui
+      excludeAllocated: true,
+      cardSelectorInMetas: '.servidor-chip, .srv-chip, .chip-servidor',
+      cardIdAttr:  'data-id',
+      itemIdAttr:  'data-id',
+      renderItem:  defaultRenderItem
+    };
 
   // ======= Utils DOM/HTML ====================================================
   function escapeHtml(s){

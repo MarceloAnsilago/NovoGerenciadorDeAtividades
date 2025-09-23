@@ -14,7 +14,12 @@ from django.views.decorators.http import require_GET
 from core.utils import get_unidade_atual_id
 from servidores.models import Servidor
 from descanso.models import Descanso
-
+from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotAllowed
+from django.views.decorators.http import require_GET, require_POST
+from django.utils import timezone
+from metas.models import Meta
+from veiculos.models import Veiculo
 # =============================================================================
 # Página
 # =============================================================================
@@ -144,13 +149,134 @@ def servidores_para_data(request):
         livres_final = [{"id": i.get("id"), "nome": _nome(i)} for i in livres_legacy]
 
     return JsonResponse({"livres": livres_final, "impedidos": impedidos_final})
-@csrf_exempt
+def _parse_date(s: str) -> date | None:
+    try:
+        y, m, d = map(int, s.split("-"))
+        return date(y, m, d)
+    except Exception:
+        return None
+
+@require_GET
+def servidores_para_data(request):
+    iso = request.GET.get("data")
+    d = _parse_date(iso or "")
+    if not d:
+        return HttpResponseBadRequest("data inválida (YYYY-MM-DD)")
+
+    unidade_id = get_unidade_atual_id(request)
+    # base: todos ativos da unidade
+    qs_base = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).only("id","nome").order_by("nome")
+
+    # impedidos por descanso (data dentro do intervalo)
+    imp_qs = (Descanso.objects
+              .select_related("servidor")
+              .filter(servidor__unidade_id=unidade_id, data_inicio__lte=d, data_fim__gte=d))
+    impedidos_ids = set(imp_qs.values_list("servidor_id", flat=True))
+
+    livres = [{"id": s.id, "nome": s.nome} for s in qs_base if s.id not in impedidos_ids]
+    impedidos = [{"id": r.servidor_id, "nome": r.servidor.nome, "motivo": r.tipo} for r in imp_qs]
+
+    return JsonResponse({"livres": livres, "impedidos": impedidos})
+
+@csrf_exempt   # ideal: usar CSRF token do template; deixe exempt se estiver testando via fetch sem token
+@require_POST
 def salvar_programacao(request):
-    return JsonResponse({"ok": True, "itens": 0, "servidores_vinculados": 0})
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return HttpResponseBadRequest("JSON inválido")
 
+    iso = payload.get("data")
+    d = _parse_date(iso or "")
+    if not d:
+        return HttpResponseBadRequest("Campo 'data' obrigatório (YYYY-MM-DD).")
 
+    itens = payload.get("itens", [])
+    if not isinstance(itens, list):
+        return HttpResponseBadRequest("Campo 'itens' deve ser uma lista.")
+
+    unidade_id = get_unidade_atual_id(request)
+    user = request.user if request.user.is_authenticated else None
+    agora = timezone.now()
+
+    prog, _created = Programacao.objects.get_or_create(
+        data=d,
+        unidade_id=unidade_id,
+        defaults={
+            "observacao": payload.get("observacao", "") or "",
+            "concluida": False,
+            "criado_em": agora,
+            "criado_por": user,
+        }
+    )
+
+    itens_criados = []
+    for it in itens:
+        meta_id = it.get("meta_id")
+        if not meta_id:
+            return HttpResponseBadRequest("Item sem 'meta_id'.")
+        obs = it.get("observacao", "") or ""
+        veiculo_id = it.get("veiculo_id")
+
+        meta = Meta.objects.get(id=meta_id)
+        veiculo = None
+        if veiculo_id:
+            veiculo = Veiculo.objects.get(id=veiculo_id)
+
+        item = ProgramacaoItem.objects.create(
+            programacao=prog,
+            meta=meta,
+            observacao=obs,
+            concluido=False,
+            criado_em=agora,
+            veiculo=veiculo,
+        )
+
+        servidores_ids = it.get("servidores_ids", []) or []
+        links = [
+            ProgramacaoItemServidor(item=item, servidor_id=sid)
+            for sid in servidores_ids
+        ]
+        if links:
+            ProgramacaoItemServidor.objects.bulk_create(links)
+
+        itens_criados.append({"item_id": item.id, "servidores": servidores_ids})
+
+    return JsonResponse({
+        "ok": True,
+        "programacao_id": prog.id,
+        "itens_criados": itens_criados
+    })
+
+@require_GET
 def programacao_do_dia(request):
-    return JsonResponse({"ok": True, "programacao": None})
+    iso = request.GET.get("data")
+    d = _parse_date(iso or "")
+    if not d:
+        return HttpResponseBadRequest("data inválida")
+    unidade_id = get_unidade_atual_id(request)
+
+    try:
+        prog = Programacao.objects.get(data=d, unidade_id=unidade_id)
+    except Programacao.DoesNotExist:
+        return JsonResponse({"itens": []})
+
+    out = []
+    for item in (ProgramacaoItem.objects
+                 .select_related("meta", "veiculo")
+                 .filter(programacao=prog)
+                 .order_by("id")):
+        srv_ids = list(ProgramacaoItemServidor.objects
+                       .filter(item=item).values_list("servidor_id", flat=True))
+        out.append({
+            "id": item.id,
+            "meta_id": item.meta_id,
+            "veiculo_id": item.veiculo_id,
+            "observacao": item.observacao,
+            "concluido": item.concluido,
+            "servidores_ids": srv_ids,
+        })
+    return JsonResponse({"itens": out})
 
 
 @csrf_exempt
