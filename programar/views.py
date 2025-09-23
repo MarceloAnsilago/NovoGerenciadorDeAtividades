@@ -20,12 +20,23 @@ from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
 from metas.models import Meta
 from veiculos.models import Veiculo
+from metas.models import Meta
+from core.utils import get_unidade_atual_id
 # =============================================================================
 # Página
 # =============================================================================
 def calendario_view(request):
-    """Página principal do app novo."""
-    return render(request, "programar/calendario.html")
+    ctx = {}
+    unidade_id = get_unidade_atual_id(request)
+    # tenta achar a meta por título na unidade atual; se não houver, pega a primeira global
+    expediente = (Meta.objects
+                    .filter(titulo__iexact='Expediente Administrativo', unidade_criadora_id=unidade_id)
+                    .first()
+                  or Meta.objects
+                    .filter(titulo__iexact='Expediente Administrativo')
+                    .first())
+    ctx["META_EXPEDIENTE_ID"] = expediente.id if expediente else None
+    return render(request, "programar/calendario.html", ctx)
 
 
 # =============================================================================

@@ -5,7 +5,7 @@
   NS.urls = {
     eventsFeed:     "{% url 'programar_atividades:events_feed' %}",
     metas:          "{% url 'programar_atividades:metas_disponiveis' %}",
-    servidores:     "{% url 'programar:servidores_para_data' %}", 
+    servidores:     "{% url 'programar:servidores_para_data' %}",
     salvar:         "{% url 'programar:salvar_programacao' %}",
     programacaoDia: "{% url 'programar:programacao_do_dia' %}",
     excluir:        "{% url 'programar_atividades:excluir_programacao' %}",
@@ -15,11 +15,12 @@
   };
 })();
 </script>
-
 <<script>
+  
 (function () {
-  // Namespace
   window.PROGRAMAR = window.PROGRAMAR || {};
+  // se não vier do backend, cai para null (JS null, não string)
+  PROGRAMAR.metaExpedienteId = {{ META_EXPEDIENTE_ID|default_if_none:"null"|default:"null" }};
 
   // ---------------- DOM helpers ----------------
   const $tbody = () => document.querySelector('#tabelaImpedidos tbody');
