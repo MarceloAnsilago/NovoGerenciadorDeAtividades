@@ -9,14 +9,20 @@
         <div class="modal-body">
           <form id="programar-formAtividade">
             <input type="hidden" id="programar-dataAtividade" name="data">
-            {% include "programar/partials/_cards_metas.html" %}
-            {% include "programar/partials/_separator.html" with label="Atividades selecionadas" %}
-            {% include "programar/partials/_cards_atividades.html" %}
-            {% include "programar/scripts/_expediente_admin_x.html" %}
-            {% include "programar/scripts/_expediente_drop.html" %}
-            {% include "programar/partials/_separator.html" with label="Servidores impedidos" %}
-            {% include "programar/partials/_cards_indisponiveis.html" %}
-            {% include "programar/scripts/_dnd_modal_patch.html" %}
+              {% include "programar/partials/_cards_metas.html" %}
+              {% include "programar/partials/_separator.html" with label="Atividades selecionadas" %}
+              {% include "programar/partials/_cards_atividades.html" %}
+              {% include "programar/scripts/_expediente_admin_x.html" %}
+              {% include "programar/scripts/_expediente_drop.html" %}
+              {% include "programar/partials/_separator.html" with label="Servidores impedidos" %}
+              {% include "programar/partials/_cards_indisponiveis.html" %}
+              {% include "programar/scripts/_dnd_modal_patch.html" %}
+
+              {# scripts (nessa ordem) #}
+              {% include "programar/scripts/_urls_context.html" %}
+              {% include "programar/scripts/_prefill_logic.html" %}   {# se você separou o prefill #}
+              {% include "programar/scripts/_save_logic.html" %}
+
             <script src="{% static 'programar/scripts/_cards_veiculos.js' %}"></script>
           </form>
         </div>

@@ -1,0 +1,108 @@
+{# templates/programar/scripts/_prefill_logic.html #}
+<script>
+(function () {
+  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+  if (NS._prefillBound) return;  // evita bind duplo
+  NS._prefillBound = true;
+
+  // espera condicional (polling curtinho)
+  function waitFor(testFn, timeout = 5000, step = 50) {
+    return new Promise((resolve, reject) => {
+      const t0 = Date.now();
+      (function loop() {
+        if (testFn()) return resolve(true);
+        if (Date.now() - t0 > timeout) return reject(new Error('waitFor timeout'));
+        setTimeout(loop, step);
+      })();
+    });
+  }
+
+  function metaTitleFromGrid(metaId) {
+    const n = document.querySelector(`#metasGrid [data-id="${metaId}"] .meta-title`);
+    return (n && n.textContent.trim()) || `Meta ${metaId}`;
+  }
+
+  function findChip(id) {
+    return document.querySelector(`[data-id="${id}"], [data-servidor-id="${id}"]`);
+  }
+
+  function moveChipTo(target, id) {
+    if (!target) return false;
+    const already = target.querySelector(`[data-id="${id}"], [data-servidor-id="${id}"]`);
+    if (already) return true;
+    const chip = findChip(id);
+    if (chip) { target.appendChild(chip); return true; }
+    return false;
+  }
+
+  async function prefillProgramacaoDia(dateStr) {
+    const urlBase = NS.urls?.programacaoDia;
+    if (!urlBase || !dateStr) return;
+
+    // 1) busca programação do dia
+    const url = new URL(urlBase, window.location.origin);
+    url.searchParams.set('data', dateStr);
+    const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const itens = Array.isArray(data.itens) ? data.itens : [];
+    if (!itens.length) return;
+
+    // 2) aguarda metas/servidores renderizados
+    try { await waitFor(() => typeof NS.ensureMetaCard === 'function', 5000); } catch {}
+    try {
+      await waitFor(() =>
+        document.querySelector('#servidoresLivres [data-id], #servidoresLivres [data-servidor-id], #expedienteAdmin [data-id]'),
+        5000
+      );
+    } catch {}
+
+    const expEl = document.getElementById('expedienteAdmin');
+    const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
+
+    for (const it of itens) {
+      // Expediente Administrativo
+      if (expId && it.meta_id === expId) {
+        if (expEl) {
+          if (it.id) expEl.dataset.itemId = String(it.id);     // 👈 guarda id para UPDATE
+          (it.servidores_ids || []).forEach(sid => moveChipTo(expEl, sid));
+        }
+        continue;
+      }
+
+      // Demais metas
+      const title = metaTitleFromGrid(it.meta_id);
+      const card = NS.ensureMetaCard?.(String(it.meta_id), title);
+      if (!card) continue;
+
+      if (it.id) card.dataset.itemId = String(it.id);          // 👈 guarda id para UPDATE
+
+      const ta = card.querySelector('textarea[name="observacao"]');
+      if (ta) ta.value = it.observacao || '';
+
+      const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos');
+      if (sel && it.veiculo_id != null) sel.value = String(it.veiculo_id);
+
+      const drop = card.querySelector('.meta-dropzone') || card;
+      (it.servidores_ids || []).forEach(sid => moveChipTo(drop, sid));
+    }
+
+    // atualizar contagens (se houver util disponível)
+    (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
+
+    // evento opcional
+    document.dispatchEvent(new CustomEvent('programar:prefilled', { detail: { data: dateStr } }));
+  }
+
+  // expõe API pública
+  NS.prefillProgramacaoDia = prefillProgramacaoDia;
+
+  // quando o modal abrir, tenta preencher
+  document.addEventListener('shown.bs.modal', (ev) => {
+    if (ev.target && ev.target.id === 'programar-modalAtividade') {
+      const dateStr = document.getElementById('programar-dataAtividade')?.value;
+      if (dateStr) prefillProgramacaoDia(dateStr);
+    }
+  });
+})();
+</script>

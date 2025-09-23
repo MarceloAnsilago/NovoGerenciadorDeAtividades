@@ -1,0 +1,35 @@
+<script>
+(function(){
+  // ---------- HELPERS ----------
+  function getServidoresIdsFrom(root){
+    const chips = root?.querySelectorAll('[data-id], [data-servidor-id], .servidor-chip') || [];
+    return Array.from(chips)
+      .map(el => Number(el.getAttribute('data-id') || el.getAttribute('data-servidor-id')))
+      .filter(Boolean);
+  }
+
+  function extractVeiculoId(card){
+    const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
+    if (!sel) return null;
+    const v = (sel.tagName === 'SELECT') ? sel.value : sel.dataset.veiculoId;
+    return v ? Number(v) : null;
+  }
+
+  function extractItem(card){
+    const itemId = Number(card.dataset.itemId || 0);   // se já existir, vamos atualizar
+    const metaId = Number(card.dataset.metaId);
+    const drop = card.querySelector('.meta-dropzone') || card;
+    const chips = drop.querySelectorAll('[data-id], [data-servidor-id], .servidor-chip');
+    const servidores_ids = Array.from(chips)
+      .map(el => Number(el.getAttribute('data-id') || el.getAttribute('data-servidor-id')))
+      .filter(Boolean);
+    const obs = (card.querySelector('textarea[name="observacao"]')?.value || '').trim();
+    const veiculo_id = extractVeiculoId(card);
+    const out = { meta_id: metaId, observacao: obs, veiculo_id, servidores_ids };
+    if (itemId) out.id = itemId;
+    return out;
+  }
+
+  
+})();
+</script>

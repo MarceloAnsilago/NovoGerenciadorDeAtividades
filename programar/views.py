@@ -22,6 +22,7 @@ from metas.models import Meta
 from veiculos.models import Veiculo
 from metas.models import Meta
 from core.utils import get_unidade_atual_id
+from django.db import transaction
 # =============================================================================
 # Página
 # =============================================================================
@@ -192,14 +193,15 @@ def servidores_para_data(request):
 @csrf_exempt   # ideal: usar CSRF token do template; deixe exempt se estiver testando via fetch sem token
 @require_POST
 def salvar_programacao(request):
+    import json
+
     try:
         payload = json.loads(request.body.decode("utf-8"))
     except Exception:
         return HttpResponseBadRequest("JSON inválido")
 
     iso = payload.get("data")
-    d = _parse_date(iso or "")
-    if not d:
+    if not iso or len(iso.split("-")) != 3:
         return HttpResponseBadRequest("Campo 'data' obrigatório (YYYY-MM-DD).")
 
     itens = payload.get("itens", [])
@@ -210,53 +212,84 @@ def salvar_programacao(request):
     user = request.user if request.user.is_authenticated else None
     agora = timezone.now()
 
-    prog, _created = Programacao.objects.get_or_create(
-        data=d,
-        unidade_id=unidade_id,
-        defaults={
-            "observacao": payload.get("observacao", "") or "",
-            "concluida": False,
-            "criado_em": agora,
-            "criado_por": user,
-        }
-    )
-
-    itens_criados = []
-    for it in itens:
-        meta_id = it.get("meta_id")
-        if not meta_id:
-            return HttpResponseBadRequest("Item sem 'meta_id'.")
-        obs = it.get("observacao", "") or ""
-        veiculo_id = it.get("veiculo_id")
-
-        meta = Meta.objects.get(id=meta_id)
-        veiculo = None
-        if veiculo_id:
-            veiculo = Veiculo.objects.get(id=veiculo_id)
-
-        item = ProgramacaoItem.objects.create(
-            programacao=prog,
-            meta=meta,
-            observacao=obs,
-            concluido=False,
-            criado_em=agora,
-            veiculo=veiculo,
+    with transaction.atomic():
+        prog, _created = Programacao.objects.get_or_create(
+            data=iso,
+            unidade_id=unidade_id,
+            defaults={
+                "observacao": payload.get("observacao", "") or "",
+                "concluida": False,
+                "criado_em": agora,
+                "criado_por": user,
+            },
         )
 
-        servidores_ids = it.get("servidores_ids", []) or []
-        links = [
-            ProgramacaoItemServidor(item=item, servidor_id=sid)
-            for sid in servidores_ids
-        ]
-        if links:
-            ProgramacaoItemServidor.objects.bulk_create(links)
+        # mapa rápido dos existentes para este dia
+        qs_exist = ProgramacaoItem.objects.filter(programacao=prog).only("id")
+        exist_ids = set(qs_exist.values_list("id", flat=True))
 
-        itens_criados.append({"item_id": item.id, "servidores": servidores_ids})
+        keep_ids = set()
+        out_items = []
+
+        for it in itens:
+            item_id = it.get("id")
+            meta_id = it.get("meta_id")
+            if not meta_id:
+                return HttpResponseBadRequest("Item sem 'meta_id'.")
+
+            obs = it.get("observacao", "") or ""
+            veiculo_id = it.get("veiculo_id")
+            servidores_ids = it.get("servidores_ids", []) or []
+
+            # validar FKs de forma leve (opcional, dá 404 cedo se não existem)
+            Meta.objects.only("id").get(id=meta_id)
+            if veiculo_id:
+                Veiculo.objects.only("id").get(id=veiculo_id)
+
+            if item_id and item_id in exist_ids:
+                # UPDATE
+                item = ProgramacaoItem.objects.get(id=item_id, programacao=prog)
+                changed = False
+                if item.meta_id != meta_id:
+                    item.meta_id = meta_id
+                    changed = True
+                if item.observacao != obs:
+                    item.observacao = obs
+                    changed = True
+                if item.veiculo_id != (veiculo_id or None):
+                    item.veiculo_id = veiculo_id
+                    changed = True
+                if changed:
+                    item.save(update_fields=["meta_id", "observacao", "veiculo_id"])
+                # substitui vínculos de servidores
+                ProgramacaoItemServidor.objects.filter(item=item).delete()
+            else:
+                # CREATE
+                item = ProgramacaoItem.objects.create(
+                    programacao=prog,
+                    meta_id=meta_id,
+                    observacao=obs,
+                    concluido=False,
+                    criado_em=agora,
+                    veiculo_id=veiculo_id,
+                )
+
+            # (re)criar vínculos de servidores
+            links = [ProgramacaoItemServidor(item=item, servidor_id=sid) for sid in servidores_ids]
+            if links:
+                ProgramacaoItemServidor.objects.bulk_create(links)
+
+            keep_ids.add(item.id)
+            out_items.append({"id": item.id, "meta_id": meta_id})
+
+        # DELETE: remove tudo que não veio
+        ProgramacaoItem.objects.filter(programacao=prog).exclude(id__in=keep_ids).delete()
 
     return JsonResponse({
         "ok": True,
         "programacao_id": prog.id,
-        "itens_criados": itens_criados
+        "itens": out_items,          # ids finais dos itens persistidos
+        "kept_ids": list(keep_ids),  # útil se quiser sincronizar no front
     })
 
 @require_GET
