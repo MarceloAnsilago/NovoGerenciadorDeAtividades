@@ -1,19 +1,27 @@
 <script>
-  (function(){
-    window.PROGRAMAR = window.PROGRAMAR || {};
-    const DEFAULTS = {
-      targetSelector:  '#servidoresLivres, #poolServidores, .js-servidores-livres',
-      badgeSelector:   '#countServidoresLivres',       // 👈 atualize aqui
-      expedienteSelector: '#expedienteAdmin, .js-expediente-admin',
-      expedienteBadgeSelector: '#countExpedienteAdmin',// 👈 e aqui
-      excludeAllocated: true,
-      cardSelectorInMetas: '.servidor-chip, .srv-chip, .chip-servidor',
-      cardIdAttr:  'data-id',
-      itemIdAttr:  'data-id',
-      renderItem:  defaultRenderItem
-    };
+(function () {
+  'use strict';
 
-  // ======= Utils DOM/HTML ====================================================
+  // Namespace
+  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+
+  // ================== DEFAULTS (único) ==================
+  const DEFAULTS = {
+    targetSelector:  '#servidoresLivres, #poolServidores, .js-servidores-livres',
+    badgeSelector:   '#countServidoresLivres',
+    expedienteSelector: '#expedienteAdmin, .js-expediente-admin',
+    expedienteBadgeSelector: '#countExpedienteAdmin',
+    excludeAllocated: false,
+    cardSelectorInMetas: '.servidor-chip, .srv-chip, .chip-servidor, [data-servidor-id], .servidor-card',
+    cardIdAttr:  'data-id',
+    itemIdAttr:  'data-id',
+    renderItem:  defaultRenderItem,
+    autofillExpediente: false // padrão: NÃO auto-preencher
+  };
+  // permitir overrides via NS.defaults.servidores
+  Object.assign(DEFAULTS, (NS.defaults && NS.defaults.servidores) || {});
+
+  // ================== Utils DOM/HTML ==================
   function escapeHtml(s){
     return String(s ?? '')
       .replaceAll('&','&amp;').replaceAll('<','&lt;')
@@ -23,12 +31,10 @@
   function getContainer(sel){ return document.querySelector(sel); }
 
   function getBadgeForContainer(containerEl, explicitSelector) {
-    // 1) tenta seletor explícito (ex.: #countLivres)
     if (explicitSelector) {
       const el = document.querySelector(explicitSelector);
       if (el) return el;
     }
-    // 2) fallback: badge no header do card pai
     const card = containerEl?.closest?.('.card');
     return card ? card.querySelector('.card-header .badge') : null;
   }
@@ -39,8 +45,8 @@
   }
 
   function updateBadges(opts){
-    const pool = document.querySelector(opts.targetSelector);
-    const exp  = document.querySelector(opts.expedienteSelector);
+    const pool = getContainer(opts.targetSelector);
+    const exp  = getContainer(opts.expedienteSelector);
     if (pool) setBadgeFor(pool, pool.children.length, opts.badgeSelector);
     if (exp)  setBadgeFor(exp,  exp.children.length,  opts.expedienteBadgeSelector);
   }
@@ -58,7 +64,7 @@
   function defaultRenderExpedienteItem(servidor){
     const el = document.createElement('div');
     el.className = 'servidor-card';
-    el.dataset.id = servidor.id;   // no expediente não arrasta
+    el.dataset.id = servidor.id;   // no expediente, sem draggable
     el.innerHTML = `
       <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
       <span class="srv-name">${escapeHtml(servidor.nome)}</span>`;
@@ -67,15 +73,21 @@
 
   function getAllocatedIds(opts){
     if (!opts.excludeAllocated) return new Set();
+
+    // Escopo restrito: SOMENTE dentro dos cards de metas
+    const metasScope = document.getElementById('metaCardsContainer');
+    if (!metasScope) return new Set();
+
     const ids = new Set();
-    document.querySelectorAll(opts.cardSelectorInMetas).forEach(chip => {
-      const sid = chip.getAttribute(opts.cardIdAttr) || chip.dataset.id || chip.dataset.servidorId;
+    metasScope.querySelectorAll('.servidor-chip, [data-servidor-id], .servidor-card').forEach(el => {
+      const sid = el.getAttribute(opts.cardIdAttr) || el.dataset.id || el.dataset.servidorId;
       if (sid) ids.add(String(sid));
     });
     return ids;
   }
 
-  // ======= Render "por diff" (preserva a ordem atual) ========================
+
+  // ======= Render "por diff" (preserva a ordem atual) =======
   function diffRenderPool(target, livres, opts){
     const livresIds = new Set(livres.map(s => String(s.id)));
 
@@ -108,16 +120,21 @@
     setBadgeFor(exp, exp.children.length, opts.expedienteBadgeSelector);
   }
 
-  // ======= Fetch + aplicar ===================================================
+  const isISODate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s||''));
+
+  // ================== FETCH + APLICAR ==================
   async function loadServidoresDisponiveis(iso, options = {}){
     const opts = { ...DEFAULTS, ...options };
+    console.debug('[programar] loadServidoresDisponiveis v3', {
+      iso, opts, progLoaded: document.body.dataset.progLoaded
+    });
 
-    const urlBase = window.PROGRAMAR?.urls?.servidores;
+    const urlBase = NS?.urls?.servidores;
     if (!urlBase) {
       console.error('[programar] URL programar:servidores_para_data não definida.');
       return { livres: [], impedidos: [] };
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso||''))) {
+    if (!isISODate(iso)) {
       console.warn('[programar] Data inválida:', iso);
       return { livres: [], impedidos: [] };
     }
@@ -136,15 +153,26 @@
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const json = await resp.json();
 
+   
       let livres = Array.isArray(json.livres) ? json.livres : [];
       const impedidos = Array.isArray(json.impedidos) ? json.impedidos : [];
-
-      // não mostrar na pool quem já está alocado nos cards
-      const alocados = getAllocatedIds(opts);
-      if (alocados.size) {
-        livres = livres.filter(s => !alocados.has(String(s.id)));
+      // garante que impedidos não apareçam no pool
+      const impedidosIds = new Set(
+        impedidos.map(i => String(i.id ?? i.sid ?? '')).filter(Boolean)
+      );
+      if (impedidosIds.size) {
+        livres = livres.filter(s => !impedidosIds.has(String(s.id)));
       }
 
+      // Remove da pool quem já está alocado nos cards (se habilitado)
+      if (opts.excludeAllocated) {
+        const alocados = getAllocatedIds(opts);
+        if (alocados.size) {
+          livres = livres.filter(s => !alocados.has(String(s.id)));
+        }
+      }
+
+      // Render da pool por diff
       if (target) {
         target.classList.add('servidores-grid');
         target.innerHTML = '';
@@ -152,8 +180,53 @@
         target.classList.remove('is-loading');
       }
 
-      // expediente = cópia dos livres inicialmente
-      renderExpedienteFromLivres(livres, opts);
+      // Render da tabela de impedidos (se existir)
+      (function renderImpedidos(){
+        const tbody = document.querySelector('#tabelaImpedidos tbody');
+        const badge = document.getElementById('countImpedidos');
+        if (!tbody) return;
+
+        const esc = (s)=>String(s??'')
+          .replaceAll('&','&amp;').replaceAll('<','&lt;')
+          .replaceAll('>','&gt;').replaceAll('"','&quot;')
+          .replaceAll("'",'&#039;');
+
+        if (!impedidos.length) {
+          tbody.innerHTML = `<tr><td colspan="2" class="text-muted">Nenhum servidor impedido.</td></tr>`;
+          if (badge) badge.textContent = '0';
+        } else {
+          tbody.innerHTML = impedidos.map(i => {
+            const nome = i.nome ?? i.name ?? i.servidor ?? i.servidor_nome ?? '';
+            const motivo = i.motivo ?? i.reason ?? i.justificativa ?? '';
+            return `<tr><td>${esc(nome)}</td><td>${esc(motivo)}</td></tr>`;
+          }).join('');
+          if (badge) badge.textContent = String(impedidos.length);
+        }
+      })();
+
+      // Auto-preencher expediente? Só se pedido + sem chips + sem progLoaded
+      (function maybeAutofillExpediente(){
+        const expEl = getContainer(opts.expedienteSelector);
+        if (!expEl) return;
+
+        const hasChipsInCards = document.querySelector(
+          '.meta-dropzone .servidor-chip, .meta-dropzone .servidor-card, .drop-target .servidor-chip, .drop-target .servidor-card'
+        );
+        const progLoadedFlag = document.body.dataset.progLoaded === '1';
+
+        const shouldAutofill = !!opts.autofillExpediente && !hasChipsInCards && !progLoadedFlag;
+        console.debug('[programar] autofillExpediente?', shouldAutofill, {
+          requested: opts.autofillExpediente, hasChipsInCards: !!hasChipsInCards, progLoadedFlag
+        });
+
+        if (shouldAutofill) {
+          renderExpedienteFromLivres(livres, opts);
+        } else {
+          setBadgeFor(expEl, expEl.children.length, opts.expedienteBadgeSelector);
+        }
+      })();
+
+      // Badges finais
       updateBadges(opts);
 
       document.dispatchEvent(new CustomEvent('programar:servidoresLoaded', {
@@ -171,7 +244,7 @@
     }
   }
 
-  // ======= Observers (mantém badges atualizados) ============================
+  // ================== Observers (mantém badges) ==================
   function wireBadgeObservers(options = {}){
     const opts = { ...DEFAULTS, ...options };
     let poolObsAttached = false;
@@ -198,22 +271,31 @@
   }
   document.addEventListener('DOMContentLoaded', () => wireBadgeObservers());
 
-  // ======= Integrações convenientes =========================================
-  document.addEventListener('shown.bs.modal', (ev) => {
-    // se quiser filtrar: if (!ev.target.matches('#programar-modalAtividade')) return;
+  // ================== Integrações convenientes ==================
+  document.addEventListener('shown.bs.modal', async (ev) => {
+    if (!ev.target.matches('#programar-modalAtividade')) return;
     const hidden = document.getElementById('programar-dataAtividade') ||
                    document.getElementById('programar-data') ||
                    document.querySelector('[data-programar-data]');
-    const iso = hidden?.value || hidden?.getAttribute?.('data-programar-data');
-    if (iso) loadServidoresDisponiveis(iso);
-  });
+    const iso = hidden?.value || hidden?.getAttribute?.('data-programar-data') || new Date().toISOString().slice(0,10);
 
-  document.addEventListener('programar:diaSelecionado', (e) => {
+    // Autopreencher só se ainda não houve prefill/salvamento
+    const wantAuto = (document.body.dataset.progLoaded === '1') ? false : true;
+    await loadServidoresDisponiveis(iso, {
+    autofillExpediente: wantAuto,
+    excludeAllocated: false    // <- garantir que o pool não desconte atividades
+    });
+    });
+
+  document.addEventListener('programar:diaSelecionado', async (e) => {
     const iso = e?.detail?.iso;
-    if (iso) loadServidoresDisponiveis(iso);
+    if (!iso) return;
+    const wantAuto = (document.body.dataset.progLoaded === '1') ? false : true;
+    await loadServidoresDisponiveis(iso, { autofillExpediente: wantAuto });
   });
 
-  // API pública
-  window.PROGRAMAR.loadServidoresDisponiveis = loadServidoresDisponiveis;
+  // ================== API pública ==================
+  NS.loadServidores = NS.loadServidoresDisponiveis = loadServidoresDisponiveis;
+
 })();
 </script>

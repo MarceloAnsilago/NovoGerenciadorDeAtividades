@@ -15,12 +15,13 @@
   };
 })();
 </script>
-<<script>
-  
+
+<script>
 (function () {
   window.PROGRAMAR = window.PROGRAMAR || {};
   // se não vier do backend, cai para null (JS null, não string)
-  PROGRAMAR.metaExpedienteId = {{ META_EXPEDIENTE_ID|default_if_none:"null"|default:"null" }};
+  PROGRAMAR.metaExpedienteId = Number("{{ META_EXPEDIENTE_ID|default_if_none:'null'|default:'null' }}") || null;
+
 
   // ---------------- DOM helpers ----------------
   const $tbody = () => document.querySelector('#tabelaImpedidos tbody');
@@ -28,8 +29,10 @@
 
   function escapeHtml(s) {
     return String(s ?? '')
-      .replaceAll('&', '&amp;').replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;').replaceAll('"', '&quot;')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
       .replaceAll("'", '&#039;');
   }
 
@@ -126,20 +129,18 @@
   // 1) quando a modal abrir (Bootstrap 5)
   document.addEventListener('shown.bs.modal', atualizarPelaUI);
 
-  // 2) quando o app trocar o dia do calendário, dispare este evento no seu código:
-  //    document.dispatchEvent(new CustomEvent('programar:diaSelecionado', { detail: { iso: 'YYYY-MM-DD' }}));
+  // 2) quando o app trocar o dia do calendário
   document.addEventListener('programar:diaSelecionado', (e) => {
     const iso = e?.detail?.iso;
     if (iso) carregarServidoresImpedidos(iso);
   });
 
-  // 3) quando o card/tabela for injetado no DOM depois do load inicial, detecta e carrega
+  // 3) quando o card/tabela for injetado no DOM
   const mo = new MutationObserver((mutations) => {
     for (const m of mutations) {
       for (const node of m.addedNodes) {
         if (!(node instanceof Element)) continue;
         if (node.id === 'tabelaImpedidos' || node.querySelector?.('#tabelaImpedidos')) {
-          // pequena espera para título/hidden já estarem atualizados
           setTimeout(atualizarPelaUI, 0);
           return;
         }
@@ -148,14 +149,14 @@
   });
   mo.observe(document.documentElement, { childList: true, subtree: true });
 
-  // 4) se a tabela já existir (ex.: página server-rendered), carrega imediatamente
+  // 4) se a tabela já existir no load inicial
   document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('tabelaImpedidos')) {
       atualizarPelaUI();
     }
   });
 
-  // 5) expõe helpers (útil para testes/integração)
+  // 5) expõe helpers
   window.PROGRAMAR.carregarServidoresImpedidos = carregarServidoresImpedidos;
   window.PROGRAMAR.atualizarImpedidosPelaUI = atualizarPelaUI;
 })();

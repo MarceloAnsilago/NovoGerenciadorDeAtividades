@@ -2,34 +2,60 @@
 <div class="modal fade" id="programar-modalAtividade" tabindex="-1" aria-labelledby="programar-modalAtividadeLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
+
       <div class="modal-header">
         <h5 class="modal-title w-100 text-center" id="programar-modalAtividadeLabel">Programar atividades</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
-        <div class="modal-body">
-          <form id="programar-formAtividade">
-            <input type="hidden" id="programar-dataAtividade" name="data">
-              {% include "programar/partials/_cards_metas.html" %}
-              {% include "programar/partials/_separator.html" with label="Atividades selecionadas" %}
-              {% include "programar/partials/_cards_atividades.html" %}
-              {% include "programar/scripts/_expediente_admin_x.html" %}
-              {% include "programar/scripts/_expediente_drop.html" %}
-              {% include "programar/partials/_separator.html" with label="Servidores impedidos" %}
-              {% include "programar/partials/_cards_indisponiveis.html" %}
-              {% include "programar/scripts/_dnd_modal_patch.html" %}
 
-              {# scripts (nessa ordem) #}
-              {% include "programar/scripts/_urls_context.html" %}
-              {% include "programar/scripts/_prefill_logic.html" %}   {# se você separou o prefill #}
-              {% include "programar/scripts/_save_logic.html" %}
+      <div class="modal-body">
+        <form id="programar-formAtividade">
+          <input type="hidden" id="programar-dataAtividade" name="data">
 
-            <script src="{% static 'programar/scripts/_cards_veiculos.js' %}"></script>
-          </form>
-        </div>
+          {# ---- Metas disponíveis ---- #}
+          {% include "programar/partials/_cards_metas.html" %}
+
+          {% include "programar/partials/_separator.html" with label="Atividades selecionadas" %}
+
+          {# ---- Cards de atividades (Expediente, Pool, Metas) ---- #}
+          {% include "programar/partials/_cards_atividades.html" %}
+
+          {# ---- Comportamento do Expediente ---- #}
+          {% include "programar/scripts/_expediente_admin_x.html" %}
+          {% include "programar/scripts/_expediente_drop.html" %}
+
+          {% include "programar/partials/_separator.html" with label="Servidores impedidos" %}
+
+          {# ---- Tabela de impedidos ---- #}
+          {% include "programar/partials/_cards_indisponiveis.html" %}
+
+          {# ---- DnD / patches específicos do modal ---- #}
+          {% include "programar/scripts/_dnd_modal_patch.html" %}
+
+          {# ================== SCRIPTS (ordem importante) ================== #}
+          {% include "programar/scripts/_urls_context.html" %}
+          {% include "programar/scripts/_prefill_logic.html" %}
+          {% include "programar/scripts/_save_logic.html" %}
+
+          <script src="{% static 'programar/scripts/_cards_veiculos.js' %}"></script>
+        </form>
+      </div>
+
       <div class="modal-footer">
         <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
         <button id="programar-btnSalvar" type="button" class="btn btn-primary" disabled>Salvar</button>
       </div>
+
     </div>
   </div>
 </div>
+
+<script>
+(function(){
+  // Recarrega a página toda sempre que a modal for FECHADA
+  document.addEventListener('hidden.bs.modal', function (ev) {
+    if (!ev.target || ev.target.id !== 'programar-modalAtividade') return;
+    window.location.reload();
+  });
+})();
+</script>

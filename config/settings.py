@@ -92,3 +92,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
+
+# ID fixo da meta "Expediente administrativo"
+META_EXPEDIENTE_ID = 999909

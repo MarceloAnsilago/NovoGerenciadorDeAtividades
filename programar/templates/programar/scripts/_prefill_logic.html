@@ -1,15 +1,21 @@
-{# templates/programar/scripts/_prefill_logic.html #}
 <script>
 (function () {
   const NS = window.PROGRAMAR = window.PROGRAMAR || {};
-  if (NS._prefillBound) return;  // evita bind duplo
+  if (NS._prefillBound) return;
   NS._prefillBound = true;
 
-  // espera condicional (polling curtinho)
-  function waitFor(testFn, timeout = 5000, step = 50) {
-    return new Promise((resolve, reject) => {
+  // ==== COOPERAÇÃO COM O LOADER ====
+  // loader só pode semear o expediente quando estas flags indicarem que NÃO existe programação salva
+  NS._allowExpedienteFromLivres = true;   // default: pode semear
+  NS._hasPrefilledExpediente    = false;  // será true se o expediente veio do banco
+
+  const DEBUG = false;
+
+  // ---------- helpers ----------
+  function waitFor(testFn, timeout = 6000, step = 50){
+    return new Promise((resolve, reject)=>{
       const t0 = Date.now();
-      (function loop() {
+      (function loop(){
         if (testFn()) return resolve(true);
         if (Date.now() - t0 > timeout) return reject(new Error('waitFor timeout'));
         setTimeout(loop, step);
@@ -22,87 +28,164 @@
     return (n && n.textContent.trim()) || `Meta ${metaId}`;
   }
 
-  function findChip(id) {
-    return document.querySelector(`[data-id="${id}"], [data-servidor-id="${id}"]`);
+  // pega o chip no catálogo
+  function getCatalogChip(id){
+    return document.querySelector(`#servidoresLivres [data-id="${id}"], #servidoresLivres [data-servidor-id="${id}"]`);
   }
 
-  function moveChipTo(target, id) {
+  // garante um chip (cópia) no destino SEM retirar do catálogo
+  function ensureChipIn(target, id){
     if (!target) return false;
-    const already = target.querySelector(`[data-id="${id}"], [data-servidor-id="${id}"]`);
-    if (already) return true;
-    const chip = findChip(id);
-    if (chip) { target.appendChild(chip); return true; }
-    return false;
+    // já existe no destino?
+    if (target.querySelector(`[data-id="${id}"], [data-servidor-id="${id}"]`)) return true;
+
+    const src = getCatalogChip(id);
+    if (!src) return false;
+
+    const clone = src.cloneNode(true);
+    // mantém atributos data-* (cloneNode(true) já leva)
+    clone.classList.add('chip-copy');
+    // botão remover do chip
+    const closeBtn = clone.querySelector('.btn-close, [data-action="remove"]');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        clone.remove();
+      });
+    }
+    target.appendChild(clone);
+    return true;
   }
 
-  async function prefillProgramacaoDia(dateStr) {
+  // limpa todas alocações visuais (não mexe no catálogo)
+  function resetAllocations(){
+    document.querySelectorAll('#metaCardsContainer [data-meta-id]').forEach(card => {
+      delete card.dataset.itemId;
+      const drop = card.querySelector('.meta-dropzone') || card;
+      drop.innerHTML = '';
+    });
+    const expEl = document.getElementById('expedienteAdmin');
+    if (expEl){
+      delete expEl.dataset.itemId;
+      expEl.removeAttribute('data-lock');
+      expEl.innerHTML = '';
+    }
+  }
+  NS.resetAllocations = resetAllocations;
+
+  // guarda último prefill
+  NS._lastPrefill = { date: null, itens: [] };
+
+  // ---------- PREFILL ----------
+  NS.prefillProgramacaoDia = async function prefillProgramacaoDia(dateStr){
     const urlBase = NS.urls?.programacaoDia;
     if (!urlBase || !dateStr) return;
 
-    // 1) busca programação do dia
+    // containers base
+    try { await waitFor(() => document.getElementById('metaCardsContainer') && document.getElementById('servidoresLivres')); } catch {}
+
+    // busca programação do dia
     const url = new URL(urlBase, window.location.origin);
     url.searchParams.set('data', dateStr);
-    const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-    if (!resp.ok) return;
-    const data = await resp.json();
-    const itens = Array.isArray(data.itens) ? data.itens : [];
-    if (!itens.length) return;
 
-    // 2) aguarda metas/servidores renderizados
-    try { await waitFor(() => typeof NS.ensureMetaCard === 'function', 5000); } catch {}
-    try {
-      await waitFor(() =>
-        document.querySelector('#servidoresLivres [data-id], #servidoresLivres [data-servidor-id], #expedienteAdmin [data-id]'),
-        5000
-      );
-    } catch {}
+    let itens = [];
+    try{
+      const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+      if (!resp.ok) return;
+      const data = await resp.json().catch(()=> ({}));
+      itens = Array.isArray(data?.itens) ? data.itens : [];
+    }catch{ return; }
+
+    NS._lastPrefill = { date: dateStr, itens };
+
+    // sempre limpa
+    resetAllocations();
+
+    // por padrão, permite semear; caso venham itens, bloqueia
+    NS._allowExpedienteFromLivres = itens.length === 0;
+    NS._hasPrefilledExpediente    = false;
+
+    if (!itens.length){
+      // nada salvo → apenas atualiza contadores e sai (loader poderá semear expediente)
+      (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
+      document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: dateStr, count: 0 }}));
+      return;
+    }
 
     const expEl = document.getElementById('expedienteAdmin');
     const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
 
-    for (const it of itens) {
-      // Expediente Administrativo
-      if (expId && it.meta_id === expId) {
-        if (expEl) {
-          if (it.id) expEl.dataset.itemId = String(it.id);     // 👈 guarda id para UPDATE
-          (it.servidores_ids || []).forEach(sid => moveChipTo(expEl, sid));
+    for (const it of itens){
+      // Expediente administrativo: CLONA chips do catálogo
+      if (expId && Number(it.meta_id) === expId){
+        if (expEl){
+          expEl.setAttribute('data-lock', '1');   // travado contra semeadura do loader
+          if (it.id) expEl.dataset.itemId = String(it.id);
+          (it.servidores_ids || []).forEach(sid => ensureChipIn(expEl, sid));
+          NS._hasPrefilledExpediente = true;
         }
         continue;
       }
 
       // Demais metas
       const title = metaTitleFromGrid(it.meta_id);
-      const card = NS.ensureMetaCard?.(String(it.meta_id), title);
+      const card  = NS.ensureMetaCard?.(String(it.meta_id), title) || document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`);
       if (!card) continue;
 
-      if (it.id) card.dataset.itemId = String(it.id);          // 👈 guarda id para UPDATE
+      if (it.id) card.dataset.itemId = String(it.id);
 
       const ta = card.querySelector('textarea[name="observacao"]');
       if (ta) ta.value = it.observacao || '';
 
-      const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos');
-      if (sel && it.veiculo_id != null) sel.value = String(it.veiculo_id);
+      const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
+      if (sel && it.veiculo_id != null) {
+        if (sel.tagName === 'SELECT') sel.value = String(it.veiculo_id);
+        else sel.dataset.veiculoId = String(it.veiculo_id);
+      }
 
       const drop = card.querySelector('.meta-dropzone') || card;
-      (it.servidores_ids || []).forEach(sid => moveChipTo(drop, sid));
+      (it.servidores_ids || []).forEach(sid => ensureChipIn(drop, sid));
     }
 
-    // atualizar contagens (se houver util disponível)
     (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
+    document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: dateStr, count: itens.length }}));
+    if (DEBUG) console.debug('[prefill] aplicado', itens.length, 'itens');
+  };
 
-    // evento opcional
-    document.dispatchEvent(new CustomEvent('programar:prefilled', { detail: { data: dateStr } }));
-  }
+  // reaplica assim que o catálogo terminar de carregar
+  const moLate = new MutationObserver(() => {
+    if (!NS._lastPrefill?.date) return;
+    const hasCatalog = !!document.querySelector('#servidoresLivres [data-id], #servidoresLivres [data-servidor-id]');
+    if (!hasCatalog) return;
+    moLate.disconnect();
+    NS.prefillProgramacaoDia(NS._lastPrefill.date);
+  });
+  moLate.observe(document.getElementById('servidoresLivres') || document.body, { childList:true, subtree:true });
 
-  // expõe API pública
-  NS.prefillProgramacaoDia = prefillProgramacaoDia;
+  // evento que o loader deve disparar quando terminar de montar o catálogo
+  document.addEventListener('programar:servidoresLoaded', () => {
+    if (NS._lastPrefill?.date) NS.prefillProgramacaoDia(NS._lastPrefill.date);
+  });
 
-  // quando o modal abrir, tenta preencher
+  // ao abrir a modal: destrava e busca programação
   document.addEventListener('shown.bs.modal', (ev) => {
-    if (ev.target && ev.target.id === 'programar-modalAtividade') {
+    if (ev.target && ev.target.id === 'programar-modalAtividade'){
+      const expEl = document.getElementById('expedienteAdmin');
+      if (expEl) expEl.removeAttribute('data-lock');
+      NS._hasPrefilledExpediente = false;
+      NS._allowExpedienteFromLivres = true;
+
       const dateStr = document.getElementById('programar-dataAtividade')?.value;
-      if (dateStr) prefillProgramacaoDia(dateStr);
+      if (dateStr) NS.prefillProgramacaoDia(dateStr);
     }
+  });
+
+  // ao trocar de dia (se o app emite esse evento)
+  document.addEventListener('programar:diaSelecionado', () => {
+    const expEl = document.getElementById('expedienteAdmin');
+    if (expEl) expEl.removeAttribute('data-lock');
+    NS._hasPrefilledExpediente = false;
+    NS._allowExpedienteFromLivres = true;
   });
 })();
 </script>

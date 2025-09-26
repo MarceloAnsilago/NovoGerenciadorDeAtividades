@@ -5,7 +5,7 @@ import html
 import json, logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List
-
+from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.test.client import RequestFactory
@@ -27,17 +27,10 @@ from django.db import transaction
 # Página
 # =============================================================================
 def calendario_view(request):
-    ctx = {}
-    unidade_id = get_unidade_atual_id(request)
-    # tenta achar a meta por título na unidade atual; se não houver, pega a primeira global
-    expediente = (Meta.objects
-                    .filter(titulo__iexact='Expediente Administrativo', unidade_criadora_id=unidade_id)
-                    .first()
-                  or Meta.objects
-                    .filter(titulo__iexact='Expediente Administrativo')
-                    .first())
-    ctx["META_EXPEDIENTE_ID"] = expediente.id if expediente else None
-    return render(request, "programar/calendario.html", ctx)
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    return render(request, "programar/calendario.html", {
+        "META_EXPEDIENTE_ID": meta_expediente_id,
+    })
 
 
 # =============================================================================
@@ -168,159 +161,187 @@ def _parse_date(s: str) -> date | None:
     except Exception:
         return None
 
-@require_GET
-def servidores_para_data(request):
-    iso = request.GET.get("data")
-    d = _parse_date(iso or "")
-    if not d:
-        return HttpResponseBadRequest("data inválida (YYYY-MM-DD)")
-
-    unidade_id = get_unidade_atual_id(request)
-    # base: todos ativos da unidade
-    qs_base = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).only("id","nome").order_by("nome")
-
-    # impedidos por descanso (data dentro do intervalo)
-    imp_qs = (Descanso.objects
-              .select_related("servidor")
-              .filter(servidor__unidade_id=unidade_id, data_inicio__lte=d, data_fim__gte=d))
-    impedidos_ids = set(imp_qs.values_list("servidor_id", flat=True))
-
-    livres = [{"id": s.id, "nome": s.nome} for s in qs_base if s.id not in impedidos_ids]
-    impedidos = [{"id": r.servidor_id, "nome": r.servidor.nome, "motivo": r.tipo} for r in imp_qs]
-
-    return JsonResponse({"livres": livres, "impedidos": impedidos})
-
-@csrf_exempt   # ideal: usar CSRF token do template; deixe exempt se estiver testando via fetch sem token
+@csrf_exempt   # ideal: remover depois e usar token CSRF
 @require_POST
 def salvar_programacao(request):
-    import json
+    """
+    Upsert de Programacao + ProgramacaoItem + ProgramacaoItemServidor,
+    e remoção dos itens que não vierem no payload (delete-orphans).
 
+    Payload esperado:
+      {
+        data: "YYYY-MM-DD",
+        observacao: "",
+        itens: [
+          { id?, meta_id, observacao, veiculo_id?, servidores_ids: [int,...] },
+          ...
+        ]
+      }
+    """
     try:
-        payload = json.loads(request.body.decode("utf-8"))
+        body = json.loads(request.body.decode("utf-8"))
     except Exception:
-        return HttpResponseBadRequest("JSON inválido")
+        return JsonResponse({"ok": False, "error": "JSON inválido."}, status=400)
 
-    iso = payload.get("data")
-    if not iso or len(iso.split("-")) != 3:
-        return HttpResponseBadRequest("Campo 'data' obrigatório (YYYY-MM-DD).")
-
-    itens = payload.get("itens", [])
-    if not isinstance(itens, list):
-        return HttpResponseBadRequest("Campo 'itens' deve ser uma lista.")
+    iso = body.get("data")
+    itens_in = body.get("itens") or []
+    if not iso:
+        return JsonResponse({"ok": False, "error": "Data ausente."}, status=400)
 
     unidade_id = get_unidade_atual_id(request)
-    user = request.user if request.user.is_authenticated else None
-    agora = timezone.now()
 
     with transaction.atomic():
-        prog, _created = Programacao.objects.get_or_create(
+        prog, _ = Programacao.objects.get_or_create(
             data=iso,
             unidade_id=unidade_id,
             defaults={
-                "observacao": payload.get("observacao", "") or "",
-                "concluida": False,
-                "criado_em": agora,
-                "criado_por": user,
+                "observacao": body.get("observacao") or "",
+                "criado_por": getattr(request, "user", None),
             },
         )
 
-        # mapa rápido dos existentes para este dia
-        qs_exist = ProgramacaoItem.objects.filter(programacao=prog).only("id")
-        exist_ids = set(qs_exist.values_list("id", flat=True))
+        if body.get("observacao") is not None:
+            Programacao.objects.filter(pk=prog.pk).update(
+                observacao=body.get("observacao") or ""
+            )
 
-        keep_ids = set()
-        out_items = []
+        # itens já existentes
+        existentes = {
+            pi.id: pi
+            for pi in ProgramacaoItem.objects.filter(programacao=prog).select_related("programacao")
+        }
+        ids_payload = set()
+        total_vinculos = 0
 
-        for it in itens:
+        for it in itens_in:
             item_id = it.get("id")
             meta_id = it.get("meta_id")
-            if not meta_id:
-                return HttpResponseBadRequest("Item sem 'meta_id'.")
-
-            obs = it.get("observacao", "") or ""
+            obs = it.get("observacao") or ""
             veiculo_id = it.get("veiculo_id")
-            servidores_ids = it.get("servidores_ids", []) or []
+            servidores_ids = list({int(s) for s in (it.get("servidores_ids") or [])})
 
-            # validar FKs de forma leve (opcional, dá 404 cedo se não existem)
-            Meta.objects.only("id").get(id=meta_id)
-            if veiculo_id:
-                Veiculo.objects.only("id").get(id=veiculo_id)
+            if not meta_id:
+                continue
 
-            if item_id and item_id in exist_ids:
-                # UPDATE
-                item = ProgramacaoItem.objects.get(id=item_id, programacao=prog)
-                changed = False
-                if item.meta_id != meta_id:
-                    item.meta_id = meta_id
-                    changed = True
-                if item.observacao != obs:
-                    item.observacao = obs
-                    changed = True
-                if item.veiculo_id != (veiculo_id or None):
-                    item.veiculo_id = veiculo_id
-                    changed = True
-                if changed:
-                    item.save(update_fields=["meta_id", "observacao", "veiculo_id"])
-                # substitui vínculos de servidores
-                ProgramacaoItemServidor.objects.filter(item=item).delete()
+            # 🚩 caso especial: Expediente Administrativo
+            if int(meta_id) == settings.META_EXPEDIENTE_ID:
+                if item_id and item_id in existentes:
+                    pi = existentes[item_id]
+                    ProgramacaoItem.objects.filter(pk=pi.pk).update(
+                        meta_id=settings.META_EXPEDIENTE_ID,
+                        observacao=obs,
+                        veiculo_id=veiculo_id,
+                    )
+                else:
+                    pi = ProgramacaoItem.objects.create(
+                        programacao=prog,
+                        meta_id=settings.META_EXPEDIENTE_ID,
+                        observacao=obs,
+                        veiculo_id=veiculo_id,
+                        concluido=False,
+                    )
+                    item_id = pi.id
             else:
-                # CREATE
-                item = ProgramacaoItem.objects.create(
-                    programacao=prog,
-                    meta_id=meta_id,
-                    observacao=obs,
-                    concluido=False,
-                    criado_em=agora,
-                    veiculo_id=veiculo_id,
-                )
+                # fluxo normal
+                if item_id and item_id in existentes:
+                    pi = existentes[item_id]
+                    ProgramacaoItem.objects.filter(pk=pi.pk).update(
+                        meta_id=meta_id,
+                        observacao=obs,
+                        veiculo_id=veiculo_id,
+                    )
+                else:
+                    pi = ProgramacaoItem.objects.create(
+                        programacao=prog,
+                        meta_id=meta_id,
+                        observacao=obs,
+                        veiculo_id=veiculo_id,
+                        concluido=False,
+                    )
+                    item_id = pi.id
 
-            # (re)criar vínculos de servidores
-            links = [ProgramacaoItemServidor(item=item, servidor_id=sid) for sid in servidores_ids]
-            if links:
-                ProgramacaoItemServidor.objects.bulk_create(links)
+            ids_payload.add(item_id)
 
-            keep_ids.add(item.id)
-            out_items.append({"id": item.id, "meta_id": meta_id})
+            # substitui vínculos de servidores
+            ProgramacaoItemServidor.objects.filter(item_id=item_id).delete()
+            if servidores_ids:
+                bulk = [
+                    ProgramacaoItemServidor(item_id=item_id, servidor_id=sid)
+                    for sid in servidores_ids
+                ]
+                ProgramacaoItemServidor.objects.bulk_create(bulk)
+                total_vinculos += len(bulk)
 
-        # DELETE: remove tudo que não veio
-        ProgramacaoItem.objects.filter(programacao=prog).exclude(id__in=keep_ids).delete()
+        # delete-orphans: remove itens que não vieram no payload
+        orfaos = [pi_id for pi_id in existentes.keys() if pi_id not in ids_payload]
+        if orfaos:
+            ProgramacaoItemServidor.objects.filter(item_id__in=orfaos).delete()
+            ProgramacaoItem.objects.filter(id__in=orfaos).delete()
 
     return JsonResponse({
         "ok": True,
         "programacao_id": prog.id,
-        "itens": out_items,          # ids finais dos itens persistidos
-        "kept_ids": list(keep_ids),  # útil se quiser sincronizar no front
+        "itens": len(ids_payload),
+        "servidores_vinculados": total_vinculos,
     })
 
 @require_GET
 def programacao_do_dia(request):
+    """
+    Bridge para programar_atividades.programacao_do_dia.
+    Normaliza para o front:
+      { ok, itens: [ {id?, meta_id, observacao, veiculo_id, servidores_ids[], titulo?} ] }
+    Se meta_id == META_EXPEDIENTE_ID → insere título fixo "Expediente administrativo".
+    """
     iso = request.GET.get("data")
-    d = _parse_date(iso or "")
-    if not d:
-        return HttpResponseBadRequest("data inválida")
-    unidade_id = get_unidade_atual_id(request)
+    if not iso:
+        return JsonResponse({"ok": True, "itens": []})
 
     try:
-        prog = Programacao.objects.get(data=d, unidade_id=unidade_id)
-    except Programacao.DoesNotExist:
-        return JsonResponse({"itens": []})
+        from programar_atividades import views as legacy  # type: ignore
+    except Exception:
+        return JsonResponse({"ok": True, "itens": []})
 
-    out = []
-    for item in (ProgramacaoItem.objects
-                 .select_related("meta", "veiculo")
-                 .filter(programacao=prog)
-                 .order_by("id")):
-        srv_ids = list(ProgramacaoItemServidor.objects
-                       .filter(item=item).values_list("servidor_id", flat=True))
-        out.append({
-            "id": item.id,
-            "meta_id": item.meta_id,
-            "veiculo_id": item.veiculo_id,
-            "observacao": item.observacao,
-            "concluido": item.concluido,
-            "servidores_ids": srv_ids,
-        })
-    return JsonResponse({"itens": out})
+    rf = RequestFactory()
+    req = rf.get("/programar_atividades/programacao_do_dia/", {"data": iso})
+    req.user = getattr(request, "user", None)
+    req.session = getattr(request, "session", None)
+    req._dont_enforce_csrf_checks = True  # type: ignore[attr-defined]
+
+    try:
+        resp = legacy.programacao_do_dia(req)  # type: ignore[attr-defined]
+        raw = getattr(resp, "content", b"").decode(
+            getattr(resp, "charset", "utf-8")
+        ) if hasattr(resp, "content") else ""
+        data = json.loads(raw) if raw.strip() else {}
+    except Exception:
+        return JsonResponse({"ok": True, "itens": []})
+
+    prog = (data or {}).get("programacao") or {}
+    itens_legacy = prog.get("itens") or []
+
+    itens = []
+    for it in itens_legacy:
+        meta_id = it.get("meta_id")
+
+        obj = {
+            "id": it.get("id"),
+            "meta_id": meta_id,
+            "observacao": it.get("observacao") or "",
+            "veiculo_id": it.get("veiculo_id"),
+            "servidores_ids": [
+                s.get("id") for s in (it.get("servidores") or []) if s.get("id") is not None
+            ],
+        }
+
+        # 🚩 tratamento especial Expediente Administrativo
+        if meta_id == settings.META_EXPEDIENTE_ID:
+            obj["titulo"] = "Expediente administrativo"
+
+        itens.append(obj)
+
+    return JsonResponse({"ok": True, "itens": itens})
+
 
 
 @csrf_exempt

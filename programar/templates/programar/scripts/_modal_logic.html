@@ -72,17 +72,26 @@
     }
   function extractItem(card){
     const metaId = Number(card.dataset.metaId);
+    const itemId = Number(card.dataset.itemId || 0);   // 👈 pega id existente
     const drop = card.querySelector('.meta-dropzone') || card;
     const chips = drop.querySelectorAll('[data-id], [data-servidor-id], .servidor-chip');
     const servidores_ids = [...chips].map(el => Number(el.getAttribute('data-id') || el.getAttribute('data-servidor-id'))).filter(Boolean);
     const obs = (card.querySelector('textarea[name="observacao"]')?.value || '').trim();
     const veiculo_id = extractVeiculoId(card);
-    return { meta_id: metaId, observacao: obs, veiculo_id, servidores_ids };
+
+    const out = { meta_id: metaId, observacao: obs, veiculo_id, servidores_ids };
+    if (itemId) out.id = itemId;                       // 👈 inclui id só se houver
+    return out;
   }
 
   function refreshSalvar(){
     const btn = get(IDS.btn), cont = get(IDS.cards);
-    if (btn) btn.disabled = !cont?.querySelector('[data-meta-id]');
+    const hasMetaCards = !!cont?.querySelector('[data-meta-id]');
+    const expEl = document.getElementById('expedienteAdmin');
+    const expHas = !!expEl && (
+      !!expEl.querySelector('[data-id],[data-servidor-id]') || !!expEl.dataset.itemId
+    );
+    if (btn) btn.disabled = !(hasMetaCards || expHas);
   }
 
   // Observa mudanças nos cards e ao abrir o modal
@@ -131,7 +140,16 @@
     const dateStr = inputData?.value;
     if (!dateStr){ NS.toast('Selecione uma data para salvar.', { variant:'warning' }); return; }
 
-    const cards = [...(cont?.querySelectorAll('[data-meta-id]') || [])];
+    let cards = [...(cont?.querySelectorAll('[data-meta-id]') || [])];
+
+    const expEl = document.getElementById('expedienteAdmin');
+    const expMetaId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
+    if (expEl && expMetaId) {
+      expEl.dataset.metaId = String(expMetaId); // garante que extractItem leia o meta_id
+      const expHasChips = !!expEl.querySelector('[data-id],[data-servidor-id]');
+      const hadItem     = !!expEl.dataset.itemId; // setado pelo prefill quando já existe no banco
+      if (expHasChips || hadItem) cards.push(expEl);
+    }
     if (!cards.length){ NS.toast('Adicione pelo menos uma atividade.', { variant:'warning' }); return; }
 
     const payload = { data: dateStr, observacao: '', itens: cards.map(extractItem) };
@@ -243,8 +261,13 @@
 
     for (const it of itens) {
       // Expediente Administrativo
+    
       if (expId && it.meta_id === expId) {
-        if (expEl) it.servidores_ids.forEach(sid => moveChipTo(expEl, sid));
+        const expEl = document.getElementById('expedienteAdmin');
+        if (expEl) {
+          if (it.id) expEl.dataset.itemId = String(it.id);        // 👈 guarda id
+          (it.servidores_ids || []).forEach(sid => moveChipTo(expEl, sid));
+        }
         continue;
       }
 
@@ -252,7 +275,7 @@
       const title = metaTitleFromGrid(it.meta_id);
       const card = NS.ensureMetaCard?.(String(it.meta_id), title);
       if (!card) continue;
-
+         if (it.id) card.dataset.itemId = String(it.id);
       const ta = card.querySelector('textarea[name="observacao"]');
       if (ta) ta.value = it.observacao || '';
 
