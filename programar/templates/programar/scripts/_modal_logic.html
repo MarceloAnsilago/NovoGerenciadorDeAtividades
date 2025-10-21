@@ -294,13 +294,37 @@
   }
 
   // expõe API pública
-  NS.prefillProgramacaoDia = prefillProgramacaoDia;
+  if (!NS._prefillOverride) {
+    NS.prefillProgramacaoDia = prefillProgramacaoDia;
+  }
 
   // quando o modal abrir, tenta preencher
   document.addEventListener('shown.bs.modal', (ev) => {
     if (ev.target && ev.target.id === 'programar-modalAtividade') {
       const dateStr = document.getElementById('programar-dataAtividade')?.value;
-      if (dateStr) prefillProgramacaoDia(dateStr);
+      const loader = NS.prefillProgramacaoDia || prefillProgramacaoDia;
+      if (loader && dateStr) loader(dateStr);
+    }
+  });
+
+  // fallback: duplo clique remove servidor/expediente
+  document.addEventListener('dblclick', (ev) => {
+    const chip = ev.target.closest('.servidor-chip');
+    if (chip) {
+      const btn = chip.querySelector('.chip-remove');
+      if (btn) {
+        ev.preventDefault();
+        btn.click();
+      }
+      return;
+    }
+    const card = ev.target.closest('#expedienteAdmin .servidor-card');
+    if (card) {
+      const btn = card.querySelector('.srv-close');
+      if (btn) {
+        ev.preventDefault();
+        btn.click();
+      }
     }
   });
 })();

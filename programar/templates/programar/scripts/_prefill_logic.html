@@ -3,11 +3,12 @@
   const NS = window.PROGRAMAR = window.PROGRAMAR || {};
   if (NS._prefillBound) return;
   NS._prefillBound = true;
+  NS._prefillOverride = true;
 
-  // ==== COOPERAÇÃO COM O LOADER ====
-  // loader só pode semear o expediente quando estas flags indicarem que NÃO existe programação salva
+  // ==== COOPERAO COM O LOADER ====
+  // loader s pode semear o expediente quando estas flags indicarem que NO existe programao salva
   NS._allowExpedienteFromLivres = true;   // default: pode semear
-  NS._hasPrefilledExpediente    = false;  // será true se o expediente veio do banco
+  NS._hasPrefilledExpediente    = false;  // ser true se o expediente veio do banco
 
   const DEBUG = false;
 
@@ -28,36 +29,86 @@
     return (n && n.textContent.trim()) || `Meta ${metaId}`;
   }
 
-  // pega o chip no catálogo
+  // pega o chip no catlogo
   function getCatalogChip(id){
     return document.querySelector(`#servidoresLivres [data-id="${id}"], #servidoresLivres [data-servidor-id="${id}"]`);
   }
 
-  // garante um chip (cópia) no destino SEM retirar do catálogo
-  function ensureChipIn(target, id){
+  // garante um chip (cpia) no destino SEM retirar do catlogo
+  function ensureChipIn(target, id, nomeFallback){
     if (!target) return false;
-    // já existe no destino?
     if (target.querySelector(`[data-id="${id}"], [data-servidor-id="${id}"]`)) return true;
 
     const src = getCatalogChip(id);
-    if (!src) return false;
 
-    const clone = src.cloneNode(true);
-    // mantém atributos data-* (cloneNode(true) já leva)
-    clone.classList.add('chip-copy');
-    // botão remover do chip
-    const closeBtn = clone.querySelector('.btn-close, [data-action="remove"]');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        clone.remove();
+    const updateCounts = NS.updateCounts || window.ProgramarCards?.updateCounts || function(){};
+    const isExpediente = target.id === 'expedienteAdmin' || target.matches?.('#expedienteAdmin, .js-expediente-admin');
+    const name = (nomeFallback || src?.querySelector?.('.srv-name')?.textContent || src?.textContent || `Servidor ${id}`).trim();
+
+    if (isExpediente) {
+      const card = document.createElement('div');
+      card.className = 'servidor-card';
+      card.dataset.id = String(id);
+      card.setAttribute('draggable','true');
+      card.innerHTML = `
+        <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+        <span class="srv-name">${name}</span>
+        <span class="srv-count-badge"></span>`;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'srv-close btn btn-sm btn-outline-secondary';
+      btn.title = 'Remover do Expediente';
+      btn.textContent = 'x';
+      btn.style.marginLeft = 'auto';
+      card.style.display = 'flex';
+      card.style.alignItems = 'center';
+      card.style.gap = '6px';
+      card.appendChild(btn);
+
+      btn.addEventListener('click', () => {
+        const pool = document.getElementById('servidoresLivres');
+        if (pool && !pool.querySelector(`.servidor-card[data-id="${id}"]`)) {
+          const novo = document.createElement('div');
+          novo.className = 'servidor-card';
+          novo.dataset.id = String(id);
+          novo.setAttribute('draggable','true');
+          novo.innerHTML = `
+            <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+            <span class="srv-name">${name}</span>
+            <span class="srv-count-badge"></span>`;
+          pool.appendChild(novo);
+        }
+        card.remove();
+        updateCounts();
       });
+
+      target.appendChild(card);
+      updateCounts();
+      return true;
     }
-    target.appendChild(clone);
+
+    const chip = document.createElement('div');
+    chip.className = 'servidor-chip';
+    chip.dataset.id = String(id);
+    chip.innerHTML = `
+      <span class="chip-icon"><i class="bi bi-person-fill"></i></span>
+      <span class="chip-name">${name}</span>
+      <button type="button" class="chip-remove" title="Remover">&times;</button>`;
+
+    chip.querySelector('.chip-remove')?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      chip.remove();
+      updateCounts();
+    });
+
+    target.appendChild(chip);
+    updateCounts();
     return true;
   }
+  NS.ensureChipIn = ensureChipIn;
 
-  // limpa todas alocações visuais (não mexe no catálogo)
+  // limpa todas alocaes visuais (no mexe no catlogo)
   function resetAllocations(){
     document.querySelectorAll('#metaCardsContainer [data-meta-id]').forEach(card => {
       delete card.dataset.itemId;
@@ -73,7 +124,7 @@
   }
   NS.resetAllocations = resetAllocations;
 
-  // guarda último prefill
+  // guarda ltimo prefill
   NS._lastPrefill = { date: null, itens: [] };
 
   // ---------- PREFILL ----------
@@ -84,7 +135,7 @@
     // containers base
     try { await waitFor(() => document.getElementById('metaCardsContainer') && document.getElementById('servidoresLivres')); } catch {}
 
-    // busca programação do dia
+    // busca programao do dia
     const url = new URL(urlBase, window.location.origin);
     url.searchParams.set('data', dateStr);
 
@@ -101,12 +152,12 @@
     // sempre limpa
     resetAllocations();
 
-    // por padrão, permite semear; caso venham itens, bloqueia
+    // por padro, permite semear; caso venham itens, bloqueia
     NS._allowExpedienteFromLivres = itens.length === 0;
     NS._hasPrefilledExpediente    = false;
 
     if (!itens.length){
-      // nada salvo → apenas atualiza contadores e sai (loader poderá semear expediente)
+      // nada salvo  apenas atualiza contadores e sai (loader poder semear expediente)
       (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
       document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: dateStr, count: 0 }}));
       return;
@@ -116,43 +167,45 @@
     const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
 
     for (const it of itens){
-      // Expediente administrativo: CLONA chips do catálogo
+      // Expediente administrativo: CLONA chips do catlogo
       if (expId && Number(it.meta_id) === expId){
-        if (expEl){
-          expEl.setAttribute('data-lock', '1');   // travado contra semeadura do loader
-          if (it.id) expEl.dataset.itemId = String(it.id);
-          (it.servidores_ids || []).forEach(sid => ensureChipIn(expEl, sid));
-          NS._hasPrefilledExpediente = true;
-        }
-        continue;
+      const nomesExp = new Map((it.servidores || []).map(s => [String(s.id), s.nome]));
+      if (expEl){
+        expEl.setAttribute('data-lock', '1');   // travado contra semeadura do loader
+        if (it.id) expEl.dataset.itemId = String(it.id);
+        (it.servidores_ids || []).forEach(sid => ensureChipIn(expEl, sid, nomesExp.get(String(sid))));
+        NS._hasPrefilledExpediente = true;
       }
-
-      // Demais metas
-      const title = metaTitleFromGrid(it.meta_id);
-      const card  = NS.ensureMetaCard?.(String(it.meta_id), title) || document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`);
-      if (!card) continue;
-
-      if (it.id) card.dataset.itemId = String(it.id);
-
-      const ta = card.querySelector('textarea[name="observacao"]');
-      if (ta) ta.value = it.observacao || '';
-
-      const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
-      if (sel && it.veiculo_id != null) {
-        if (sel.tagName === 'SELECT') sel.value = String(it.veiculo_id);
-        else sel.dataset.veiculoId = String(it.veiculo_id);
-      }
-
-      const drop = card.querySelector('.meta-dropzone') || card;
-      (it.servidores_ids || []).forEach(sid => ensureChipIn(drop, sid));
+      continue;
     }
+
+    // Demais metas
+    const title = metaTitleFromGrid(it.meta_id);
+    const card  = NS.ensureMetaCard?.(String(it.meta_id), title) || document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`);
+    if (!card) continue;
+
+    if (it.id) card.dataset.itemId = String(it.id);
+
+    const ta = card.querySelector('textarea[name="observacao"]');
+    if (ta) ta.value = it.observacao || '';
+
+    const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
+    if (sel && it.veiculo_id != null) {
+      if (sel.tagName === 'SELECT') sel.value = String(it.veiculo_id);
+      else sel.dataset.veiculoId = String(it.veiculo_id);
+    }
+
+    const drop = card.querySelector('.meta-dropzone') || card;
+    const nomes = new Map((it.servidores || []).map(s => [String(s.id), s.nome]));
+    (it.servidores_ids || []).forEach(sid => ensureChipIn(drop, sid, nomes.get(String(sid))));
+  }
 
     (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
     document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: dateStr, count: itens.length }}));
     if (DEBUG) console.debug('[prefill] aplicado', itens.length, 'itens');
   };
 
-  // reaplica assim que o catálogo terminar de carregar
+  // reaplica assim que o catlogo terminar de carregar
   const moLate = new MutationObserver(() => {
     if (!NS._lastPrefill?.date) return;
     const hasCatalog = !!document.querySelector('#servidoresLivres [data-id], #servidoresLivres [data-servidor-id]');
@@ -162,12 +215,12 @@
   });
   moLate.observe(document.getElementById('servidoresLivres') || document.body, { childList:true, subtree:true });
 
-  // evento que o loader deve disparar quando terminar de montar o catálogo
+  // evento que o loader deve disparar quando terminar de montar o catlogo
   document.addEventListener('programar:servidoresLoaded', () => {
     if (NS._lastPrefill?.date) NS.prefillProgramacaoDia(NS._lastPrefill.date);
   });
 
-  // ao abrir a modal: destrava e busca programação
+  // ao abrir a modal: destrava e busca programao
   document.addEventListener('shown.bs.modal', (ev) => {
     if (ev.target && ev.target.id === 'programar-modalAtividade'){
       const expEl = document.getElementById('expedienteAdmin');
@@ -187,5 +240,9 @@
     NS._hasPrefilledExpediente = false;
     NS._allowExpedienteFromLivres = true;
   });
+
 })();
 </script>
+
+
+

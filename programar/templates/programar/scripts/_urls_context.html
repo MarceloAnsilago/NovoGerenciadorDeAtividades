@@ -3,12 +3,12 @@
 (function () {
   const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
   NS.urls = {
-    eventsFeed:     "{% url 'programar_atividades:events_feed' %}",
-    metas:          "{% url 'programar_atividades:metas_disponiveis' %}",
+    eventsFeed:     "{% url 'programar:events_feed' %}",
+    metas:          "{% url 'programar:metas_disponiveis' %}",
     servidores:     "{% url 'programar:servidores_para_data' %}",
     salvar:         "{% url 'programar:salvar_programacao' %}",
     programacaoDia: "{% url 'programar:programacao_do_dia' %}",
-    excluir:        "{% url 'programar_atividades:excluir_programacao' %}",
+    excluir:        "{% url 'programar:excluir_programacao' %}",
     plantaoSemana:  "{% url 'plantao:servidores_por_intervalo' %}",
     printSemana:    "{% url 'programar:print_relatorio_semana' %}",
     relatorios:     "{% url 'programar:relatorios_parcial' %}"

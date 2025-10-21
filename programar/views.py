@@ -9,8 +9,9 @@ from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.test.client import RequestFactory
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET
+from django.contrib.auth.decorators import login_required
 from core.utils import get_unidade_atual_id
 from servidores.models import Servidor
 from descanso.models import Descanso
@@ -18,10 +19,9 @@ from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServid
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
-from metas.models import Meta
+from metas.models import Meta, MetaAlocacao
 from veiculos.models import Veiculo
-from metas.models import Meta
-from core.utils import get_unidade_atual_id
+from django.db.models import Sum
 from django.db import transaction
 # =============================================================================
 # Página
@@ -161,7 +161,8 @@ def _parse_date(s: str) -> date | None:
     except Exception:
         return None
 
-@csrf_exempt   # ideal: remover depois e usar token CSRF
+@login_required
+@csrf_protect
 @require_POST
 def salvar_programacao(request):
     """
@@ -341,14 +342,7 @@ def programacao_do_dia(request):
         itens.append(obj)
 
     return JsonResponse({"ok": True, "itens": itens})
-
-
-
-@csrf_exempt
-def excluir_programacao(request):
-    return JsonResponse({"ok": True})
-
-
+# antigo dummy de exclusão removido (substituído por excluir_programacao_secure)
 # =============================================================================
 # Helpers – datas
 # =============================================================================
@@ -754,6 +748,8 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 # =============================================================================
 # Relatórios (JSON + Imprimível)
 # =============================================================================
+@login_required
+@require_GET
 def relatorios_parcial(request):
     start = request.GET.get("start", "")
     end = request.GET.get("end", "")
@@ -779,6 +775,8 @@ def relatorios_parcial(request):
     return JsonResponse({"ok": True, "html": html_out})
 
 
+@login_required
+@require_GET
 def print_relatorio_semana(request):
     start = request.GET.get("start", "")
     end = request.GET.get("end", "")
@@ -822,3 +820,176 @@ def print_relatorio_semana(request):
 # (Opcional) endpoint dummy para manter compatibilidade em dev
 def servidores_por_intervalo(request):
     return JsonResponse({"ok": True, "servidores": []})
+
+
+@login_required
+@require_GET
+def events_feed(request):
+    """Feed para FullCalendar: Programacao como eventos all-day no intervalo."""
+    start = request.GET.get("start")
+    end = request.GET.get("end")
+    start_date = _parse_iso(start[:10]) if start else None
+    end_date = _parse_iso(end[:10]) if end else None
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse([], safe=False)
+
+    qs = Programacao.objects.filter(unidade_id=unidade_id)
+    if start_date:
+        qs = qs.filter(data__gte=start_date)
+    if end_date:
+        qs = qs.filter(data__lte=end_date)
+
+    data = []
+    for prog in qs:
+        qtd_itens = ProgramacaoItem.objects.filter(programacao_id=prog.id).count()
+        title = f"({qtd_itens} atividade{'s' if qtd_itens != 1 else ''})"
+        if getattr(prog, 'concluida', False):
+            title = "[Concluída] " + title
+        data.append({"id": prog.id, "title": title, "start": prog.data.isoformat(), "allDay": True})
+    return JsonResponse(data, safe=False)
+
+
+@login_required
+@require_GET
+def metas_disponiveis(request):
+    """Metas alocadas para a UNIDADE atual (com somas alocado/executado)."""
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"metas": []})
+
+    atividade_id = request.GET.get("atividade")
+    qs = MetaAlocacao.objects.select_related("meta", "meta__atividade").filter(unidade_id=unidade_id)
+    if atividade_id:
+        qs = qs.filter(meta__atividade_id=atividade_id)
+
+    bucket: Dict[int, Dict[str, Any]] = {}
+    for al in qs:
+        meta = getattr(al, "meta", None)
+        if not meta or not getattr(meta, "id", None):
+            continue
+        mid = int(meta.id)
+        if mid not in bucket:
+            atividade = getattr(meta, "atividade", None)
+            atividade_nome = None
+            if atividade:
+                atividade_nome = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
+            bucket[mid] = {
+                "id": mid,
+                "nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem título)"),
+                "atividade_nome": atividade_nome,
+                "data_limite": getattr(meta, "data_limite", None),
+                "alocado_unidade": 0,
+                "executado_unidade": 0,
+                "meta_total": int(getattr(meta, "quantidade_alvo", 0) or 0),
+            }
+        bucket[mid]["alocado_unidade"] += int(getattr(al, "quantidade_alocada", 0) or 0)
+        try:
+            prog_sum = al.progresso.aggregate(total=Sum("quantidade")).get("total") or 0
+        except Exception:
+            prog_sum = 0
+        bucket[mid]["executado_unidade"] += int(prog_sum)
+
+    metas = list(bucket.values())
+    metas.sort(key=lambda x: str(x.get("nome") or "").lower())
+    return JsonResponse({"metas": metas})
+
+
+@require_GET
+@login_required
+def programacao_do_dia_orm(request):
+    """
+    Lê a programação do dia via ORM (sem bridge) e normaliza para o front.
+    """
+    iso = request.GET.get("data")
+    if not iso:
+        return JsonResponse({"ok": True, "itens": []})
+
+    dia = _parse_iso(iso)
+    if not dia:
+        return JsonResponse({"ok": True, "itens": []})
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": True, "itens": []})
+
+    try:
+        prog = Programacao.objects.get(unidade_id=unidade_id, data=iso)
+    except Programacao.DoesNotExist:
+        return JsonResponse({"ok": True, "itens": []})
+
+    itens_qs = ProgramacaoItem.objects.filter(programacao=prog).values(
+        "id", "meta_id", "observacao", "veiculo_id"
+    )
+    item_ids = [it["id"] for it in itens_qs]
+    serv_ids_by_item: Dict[int, List[int]] = {}
+    serv_objs_by_item: Dict[int, List[Dict[str, Any]]] = {}
+    if item_ids:
+        for link in (
+            ProgramacaoItemServidor.objects.filter(item_id__in=item_ids)
+            .select_related("servidor")
+        ):
+            iid = int(getattr(link, "item_id"))
+            sid = int(getattr(link, "servidor_id"))
+            serv_ids_by_item.setdefault(iid, []).append(sid)
+            nome = getattr(getattr(link, "servidor", None), "nome", "") or f"Servidor {sid}"
+            serv_objs_by_item.setdefault(iid, []).append({"id": sid, "nome": nome})
+
+    itens: List[Dict[str, Any]] = []
+    for it in itens_qs:
+        meta_id = it["meta_id"]
+        iid = int(it["id"])
+        obj = {
+            "id": iid,
+            "meta_id": meta_id,
+            "observacao": it.get("observacao") or "",
+            "veiculo_id": it.get("veiculo_id"),
+            "servidores_ids": serv_ids_by_item.get(iid, []),
+            "servidores": serv_objs_by_item.get(iid, []),
+        }
+        try:
+            if settings.META_EXPEDIENTE_ID and int(meta_id) == int(settings.META_EXPEDIENTE_ID):
+                obj["titulo"] = "Expediente administrativo"
+        except Exception:
+            pass
+        itens.append(obj)
+
+    return JsonResponse({"ok": True, "itens": itens})
+
+
+@login_required
+@csrf_protect
+@require_POST
+def excluir_programacao_secure(request):
+    """
+    Exclui a Programacao do dia da UNIDADE atual.
+    Aceita JSON: {"programacao_id": <id>} OU {"data": "YYYY-MM-DD"}.
+    """
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        data = {}
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade não definida."}, status=400)
+
+    prog = None
+    pid = data.get("programacao_id")
+    if pid:
+        try:
+            prog = Programacao.objects.get(pk=pid, unidade_id=unidade_id)
+        except Programacao.DoesNotExist:
+            return JsonResponse({"ok": False, "error": "Programação não encontrada."}, status=404)
+    else:
+        iso = data.get("data")
+        dia = _parse_iso(iso or "")
+        if not dia:
+            return JsonResponse({"ok": False, "error": "Data inválida."}, status=400)
+        prog = Programacao.objects.filter(unidade_id=unidade_id, data=iso).first()
+        if not prog:
+            return JsonResponse({"ok": True, "deleted": False})
+
+    prog.delete()
+    return JsonResponse({"ok": True, "deleted": True})
