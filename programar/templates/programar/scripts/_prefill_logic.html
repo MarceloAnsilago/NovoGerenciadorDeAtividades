@@ -109,14 +109,15 @@
   NS.ensureChipIn = ensureChipIn;
 
   // limpa todas alocaes visuais (no mexe no catlogo)
-  function resetAllocations(){
+  function resetAllocations(opts){
+    const options = opts || {};
     document.querySelectorAll('#metaCardsContainer [data-meta-id]').forEach(card => {
       delete card.dataset.itemId;
       const drop = card.querySelector('.meta-dropzone') || card;
       drop.innerHTML = '';
     });
     const expEl = document.getElementById('expedienteAdmin');
-    if (expEl){
+    if (expEl && !options.skipExpediente){
       delete expEl.dataset.itemId;
       expEl.removeAttribute('data-lock');
       expEl.innerHTML = '';
@@ -150,7 +151,7 @@
     NS._lastPrefill = { date: dateStr, itens };
 
     // sempre limpa
-    resetAllocations();
+    resetAllocations({ skipExpediente: itens.length === 0 });
 
     // por padro, permite semear; caso venham itens, bloqueia
     NS._allowExpedienteFromLivres = itens.length === 0;
