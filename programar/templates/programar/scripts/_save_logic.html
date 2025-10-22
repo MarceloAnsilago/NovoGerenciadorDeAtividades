@@ -54,6 +54,7 @@
     return {
       modal: document.getElementById('programar-modalAtividade'),
       btn: document.getElementById('programar-btnSalvar'),
+      deleteBtn: document.getElementById('programar-btnExcluir'),
       date: document.getElementById('programar-dataAtividade'),
       cardsWrap: document.getElementById('metaCardsContainer'),
       expediente: document.getElementById('expedienteAdmin')
@@ -126,6 +127,13 @@
     if (btn) btn.disabled = !hasAnythingToSave();
   }
 
+  function refreshExcluirBtn(){
+    const { deleteBtn, date } = getEl();
+    if (!deleteBtn) return;
+    const iso = date?.value || '';
+    deleteBtn.disabled = !isISODate(iso);
+  }
+
   function isISODate(s){ return /^\d{4}-\d{2}-\d{2}$/.test(String(s||'')); }
 
   // ---------- SALVAR ----------
@@ -196,17 +204,79 @@
     }
   }
 
+  // ---------- EXCLUIR ----------
+  async function excluirProgramacao(){
+    const { deleteBtn, date, modal } = getEl();
+    const url = NS.urls?.excluir;
+    if (!url){ NS.toast('Rota de excluir nǜo configurada.', {variant:'danger', title:'Erro'}); return; }
+
+    const dateStr = date?.value || '';
+    if (!isISODate(dateStr)){
+      NS.toast('Selecione uma data vǭlida para excluir.', {variant:'warning'});
+      return;
+    }
+
+    if (!window.confirm(`Excluir toda a programa��ǜo do dia ${dateStr}? Esta a��o nǜo pode ser desfeita.`)) return;
+
+    const original = deleteBtn?.innerHTML;
+    if (deleteBtn){
+      deleteBtn.disabled = true;
+      deleteBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Excluindo...`;
+    }
+
+    try{
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      };
+      if (CSRF) headers['X-CSRFToken'] = CSRF;
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ data: dateStr })
+      });
+
+      const json = await resp.json().catch(()=> ({}));
+      if (!resp.ok || json.ok === false) {
+        const msg = json?.error || `Falha ao excluir (HTTP ${resp.status}).`;
+        throw new Error(msg);
+      }
+
+      document.body.dataset.progLoaded = '0';
+      NS.resetAllocations?.({});
+      NS.toast(json.deleted ? 'Programa��ǜo exclu��da.' : 'Nenhuma programa��ǜo encontrada.', {
+        variant: json.deleted ? 'success' : 'info'
+      });
+      document.dispatchEvent(new CustomEvent('programar:deleted', {
+        detail: { data: dateStr, deleted: !!json.deleted }
+      }));
+      if (modal && window.bootstrap) bootstrap.Modal.getOrCreateInstance(modal).hide();
+    } catch (err){
+      console.error('[programar] excluir erro:', err);
+      NS.toast(err.message || 'Erro ao excluir a programa��ǜo.', { variant:'danger', title:'Erro' });
+    } finally{
+      if (deleteBtn){
+        deleteBtn.innerHTML = original || 'Excluir';
+        refreshExcluirBtn();
+      }
+      refreshSalvarBtn();
+    }
+  }
+
   // ---------- Bind seguro (ao abrir) ----------
   function bindInsideModal(modalEl){
     if (!modalEl) return;
-    if (modalEl.dataset.saveBound === '1') { refreshSalvarBtn(); return; }
+    if (modalEl.dataset.saveBound === '1') { refreshSalvarBtn(); refreshExcluirBtn(); return; }
     modalEl.dataset.saveBound = '1';
 
     ensureExpedienteMetaId();
     refreshSalvarBtn();
+    refreshExcluirBtn();
 
-    const { btn, cardsWrap, expediente } = getEl();
+    const { btn, deleteBtn, cardsWrap, expediente } = getEl();
     btn?.addEventListener('click', (e)=>{ e.preventDefault(); salvar(); });
+    deleteBtn?.addEventListener('click', (e)=>{ e.preventDefault(); excluirProgramacao(); });
     modalEl.addEventListener('keydown', (e)=>{
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){
         e.preventDefault(); if (!btn?.disabled) salvar();
@@ -226,6 +296,9 @@
     if (!ev.target || ev.target.id !== 'programar-modalAtividade') return;
     bindInsideModal(ev.target);
   });
+
+  document.addEventListener('programar:prefilled', refreshExcluirBtn);
+  document.addEventListener('programar:diaSelecionado', refreshExcluirBtn);
 
   // ---------- Bind imediato (se o include for após o footer) ----------
   (function tryImmediateBind(){
