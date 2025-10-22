@@ -78,8 +78,13 @@
   function extractVeiculoId(card){
     const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
     if (!sel) return null;
-    const v = (sel.tagName === 'SELECT') ? sel.value : sel.dataset.veiculoId;
-    return v ? Number(v) : null;
+    const raw = sel.tagName === 'SELECT'
+      ? (sel.value || sel.dataset.veiculoId || '')
+      : (sel.dataset.veiculoId || '');
+    const value = String(raw || '').trim();
+    if (!value) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 
   function extractItem(card){

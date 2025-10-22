@@ -167,7 +167,14 @@
     const expEl = document.getElementById('expedienteAdmin');
     const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
 
-    for (const it of itens){
+    const ordered = [...itens].sort((a, b) => {
+      const av = a?.veiculo_id != null;
+      const bv = b?.veiculo_id != null;
+      if (av !== bv) return av ? 1 : -1;
+      return (b?.id || 0) - (a?.id || 0);
+    });
+
+    for (const it of ordered){
       // Expediente administrativo: CLONA chips do catlogo
       if (expId && Number(it.meta_id) === expId){
       const nomesExp = new Map((it.servidores || []).map(s => [String(s.id), s.nome]));
@@ -244,6 +251,3 @@
 
 })();
 </script>
-
-
-

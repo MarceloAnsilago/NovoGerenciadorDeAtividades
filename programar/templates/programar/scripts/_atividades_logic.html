@@ -7,6 +7,23 @@
   const metaCardsContainer = () => el('metaCardsContainer');
 
   function updateCounts(){ NS.updateCounts?.(); }
+  function tryAddVeiculosOptions(select) {
+    if (!select || select.dataset.veiculosPopulado === '1') return;
+    const data = Array.isArray(window.PROGRAMAR?.veiculosAtivos) ? window.PROGRAMAR.veiculosAtivos : [];
+    if (!data.length) return;
+    data.forEach(v => {
+      if (!v || v.id == null) return;
+      const value = String(v.id);
+      if (select.querySelector(`option[value="${value}"]`)) return;
+      const opt = document.createElement('option');
+      opt.value = value;
+      const nome = (v.nome || '').trim();
+      const placa = (v.placa || '').trim();
+      opt.textContent = placa ? `${nome} - ${placa}` : (nome || placa || `Veiculo #${value}`);
+      select.appendChild(opt);
+    });
+    select.dataset.veiculosPopulado = '1';
+  }
 
   NS.ensureMetaCard = function(metaId, metaTitle){
     const cont = metaCardsContainer(); 
@@ -15,6 +32,7 @@
     // já existe? apenas foca/rola e sai
     let card = cont.querySelector(`[data-meta-id="${metaId}"]`);
     if (card){
+      tryAddVeiculosOptions(card.querySelector('select.card-veiculos'));
       card.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
       return card;
     }
@@ -38,12 +56,19 @@
         </div>
       </div>
       <div class="card-body meta-body">
-        <!-- ⬇️ dropzone que recebe os chips -->
+        <!-- area de alocacao dos servidores -->
         <div class="servidores-grid meta-dropzone dropzone mb-3"></div>
+        <div class="mb-2 meta-vehicles-block">
+          <label class="form-label mb-1">Veiculo</label>
+          <select class="form-select form-select-sm card-veiculos" name="card_veiculos" data-placeholder="Nenhum veiculo" data-meta-id="${metaId}">
+            <option value="" data-placeholder="1">Nenhum veiculo</option>
+          </select>
+        </div>
       </div>
     `;
 
     cont.appendChild(card);
+    tryAddVeiculosOptions(card.querySelector('select.card-veiculos'));
 
     // remove qualquer tarja/alert legado que outro script tenha colocado
     card.querySelectorAll('.alert').forEach(n => n.remove());

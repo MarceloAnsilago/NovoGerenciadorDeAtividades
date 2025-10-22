@@ -67,9 +67,14 @@
   function extractVeiculoId(card){
     const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
     if (!sel) return null;
-    const v = (sel.tagName === 'SELECT') ? sel.value : sel.dataset.veiculoId;
-    return v ? Number(v) : null;
-    }
+    const raw = sel.tagName === 'SELECT'
+      ? (sel.value || sel.dataset.veiculoId || '')
+      : (sel.dataset.veiculoId || '');
+    const value = String(raw || '').trim();
+    if (!value) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
   function extractItem(card){
     const metaId = Number(card.dataset.metaId);
     const itemId = Number(card.dataset.itemId || 0);   // 👈 pega id existente
@@ -259,7 +264,14 @@
     const expEl = document.getElementById('expedienteAdmin');
     const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
 
-    for (const it of itens) {
+    const ordered = [...itens].sort((a, b) => {
+      const av = a?.veiculo_id != null;
+      const bv = b?.veiculo_id != null;
+      if (av !== bv) return av ? 1 : -1;
+      return (b?.id || 0) - (a?.id || 0);
+    });
+
+    for (const it of ordered) {
       // Expediente Administrativo
     
       if (expId && it.meta_id === expId) {
@@ -279,11 +291,27 @@
       const ta = card.querySelector('textarea[name="observacao"]');
       if (ta) ta.value = it.observacao || '';
 
-      const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos');
-      if (sel && it.veiculo_id != null) sel.value = String(it.veiculo_id);
+      const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
+      if (sel) {
+        if (it.veiculo_id != null) {
+          const value = String(it.veiculo_id);
+          if (sel.tagName === 'SELECT') sel.value = value;
+          sel.dataset.veiculoId = value;
+          if (it.veiculo_label) sel.dataset.veiculoLabel = String(it.veiculo_label);
+          else delete sel.dataset.veiculoLabel;
+        } else {
+          if (sel.tagName === 'SELECT') sel.value = '';
+          delete sel.dataset.veiculoId;
+          delete sel.dataset.veiculoLabel;
+        }
+      }
 
       const drop = card.querySelector('.meta-dropzone') || card;
       it.servidores_ids.forEach(sid => moveChipTo(drop, sid));
+    }
+
+    if (typeof NS.refreshVeiculoSelects === 'function') {
+      NS.refreshVeiculoSelects();
     }
 
     // atualizar contagens (usa quem estiver disponível)

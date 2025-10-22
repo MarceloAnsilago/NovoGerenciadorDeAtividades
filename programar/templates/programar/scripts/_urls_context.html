@@ -13,6 +13,11 @@
     printSemana:    "{% url 'programar:print_relatorio_semana' %}",
     relatorios:     "{% url 'programar:relatorios_parcial' %}"
   };
+  try {
+    NS.veiculosAtivos = JSON.parse("{{ VEICULOS_ATIVOS_JSON|escapejs }}") || [];
+  } catch (_err) {
+    NS.veiculosAtivos = [];
+  }
 })();
 </script>
 

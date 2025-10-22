@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import html
-import json, logging
+import json
+import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List
 from django.conf import settings
@@ -28,8 +29,21 @@ from django.db import transaction
 # =============================================================================
 def calendario_view(request):
     meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    veiculos_json = "[]"
+    try:
+        unidade_id = get_unidade_atual_id(request)
+        if unidade_id:
+            veiculos_qs = (
+                Veiculo.objects.filter(unidade_id=unidade_id, ativo=True)
+                .order_by("nome")
+                .values("id", "nome", "placa")
+            )
+            veiculos_json = json.dumps(list(veiculos_qs))
+    except Exception:
+        veiculos_json = "[]"
     return render(request, "programar/calendario.html", {
         "META_EXPEDIENTE_ID": meta_expediente_id,
+        "VEICULOS_ATIVOS_JSON": veiculos_json,
     })
 
 
