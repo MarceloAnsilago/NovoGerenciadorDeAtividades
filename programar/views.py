@@ -608,6 +608,9 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
       - Servidores de atividade: uma linha por nome + S/N
       - Servidores do expediente: inline, separados por vírgula, sem S/N
       - Coluna 'Realizada': S/N só para atividades; '—' para expediente/impedidos
+      - Linha divisória mais forte entre dias (tr.day-end + td.dia-cell.day-end)
+      - Coluna 'Veículo' centralizada (horizontal e vertical)
+      - Ao final: Relatório de atividades por servidor (2 linhas por atividade)
     """
     ds = _parse_iso(start_iso)
     de = _parse_iso(end_iso)
@@ -617,12 +620,8 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
     def _srv_list_html(nomes: list[str], *, with_boxes: bool = True, inline: bool = False) -> str:
         if not nomes:
             return "<span class='text-muted'>—</span>"
-
         if inline or not with_boxes:
-            # compacto: "ALICE, BOB, CAROL"
             return "<span class='srv-inline'>" + ", ".join(html.escape(n) for n in nomes) + "</span>"
-
-        # padrão: uma linha por servidor com caixinhas
         parts = []
         for nm in nomes:
             safe = html.escape(nm)
@@ -648,24 +647,24 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
     rows_html: list[str] = []
     tem_algum = False
 
+    # ------- acumulador para o relatório por servidor (exclui expediente e impedidos)
+    from collections import defaultdict
+    atividades_por_servidor = defaultdict(list)  # nome -> list[ dict(dia_label, iso, atividade, veiculo) ]
+
     for dt in _daterange_inclusive(ds, de):
         iso = dt.strftime("%Y-%m-%d")
         dia_label = f"{dt.strftime('%d/%m')} ({_weekday_pt_short(dt.weekday())})"
 
-        # Atividades via bridge legado
         itens = _fetch_programacao_dia_via_bridge(request, iso)
 
-        # ids alocados em qualquer atividade do dia
         alocados_ids: set[str] = set()
         for it in itens:
             for sid in it.get("servidor_ids", []):
                 if sid:
                     alocados_ids.add(str(sid))
 
-        # expediente (livres - alocados) e impedidos
         expediente, impedidos = _fetch_expediente_admin_via_bridge(request, iso, alocados_ids)
 
-        # ---- ORDEM: expediente -> atividades -> impedidos ----
         blocks: list[dict] = []
         if expediente:
             blocks.append({"kind": "expediente", "servidores": expediente})
@@ -682,8 +681,8 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         total = len(blocks)
         if total == 0:
             rows_html.append(
-                "<tr>"
-                f"<td class='dia-cell'>{html.escape(dia_label)}</td>"
+                "<tr class='day-end'>"
+                f"<td class='dia-cell day-end'>{html.escape(dia_label)}</td>"
                 "<td colspan='4' class='text-muted'>Sem programação.</td>"
                 "</tr>"
             )
@@ -692,10 +691,12 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         tem_algum = True
 
         for idx, b in enumerate(blocks):
-            open_tr = "<tr>"
+            is_last = (idx == total - 1)
+            tr_class = "day-end" if is_last else ""
+            open_tr = f"<tr class='{tr_class}'>"
             dia_td = ""
             if idx == 0:
-                dia_td = f"<td class='dia-cell' rowspan='{total}'>{html.escape(dia_label)}</td>"
+                dia_td = f"<td class='dia-cell day-end' rowspan='{total}'>{html.escape(dia_label)}</td>"
 
             if b["kind"] == "expediente":
                 rows_html.append(
@@ -703,23 +704,31 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + dia_td
                     + "<td class='atividade-cell'><em>Expediente administrativo</em></td>"
                     + f"<td>{_srv_list_html(b['servidores'], with_boxes=False, inline=True)}</td>"
-                    + "<td class='text-nowrap'>—</td>"
+                    + "<td class='veiculo-cell text-nowrap'>—</td>"
                     + "<td class='realizada-cell'>—</td>"
                     + "</tr>"
                 )
-
             elif b["kind"] == "atividade":
+                # ---- acumula por servidor para o relatório de atividades
+                for nome in (b.get("servidores") or []):
+                    if nome and isinstance(nome, str):
+                        atividades_por_servidor[nome].append({
+                            "dia_label": dia_label,
+                            "iso": iso,
+                            "atividade": b["meta"],
+                            "veiculo": b["veiculo"],
+                        })
+
                 rows_html.append(
                     open_tr
                     + dia_td
                     + f"<td class='atividade-cell'>{html.escape(b['meta'])}</td>"
                     + f"<td>{_srv_list_html(b['servidores'], with_boxes=True, inline=False)}</td>"
-                    + f"<td class='text-nowrap'>{html.escape(b['veiculo'])}</td>"
+                    + f"<td class='veiculo-cell text-nowrap'>{html.escape(b['veiculo'])}</td>"
                     + f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
                     + "</tr>"
                 )
-
-            else:  # impedidos (informativo)
+            else:  # impedidos
                 imp_lines = "".join(
                     f"<div class='text-muted'><span class='fw-semibold'>{html.escape(i['nome'])}</span>"
                     f" — {html.escape(i['motivo'])}</div>"
@@ -730,12 +739,37 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + dia_td
                     + "<td class='atividade-cell'><em>Impedidos</em></td>"
                     + f"<td>{imp_lines}</td>"
-                    + "<td class='text-nowrap'>—</td>"
+                    + "<td class='veiculo-cell text-nowrap'>—</td>"
                     + "<td class='realizada-cell'>—</td>"
                     + "</tr>"
                 )
 
-    table = (
+    # ---------- CSS embutido (pode mover p/ estático)
+    style = (
+        "<style>"
+        "/* Veículo: centro horiz/vert */"
+        ".programacao-semana-table tbody td.veiculo-cell{"
+        "  text-align:center !important; vertical-align:middle !important;"
+        "}"
+        "/* Borda forte no fim de cada dia */"
+        ".programacao-semana-table tbody tr.day-end > td,"
+        ".programacao-semana-table tbody td.dia-cell.day-end{"
+        "  border-bottom: 2px solid #000 !important;"
+        "}"
+        ".programacao-semana-table th:first-child, .programacao-semana-table td.dia-cell{ min-width:110px; }"
+        ".programacao-semana-table td, .programacao-semana-table th{ vertical-align: top; }"
+        "/* Mini-tabela do relatório de atividades */"
+        ".rel-atividades .card-ativ{ page-break-inside: avoid; }"
+        ".rel-atividades .mini-table{ width:100%; border-collapse:collapse; }"
+        ".rel-atividades .mini-table td{ border:1px solid var(--bs-border-color); padding:.35rem .5rem; }"
+        ".rel-atividades .mini-table .lbl{ width:180px; white-space:nowrap; }"
+        ".rel-atividades .mini-table .just{ height:2.2rem; }"
+        ".rel-atividades .servidor-title{ font-weight:600; margin-bottom:.35rem; }"
+        "</style>"
+    )
+
+    # ---------- bloco principal (programação da semana)
+    bloco_programacao = (
         "<div id='programar-programacao-semana-block' class='mt-3'>"
         "<h6 class='fw-semibold mb-2'><i class='bi bi-table me-1'></i> Programação da semana</h6>"
         "<div class='table-responsive'>"
@@ -754,8 +788,64 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         + ("" if tem_algum else "<div class='text-muted mt-2'>Nenhuma atividade nesta semana.</div>")
         + "</div>"
     )
-    return table
 
+    # -------- RELATÓRIO DE ATIVIDADES (embaixo)
+    # ordena servidores alfabeticamente
+    servidores_ordenados = sorted(atividades_por_servidor.keys(), key=str.casefold)
+
+    cards: list[str] = []
+    for nome in servidores_ordenados:
+        itens = atividades_por_servidor[nome]
+        if not itens:
+            continue
+        # um card/“tabelinha” por servidor
+        linhas = []
+        # opcional: ordena por data
+        itens_sorted = sorted(itens, key=lambda x: (x["iso"], x["atividade"]))
+        for it in itens_sorted:
+            dia = html.escape(it["dia_label"])
+            iso = html.escape(it["iso"])
+            atividade = html.escape(it.get("atividade") or "")
+
+            # 1ª linha: dia do mês + semana + atividade
+            linhas.append(
+                "<tr>"
+                "<td class='lbl'>Dia</td>"
+                f"<td>{dia}" + (f": {atividade}" if atividade else "") + "</td>"
+                "</tr>"
+            )
+
+            # 2ª linha: data marcada + linha para justificativa
+            linhas.append(
+                "<tr>"
+                "<td class='lbl'>Data marcada</td>"
+                f"<td>{iso} — <span class='text-muted'>Justificativa:</span> "
+                "<span class='just d-inline-block' style='display:inline-block;border-bottom:1px solid var(--bs-border-color);width:70%;'></span>"
+                "</td>"
+                "</tr>"
+            )
+        card = (
+            "<div class='card card-ativ border-0 shadow-sm mb-3 rel-atividades'>"
+            "<div class='card-body p-3'>"
+            f"<div class='servidor-title'><i class='bi bi-person me-1'></i>Servidor: {html.escape(nome)}</div>"
+            "<table class='mini-table'>"
+            "<tbody>"
+            + "".join(linhas) +
+            "</tbody></table>"
+            "</div>"
+            "</div>"
+        )
+        cards.append(card)
+
+    bloco_atividades = (
+        "<div class='mt-4 rel-atividades'>"
+        "<h6 class='fw-semibold mb-2'><i class='bi bi-list-check me-1'></i> Justificativa de atividades não realizadas</h6>"
+        + ("".join(cards) if cards else "<div class='text-muted'>Nenhuma atividade para os servidores no período.</div>")
+        + "</div>"
+    )
+
+    # retorna tudo: programação + rel. atividades
+    return style + bloco_programacao + bloco_atividades
 
 
 
