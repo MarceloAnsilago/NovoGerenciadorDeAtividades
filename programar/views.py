@@ -898,16 +898,17 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 f"<td>{dia}" + (f": {atividade}" if atividade else "") + "</td>"
                 "</tr>"
             )
-            # 2ª linha: data marcada + espaço para justificativa
+    
+            # 2ª linha: apenas "Justificativa" com a linha para preencher
             linhas.append(
                 "<tr>"
-                "<td class='lbl'>Data marcada</td>"
-                f"<td>{iso} — <span class='text-muted'>Justificativa:</span> "
-                "<span class='just d-inline-block' style='display:inline-block;border-bottom:1px solid var(--bs-border-color);width:70%;'></span>"
+                "<td class='lbl'>Justificativa</td>"
+                "<td>"
+                "<span class='just d-inline-block' "
+                "style='display:inline-block;border-bottom:1px solid var(--bs-border-color);width:100%;'></span>"
                 "</td>"
                 "</tr>"
             )
-
         card = (
             "<div class='card card-ativ border-0 shadow-sm mb-3 rel-atividades'>"
             "<div class='card-body p-3'>"
