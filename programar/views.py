@@ -619,12 +619,13 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
       - Linha divisória mais forte entre dias (tr.day-end + td.dia-cell.day-end)
       - Coluna 'Veículo' centralizada (horizontal e vertical)
       - Dedup de atividades por META (se houver uma com servidores, elimina as vazias dessa meta)
+      - Cada DIA é um <tbody> separado (dia-bucket) para não quebrar no meio na impressão
       - Ao final: 'Justificativa de atividades não realizadas' por servidor
     """
-    # ---------------- helpers locais ----------------
     import unicodedata
     from collections import defaultdict
 
+    # ---------- helpers ----------
     def _norm(s: str) -> str:
         if not s:
             return ""
@@ -700,13 +701,15 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             "</div>"
         )
 
-    rows_html: list[str] = []
     tem_algum = False
 
-    # Acumulador para o relatório por servidor (exclui expediente e impedidos)
+    # acumula para relatório por servidor
     atividades_por_servidor = defaultdict(list)  # nome -> list[ dict(dia_label, iso, atividade, veiculo) ]
 
-    # ---------------- loop por dia ----------------
+    # >>> AGORA: em vez de um tbody único, guardaremos vários <tbody> (um por dia)
+    bodies_html: list[str] = []
+
+    # ---------- loop por dia ----------
     for dt in _daterange_inclusive(ds, de):
         iso = dt.strftime("%Y-%m-%d")
         dia_label = f"{dt.strftime('%d/%m')} ({_weekday_pt_short(dt.weekday())})"
@@ -732,10 +735,10 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             else:
                 itens_atividades.append(it)
 
-        # Dedup das atividades por META
+        # Dedup por META
         itens_atividades = _dedup_atividades(itens_atividades)
 
-        # Mescla expediente do cálculo + do item legado, removendo duplicados preservando ordem
+        # Mescla expediente calculado + do legado (sem duplicar nomes)
         if expediente_extra:
             seen = set()
             exp_merge = []
@@ -760,13 +763,19 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             blocks.append({"kind": "impedidos", "dados": impedidos})
 
         total = len(blocks)
+
+        # linhas desse DIA
+        day_rows: list[str] = []
+
         if total == 0:
-            rows_html.append(
+            day_rows.append(
                 "<tr class='day-end'>"
                 f"<td class='dia-cell day-end'>{html.escape(dia_label)}</td>"
                 "<td colspan='4' class='text-muted'>Sem programação.</td>"
                 "</tr>"
             )
+            # empacota o dia mesmo assim
+            bodies_html.append("<tbody class='dia-bucket'>" + "".join(day_rows) + "</tbody>")
             continue
 
         tem_algum = True
@@ -777,12 +786,11 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             open_tr = f"<tr class='{tr_class}'>"
             dia_td = ""
             if idx == 0:
-                # marca o TD do dia também como day-end para a borda atravessar o rowspan
+                # TD do dia também com classe day-end para borda atravessar rowSpan
                 dia_td = f"<td class='dia-cell day-end' rowspan='{total}'>{html.escape(dia_label)}</td>"
 
             if b["kind"] == "expediente":
-                # expediente SEM S/N e veículo em “—”
-                rows_html.append(
+                day_rows.append(
                     open_tr
                     + dia_td
                     + "<td class='atividade-cell'><em>Expediente administrativo</em></td>"
@@ -793,7 +801,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 )
 
             elif b["kind"] == "atividade":
-                # acumula por servidor para o relatório de atividades
+                # acumula para rel. atividades
                 for nome in (b.get("servidores") or []):
                     if nome and isinstance(nome, str):
                         atividades_por_servidor[nome].append({
@@ -803,7 +811,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                             "veiculo": b["veiculo"],
                         })
 
-                rows_html.append(
+                day_rows.append(
                     open_tr
                     + dia_td
                     + f"<td class='atividade-cell'>{html.escape(b['meta'])}</td>"
@@ -813,13 +821,13 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + "</tr>"
                 )
 
-            else:  # impedidos (informativo)
+            else:  # impedidos
                 imp_lines = "".join(
                     f"<div class='text-muted'><span class='fw-semibold'>{html.escape(i['nome'])}</span>"
                     f" — {html.escape(i['motivo'])}</div>"
                     for i in b["dados"]
                 )
-                rows_html.append(
+                day_rows.append(
                     open_tr
                     + dia_td
                     + "<td class='atividade-cell'><em>Impedidos</em></td>"
@@ -829,31 +837,67 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + "</tr>"
                 )
 
-    # ---------- CSS embutido (pode mover p/ estático)
+        # empacota o DIA num <tbody> próprio (anti quebra)
+        bodies_html.append("<tbody class='dia-bucket'>" + "".join(day_rows) + "</tbody>")
+
+    # ---------- CSS embutido ----------
     style = (
         "<style>"
-        "/* Veículo: centro horiz/vert */"
+        "/* ====== TELA ====== */"
         ".programacao-semana-table tbody td.veiculo-cell{"
         "  text-align:center !important; vertical-align:middle !important;"
         "}"
-        "/* Borda forte no fim de cada dia (todas as colunas, incluindo TD com rowspan) */"
         ".programacao-semana-table tbody tr.day-end > td,"
         ".programacao-semana-table tbody td.dia-cell.day-end{"
         "  border-bottom: 2px solid #000 !important;"
         "}"
         ".programacao-semana-table th:first-child, .programacao-semana-table td.dia-cell{ min-width:110px; }"
         ".programacao-semana-table td, .programacao-semana-table th{ vertical-align: top; }"
-        "/* Mini-tabela do relatório de atividades */"
+
+        "/* Relatório 'Justificativa…' */"
         ".rel-atividades .card-ativ{ page-break-inside: avoid; }"
         ".rel-atividades .mini-table{ width:100%; border-collapse:collapse; }"
         ".rel-atividades .mini-table td{ border:1px solid var(--bs-border-color); padding:.35rem .5rem; }"
         ".rel-atividades .mini-table .lbl{ width:180px; white-space:nowrap; }"
         ".rel-atividades .mini-table .just{ height:2.2rem; }"
         ".rel-atividades .servidor-title{ font-weight:600; margin-bottom:.35rem; }"
+
+        "/* ====== IMPRESSÃO ====== */"
+        "@media print{"
+        "  .programacao-semana-table .dia-bucket{"
+        "    break-inside: avoid; page-break-inside: avoid;"
+        "  }"
+        "  .programacao-semana-table tr, .programacao-semana-table td{"
+        "    break-inside: avoid; page-break-inside: avoid;"
+        "  }"
+
+        "  .programacao-semana-table{"
+        "    border-collapse: collapse !important;"
+        "    table-layout: fixed;"
+        "  }"
+        "  .programacao-semana-table th, .programacao-semana-table td{"
+        "    padding: 4pt 6pt !important;"
+        "    line-height: 1.2 !important;"
+        "    border-top: 0.5pt solid #000 !important;"
+        "    vertical-align: top;"
+        "  }"
+        "  .programacao-semana-table thead th{"
+        "    border-bottom: 0.75pt solid #000 !important;"
+        "    border-top: 0.5pt solid #000 !important;"
+        "  }"
+        "  .programacao-semana-table tbody tr.day-end > td,"
+        "  .programacao-semana-table tbody td.dia-cell.day-end{"
+        "    border-bottom: 1.5pt solid #000 !important;"
+        "  }"
+        "  .programacao-semana-table td.veiculo-cell{"
+        "    text-align: center !important;"
+        "    vertical-align: middle !important;"
+        "  }"
+        "}"
         "</style>"
     )
 
-    # ---------- bloco principal (programação da semana)
+    # ---------- bloco principal (programação da semana) ----------
     bloco_programacao = (
         "<div id='programar-programacao-semana-block' class='mt-3'>"
         "<h6 class='fw-semibold mb-2'><i class='bi bi-table me-1'></i> Programação da semana</h6>"
@@ -867,14 +911,16 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "<th style='width:200px'>Veículo</th>"
         "<th style='width:140px'>Realizada</th>"
         "</tr>"
-        "</thead><tbody>"
-        + "".join(rows_html) +
-        "</tbody></table></div>"
-        + ("" if tem_algum else "<div class='text-muted mt-2'>Nenhuma atividade nesta semana.</div>")
+        "</thead>"
+        + "".join(bodies_html) +  # <<< vários <tbody>, um por dia
+        "</table></div>"
+        + (""
+           if any(bodies_html) else
+           "<div class='text-muted mt-2'>Nenhuma atividade nesta semana.</div>")
         + "</div>"
     )
 
-    # -------- RELATÓRIO DE ATIVIDADES (embaixo)
+    # ---------- RELATÓRIO DE ATIVIDADES (embaixo) ----------
     servidores_ordenados = sorted(atividades_por_servidor.keys(), key=str.casefold)
 
     cards: list[str] = []
@@ -885,21 +931,18 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 
         linhas = []
         itens_sorted = sorted(itens, key=lambda x: (x["iso"], x["atividade"]))
-
         for it in itens_sorted:
             dia = html.escape(it["dia_label"])
-            iso = html.escape(it["iso"])
             atividade = html.escape(it.get("atividade") or "")
 
-            # 1ª linha: dia do mês + semana + atividade
+            # 1ª linha: dia + atividade
             linhas.append(
                 "<tr>"
                 "<td class='lbl'>Dia</td>"
                 f"<td>{dia}" + (f": {atividade}" if atividade else "") + "</td>"
                 "</tr>"
             )
-    
-            # 2ª linha: apenas "Justificativa" com a linha para preencher
+            # 2ª linha: apenas “Justificativa” com linha
             linhas.append(
                 "<tr>"
                 "<td class='lbl'>Justificativa</td>"
@@ -909,18 +952,16 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 "</td>"
                 "</tr>"
             )
-        card = (
+
+        cards.append(
             "<div class='card card-ativ border-0 shadow-sm mb-3 rel-atividades'>"
             "<div class='card-body p-3'>"
             f"<div class='servidor-title'><i class='bi bi-person me-1'></i>Servidor: {html.escape(nome)}</div>"
-            "<table class='mini-table'>"
-            "<tbody>"
+            "<table class='mini-table'><tbody>"
             + "".join(linhas) +
             "</tbody></table>"
-            "</div>"
-            "</div>"
+            "</div></div>"
         )
-        cards.append(card)
 
     bloco_atividades = (
         "<div class='mt-4 rel-atividades'>"
@@ -929,7 +970,6 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         + "</div>"
     )
 
-    # retorna tudo: programação + rel. atividades
     return style + bloco_programacao + bloco_atividades
 
 
