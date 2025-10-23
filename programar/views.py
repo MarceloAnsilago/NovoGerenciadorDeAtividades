@@ -736,7 +736,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 )
 
     table = (
-        "<div class='mt-3'>"
+        "<div id='programar-programacao-semana-block' class='mt-3'>"
         "<h6 class='fw-semibold mb-2'><i class='bi bi-table me-1'></i> Programação da semana</h6>"
         "<div class='table-responsive'>"
         "<table class='table table-sm align-middle mb-0 programacao-semana-table'>"

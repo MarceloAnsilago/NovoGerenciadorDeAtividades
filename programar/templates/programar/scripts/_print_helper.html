@@ -1,30 +1,155 @@
 <script>
-(function(){
-  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
-  function getRange(){
-    const sel = document.getElementById('programar-select-semana');
+(function () {
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
+
+  function getRangeFromSelect() {
+    const sel = document.getElementById("programar-select-semana");
     if (!sel || sel.selectedIndex <= 0) return null;
     const opt = sel.options[sel.selectedIndex];
     return { start: opt.dataset.inicio, end: opt.dataset.fim };
   }
-  async function printFromUrl(url){
-    const r = await fetch(url, { headers:{ 'X-Requested-With':'XMLHttpRequest' }});
-    const html = await r.text();
-    const w = window.open('', '_blank'); if (!w){ alert('Permita popups para imprimir.'); return; }
-    w.document.open(); w.document.write(html); w.document.close(); w.focus(); w.print();
+
+  function resolveRange(btn) {
+    if (!btn) return null;
+    const { start, end } = btn.dataset || {};
+    if (start && end) return { start, end };
+    return getRangeFromSelect();
   }
-  async function onPrintClick(ev){
-    const btn = ev.currentTarget;
-    const rg = getRange();
-    if (!rg){ alert('Selecione uma semana.'); return; }
-    const params = new URLSearchParams({ start: rg.start, end: rg.end, inline: '1' });
-    const url = NS.urls.printSemana + '?' + params.toString();
-    btn.disabled = true; try { await printFromUrl(url); } finally { btn.disabled = false; }
+
+  function collectStylesHtml() {
+    const selectors = [
+      "style#programar-styles",
+      "style[data-print-include]",
+      'link[rel="stylesheet"][href*="bootstrap"]',
+      'link[rel="stylesheet"][href*="bootstrap-icons"]',
+    ];
+    const seen = new Set();
+    const parts = [];
+    selectors.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        const html = el.outerHTML;
+        if (html && !seen.has(html)) {
+          seen.add(html);
+          parts.push(html);
+        }
+      });
+    });
+    return parts.join("\n");
   }
-  document.addEventListener('click', (e)=>{
-    if (e.target.id === 'programar-btnImprimirProgramacao' || e.target.id === 'programar-btnImprimirVista'){
-      onPrintClick(e);
+
+  function printCurrentRelatorio(btn) {
+    if (!btn || btn.dataset.printing === "1") return;
+
+    const range = resolveRange(btn);
+    if (!range || !range.start || !range.end) {
+      alert("Selecione uma semana.");
+      return;
     }
-  });
+
+    const container = document.getElementById("programar-relatoriosContainer");
+    if (!container) {
+      alert("Relatório não disponível para impressão.");
+      return;
+    }
+    const target =
+      container.querySelector("#relatorioPrintArea") || container.firstElementChild || container;
+    const html = target?.outerHTML || "";
+    if (!html.trim()) {
+      alert("Nenhum relatório carregado para imprimir.");
+      return;
+    }
+
+    btn.dataset.printing = "1";
+    btn.disabled = true;
+
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.position = "fixed";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+    document.body.appendChild(iframe);
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      delete btn.dataset.printing;
+      btn.disabled = false;
+      iframe.remove();
+    };
+    const fallbackTimer = window.setTimeout(cleanup, 60000);
+
+    iframe.onload = () => {
+      try {
+        const win = iframe.contentWindow;
+        if (!win) {
+          cleanup();
+          return;
+        }
+        win.onafterprint = () => {
+          window.clearTimeout(fallbackTimer);
+          window.setTimeout(cleanup, 20);
+        };
+        win.focus();
+        window.setTimeout(() => {
+          try {
+            win.print();
+          } catch (err) {
+            console.error("[programar] print() falhou", err);
+            cleanup();
+          }
+        }, 30);
+      } catch (err) {
+        console.error("[programar] preparação de impressão falhou", err);
+        cleanup();
+      }
+    };
+
+    try {
+      const styles = collectStylesHtml();
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) {
+        cleanup();
+        return;
+      }
+      const titleRange = `${range.start} &#8594; ${range.end}`;
+      doc.open();
+      doc.write(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Relatório ${titleRange}</title>
+  ${styles}
+  <style>
+    body{margin:0;padding:16px;background:#fff;font-family:system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;}
+    #relatorioPrintArea{box-shadow:none!important;border:0!important;}
+    @page{margin:12mm;}
+  </style>
+</head>
+<body>
+${html}
+</body>
+</html>`);
+      doc.close();
+    } catch (err) {
+      console.error("[programar] composição de impressão falhou", err);
+      cleanup();
+    }
+  }
+
+  document.addEventListener(
+    "click",
+    (ev) => {
+      const btn = ev.target.closest?.("#programar-btnImprimirProgramacao, #btnImprimirProgramacao");
+      if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      ev.stopImmediatePropagation?.();
+      printCurrentRelatorio(btn);
+    },
+    true
+  );
 })();
 </script>

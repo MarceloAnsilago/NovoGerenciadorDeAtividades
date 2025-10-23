@@ -233,15 +233,38 @@
     <div>Gerado por: <strong>{{ request.user.get_full_name|default:request.user.username }}</strong></div>
     <div>Data: {{ now|date:"d/m/Y H:i" }}</div>
   </footer>
-
   <script>
-    // dispara print automaticamente quando a página carregar em nova aba
-    // (mantemos um pequeno delay para garantir que fontes/estilos sejam aplicados)
-    window.addEventListener('load', function() {
-      try {
-        setTimeout(function() { window.print(); }, 200);
-      } catch (e) { /* noop */ }
-    });
+    // imprime automaticamente e tenta fechar a janela apos concluir
+    (function () {
+      let closed = false;
+
+      function tryClose() {
+        if (closed) return;
+        closed = true;
+        try { window.close(); } catch (_) { /* noop */ }
+      }
+
+      function bindAutoClose() {
+        window.addEventListener('afterprint', tryClose, { once: true });
+        const mq = window.matchMedia?.('print');
+        if (mq?.addEventListener) {
+          const handler = (ev) => {
+            if (!ev.matches) {
+              mq.removeEventListener('change', handler);
+              tryClose();
+            }
+          };
+          mq.addEventListener('change', handler);
+        }
+      }
+
+      window.addEventListener('load', function () {
+        bindAutoClose();
+        try {
+          setTimeout(function () { window.print(); }, 200);
+        } catch (_) { /* noop */ }
+      });
+    })();
   </script>
 </body>
 </html>

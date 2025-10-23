@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function(){
   if (!el) return;
 
   // 🔒 desabilita botões de imprimir até que uma semana seja escolhida
-  const printBtns = ['programar-btnImprimirProgramacao','programar-btnImprimirVista']
+  const printBtns = ['programar-btnImprimirProgramacao','btnImprimirProgramacao']
     .map(id => document.getElementById(id));
   printBtns.forEach(b => { if (b) b.disabled = true; });
 

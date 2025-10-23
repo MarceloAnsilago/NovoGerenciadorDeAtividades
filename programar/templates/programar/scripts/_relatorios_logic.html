@@ -28,6 +28,8 @@
     }
 
     setLoading(container);
+    delete container.dataset.start;
+    delete container.dataset.end;
 
     const url = `${NS.urls.relatorios}?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
     if (DEBUG) console.info('[programar] fetch relatorios:', url);
@@ -81,13 +83,18 @@
         container.innerHTML = text || `<div class="alert alert-danger">Resposta vazia do servidor.</div>`;
       }
 
-      // reexpõe o intervalo nos botões de imprimir (do nosso toolbar)
+      // reexpõe o intervalo nos botões de impressão da programação
       try{
-        ['programar-btnImprimirProgramacao','programar-btnImprimirVista'].forEach(id=>{
-          const b = document.getElementById(id);
-          if (b){ b.dataset.start = startISO; b.dataset.end = endISO; }
+        ['programar-btnImprimirProgramacao', 'btnImprimirProgramacao'].forEach(id => {
+          const btn = document.getElementById(id);
+          if (!btn) return;
+          btn.dataset.start = startISO;
+          btn.dataset.end = endISO;
+          btn.disabled = false;
         });
-      }catch(e){ if (DEBUG) console.warn('print buttons dataset fail', e); }
+        container.dataset.start = startISO;
+        container.dataset.end = endISO;
+      }catch(e){ if (DEBUG) console.warn('print button dataset fail', e); }
 
     }catch(err){
       if (DEBUG) console.error('[programar] relatorios fetch error', err);

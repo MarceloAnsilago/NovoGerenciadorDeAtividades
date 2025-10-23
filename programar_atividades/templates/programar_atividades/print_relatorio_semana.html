@@ -103,6 +103,39 @@
     <div>Data: {{ now|date:"d/m/Y H:i" }}</div>
   </footer>
 
-  <script>window.addEventListener('load', () => setTimeout(() => { try{ window.print(); }catch(e){} }, 200));</script>
+  <script>
+    // imprime automaticamente e tenta fechar a janela apos concluir
+    (function () {
+      let closed = false;
+
+      function tryClose() {
+        if (closed) return;
+        closed = true;
+        try { window.close(); } catch (_) { /* noop */ }
+      }
+
+      function bindAutoClose() {
+        window.addEventListener('afterprint', tryClose, { once: true });
+        const mq = window.matchMedia?.('print');
+        if (mq?.addEventListener) {
+          const handler = (ev) => {
+            if (!ev.matches) {
+              mq.removeEventListener('change', handler);
+              tryClose();
+            }
+          };
+          mq.addEventListener('change', handler);
+        }
+      }
+
+      window.addEventListener('load', () => {
+        bindAutoClose();
+        setTimeout(() => {
+          try { window.print(); } catch (_) { /* noop */ }
+        }, 200);
+      });
+    })();
+  </script>
 </body>
 </html>
+

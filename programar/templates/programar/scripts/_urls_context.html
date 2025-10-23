@@ -10,8 +10,8 @@
     programacaoDia: "{% url 'programar:programacao_do_dia' %}",
     excluir:        "{% url 'programar:excluir_programacao' %}",
     plantaoSemana:  "{% url 'plantao:servidores_por_intervalo' %}",
-    printSemana:    "{% url 'programar:print_relatorio_semana' %}",
-    relatorios:     "{% url 'programar:relatorios_parcial' %}"
+    relatorios:     "{% url 'programar:relatorios_parcial' %}",
+    printRelatorioSemana: "{% url 'programar:print_relatorio_semana' %}"
   };
   try {
     NS.veiculosAtivos = JSON.parse("{{ VEICULOS_ATIVOS_JSON|escapejs }}") || [];

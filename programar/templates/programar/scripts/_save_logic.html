@@ -208,7 +208,7 @@
   async function excluirProgramacao(){
     const { deleteBtn, date, modal } = getEl();
     const url = NS.urls?.excluir;
-    if (!url){ NS.toast('Rota de excluir nǜo configurada.', {variant:'danger', title:'Erro'}); return; }
+    if (!url){ NS.toast('Rota de excluir não configurada.', {variant:'danger', title:'Erro'}); return; }
 
     const dateStr = date?.value || '';
     if (!isISODate(dateStr)){
@@ -216,7 +216,7 @@
       return;
     }
 
-    if (!window.confirm(`Excluir toda a programa��ǜo do dia ${dateStr}? Esta a��o nǜo pode ser desfeita.`)) return;
+    if (!window.confirm(`Excluir toda a programação do dia ${dateStr}? Esta ação não pode ser desfeita.`)) return;
 
     const original = deleteBtn?.innerHTML;
     if (deleteBtn){
@@ -245,7 +245,7 @@
 
       document.body.dataset.progLoaded = '0';
       NS.resetAllocations?.({});
-      NS.toast(json.deleted ? 'Programa��ǜo exclu��da.' : 'Nenhuma programa��ǜo encontrada.', {
+      NS.toast(json.deleted ? 'Programação excluída.' : 'Nenhuma programação encontrada.', {
         variant: json.deleted ? 'success' : 'info'
       });
       document.dispatchEvent(new CustomEvent('programar:deleted', {
@@ -254,7 +254,7 @@
       if (modal && window.bootstrap) bootstrap.Modal.getOrCreateInstance(modal).hide();
     } catch (err){
       console.error('[programar] excluir erro:', err);
-      NS.toast(err.message || 'Erro ao excluir a programa��ǜo.', { variant:'danger', title:'Erro' });
+      NS.toast(err.message || 'Erro ao excluir a programação.', { variant:'danger', title:'Erro' });
     } finally{
       if (deleteBtn){
         deleteBtn.innerHTML = original || 'Excluir';
