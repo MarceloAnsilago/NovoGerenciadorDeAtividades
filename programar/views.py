@@ -27,6 +27,17 @@ from django.db import transaction
 # =============================================================================
 # Página
 # =============================================================================
+
+import unicodedata
+
+def _norm(s:str) -> str:
+    if not s: return ""
+    s = unicodedata.normalize("NFKD", s).encode("ascii","ignore").decode("ascii")
+    return s.strip().lower()
+
+def _is_expediente(nome_meta: str) -> bool:
+    return _norm(nome_meta) in {"expediente administrativo", "expediente adm", "expediente"}
+
 def calendario_view(request):
     meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
     veiculos_json = "[]"
@@ -600,18 +611,63 @@ def _weekday_pt_short(idx: int) -> str:
 def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> str:
     """
     Tabela por dia:
-      1) Expediente administrativo (primeiro)
-      2) Atividades do dia
+      1) Expediente administrativo (primeiro, sem S/N)
+      2) Atividades do dia (com S/N)
       3) Impedidos (informativo)
-    Regras:
-      - Coluna Atividade centralizada (.atividade-cell)
-      - Servidores de atividade: uma linha por nome + S/N
-      - Servidores do expediente: inline, separados por vírgula, sem S/N
-      - Coluna 'Realizada': S/N só para atividades; '—' para expediente/impedidos
+
+    Extras:
       - Linha divisória mais forte entre dias (tr.day-end + td.dia-cell.day-end)
       - Coluna 'Veículo' centralizada (horizontal e vertical)
-      - Ao final: Relatório de atividades por servidor (2 linhas por atividade)
+      - Dedup de atividades por META (se houver uma com servidores, elimina as vazias dessa meta)
+      - Ao final: 'Justificativa de atividades não realizadas' por servidor
     """
+    # ---------------- helpers locais ----------------
+    import unicodedata
+    from collections import defaultdict
+
+    def _norm(s: str) -> str:
+        if not s:
+            return ""
+        s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+        return s.strip().lower()
+
+    def _norm_list(lst):
+        out = []
+        for x in (lst or []):
+            if isinstance(x, str):
+                x = x.strip()
+            if x:
+                out.append(x)
+        return out
+
+    def _is_expediente(nome_meta: str) -> bool:
+        v = _norm(nome_meta)
+        return v in {"expediente administrativo", "expediente adm", "expediente adm.", "expediente"}
+
+    def _dedup_atividades(items):
+        """
+        Dedup por META (ignora veículo):
+        - Se existir ao menos um item COM servidores para a meta, remove todos os itens
+          vazios dessa mesma meta, mantendo todos os cheios (podem ser grupos distintos).
+        - Se todos os itens da meta são vazios, mantém só o primeiro vazio.
+        """
+        grupos = {}  # meta_norm -> {"cheios": [it], "vazios": [it]}
+        for it in items:
+            meta_norm = _norm(it.get("meta", ""))
+            grupos.setdefault(meta_norm, {"cheios": [], "vazios": []})
+            if _norm_list(it.get("servidores")):
+                grupos[meta_norm]["cheios"].append(it)
+            else:
+                grupos[meta_norm]["vazios"].append(it)
+
+        out = []
+        for g in grupos.values():
+            if g["cheios"]:
+                out.extend(g["cheios"])
+            elif g["vazios"]:
+                out.append(g["vazios"][0])
+        return out
+
     ds = _parse_iso(start_iso)
     de = _parse_iso(end_iso)
     if not ds or not de:
@@ -647,28 +703,53 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
     rows_html: list[str] = []
     tem_algum = False
 
-    # ------- acumulador para o relatório por servidor (exclui expediente e impedidos)
-    from collections import defaultdict
+    # Acumulador para o relatório por servidor (exclui expediente e impedidos)
     atividades_por_servidor = defaultdict(list)  # nome -> list[ dict(dia_label, iso, atividade, veiculo) ]
 
+    # ---------------- loop por dia ----------------
     for dt in _daterange_inclusive(ds, de):
         iso = dt.strftime("%Y-%m-%d")
         dia_label = f"{dt.strftime('%d/%m')} ({_weekday_pt_short(dt.weekday())})"
 
         itens = _fetch_programacao_dia_via_bridge(request, iso)
 
+        # ids alocados em qualquer atividade do dia
         alocados_ids: set[str] = set()
         for it in itens:
             for sid in it.get("servidor_ids", []):
                 if sid:
                     alocados_ids.add(str(sid))
 
+        # expediente (livres - alocados) e impedidos
         expediente, impedidos = _fetch_expediente_admin_via_bridge(request, iso, alocados_ids)
 
+        # Se vier "Expediente Administrativo" como atividade do legado, converte para expediente
+        expediente_extra = []
+        itens_atividades = []
+        for it in itens:
+            if _is_expediente(it.get("meta", "")):
+                expediente_extra.extend(it.get("servidores") or [])
+            else:
+                itens_atividades.append(it)
+
+        # Dedup das atividades por META
+        itens_atividades = _dedup_atividades(itens_atividades)
+
+        # Mescla expediente do cálculo + do item legado, removendo duplicados preservando ordem
+        if expediente_extra:
+            seen = set()
+            exp_merge = []
+            for nome in list(expediente) + expediente_extra:
+                if nome not in seen:
+                    seen.add(nome)
+                    exp_merge.append(nome)
+            expediente = exp_merge
+
+        # Monta os blocks garantindo expediente primeiro
         blocks: list[dict] = []
         if expediente:
             blocks.append({"kind": "expediente", "servidores": expediente})
-        for it in itens:
+        for it in itens_atividades:
             blocks.append({
                 "kind": "atividade",
                 "meta": it["meta"],
@@ -696,9 +777,11 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             open_tr = f"<tr class='{tr_class}'>"
             dia_td = ""
             if idx == 0:
+                # marca o TD do dia também como day-end para a borda atravessar o rowspan
                 dia_td = f"<td class='dia-cell day-end' rowspan='{total}'>{html.escape(dia_label)}</td>"
 
             if b["kind"] == "expediente":
+                # expediente SEM S/N e veículo em “—”
                 rows_html.append(
                     open_tr
                     + dia_td
@@ -708,8 +791,9 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + "<td class='realizada-cell'>—</td>"
                     + "</tr>"
                 )
+
             elif b["kind"] == "atividade":
-                # ---- acumula por servidor para o relatório de atividades
+                # acumula por servidor para o relatório de atividades
                 for nome in (b.get("servidores") or []):
                     if nome and isinstance(nome, str):
                         atividades_por_servidor[nome].append({
@@ -728,7 +812,8 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
                     + "</tr>"
                 )
-            else:  # impedidos
+
+            else:  # impedidos (informativo)
                 imp_lines = "".join(
                     f"<div class='text-muted'><span class='fw-semibold'>{html.escape(i['nome'])}</span>"
                     f" — {html.escape(i['motivo'])}</div>"
@@ -751,7 +836,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table tbody td.veiculo-cell{"
         "  text-align:center !important; vertical-align:middle !important;"
         "}"
-        "/* Borda forte no fim de cada dia */"
+        "/* Borda forte no fim de cada dia (todas as colunas, incluindo TD com rowspan) */"
         ".programacao-semana-table tbody tr.day-end > td,"
         ".programacao-semana-table tbody td.dia-cell.day-end{"
         "  border-bottom: 2px solid #000 !important;"
@@ -790,7 +875,6 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
     )
 
     # -------- RELATÓRIO DE ATIVIDADES (embaixo)
-    # ordena servidores alfabeticamente
     servidores_ordenados = sorted(atividades_por_servidor.keys(), key=str.casefold)
 
     cards: list[str] = []
@@ -798,10 +882,10 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         itens = atividades_por_servidor[nome]
         if not itens:
             continue
-        # um card/“tabelinha” por servidor
+
         linhas = []
-        # opcional: ordena por data
         itens_sorted = sorted(itens, key=lambda x: (x["iso"], x["atividade"]))
+
         for it in itens_sorted:
             dia = html.escape(it["dia_label"])
             iso = html.escape(it["iso"])
@@ -814,8 +898,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 f"<td>{dia}" + (f": {atividade}" if atividade else "") + "</td>"
                 "</tr>"
             )
-
-            # 2ª linha: data marcada + linha para justificativa
+            # 2ª linha: data marcada + espaço para justificativa
             linhas.append(
                 "<tr>"
                 "<td class='lbl'>Data marcada</td>"
@@ -824,6 +907,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 "</td>"
                 "</tr>"
             )
+
         card = (
             "<div class='card card-ativ border-0 shadow-sm mb-3 rel-atividades'>"
             "<div class='card-body p-3'>"
@@ -846,6 +930,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 
     # retorna tudo: programação + rel. atividades
     return style + bloco_programacao + bloco_atividades
+
 
 
 
