@@ -22,21 +22,27 @@ def metas_unidade_view(request):
         messages.error(request, "Selecione uma unidade antes de ver as metas.")
         return redirect("core:dashboard")
 
-    atividade_id = request.GET.get('atividade')
+    atividade_id = request.GET.get("atividade")
 
-    # buscar alocações já relacionadas à unidade atual (com meta e atividade)
     alocacoes = (
-        MetaAlocacao.objects.select_related('meta', 'meta__atividade')
+        MetaAlocacao.objects.select_related("meta", "meta__atividade", "meta__unidade_criadora")
         .filter(unidade=unidade)
-        .order_by('meta__data_limite', 'meta__titulo')
+        .order_by("meta__data_limite", "meta__titulo")
     )
 
+    atividade_filtrada = None
     if atividade_id:
-        alocacoes = alocacoes.filter(meta__atividade__id=atividade_id)
+        try:
+            atividade_filtrada = Atividade.objects.get(pk=atividade_id)
+        except Atividade.DoesNotExist:
+            atividade_filtrada = None
+        else:
+            alocacoes = alocacoes.filter(meta__atividade_id=atividade_filtrada.id)
 
-    return render(request, 'metas/meta_lista.html', {
-        'unidade': unidade,
-        'alocacoes': alocacoes,
+    return render(request, "metas/meta_lista.html", {
+        "unidade": unidade,
+        "alocacoes": alocacoes,
+        "atividade_filtrada": atividade_filtrada,
     })
 
 

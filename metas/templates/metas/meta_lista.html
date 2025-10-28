@@ -4,62 +4,96 @@
 {% block title %}Metas da Unidade{% endblock %}
 
 {% block content %}
-{% if request.GET.atividade %}
-  {% with alocacoes.0.meta.atividade as atividade_atual %}
-    <p class="text-muted">Filtrado por atividade: <strong>{{ atividade_atual.nome }}</strong></p>
-  {% endwith %}
-{% endif %}
 <div class="container py-4">
   {% url 'core:dashboard' as dash_url %}
   {% include "partials/_page_header.html" with title="Metas" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-bullseye" %}
- 
+
+  {% if atividade_filtrada %}
+    <div class="alert alert-info d-flex justify-content-between align-items-center">
+      <div>
+        Metas filtradas pela atividade:
+        <strong>{{ atividade_filtrada.titulo|default:atividade_filtrada }}</strong>
+        {% if atividade_filtrada.id %}
+          <span class="text-muted">(ID {{ atividade_filtrada.id }})</span>
+        {% endif %}
+      </div>
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'metas:metas-unidade' %}">Limpar filtro</a>
+    </div>
+  {% endif %}
+
   <div class="card shadow-sm">
     <div class="card-header bg-light">
       <strong><i class="bi bi-bullseye me-1"></i> Metas Alocadas</strong>
     </div>
     <div class="card-body">
-      <table class="table table-striped">
-        <thead>
-          <tr>
-            <th>Título</th>
-            <th>Atividade</th>
-            <th>Prazo</th>
-            <th>Alocação</th>
-            <th>Realizado</th>
-            <th>% Execução</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for aloc in alocacoes %}
-          <tr>
-            <td>{{ aloc.meta.titulo }}</td>
-            <td>
-            {% if aloc.meta.atividade %}
-                {{ aloc.meta.atividade.nome }}
-            {% else %}
-                <span class="text-muted">—</span>
-            {% endif %}
-            </td>
-            <td>{{ aloc.meta.data_limite|date:"d/m/Y" }}</td>
-            <td>{{ aloc.quantidade_alocada }}</td>
-            <td>{{ aloc.realizado }}</td>
-            <td>{{ aloc.percentual_execucao|floatformat:1 }}%</td>
-            <td>
-              {% if aloc.meta.concluida %}
-                <span class="badge bg-success">Concluída</span>
-              {% elif aloc.meta.atrasada %}
-                <span class="badge bg-danger">Atrasada</span>
-              {% else %}
-                <span class="badge bg-warning text-dark">Em andamento</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="7" class="text-center">Nenhuma meta alocada.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      {% if alocacoes %}
+        <div class="table-responsive">
+          <table class="table table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Titulo</th>
+                <th>Atividade</th>
+                <th>Prazo</th>
+                <th>Alocacao</th>
+                <th>Realizado</th>
+                <th>% Execucao</th>
+                <th>Status</th>
+                <th class="text-end">Acoes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for aloc in alocacoes %}
+              <tr>
+                <td>{{ aloc.meta.display_titulo }}</td>
+                <td>
+                  {% if aloc.meta.atividade %}
+                    {{ aloc.meta.atividade.titulo }}
+                  {% else %}
+                    <span class="text-muted">--</span>
+                  {% endif %}
+                </td>
+                <td>{{ aloc.meta.data_limite|date:"d/m/Y"|default:"--" }}</td>
+                <td>{{ aloc.quantidade_alocada|default:"0" }}</td>
+                <td>{{ aloc.realizado|default:"0" }}</td>
+                <td>{{ aloc.percentual_execucao|floatformat:1 }}%</td>
+                <td>
+                  {% if aloc.meta.encerrada %}
+                    <span class="badge bg-dark">Encerrada</span>
+                  {% elif aloc.meta.atrasada %}
+                    <span class="badge bg-danger">Atrasada</span>
+                  {% elif aloc.meta.concluida %}
+                    <span class="badge bg-success">Concluida</span>
+                  {% else %}
+                    <span class="badge bg-warning text-dark">Em andamento</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% if request.user.is_superuser or aloc.meta.unidade_criadora_id == unidade.id %}
+                    <form method="post" action="{% url 'metas:toggle_encerrada' aloc.meta.id %}" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      {% if aloc.meta.encerrada %}
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Reabrir meta">
+                          <i class="bi bi-arrow-clockwise"></i> Reabrir
+                        </button>
+                      {% else %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Encerrar meta" onclick="return confirm('Tem certeza que deseja encerrar esta meta?');">
+                          <i class="bi bi-x-circle"></i> Encerrar
+                        </button>
+                      {% endif %}
+                    </form>
+                  {% else %}
+                    <span class="text-muted small">Sem acoes disponiveis</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center py-4 text-muted">Nenhuma meta alocada.</div>
+      {% endif %}
     </div>
   </div>
 </div>

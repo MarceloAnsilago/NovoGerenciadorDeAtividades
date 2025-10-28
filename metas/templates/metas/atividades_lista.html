@@ -59,8 +59,10 @@
                 {% endif %}
               </td>
               <td class="text-end">
+                <a href="{% url 'metas:metas-unidade' %}?atividade={{ atividade.id }}" class="btn btn-sm btn-outline-secondary me-1">
+                  <i class="bi bi-eye"></i> Ver metas definidas
+                </a>
                 <a href="{% url 'metas:definir-meta' atividade.id %}" class="btn btn-sm btn-outline-primary">
-
                   <i class="bi bi-bullseye"></i> Definir Metas
                 </a>
               </td>
