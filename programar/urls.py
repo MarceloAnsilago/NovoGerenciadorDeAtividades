@@ -16,4 +16,7 @@ urlpatterns = [
     path("api/relatorios/", views.relatorios_parcial, name="relatorios_parcial"),
     path("print/relatorio-semana/", views.print_relatorio_semana, name="print_relatorio_semana"),
     path("api/plantao/servidores-intervalo/", views.servidores_por_intervalo, name="servidores_por_intervalo"),
+    path("itens/<int:item_id>/realizada/", views.marcar_item_realizada, name="marcar-item-realizada"),
+    path("itens/<int:item_id>/concluir/", views.concluir_item_form, name="concluir-item-form"),
 ]
+

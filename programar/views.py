@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List
 from django.conf import settings
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
 from django.test.client import RequestFactory
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET
@@ -20,10 +20,14 @@ from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServid
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
-from metas.models import Meta, MetaAlocacao
+from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from veiculos.models import Veiculo
 from django.db.models import Sum
 from django.db import transaction
+
+
+from django.contrib import messages
+from django.views.decorators.http import require_http_methods
 # =============================================================================
 # Página
 # =============================================================================
@@ -1223,3 +1227,114 @@ def excluir_programacao_secure(request):
 
     prog.delete()
     return JsonResponse({"ok": True, "deleted": True})
+
+@login_required
+@csrf_protect
+@require_POST
+def marcar_item_realizada(request, item_id: int):
+    """
+    Marca/Desmarca ProgramacaoItem.concluido, garantindo que o item pertence
+    à UNIDADE atual do usuário.
+    Body JSON: {"realizada": true|false}
+    """
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        payload = {}
+    realizada = bool(payload.get("realizada", True))
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade não definida."}, status=400)
+
+    try:
+        pi = (
+            ProgramacaoItem.objects
+            .select_related("programacao")
+            .get(pk=item_id, programacao__unidade_id=unidade_id)
+        )
+    except ProgramacaoItem.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "Item não encontrado."}, status=404)
+
+    pi.concluido = realizada
+    pi.save(update_fields=["concluido"])
+
+    return JsonResponse({"ok": True, "item_id": pi.id, "realizada": pi.concluido})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+@csrf_protect
+def concluir_item_form(request, item_id: int):
+    """Permite marcar um item da programacao como realizado ou nao com observacao."""
+    pi = (
+        ProgramacaoItem.objects
+        .select_related("programacao", "meta", "veiculo")
+        .get(pk=item_id)
+    )
+    prog = pi.programacao
+    unidade_id = getattr(prog, "unidade_id", None)
+    meta = pi.meta
+
+    links = (
+        ProgramacaoItemServidor.objects
+        .select_related("servidor")
+        .filter(item_id=pi.id)
+        .order_by("servidor__nome")
+    )
+    servidores = [getattr(l.servidor, "nome", f"Servidor {l.servidor_id}") for l in links]
+
+    if request.method == "POST":
+        realizado_raw = (request.POST.get("realizado") or "").strip().lower()
+        concluido_flag = realizado_raw in {"1", "true", "on", "sim"}
+        obs_final = (request.POST.get("observacoes") or "").strip()
+
+        if concluido_flag and not pi.concluido and unidade_id and meta and getattr(meta, "id", None):
+            aloc = (
+                MetaAlocacao.objects
+                .filter(meta_id=meta.id, unidade_id=unidade_id)
+                .order_by("id")
+                .first()
+            )
+            if aloc:
+                ProgressoMeta.objects.create(
+                    data=getattr(prog, "data", timezone.localdate()),
+                    quantidade=1,
+                    observacao=obs_final or "",
+                    alocacao_id=aloc.id,
+                    registrado_por_id=getattr(request.user, "id", None),
+                )
+            else:
+                messages.warning(
+                    request,
+                    "Nao encontrei alocacao desta meta para a unidade. O progresso nao foi registrado.",
+                )
+
+        if concluido_flag:
+            concluido_em = timezone.now()
+            concluido_por_id = getattr(request.user, "id", None)
+        else:
+            concluido_em = None
+            concluido_por_id = None
+
+        ProgramacaoItem.objects.filter(pk=pi.pk).update(
+            concluido=concluido_flag,
+            concluido_em=concluido_em,
+            concluido_por_id=concluido_por_id,
+            observacao=obs_final,
+        )
+
+        messages.success(request, "Item atualizado com sucesso.")
+        back_url = request.GET.get("next") or request.POST.get("next") or "/minhas-metas/"
+        return redirect(back_url)
+
+    contexto = {
+        "item": pi,
+        "programacao": prog,
+        "meta": meta,
+        "atividade": getattr(meta, "atividade", None),
+        "veiculo": getattr(pi, "veiculo", None),
+        "servidores": servidores,
+        "next": request.GET.get("next") or request.META.get("HTTP_REFERER", "/minhas-metas/"),
+    }
+    return render(request, "minhas_metas/concluir_item.html", contexto)

@@ -1,0 +1,97 @@
+{% extends "core/base.html" %}
+{% load i18n %}
+
+{% block title %}Concluir item da programação{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">Concluir item da programação</h1>
+    <a href="{{ next|default:'/minhas-metas/' }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6 class="fw-semibold mb-3">
+            <i class="bi bi-clipboard-check me-1"></i>
+            {{ meta.display_titulo|default:meta.titulo }}
+          </h6>
+
+          <dl class="row mb-0 small">
+            <dt class="col-sm-4">Data</dt>
+            <dd class="col-sm-8">{{ programacao.data|date:"d/m/Y" }}</dd>
+
+            {% if atividade %}
+              <dt class="col-sm-4">Atividade</dt>
+              <dd class="col-sm-8">{{ atividade.titulo }}</dd>
+            {% endif %}
+
+            <dt class="col-sm-4">Veículo</dt>
+            <dd class="col-sm-8">
+              {% if veiculo %}{{ veiculo.nome }} — {{ veiculo.placa }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </dd>
+
+            <dt class="col-sm-4">Servidores</dt>
+            <dd class="col-sm-8">
+              {% if servidores %}{{ servidores|join:", " }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </dd>
+
+            {% if item.observacao %}
+              <dt class="col-sm-4">Obs. do item</dt>
+              <dd class="col-sm-8">{{ item.observacao }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next|default:'/minhas-metas/' }}">
+
+            <div>
+              <label class="form-label d-block">Realizado?</label>
+              <div class="form-check form-switch">
+                <input type="checkbox"
+                       class="form-check-input"
+                       id="id_realizado"
+                       name="realizado"
+                       value="1"
+                       {% if item.concluido %}checked{% endif %}>
+                <label class="form-check-label" for="id_realizado">
+                  Marque quando a atividade foi executada.
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label">Observacoes</label>
+              <textarea name="observacoes" rows="3" class="form-control"
+                        placeholder="Descreva justificativas, ocorrencias, etc.">{{ request.POST.observacoes|default:item.observacao }}</textarea>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+              <a href="{{ next|default:'/minhas-metas/' }}" class="btn btn-light">Cancelar</a>
+              <button class="btn btn-primary" type="submit">
+                <i class="bi bi-check2-circle me-1"></i> Salvar conclusão
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="small text-muted mt-2">
+        Ao salvar: marca o item como <em>concluido</em> quando estiver realizado
+        e mantem a observacao vinculada a programacao.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

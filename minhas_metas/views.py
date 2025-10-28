@@ -1,10 +1,25 @@
-# minhas_metas/views.py
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
+from collections import defaultdict
+from datetime import date
 
-from metas.models import MetaAlocacao
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect, render
+from django.utils import timezone
+
 from core.utils import get_unidade_atual
+from metas.models import MetaAlocacao
+from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
+
+
+def _parse_iso(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        year, month, day = map(int, value.split("-"))
+        return date(year, month, day)
+    except Exception:
+        return None
+
 
 @login_required
 def minhas_metas_view(request):
@@ -14,6 +29,9 @@ def minhas_metas_view(request):
         return redirect("core:dashboard")
 
     atividade_id = request.GET.get("atividade")
+    status_filter = (request.GET.get("status") or "").lower()
+    if status_filter not in {"concluidas", "pendentes"}:
+        status_filter = ""
 
     alocacoes = (
         MetaAlocacao.objects
@@ -26,8 +44,77 @@ def minhas_metas_view(request):
 
     tem_filhos = unidade.filhos.exists()
 
-    return render(request, "minhas_metas/lista_metas.html", {
+    today = timezone.localdate()
+    default_start = today.replace(day=1)
+
+    start_qs = request.GET.get("start")
+    end_qs = request.GET.get("end")
+
+    dt_start = _parse_iso(start_qs) or default_start
+    dt_end = _parse_iso(end_qs) or today
+    if dt_end < dt_start:
+        dt_end = dt_start
+
+    progs_qs = Programacao.objects.filter(
+        unidade_id=unidade.id,
+        data__gte=dt_start,
+        data__lte=dt_end,
+    )
+
+    itens_qs = (
+        ProgramacaoItem.objects
+        .select_related("programacao", "meta", "veiculo")
+        .filter(programacao__in=progs_qs)
+        .order_by("programacao__data", "id")
+    )
+    if atividade_id:
+        itens_qs = itens_qs.filter(meta__atividade_id=atividade_id)
+    if status_filter == "concluidas":
+        itens_qs = itens_qs.filter(concluido=True)
+    elif status_filter == "pendentes":
+        itens_qs = itens_qs.filter(concluido=False)
+
+    item_ids = list(itens_qs.values_list("id", flat=True))
+    servidores_por_item: dict[int, list[str]] = defaultdict(list)
+    if item_ids:
+        links = (
+            ProgramacaoItemServidor.objects
+            .select_related("servidor")
+            .filter(item_id__in=item_ids)
+        )
+        for link in links:
+            servidor_nome = getattr(link.servidor, "nome", f"Servidor {link.servidor_id}")
+            servidores_por_item[link.item_id].append(servidor_nome)
+
+    andamento = []
+    vistos = set()
+    for item in itens_qs:
+        if item.id in vistos:
+            continue
+        vistos.add(item.id)
+        meta = getattr(item, "meta", None)
+        programacao = getattr(item, "programacao", None)
+        if not meta or not programacao:
+            continue
+
+        andamento.append({
+            "item_id": item.id,
+            "data": getattr(programacao, "data", None),
+            "meta_id": getattr(meta, "id", None),
+            "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem titulo)"),
+            "atividade_nome": getattr(getattr(meta, "atividade", None), "titulo", None),
+            "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
+            "servidores": servidores_por_item.get(item.id, []),
+            "concluido": bool(getattr(item, "concluido", False)),
+        })
+
+    contexto = {
         "unidade": unidade,
         "alocacoes": alocacoes,
         "tem_filhos": tem_filhos,
-    })
+        "andamento": andamento,
+        "dt_start": dt_start,
+        "dt_end": dt_end,
+        "status_filter": status_filter,
+    }
+    return render(request, "minhas_metas/lista_metas.html", contexto)
