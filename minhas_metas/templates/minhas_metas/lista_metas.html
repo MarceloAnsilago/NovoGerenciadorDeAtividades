@@ -93,32 +93,33 @@
             <div class="mb-2">
               <div class="d-flex justify-content-between small">
                 <span>Alocado nesta unidade</span>
-                <span>
-                  <strong>{{ aloc.quantidade_alocada }}</strong>
-                  {% if meta.alocado_total %}/ {{ meta.alocado_total }}{% endif %}
-                </span>
+                {% with executado_local=aloc.realizado_unidade|default_if_none:0 total_local=aloc.quantidade_alocada total_meta=meta.alocado_total %}
+                  <span><strong>{{ executado_local }}</strong>/{{ total_local }}{% if total_meta %}-{{ total_meta }}{% endif %}</span>
+                {% endwith %}
               </div>
               <div class="progress" style="height:6px;">
-                {% if meta.alocado_total %}
-                  {% if aloc.quantidade_alocada >= meta.alocado_total %}
-                    <div class="progress-bar bg-info"
-                         role="progressbar"
-                         style="width:100%"
-                         aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+                {% with executado_local=aloc.realizado_unidade|default_if_none:0 total_local=aloc.quantidade_alocada %}
+                  {% if total_local %}
+                    {% if executado_local >= total_local %}
+                      <div class="progress-bar bg-info"
+                           role="progressbar"
+                           style="width:100%"
+                           aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+                    {% else %}
+                      {% widthratio executado_local total_local 100 as pct_exec_local %}
+                      <div class="progress-bar bg-info"
+                           role="progressbar"
+                           data-pct="{{ pct_exec_local|default_if_none:'0' }}"
+                           style="width:0%"
+                           aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    {% endif %}
                   {% else %}
-                    {% widthratio aloc.quantidade_alocada meta.alocado_total 100 as pct_aloc %}
-                    <div class="progress-bar bg-info"
+                    <div class="progress-bar bg-secondary"
                          role="progressbar"
-                         data-pct="{{ pct_aloc|default_if_none:'0' }}"
                          style="width:0%"
                          aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                   {% endif %}
-                {% else %}
-                  <div class="progress-bar bg-secondary"
-                       role="progressbar"
-                       style="width:0%"
-                       aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                {% endif %}
+                {% endwith %}
               </div>
             </div>
 

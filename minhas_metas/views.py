@@ -5,6 +5,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.conf import settings
+from django.db.models import Sum
 
 from core.utils import get_unidade_atual
 from metas.models import MetaAlocacao
@@ -36,6 +38,7 @@ def minhas_metas_view(request):
     alocacoes = (
         MetaAlocacao.objects
         .select_related("meta", "meta__atividade", "meta__criado_por", "meta__unidade_criadora")
+        .annotate(realizado_unidade=Sum("progresso__quantidade"))
         .filter(unidade=unidade)
         .order_by("meta__data_limite", "meta__titulo")
     )
@@ -61,12 +64,16 @@ def minhas_metas_view(request):
         data__lte=dt_end,
     )
 
+    expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+
     itens_qs = (
         ProgramacaoItem.objects
         .select_related("programacao", "meta", "veiculo")
         .filter(programacao__in=progs_qs)
         .order_by("programacao__data", "id")
     )
+    if expediente_meta_id:
+        itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
     if atividade_id:
         itens_qs = itens_qs.filter(meta__atividade_id=atividade_id)
     if status_filter == "concluidas":
