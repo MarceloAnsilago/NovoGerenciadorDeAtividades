@@ -22,7 +22,7 @@ from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
 from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from veiculos.models import Veiculo
-from django.db.models import Sum
+from django.db.models import Sum, Count, Q
 from django.db import transaction
 
 
@@ -991,19 +991,56 @@ def events_feed(request):
     if not unidade_id:
         return JsonResponse([], safe=False)
 
-    qs = Programacao.objects.filter(unidade_id=unidade_id)
+    qs = Programacao.objects.filter(unidade_id=unidade_id).order_by("data")
     if start_date:
         qs = qs.filter(data__gte=start_date)
     if end_date:
         qs = qs.filter(data__lte=end_date)
 
+    programacoes = list(qs.values("id", "data", "concluida"))
+    prog_ids = [p["id"] for p in programacoes]
+    counts: Dict[int, Dict[str, int]] = {pid: {"total": 0, "concluidas": 0} for pid in prog_ids}
+
+    if prog_ids:
+        itens_stats = (
+            ProgramacaoItem.objects.filter(programacao_id__in=prog_ids)
+            .values("programacao_id")
+            .annotate(
+                total=Count("id"),
+                concluidas=Count("id", filter=Q(concluido=True)),
+            )
+        )
+        for row in itens_stats:
+            pid = row.get("programacao_id")
+            if pid in counts:
+                counts[pid] = {
+                    "total": int(row.get("total") or 0),
+                    "concluidas": int(row.get("concluidas") or 0),
+                }
+
     data = []
-    for prog in qs:
-        qtd_itens = ProgramacaoItem.objects.filter(programacao_id=prog.id).count()
-        title = f"({qtd_itens} atividade{'s' if qtd_itens != 1 else ''})"
-        if getattr(prog, 'concluida', False):
+    for prog in programacoes:
+        pid = prog["id"]
+        contadores = counts.get(pid, {"total": 0, "concluidas": 0})
+        total = contadores["total"]
+        concluidas = contadores["concluidas"]
+
+        total_label = f"{total} atividade{'s' if total != 1 else ''}"
+        concluidas_label = f"{concluidas} concluida{'s' if concluidas != 1 else ''}"
+        title = f"({total_label} | {concluidas_label})"
+        if prog.get("concluida"):
             title = "[Concluída] " + title
-        data.append({"id": prog.id, "title": title, "start": prog.data.isoformat(), "allDay": True})
+
+        data.append({
+            "id": pid,
+            "title": title,
+            "start": prog["data"].isoformat(),
+            "allDay": True,
+            "extendedProps": {
+                "total_programadas": total,
+                "total_concluidas": concluidas,
+            },
+        })
     return JsonResponse(data, safe=False)
 
 
