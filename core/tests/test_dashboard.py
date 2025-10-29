@@ -1,18 +1,19 @@
-# core/views.py
-from django.views.generic import TemplateView
 from django.contrib.auth import get_user_model
-from core.models import No  # <- aqui
+from django.test import TestCase
+from django.urls import reverse
 
-class DashboardView(TemplateView):
-    template_name = "core/dashboard.html"
 
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
+class DashboardViewTest(TestCase):
+    def setUp(self):
         User = get_user_model()
-        ctx["metrics"] = [
-            {"label": "Usuários", "value": User.objects.count(), "icon": "bi-people",
-             "bg": "bg-primary-subtle", "fg": "text-primary", "link_name": "usuarios:list"},
-            {"label": "Unidades / Estrutura", "value": No.objects.count(), "icon": "bi-diagram-3",
-             "bg": "bg-warning-subtle", "fg": "text-warning", "link_name": "core:estrutura"},  # ajuste a rota
-        ]
-        return ctx
+        self.user = User.objects.create_user(username="tester", password="secret123")
+
+    def test_login_required(self):
+        response = self.client.get(reverse("core:dashboard"))
+        self.assertEqual(response.status_code, 302)
+
+    def test_dashboard_template_render(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("core:dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "core/dashboard.html")

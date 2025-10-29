@@ -1,11 +1,54 @@
 # core/urls.py
 from django.urls import path
+from django.views.generic import RedirectView
 from . import views
 
 app_name = "core"
 
 urlpatterns = [
-    path("", views.DashboardView.as_view(), name="dashboard"),
+    path("", RedirectView.as_view(pattern_name="core:dashboard", permanent=False)),
+    path("dashboard/", views.dashboard_view, name="dashboard"),
+    path("admin/dashboard/", views.AdminDashboardView.as_view(), name="admin_dashboard"),
+    path(
+        "api/dashboard/kpis/",
+        views.dashboard_kpis,
+        name="dashboard_kpis",
+    ),
+    path(
+        "api/dashboard/metas_por_unidade/",
+        views.dashboard_metas_por_unidade,
+        name="dashboard_metas_por_unidade",
+    ),
+    path(
+        "api/dashboard/atividades_por_area/",
+        views.dashboard_atividades_por_area,
+        name="dashboard_atividades_por_area",
+    ),
+    path(
+        "api/dashboard/progresso_mensal/",
+        views.dashboard_progresso_mensal,
+        name="dashboard_progresso_mensal",
+    ),
+    path(
+        "api/dashboard/programacoes_status_mensal/",
+        views.dashboard_programacoes_status_mensal,
+        name="dashboard_programacoes_status_mensal",
+    ),
+    path(
+        "api/dashboard/plantao_heatmap/",
+        views.dashboard_plantao_heatmap,
+        name="dashboard_plantao_heatmap",
+    ),
+    path(
+        "api/dashboard/uso_veiculos/",
+        views.dashboard_uso_veiculos,
+        name="dashboard_uso_veiculos",
+    ),
+    path(
+        "api/dashboard/top_servidores/",
+        views.dashboard_top_servidores,
+        name="dashboard_top_servidores",
+    ),
     path("estrutura/", views.admin_arvore, name="admin_arvore"),
     path("perfis/", views.perfis, name="perfis"),
     path("perfis/criar/", views.criar_perfil, name="criar_perfil"),

@@ -28,6 +28,10 @@ staticfiles/
 media/
 static/
 
+# Allow app-level static assets
+!core/static/
+!core/static/**
+
 # Environment variables
 .env
 

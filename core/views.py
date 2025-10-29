@@ -6,17 +6,30 @@ import string
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponseBadRequest
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.cache import cache_page
 from django.contrib.auth.decorators import login_required, user_passes_test, permission_required
 from django.contrib.auth import authenticate, logout, login as auth_login, get_user_model
 from django.contrib.auth.forms import SetPasswordForm
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib.auth.models import Group
+from django.core.exceptions import PermissionDenied
 from django.views.generic import TemplateView
 from django.urls import reverse
 
 from .models import No, UserProfile  # No (Unidade) e UserProfile
 from .models import No as Unidade
+from .services.dashboard_queries import (
+    get_dashboard_kpis,
+    get_metas_por_unidade,
+    get_atividades_por_area,
+    get_progresso_mensal,
+    get_programacoes_status_mensal,
+    get_plantao_heatmap,
+    get_uso_veiculos,
+    get_top_servidores,
+)
 # from .forms import UserProfileForm  # removido: não utilizado
 
 # Inicializa o modelo de usuário
@@ -294,8 +307,17 @@ def voltar_contexto(request):
     return redirect(request.META.get("HTTP_REFERER", "core:dashboard"))
 
 
-class DashboardView(TemplateView):
-    template_name = "core/dashboard.html"
+class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    template_name = "core/admin/dashboard.html"
+
+    def test_func(self):
+        user = self.request.user
+        return user.is_superuser or user.is_staff
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            raise PermissionDenied
+        return super().handle_no_permission()
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -306,7 +328,7 @@ class DashboardView(TemplateView):
 
         ctx["metrics"] = [
             {
-                "label": "Usuários",
+                "label": "Usuarios",
                 "value": total_usuarios,
                 "icon": "bi-people",
                 "bg": "bg-primary-subtle",
@@ -336,3 +358,77 @@ class DashboardView(TemplateView):
             {"label": "Ir para Perfis", "icon": "bi-person-badge", "link_name": "core:perfis"},
         ]
         return ctx
+
+
+@login_required
+def dashboard_view(request):
+    return render(request, "core/dashboard.html")
+
+
+@login_required
+@cache_page(60)
+@require_GET
+def dashboard_kpis(request):
+    data = get_dashboard_kpis(request.user)
+    return JsonResponse(data)
+
+
+@login_required
+@cache_page(60)
+@require_GET
+def dashboard_metas_por_unidade(request):
+    data = get_metas_por_unidade(request.user)
+    return JsonResponse(data)
+
+
+@login_required
+@cache_page(60)
+@require_GET
+def dashboard_atividades_por_area(request):
+    data = get_atividades_por_area(request.user)
+    return JsonResponse(data)
+
+
+@login_required
+@cache_page(60)
+@require_GET
+def dashboard_progresso_mensal(request):
+    data = get_progresso_mensal(request.user)
+    return JsonResponse(data)
+
+
+@login_required
+@cache_page(60)
+@require_GET
+def dashboard_programacoes_status_mensal(request):
+    data = get_programacoes_status_mensal(request.user)
+    return JsonResponse(data)
+
+
+@login_required
+@cache_page(60)
+@require_GET
+def dashboard_plantao_heatmap(request):
+    data = get_plantao_heatmap(request.user)
+    return JsonResponse(data)
+
+
+@login_required
+@cache_page(60)
+@require_GET
+def dashboard_uso_veiculos(request):
+    data = get_uso_veiculos(request.user)
+    return JsonResponse(data)
+
+
+@login_required
+@cache_page(60)
+@require_GET
+def dashboard_top_servidores(request):
+    try:
+        limit = int(request.GET.get("limit", 10))
+    except (TypeError, ValueError):
+        limit = 10
+    limit = max(1, min(limit, 50))
+    data = get_top_servidores(request.user, limit=limit)
+    return JsonResponse(data)
