@@ -4,6 +4,7 @@ from __future__ import annotations
 import html
 import json
 import logging
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List
 from django.conf import settings
@@ -207,59 +208,86 @@ def salvar_programacao(request):
             )
 
         # itens já existentes
-        existentes = {
-            pi.id: pi
-            for pi in ProgramacaoItem.objects.filter(programacao=prog).select_related("programacao")
-        }
-        ids_payload = set()
+        existentes_qs = ProgramacaoItem.objects.filter(programacao=prog).select_related("programacao")
+        existentes: Dict[int, ProgramacaoItem] = {pi.id: pi for pi in existentes_qs}
+        existentes_por_meta: dict[int, list[ProgramacaoItem]] = defaultdict(list)
+        for pi in existentes_qs:
+            try:
+                meta_key = int(pi.meta_id)
+            except (TypeError, ValueError):
+                continue
+            existentes_por_meta[meta_key].append(pi)
+
+        ids_payload: set[int] = set()
         total_vinculos = 0
 
         for it in itens_in:
-            item_id = it.get("id")
-            meta_id = it.get("meta_id")
-            obs = it.get("observacao") or ""
-            veiculo_id = it.get("veiculo_id")
-            servidores_ids = list({int(s) for s in (it.get("servidores_ids") or [])})
-
-            if not meta_id:
+            raw_meta_id = it.get("meta_id")
+            try:
+                meta_id = int(raw_meta_id)
+            except (TypeError, ValueError):
                 continue
 
-            # 🚩 caso especial: Expediente Administrativo
-            if int(meta_id) == settings.META_EXPEDIENTE_ID:
+            obs = it.get("observacao") or ""
+            raw_veiculo = it.get("veiculo_id")
+            try:
+                veiculo_id = int(raw_veiculo) if raw_veiculo not in (None, "", "null") else None
+            except (TypeError, ValueError):
+                veiculo_id = None
+
+            servidores_ids: list[int] = []
+            vistos_servidores: set[int] = set()
+            for sid in (it.get("servidores_ids") or []):
+                try:
+                    sid_int = int(sid)
+                except (TypeError, ValueError):
+                    continue
+                if sid_int in vistos_servidores:
+                    continue
+                vistos_servidores.add(sid_int)
+                servidores_ids.append(sid_int)
+
+            raw_item_id = it.get("id")
+            item_id: int | None = None
+            pi: ProgramacaoItem | None = None
+
+            if raw_item_id not in (None, "", "null"):
+                try:
+                    item_id = int(raw_item_id)
+                except (TypeError, ValueError):
+                    item_id = None
                 if item_id and item_id in existentes:
                     pi = existentes[item_id]
-                    ProgramacaoItem.objects.filter(pk=pi.pk).update(
-                        meta_id=settings.META_EXPEDIENTE_ID,
-                        observacao=obs,
-                        veiculo_id=veiculo_id,
-                    )
-                else:
-                    pi = ProgramacaoItem.objects.create(
-                        programacao=prog,
-                        meta_id=settings.META_EXPEDIENTE_ID,
-                        observacao=obs,
-                        veiculo_id=veiculo_id,
-                        concluido=False,
-                    )
-                    item_id = pi.id
+
+            if not pi:
+                candidatos = existentes_por_meta.get(meta_id, [])
+                for idx, candidato in enumerate(candidatos):
+                    cid = candidato.id
+                    if cid in ids_payload:
+                        continue
+                    pi = candidato
+                    item_id = cid
+                    candidatos.pop(idx)
+                    break
+
+            if pi:
+                ProgramacaoItem.objects.filter(pk=pi.pk).update(
+                    meta_id=meta_id,
+                    observacao=obs,
+                    veiculo_id=veiculo_id,
+                )
             else:
-                # fluxo normal
-                if item_id and item_id in existentes:
-                    pi = existentes[item_id]
-                    ProgramacaoItem.objects.filter(pk=pi.pk).update(
-                        meta_id=meta_id,
-                        observacao=obs,
-                        veiculo_id=veiculo_id,
-                    )
-                else:
-                    pi = ProgramacaoItem.objects.create(
-                        programacao=prog,
-                        meta_id=meta_id,
-                        observacao=obs,
-                        veiculo_id=veiculo_id,
-                        concluido=False,
-                    )
-                    item_id = pi.id
+                pi = ProgramacaoItem.objects.create(
+                    programacao=prog,
+                    meta_id=meta_id,
+                    observacao=obs,
+                    veiculo_id=veiculo_id,
+                    concluido=False,
+                )
+                item_id = pi.id
+
+            if item_id is None:
+                continue
 
             ids_payload.add(item_id)
 
@@ -272,6 +300,50 @@ def salvar_programacao(request):
                 ]
                 ProgramacaoItemServidor.objects.bulk_create(bulk)
                 total_vinculos += len(bulk)
+
+        # sanitiza duplicados por meta na programação (mantém apenas um registro)
+        duplicados = (
+            ProgramacaoItem.objects
+            .filter(programacao=prog)
+            .values("meta_id")
+            .annotate(total=Count("id"))
+            .filter(total__gt=1)
+        )
+        for row in duplicados:
+            meta_dup = row.get("meta_id")
+            if meta_dup is None:
+                continue
+            itens_meta = list(
+                ProgramacaoItem.objects
+                .filter(programacao=prog, meta_id=meta_dup)
+                .order_by("id")
+            )
+            if not itens_meta:
+                continue
+
+            keeper = None
+            for pi in itens_meta:
+                if pi.id in ids_payload:
+                    keeper = pi
+                    break
+            if keeper is None:
+                keeper = itens_meta[0]
+                ids_payload.add(keeper.id)
+
+            extras = [pi for pi in itens_meta if pi.id != keeper.id]
+            if not extras:
+                continue
+
+            extra_ids = [pi.id for pi in extras]
+            ProgramacaoItemServidor.objects.filter(item_id__in=extra_ids).delete()
+            ProgramacaoItem.objects.filter(id__in=extra_ids).delete()
+
+            for extra in extras:
+                existentes.pop(extra.id, None)
+            if meta_dup in existentes_por_meta:
+                existentes_por_meta[meta_dup] = [
+                    pi for pi in existentes_por_meta[meta_dup] if pi.id == keeper.id
+                ]
 
         # delete-orphans: remove itens que não vieram no payload
         orfaos = [pi_id for pi_id in existentes.keys() if pi_id not in ids_payload]
@@ -1002,8 +1074,14 @@ def events_feed(request):
     counts: Dict[int, Dict[str, int]] = {pid: {"total": 0, "concluidas": 0} for pid in prog_ids}
 
     if prog_ids:
+        itens_qs = ProgramacaoItem.objects.filter(programacao_id__in=prog_ids)
+        meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+        if meta_expediente_id is not None:
+            itens_qs = itens_qs.exclude(meta_id=meta_expediente_id)
+        itens_qs = itens_qs.exclude(meta_id__isnull=True)
+
         itens_stats = (
-            ProgramacaoItem.objects.filter(programacao_id__in=prog_ids)
+            itens_qs
             .values("programacao_id")
             .annotate(
                 total=Count("id"),
