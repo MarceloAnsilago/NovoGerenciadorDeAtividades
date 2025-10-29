@@ -29,7 +29,6 @@ INSTALLED_APPS = [
     'plantao',
     'metas',
     'minhas_metas',
-    'programar_atividades',
     'programar',
 ]
 

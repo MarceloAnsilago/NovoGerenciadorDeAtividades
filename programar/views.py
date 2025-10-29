@@ -110,6 +110,36 @@ def _impedidos_por_descanso(unidade_id: int | None, data_ref):
     return list(impedidos_map.values()), set(impedidos_map.keys())
 
 
+def _servidores_status_para_data(
+    unidade_id: int | None,
+    data_ref: date,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """
+    Calcula os servidores livres e impedidos para a unidade/data informadas.
+    Livres: todos os servidores da unidade que nao estao marcados como impedidos.
+    Impedidos: registros com id/nome/motivo consolidados (ex.: descanso).
+    """
+    if not unidade_id:
+        return [], []
+
+    impedidos_descanso, impedidos_ids = _impedidos_por_descanso(unidade_id, data_ref)
+
+    impedidos_final: list[dict[str, Any]] = []
+    for item in impedidos_descanso:
+        impedidos_final.append({
+            "id": item.get("id"),
+            "nome": item.get("nome"),
+            "motivo": item.get("motivo"),
+        })
+
+    servidores_qs = Servidor.objects.filter(unidade_id=unidade_id).order_by("nome")
+    if impedidos_ids:
+        servidores_qs = servidores_qs.exclude(id__in=impedidos_ids)
+
+    livres = [{"id": s.id, "nome": s.nome} for s in servidores_qs]
+    return livres, impedidos_final
+
+
 @require_GET
 def servidores_para_data(request):
     data_str = request.GET.get("data")
@@ -122,67 +152,8 @@ def servidores_para_data(request):
 
     unidade_id = get_unidade_atual_id(request)
 
-    # 1) legado (opcional)
-    livres_legacy, impedidos_legacy = [], []
-    try:
-        from programar_atividades import views as legacy  # type: ignore
-        rf = RequestFactory()
-        req = rf.get("/programar_atividades/servidores-para-data/", {"data": data_str})
-        req.user = getattr(request, "user", None)
-        req.session = getattr(request, "session", None)
-        req._dont_enforce_csrf_checks = True  # type: ignore[attr-defined]
-
-        resp = legacy.servidores_para_data(req)  # type: ignore[attr-defined]
-        raw = getattr(resp, "content", b"").decode(getattr(resp, "charset", "utf-8")) if hasattr(resp, "content") else ""
-        data = json.loads(raw) if raw.strip() else {}
-        livres_legacy = data.get("livres") or []
-        impedidos_legacy = data.get("impedidos") or []
-    except Exception:
-        log.exception("Erro ao consultar endpoint legado servidores_para_data")
-
-    # 2) normaliza legado
-    def _nome(x): return x.get("nome") or x.get("name") or x.get("servidor") or x.get("servidor_nome") or ""
-    def _id(x):   return x.get("id") or x.get("servidor_id")
-    def _mot(x):  return x.get("motivo") or x.get("reason") or x.get("justificativa") or ""
-
-    impedidos_norm = []
-    seen = set()
-    for i in impedidos_legacy:
-        sid, nm = _id(i), _nome(i)
-        if sid is None and not nm:
-            continue
-        k = sid if sid is not None else nm
-        if k in seen:
-            continue
-        seen.add(k)
-        impedidos_norm.append({"id": sid, "nome": nm, "motivo": _mot(i)})
-
-    # 3) descanso (unidade/data)
-    impedidos_descanso, _ = _impedidos_por_descanso(unidade_id, data_ref)
-
-    # 4) merge (prioriza descanso)
-    by_key = { (i["id"] if i["id"] is not None else i["nome"]) : i for i in impedidos_norm }
-    for i in impedidos_descanso:
-        k = i["id"] if i["id"] is not None else i["nome"]
-        by_key[k] = i
-    impedidos_final = list(by_key.values())
-
-    # 5) livres = todos da unidade - impedidos (ou legado se sem unidade)
-    try:
-        if unidade_id:
-            ids_imp = {i["id"] for i in impedidos_final if i.get("id") is not None}
-            qs = Servidor.objects.filter(unidade_id=unidade_id).order_by("nome")
-            if ids_imp:
-                qs = qs.exclude(id__in=ids_imp)
-            livres_final = [{"id": s.id, "nome": s.nome} for s in qs]
-        else:
-            # sem unidade no contexto: replica livres do legado se houver
-            livres_final = [{"id": i.get("id"), "nome": _nome(i)} for i in livres_legacy]
-    except Exception:
-        log.exception("Erro calculando 'livres'")
-        livres_final = [{"id": i.get("id"), "nome": _nome(i)} for i in livres_legacy]
-
-    return JsonResponse({"livres": livres_final, "impedidos": impedidos_final})
+    livres, impedidos = _servidores_status_para_data(unidade_id, data_ref)
+    return JsonResponse({"livres": livres, "impedidos": impedidos})
 def _parse_date(s: str) -> date | None:
     try:
         y, m, d = map(int, s.split("-"))
@@ -315,62 +286,6 @@ def salvar_programacao(request):
         "servidores_vinculados": total_vinculos,
     })
 
-@require_GET
-def programacao_do_dia(request):
-    """
-    Bridge para programar_atividades.programacao_do_dia.
-    Normaliza para o front:
-      { ok, itens: [ {id?, meta_id, observacao, veiculo_id, servidores_ids[], titulo?} ] }
-    Se meta_id == META_EXPEDIENTE_ID → insere título fixo "Expediente administrativo".
-    """
-    iso = request.GET.get("data")
-    if not iso:
-        return JsonResponse({"ok": True, "itens": []})
-
-    try:
-        from programar_atividades import views as legacy  # type: ignore
-    except Exception:
-        return JsonResponse({"ok": True, "itens": []})
-
-    rf = RequestFactory()
-    req = rf.get("/programar_atividades/programacao_do_dia/", {"data": iso})
-    req.user = getattr(request, "user", None)
-    req.session = getattr(request, "session", None)
-    req._dont_enforce_csrf_checks = True  # type: ignore[attr-defined]
-
-    try:
-        resp = legacy.programacao_do_dia(req)  # type: ignore[attr-defined]
-        raw = getattr(resp, "content", b"").decode(
-            getattr(resp, "charset", "utf-8")
-        ) if hasattr(resp, "content") else ""
-        data = json.loads(raw) if raw.strip() else {}
-    except Exception:
-        return JsonResponse({"ok": True, "itens": []})
-
-    prog = (data or {}).get("programacao") or {}
-    itens_legacy = prog.get("itens") or []
-
-    itens = []
-    for it in itens_legacy:
-        meta_id = it.get("meta_id")
-
-        obj = {
-            "id": it.get("id"),
-            "meta_id": meta_id,
-            "observacao": it.get("observacao") or "",
-            "veiculo_id": it.get("veiculo_id"),
-            "servidores_ids": [
-                s.get("id") for s in (it.get("servidores") or []) if s.get("id") is not None
-            ],
-        }
-
-        # 🚩 tratamento especial Expediente Administrativo
-        if meta_id == settings.META_EXPEDIENTE_ID:
-            obj["titulo"] = "Expediente administrativo"
-
-        itens.append(obj)
-
-    return JsonResponse({"ok": True, "itens": itens})
 # antigo dummy de exclusão removido (substituído por excluir_programacao_secure)
 # =============================================================================
 # Helpers – datas
@@ -488,117 +403,124 @@ def _render_plantonistas_html(servidores: List[Dict[str, Any]], start: str, end:
 # =============================================================================
 # Helpers – PROGRAMAÇÃO DA SEMANA (bridge no legado) + render
 # =============================================================================
-def _fetch_programacao_dia_via_bridge(request, iso: str) -> list[dict[str, Any]]:
-    """
-    Chama programar_atividades.views.programacao_do_dia(data=YYYY-MM-DD)
-    e retorna itens normalizados:
-      { meta, servidores[nomes], servidor_ids[ids], veiculo }
-    """
-    try:
-        from programar_atividades import views as legacy  # type: ignore
-    except Exception:
+# =============================================================================
+# Helpers - PROGRAMACAO DA SEMANA (ORM) + render
+# =============================================================================
+def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
         return []
 
-    rf = RequestFactory()
-    req = rf.get("/programar_atividades/programacao_do_dia/", {"data": iso})
-    req.user = getattr(request, "user", None)
-    req.session = getattr(request, "session", None)
-    req._dont_enforce_csrf_checks = True  # type: ignore[attr-defined]
-
     try:
-        resp = legacy.programacao_do_dia(req)  # type: ignore[attr-defined]
-        raw = getattr(resp, "content", b"").decode(getattr(resp, "charset", "utf-8")) if hasattr(resp, "content") else ""
-        data = json.loads(raw) if raw.strip() else {}
-    except Exception:
+        prog = Programacao.objects.get(unidade_id=unidade_id, data=iso)
+    except Programacao.DoesNotExist:
         return []
 
-    prog = (data or {}).get("programacao") or {}
-    itens = prog.get("itens") or []
+    itens = list(
+        ProgramacaoItem.objects
+        .filter(programacao=prog)
+        .select_related("meta", "veiculo")
+        .order_by("id")
+    )
+    if not itens:
+        return []
+
+    item_ids = [it.id for it in itens]
+    serv_nomes: Dict[int, List[str]] = {}
+    serv_ids: Dict[int, List[str]] = {}
+    if item_ids:
+        for link in (
+            ProgramacaoItemServidor.objects
+            .filter(item_id__in=item_ids)
+            .select_related("servidor")
+            .order_by("servidor__nome")
+        ):
+            iid = int(getattr(link, "item_id"))
+            sid = int(getattr(link, "servidor_id"))
+            nome = getattr(getattr(link, "servidor", None), "nome", "") or f"Servidor {sid}"
+            serv_nomes.setdefault(iid, []).append(nome)
+            serv_ids.setdefault(iid, []).append(str(sid))
+
     out: list[dict[str, Any]] = []
-
     for it in itens:
-        meta_nome = it.get("meta_nome") or it.get("meta") or f"Atividade #{it.get('meta_id','')}".strip()
-        servidores = it.get("servidores") or []
+        meta = getattr(it, "meta", None)
+        meta_id = getattr(meta, "id", None)
+        meta_nome = ""
+        if meta:
+            meta_nome = (
+                getattr(meta, "display_titulo", None)
+                or getattr(meta, "titulo", None)
+                or getattr(meta, "nome", None)
+                or ""
+            )
+        if not meta_nome and meta_id is not None:
+            meta_nome = f"Meta #{meta_id}"
+        try:
+            if settings.META_EXPEDIENTE_ID and meta_id is not None and int(meta_id) == int(settings.META_EXPEDIENTE_ID):
+                meta_nome = "Expediente administrativo"
+        except Exception:
+            pass
 
-        serv_nomes: list[str] = []
-        serv_ids: list[str] = []
-        for s in servidores:
-            sid = s.get("id")
-            if sid is not None:
-                serv_ids.append(str(sid))
-            nome = s.get("nome") or s.get("servidor")
-            if not nome:
-                nome = f"Servidor #{sid}" if sid else "Servidor"
-            serv_nomes.append(nome)
-
-        veic = it.get("veiculo_label") or it.get("veiculo") or it.get("veiculo_nome") or ""
-        if not veic:
-            vid = it.get("veiculo_id")
-            veic = f"#{vid}" if vid else ""
+        veiculo = getattr(it, "veiculo", None)
+        veiculo_label = ""
+        if veiculo:
+            nome = getattr(veiculo, "nome", "") or ""
+            placa = getattr(veiculo, "placa", "") or ""
+            if nome and placa:
+                veiculo_label = f"{nome} ({placa})"
+            else:
+                veiculo_label = nome or placa or ""
 
         out.append({
             "meta": meta_nome,
-            "servidores": serv_nomes,
-            "servidor_ids": serv_ids,
-            "veiculo": veic,
+            "servidores": serv_nomes.get(it.id, []),
+            "servidor_ids": serv_ids.get(it.id, []),
+            "veiculo": veiculo_label,
         })
+
     return out
 
 
-def _fetch_expediente_admin_via_bridge(
+def _fetch_expediente_admin(
     request,
     iso: str,
     alocados_ids: set[str],
 ) -> tuple[list[str], list[dict[str, str]]]:
-    """
-    Usa servidores_para_data (livres/impedidos) e monta:
-      - expediente (nomes) = livres - alocados - impedidos
-      - impedidos: lista [{nome, motivo}]
-    """
-    try:
-        from programar_atividades import views as legacy  # type: ignore
-    except Exception:
+    dia = _parse_iso(iso)
+    if not dia:
         return [], []
 
-    rf = RequestFactory()
-    req = rf.get("/programar_atividades/servidores_para_data/", {"data": iso})
-    req.user = getattr(request, "user", None)
-    req.session = getattr(request, "session", None)
-    req._dont_enforce_csrf_checks = True  # type: ignore[attr-defined]
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return [], []
 
-    try:
-        resp = legacy.servidores_para_data(req)  # type: ignore[attr-defined]
-        raw = getattr(resp, "content", b"").decode(getattr(resp, "charset", "utf-8")) if hasattr(resp, "content") else ""
-        data = json.loads(raw) if raw.strip() else {}
-    except Exception:
-        data = {}
+    livres, impedidos = _servidores_status_para_data(unidade_id, dia)
 
-    livres = data.get("livres") or []
-    impedidos = data.get("impedidos") or []
-
-    # mapas/sets auxiliares
     livres_map: dict[str, str] = {}
     for s in livres:
-        sid = str(s.get("id", "")).strip()
-        if sid:
-            nome = s.get("nome") or f"Servidor #{sid}"
-            livres_map[sid] = nome
+        sid_raw = s.get("id")
+        if sid_raw is None:
+            continue
+        sid = str(sid_raw).strip()
+        if not sid:
+            continue
+        nome = s.get("nome") or f"Servidor #{sid}"
+        livres_map[sid] = nome
 
     impedidos_ids: set[str] = set()
     impedidos_list: list[dict[str, str]] = []
     for s in impedidos:
-        sid = str(s.get("id", "")).strip()
+        sid_raw = s.get("id")
+        sid = str(sid_raw).strip() if sid_raw is not None else ""
         nome = s.get("nome") or (f"Servidor #{sid}" if sid else "Servidor")
         motivo = s.get("motivo") or "Impedido"
         impedidos_list.append({"nome": nome, "motivo": motivo})
         if sid:
             impedidos_ids.add(sid)
 
-    # expediente = livres - alocados - impedidos
-    ok_ids = (set(livres_map.keys()) - alocados_ids) - impedidos_ids
-    expediente_nomes = sorted([livres_map[i] for i in ok_ids], key=str.casefold)
-
-    return expediente_nomes, impedidos_list
+    ok_ids = (set(livres_map.keys()) - set(alocados_ids)) - impedidos_ids
+    expediente = sorted([livres_map[i] for i in ok_ids], key=str.casefold)
+    return expediente, impedidos_list
 
 
 def _daterange_inclusive(d0: date, d1: date):
@@ -718,7 +640,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         iso = dt.strftime("%Y-%m-%d")
         dia_label = f"{dt.strftime('%d/%m')} ({_weekday_pt_short(dt.weekday())})"
 
-        itens = _fetch_programacao_dia_via_bridge(request, iso)
+        itens = _fetch_programacao_dia(request, iso)
 
         # ids alocados em qualquer atividade do dia
         alocados_ids: set[str] = set()
@@ -728,7 +650,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     alocados_ids.add(str(sid))
 
         # expediente (livres - alocados) e impedidos
-        expediente, impedidos = _fetch_expediente_admin_via_bridge(request, iso, alocados_ids)
+        expediente, impedidos = _fetch_expediente_admin(request, iso, alocados_ids)
 
         # Se vier "Expediente Administrativo" como atividade do legado, converte para expediente
         expediente_extra = []
