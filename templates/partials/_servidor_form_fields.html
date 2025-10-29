@@ -36,11 +36,9 @@
   </div>
 
   <div class="col-md-3 d-flex align-items-center">
-    <div class="form-check mt-4">
+    <div class="form-check mt-4 mb-0">
       {{ form.ativo }}
-      <label class="form-check-label ms-2" for="{{ form.ativo.id_for_label }}">
-        <i class="bi bi-toggle-on me-1"></i> Ativo
-      </label>
+      <label class="form-check-label" for="{{ form.ativo.id_for_label }}">Ativo</label>
     </div>
     <div class="text-danger small w-100 ms-2">{{ form.ativo.errors }}</div>
   </div>
