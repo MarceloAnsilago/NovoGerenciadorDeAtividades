@@ -1,6 +1,7 @@
 # descanso/views.py
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -10,6 +11,43 @@ from servidores.models import Servidor
 from .models import Descanso
 from .forms import DescansoForm
 from core.utils import get_unidade_atual_id
+from programar.models import ProgramacaoItemServidor
+
+
+def _get_programacao_conflicts(servidor, data_inicio, data_fim):
+    if not servidor or not data_inicio or not data_fim:
+        return []
+
+    qs = (
+        ProgramacaoItemServidor.objects.select_related("item", "item__programacao", "item__meta")
+        .filter(
+            servidor=servidor,
+            item__programacao__data__gte=data_inicio,
+            item__programacao__data__lte=data_fim,
+        )
+        .order_by("item__programacao__data", "item_id")
+    )
+    return list(qs)
+
+
+def _format_conflicts(conflicts):
+    payload = []
+    for conflict in conflicts:
+        item = conflict.item
+        programacao = getattr(item, "programacao", None)
+        meta = getattr(item, "meta", None)
+        titulo_meta = None
+        if meta is not None:
+            titulo_meta = getattr(meta, "display_titulo", None) or getattr(meta, "titulo", None) or str(meta)
+        payload.append(
+            {
+                "id": conflict.pk,
+                "data": getattr(programacao, "data", None),
+                "meta": titulo_meta or "Atividade",
+                "observacao": getattr(item, "observacao", ""),
+            }
+        )
+    return payload
 from datetime import date
 from collections import OrderedDict
 from calendar import monthrange
@@ -54,14 +92,38 @@ def criar_descanso(request):
 
     if request.method == "POST":
         form = DescansoForm(request.POST, request=request)
+        confirm_remove = request.POST.get("confirm_remove_assignments") == "1"
         if form.is_valid():
             obj = form.save(commit=False)
-            if request.user.is_authenticated:
-                obj.criado_por = request.user
-            obj.save()
+            conflicts = _get_programacao_conflicts(obj.servidor, obj.data_inicio, obj.data_fim)
+
+            if conflicts and not confirm_remove:
+                messages.warning(
+                    request,
+                    "O servidor esta alocado em atividades durante o periodo selecionado. "
+                    "Confirme a remocao para prosseguir.",
+                )
+                context = {
+                    "form": form,
+                    "conflict_assignments": _format_conflicts(conflicts),
+                }
+                return render(request, "descanso/criar.html", context)
+
+            with transaction.atomic():
+                if conflicts:
+                    ProgramacaoItemServidor.objects.filter(pk__in=[c.pk for c in conflicts]).delete()
+                if request.user.is_authenticated:
+                    obj.criado_por = request.user
+                obj.save()
+
+            if conflicts:
+                messages.info(
+                    request,
+                    f"{len(conflicts)} vinculo(s) com atividades foram removidos para registrar o descanso.",
+                )
             messages.success(request, "Descanso inserido com sucesso.")
             return redirect(reverse("descanso:lista_servidores"))
-        messages.error(request, "Revise os erros no formulário.")
+        messages.error(request, "Revise os erros no formulario.")
     else:
         form = DescansoForm(request=request, initial=initial)
 
@@ -190,20 +252,46 @@ def editar_descanso(request, pk: int):
         return redirect("descanso:lista_servidores")
 
     obj = get_object_or_404(Descanso, pk=pk, servidor__unidade_id=unidade_id)
+    next_url = request.POST.get("next") or request.GET.get("next")
 
     if request.method == "POST":
         form = DescansoForm(request.POST, request=request, instance=obj)
+        confirm_remove = request.POST.get("confirm_remove_assignments") == "1"
         if form.is_valid():
-            form.save()
+            updated = form.save(commit=False)
+            conflicts = _get_programacao_conflicts(updated.servidor, updated.data_inicio, updated.data_fim)
+
+            if conflicts and not confirm_remove:
+                messages.warning(
+                    request,
+                    "O servidor esta alocado em atividades durante o periodo selecionado. "
+                    "Confirme a remocao para prosseguir.",
+                )
+                context = {
+                    "form": form,
+                    "obj": obj,
+                    "next": next_url,
+                    "conflict_assignments": _format_conflicts(conflicts),
+                }
+                return render(request, "descanso/editar.html", context)
+
+            with transaction.atomic():
+                if conflicts:
+                    ProgramacaoItemServidor.objects.filter(pk__in=[c.pk for c in conflicts]).delete()
+                updated.save()
+
+            if conflicts:
+                messages.info(
+                    request,
+                    f"{len(conflicts)} vinculo(s) com atividades foram removidos para registrar o descanso.",
+                )
             messages.success(request, "Descanso atualizado com sucesso.")
-            next_url = request.POST.get("next")
             return redirect(next_url or reverse("descanso:descansos_unidade"))
-        messages.error(request, "Revise os erros no formulário.")
+        messages.error(request, "Revise os erros no formulario.")
     else:
         form = DescansoForm(request=request, instance=obj)
 
-    return render(request, "descanso/editar.html", {"form": form, "obj": obj, "next": request.GET.get("next")})
-
+    return render(request, "descanso/editar.html", {"form": form, "obj": obj, "next": next_url})
 
 @login_required
 def excluir_descanso(request, pk: int):
