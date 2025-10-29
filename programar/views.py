@@ -1016,7 +1016,12 @@ def metas_disponiveis(request):
         return JsonResponse({"metas": []})
 
     atividade_id = request.GET.get("atividade")
-    qs = MetaAlocacao.objects.select_related("meta", "meta__atividade").filter(unidade_id=unidade_id)
+    qs = (
+        MetaAlocacao.objects
+        .select_related("meta", "meta__atividade")
+        .filter(unidade_id=unidade_id, meta__encerrada=False)
+        .order_by("meta__data_limite", "meta__titulo")
+    )
     if atividade_id:
         qs = qs.filter(meta__atividade_id=atividade_id)
 
@@ -1048,7 +1053,13 @@ def metas_disponiveis(request):
         bucket[mid]["executado_unidade"] += int(prog_sum)
 
     metas = list(bucket.values())
-    metas.sort(key=lambda x: str(x.get("nome") or "").lower())
+    metas.sort(
+        key=lambda x: (
+            x.get("data_limite") is None,
+            x.get("data_limite") or date.max,
+            str(x.get("nome") or "").lower(),
+        )
+    )
     return JsonResponse({"metas": metas})
 
 

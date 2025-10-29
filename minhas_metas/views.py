@@ -39,7 +39,7 @@ def minhas_metas_view(request):
         MetaAlocacao.objects
         .select_related("meta", "meta__atividade", "meta__criado_por", "meta__unidade_criadora")
         .annotate(realizado_unidade=Sum("progresso__quantidade"))
-        .filter(unidade=unidade)
+        .filter(unidade=unidade, meta__encerrada=False)
         .order_by("meta__data_limite", "meta__titulo")
     )
     if atividade_id:

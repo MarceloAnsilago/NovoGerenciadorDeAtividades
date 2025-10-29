@@ -69,19 +69,20 @@
                 </td>
                 <td class="text-end">
                   {% if request.user.is_superuser or aloc.meta.unidade_criadora_id == unidade.id %}
-                    <form method="post" action="{% url 'metas:toggle_encerrada' aloc.meta.id %}" class="d-inline">
-                      {% csrf_token %}
-                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                      {% if aloc.meta.encerrada %}
+                    {% if aloc.meta.encerrada %}
+                      <form method="post" action="{% url 'metas:toggle_encerrada' aloc.meta.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
                         <button type="submit" class="btn btn-sm btn-outline-secondary" title="Reabrir meta">
                           <i class="bi bi-arrow-clockwise"></i> Reabrir
                         </button>
-                      {% else %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Encerrar meta" onclick="return confirm('Tem certeza que deseja encerrar esta meta?');">
-                          <i class="bi bi-x-circle"></i> Encerrar
-                        </button>
-                      {% endif %}
-                    </form>
+                      </form>
+                    {% else %}
+                      <a href="{% url 'metas:encerrar-meta' aloc.meta.id %}?next={{ request.get_full_path|urlencode }}"
+                         class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-x-circle"></i> Encerrar
+                      </a>
+                    {% endif %}
                   {% else %}
                     <span class="text-muted small">Sem acoes disponiveis</span>
                   {% endif %}

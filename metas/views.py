@@ -1,5 +1,6 @@
 # metas/views.py
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum
@@ -13,6 +14,7 @@ from atividades.models import Atividade
 from .models import Meta, MetaAlocacao
 from .forms import MetaForm
 from django.http import HttpResponseForbidden
+from django.views.decorators.http import require_http_methods
 from django.db.models.functions import ExtractYear
 
 @login_required
@@ -355,6 +357,66 @@ def editar_meta_view(request, meta_id):
         "meta": meta,
         "unidade": unidade,
     })
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def encerrar_meta_view(request, meta_id):
+    """
+    Exibe uma pagina de confirmacao para encerrar a meta selecionada.
+    Segue o mesmo padrao visual usado para encerrar atividades em 'Minhas Metas'.
+    """
+    meta = get_object_or_404(
+        Meta.objects.select_related("atividade", "unidade_criadora"),
+        pk=meta_id,
+    )
+    unidade = get_unidade_atual(request)
+    if not unidade:
+        messages.error(request, "Selecione uma unidade antes de encerrar metas.")
+        return redirect("core:dashboard")
+
+    if meta.unidade_criadora_id != unidade.id and not request.user.is_superuser:
+        messages.warning(request, "Voce nao tem permissao para encerrar esta meta.")
+        return redirect("metas:metas-unidade")
+
+    alocacoes = list(meta.alocacoes.select_related("unidade").order_by("unidade__nome"))
+    alocacao_atual = next((a for a in alocacoes if a.unidade_id == unidade.id), None)
+    executado_unidade = getattr(alocacao_atual, "realizado", 0) if alocacao_atual else 0
+    alocado_unidade = getattr(alocacao_atual, "quantidade_alocada", 0) if alocacao_atual else 0
+
+    next_url = (
+        request.POST.get("next")
+        or request.GET.get("next")
+        or request.META.get("HTTP_REFERER")
+        or reverse("metas:metas-unidade")
+    )
+
+    if request.method == "POST":
+        encerrar_flag = (request.POST.get("encerrar") or "").strip().lower() in {"1", "true", "on", "sim"}
+        if not encerrar_flag:
+            messages.error(request, "Confirme o encerramento da meta antes de salvar.")
+        else:
+            if not meta.encerrada:
+                meta.encerrada = True
+                meta.save(update_fields=["encerrada"])
+                messages.success(request, "Meta encerrada com sucesso.")
+            else:
+                messages.info(request, "Esta meta ja estava encerrada.")
+            return redirect(next_url)
+
+    contexto = {
+        "meta": meta,
+        "unidade": unidade,
+        "alocacoes": alocacoes,
+        "alocacao_atual": alocacao_atual,
+        "executado_unidade": executado_unidade,
+        "alocado_unidade": alocado_unidade,
+        "total_realizado": meta.realizado_total,
+        "total_alocado": meta.alocado_total,
+        "percentual_execucao": meta.percentual_execucao,
+        "next": next_url,
+    }
+    return render(request, "metas/encerrar_meta.html", contexto)
 
 
 @login_required

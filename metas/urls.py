@@ -18,6 +18,9 @@ urlpatterns = [
     # editar meta (form)
     path("editar/<int:meta_id>/", views.editar_meta_view, name="editar"),
 
+    # pagina para encerrar meta
+    path("encerrar/<int:meta_id>/", views.encerrar_meta_view, name="encerrar-meta"),
+
     # alternar encerrada/reabrir (POST)
     path("toggle/<int:meta_id>/", views.toggle_encerrada_view, name="toggle_encerrada"),
 
