@@ -10,7 +10,7 @@
 
   {% if not has_unidade %}
     <div class="alert alert-warning mb-3">
-      Selecione ou assuma uma unidade antes de criar ou visualizar metas. Utilize o menu de contexto no topo da página.
+      Selecione ou assuma uma unidade antes de criar ou visualizar metas. Utilize o menu de contexto no topo da pagina.
     </div>
   {% endif %}
 
@@ -75,20 +75,26 @@
                 </td>
                 <td class="text-end">
                   {% if request.user.is_superuser or aloc.meta.unidade_criadora_id == unidade.id %}
-                    {% if aloc.meta.encerrada %}
-                      <form method="post" action="{% url 'metas:toggle_encerrada' aloc.meta.id %}" class="d-inline">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Reabrir meta">
-                          <i class="bi bi-arrow-clockwise"></i> Reabrir
-                        </button>
-                      </form>
-                    {% else %}
-                      <a href="{% url 'metas:encerrar-meta' aloc.meta.id %}?next={{ request.get_full_path|urlencode }}"
-                         class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-x-circle"></i> Encerrar
+                    <div class="d-inline-flex flex-wrap justify-content-end gap-2">
+                      {% if aloc.meta.encerrada %}
+                        <form method="post" action="{% url 'metas:toggle_encerrada' aloc.meta.id %}" class="d-inline">
+                          {% csrf_token %}
+                          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                          <button type="submit" class="btn btn-sm btn-outline-secondary" title="Reabrir meta">
+                            <i class="bi bi-arrow-clockwise"></i> Reabrir
+                          </button>
+                        </form>
+                      {% else %}
+                        <a href="{% url 'metas:encerrar-meta' aloc.meta.id %}?next={{ request.get_full_path|urlencode }}"
+                           class="btn btn-sm btn-outline-danger">
+                          <i class="bi bi-flag"></i> Encerrar
+                        </a>
+                      {% endif %}
+                      <a href="{% url 'metas:atribuir-meta' aloc.meta.id %}"
+                         class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-arrow-left-right"></i> Atribuir / Redistribuir
                       </a>
-                    {% endif %}
+                    </div>
                   {% else %}
                     <span class="text-muted small">Sem acoes disponiveis</span>
                   {% endif %}
@@ -103,7 +109,7 @@
           {% if has_unidade %}
             Nenhuma meta alocada.
           {% else %}
-            Assuma uma unidade para visualizar as metas disponíveis.
+            Assuma uma unidade para visualizar as metas disponiveis.
           {% endif %}
         </div>
       {% endif %}

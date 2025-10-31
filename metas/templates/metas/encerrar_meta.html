@@ -1,174 +1,165 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Encerrar meta{% endblock %}
 
 {% block content %}
 <div class="container py-4">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Encerrar meta</h1>
-    <a href="{{ next|default:'/metas/' }}" class="btn btn-sm btn-outline-secondary">
+  <div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+      <h1 class="h4 mb-1">Encerrar meta</h1>
+      <div class="text-muted small">
+        Unidade responsavel: {{ meta.unidade_criadora.nome|default:"--" }}
+      </div>
+    </div>
+    <a href="{{ next_url }}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-left"></i> Voltar
     </a>
   </div>
 
-  <div class="row g-3">
-    <div class="col-12 col-lg-7">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h6 class="fw-semibold mb-3">
-            <i class="bi bi-bullseye me-1"></i>
-            {{ meta.display_titulo|default:meta.titulo }}
-          </h6>
-
-          <dl class="row mb-0 small">
-            <dt class="col-sm-4">Unidade criadora</dt>
-            <dd class="col-sm-8">{{ meta.unidade_criadora.nome }}</dd>
-
-            {% if meta.atividade %}
-              <dt class="col-sm-4">Atividade</dt>
-              <dd class="col-sm-8">{{ meta.atividade.titulo|default:meta.atividade }}</dd>
-            {% endif %}
-
-            <dt class="col-sm-4">Data limite</dt>
-            <dd class="col-sm-8">{{ meta.data_limite|date:"d/m/Y"|default:"--" }}</dd>
-
-            <dt class="col-sm-4">Alvo total</dt>
-            <dd class="col-sm-8">{{ total_alocado }} / {{ meta.quantidade_alvo|default:"0" }}</dd>
-
-            <dt class="col-sm-4">Executado total</dt>
-            <dd class="col-sm-8">{{ total_realizado }} ({{ percentual_execucao|floatformat:1 }}%)</dd>
-
-            {% if meta.descricao %}
-              <dt class="col-sm-4">Descricao</dt>
-              <dd class="col-sm-8">{{ meta.descricao }}</dd>
-            {% endif %}
-          </dl>
-        </div>
-      </div>
-
-      <div class="card shadow-sm mt-3">
-        <div class="card-header bg-light py-2">
-          <strong class="small text-uppercase">Distribuicao por unidade</strong>
-        </div>
-        <div class="card-body p-0">
-          {% if alocacoes %}
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>Unidade</th>
-                    <th>Alocado</th>
-                    <th>Executado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for aloc in alocacoes %}
-                    <tr {% if alocacao_atual and aloc.id == alocacao_atual.id %}class="table-warning"{% endif %}>
-                      <td>{{ aloc.unidade.nome }}</td>
-                      <td>{{ aloc.quantidade_alocada|default:"0" }}</td>
-                      <td>{{ aloc.realizado|default:"0" }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-center">
+        <div class="col-12 col-lg-5">
+          <h2 class="h5 mb-1">{{ meta.display_titulo|default:meta.titulo }}</h2>
+          {% if meta.atividade %}
+            <div class="text-muted small mb-1">
+              Atividade vinculada: {{ meta.atividade.titulo }}
             </div>
-          {% else %}
-            <div class="p-3 text-muted small">Nenhuma alocacao registrada para esta meta.</div>
+          {% endif %}
+          {% if meta.descricao %}
+            <p class="mb-0 small text-muted">{{ meta.descricao }}</p>
+          {% endif %}
+        </div>
+        <div class="col-12 col-lg-7">
+          <div class="row text-center g-3">
+            <div class="col-6 col-md-3">
+              <div class="small text-muted">Meta alvo</div>
+              <div class="fs-5 fw-semibold">{{ meta_alvo }}</div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="small text-muted">Alocado (nivel atual)</div>
+              <div class="fs-5 fw-semibold">{{ aloc_top_total }}</div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="small text-muted">Realizado</div>
+              <div class="fs-5 fw-semibold">{{ meta_realizado_total }}</div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="small text-muted">% execucao</div>
+              <div class="fs-5 fw-semibold">{{ meta_percentual|floatformat:1 }}%</div>
+            </div>
+          </div>
+          {% if meta.data_limite %}
+            <div class="text-muted small text-end mt-2">
+              Prazo: {{ meta.data_limite|date:"d/m/Y" }}
+            </div>
           {% endif %}
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="col-12 col-lg-5">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <form method="post" class="vstack gap-3">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ next }}">
-
-            <div class="alert alert-warning mb-0 small">
-              Encerrar uma meta impede novas programacoes ou atribuicoes enquanto ela permanecer encerrada.
-            </div>
-
-            {% if pendentes_total %}
-              <div class="alert alert-danger mt-2 mb-0">
-                <strong>Atencao:</strong> existem {{ pendentes_total }} atividade{{ pendentes_total|pluralize }} desta meta pendente{{ pendentes_total|pluralize }}.
-                {% if pendentes_preview %}
-                  <ul class="mt-2 mb-0 ps-3">
-                    {% for pend in pendentes_preview %}
-                      <li>
-                        {% if pend.data %}{{ pend.data|date:"d/m/Y" }}{% else %}Sem data{% endif %}
-                         - Item #{{ pend.id }}
-                        {% if pend.veiculo %}(Veiculo: {{ pend.veiculo }}){% endif %}
-                      </li>
-                    {% endfor %}
-                    {% if pendentes_tem_mais %}
-                      <li>... e outros itens pendentes.</li>
-                    {% endif %}
-                  </ul>
-                {% endif %}
-                <p class="mt-2 mb-0 small">
-                  Para encerrar com pendencias, confirme a opcao abaixo.
-                  {% if pendentes_confirmacao_obrigatoria %}
-                    <span class="text-danger fw-semibold">Confirme explicitamente para prosseguir.</span>
-                  {% endif %}
-                </p>
-              </div>
-              <div class="form-check mt-2">
-                <input class="form-check-input"
-                       type="checkbox"
-                       id="id_confirmar_pendentes"
-                       name="confirmar_pendentes"
-                       value="1"
-                       {% if confirmar_pendentes_checked %}checked{% endif %}>
-                <label class="form-check-label" for="id_confirmar_pendentes">
-                  Desejo encerrar esta meta mesmo com atividades pendentes.
-                </label>
-              </div>
-              <div class="form-check mt-1">
-                <input class="form-check-input"
-                       type="checkbox"
-                       id="id_encerrar_auto"
-                       name="encerrar_auto"
-                       value="1"
-                       {% if encerrar_auto_checked %}checked{% endif %}>
-                <label class="form-check-label" for="id_encerrar_auto">
-                  Concluir automaticamente todas as atividades pendentes antes de encerrar.
-                </label>
-              </div>
-            {% endif %}
-
-            <div>
-              <label class="form-label d-block mt-1">Confirmar encerramento</label>
-              <div class="form-check form-switch">
-                <input type="checkbox"
-                       class="form-check-input"
-                       id="id_encerrar"
-                       name="encerrar"
-                       value="1"
-                       {% if meta.encerrada %}checked disabled{% endif %}>
-                <label class="form-check-label" for="id_encerrar">
-                  Marque para confirmar que a meta foi concluida.
-                </label>
-              </div>
-            </div>
-
-            <div class="d-flex justify-content-end gap-2">
-              <a href="{{ next|default:'/metas/' }}" class="btn btn-light">Cancelar</a>
-              <button class="btn btn-danger" type="submit" {% if meta.encerrada %}disabled{% endif %}>
-                <i class="bi bi-check2-circle me-1"></i> Encerrar meta
-              </button>
-            </div>
-          </form>
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+      <strong><i class="bi bi-diagram-3 me-2"></i>Estratificacao da meta</strong>
+    </div>
+    <div class="card-body">
+      {% if tem_alocacoes %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th scope="col">Unidade</th>
+                <th scope="col">Alocado</th>
+                <th scope="col">Realizado</th>
+                <th scope="col">% Exec.</th>
+                <th scope="col">Saldo</th>
+                <th scope="col">Obs.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% include "metas/partials/_aloc_tree_rows.html" with nodes=aloc_tree %}
+            </tbody>
+          </table>
         </div>
-      </div>
-
-      {% if alocacao_atual %}
-        <div class="small text-muted mt-2">
-          Nesta unidade: <strong>{{ executado_unidade }}</strong> executado de {{ alocado_unidade }} alocado.
+      {% else %}
+        <div class="text-muted text-center py-3">
+          Nenhuma alocacao registrada para esta meta.
         </div>
       {% endif %}
     </div>
   </div>
+
+  <form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <div class="card-header bg-light">
+      <strong><i class="bi bi-flag me-2"></i>Confirmacoes para encerrar</strong>
+    </div>
+    <div class="card-body vstack gap-3">
+      <div class="form-check">
+        <input class="form-check-input {% if form_errors.encerrar_agora %}is-invalid{% endif %}"
+               type="checkbox"
+               id="id_encerrar_agora"
+               name="encerrar_agora"
+               value="1"
+               {% if encerrar_agora_checked %}checked{% endif %}>
+        <label class="form-check-label fw-semibold" for="id_encerrar_agora">
+          Desejo encerrar esta meta agora.
+        </label>
+        <div class="form-text">
+          O encerramento impede novos registros de progresso ou redistribuicoes atreladas a esta meta.
+        </div>
+        {% if form_errors.encerrar_agora %}
+          <div class="invalid-feedback d-block">{{ form_errors.encerrar_agora }}</div>
+        {% endif %}
+      </div>
+
+      {% if pendentes_total %}
+        <div class="alert alert-warning mb-0">
+          <strong>Atencao:</strong> existem {{ pendentes_total }} atividade{{ pendentes_total|pluralize }} desta meta ainda pendente{{ pendentes_total|pluralize }}.
+          {% if pendentes_preview %}
+            <ul class="mt-2 mb-0 ps-3">
+              {% for pend in pendentes_preview %}
+                <li>
+                  {% if pend.data %}{{ pend.data|date:"d/m/Y" }}{% else %}Sem data{% endif %}
+                  - Item #{{ pend.id }}
+                  {% if pend.unidade %}(Unidade: {{ pend.unidade }}){% endif %}
+                  {% if pend.veiculo %}(Veiculo: {{ pend.veiculo }}){% endif %}
+                </li>
+              {% endfor %}
+              {% if pendentes_tem_mais %}
+                <li>... e outros itens pendentes.</li>
+              {% endif %}
+            </ul>
+          {% endif %}
+          <p class="mb-0 small">
+            Confirme abaixo se desejar encerrar mesmo com atividades pendentes.
+          </p>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input {% if form_errors.confirmar_pendentes %}is-invalid{% endif %}"
+                 type="checkbox"
+                 id="id_confirmar_pendentes"
+                 name="confirmar_pendentes"
+                 value="1"
+                 {% if confirmar_pendentes_checked %}checked{% endif %}>
+          <label class="form-check-label" for="id_confirmar_pendentes">
+            Desejo encerrar a meta mesmo com atividades pendentes.
+          </label>
+          {% if form_errors.confirmar_pendentes %}
+            <div class="invalid-feedback d-block">{{ form_errors.confirmar_pendentes }}</div>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a href="{{ next_url }}" class="btn btn-light">Cancelar</a>
+      <button type="submit" class="btn btn-danger">
+        <i class="bi bi-check2-circle me-1"></i> Encerrar meta
+      </button>
+    </div>
+  </form>
 </div>
 {% endblock %}

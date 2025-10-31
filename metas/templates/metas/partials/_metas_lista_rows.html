@@ -1,0 +1,52 @@
+{% for aloc in alocacoes %}
+{% with meta=aloc.meta %}
+<tr data-meta-status="{% if meta.encerrada %}encerrada{% elif meta.atrasada %}atrasada{% elif meta.concluida %}concluida{% else %}andamento{% endif %}"
+    data-meta-data="{{ meta.data_limite|date:'Y-m-d' }}">
+  <td>{{ meta.display_titulo }}</td>
+  <td>{% if meta.atividade %}{{ meta.atividade.titulo }}{% else %}<span class="text-muted">--</span>{% endif %}</td>
+  <td>{{ meta.data_limite|date:"d/m/Y"|default:"--" }}</td>
+  <td>{{ aloc.quantidade_alocada|default:"0" }}</td>
+  <td>{{ aloc.realizado|default:"0" }}</td>
+  <td>{{ aloc.percentual_execucao|floatformat:1 }}%</td>
+  <td>
+    {% if meta.encerrada %}
+      <span class="badge bg-dark">Encerrada</span>
+    {% elif meta.atrasada %}
+      <span class="badge bg-danger">Atrasada</span>
+    {% elif meta.concluida %}
+      <span class="badge bg-success">Concluida</span>
+    {% else %}
+      <span class="badge bg-warning text-dark">Em andamento</span>
+    {% endif %}
+  </td>
+  <td class="text-end">
+    {% if request.user.is_superuser or meta.unidade_criadora_id == unidade.id %}
+      <div class="d-inline-flex flex-wrap justify-content-end gap-2">
+        {% if meta.encerrada %}
+          <form method="post"
+                action="{% url 'metas:toggle_encerrada' meta.id %}"
+                class="d-inline">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-arrow-clockwise"></i> Reabrir
+            </button>
+          </form>
+        {% else %}
+          <a href="{% url 'metas:encerrar-meta' meta.id %}?next={{ request.get_full_path|urlencode }}"
+             class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-flag"></i> Encerrar
+          </a>
+        {% endif %}
+        <a href="{% url 'metas:atribuir-meta' meta.id %}"
+           class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-arrow-left-right"></i> Atribuir
+        </a>
+      </div>
+    {% else %}
+      <span class="text-muted small">--</span>
+    {% endif %}
+  </td>
+</tr>
+{% endwith %}
+{% endfor %}

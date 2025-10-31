@@ -32,7 +32,6 @@ def minhas_metas_view(request):
         messages.error(request, "Selecione uma unidade antes de ver as metas.")
         return redirect("core:dashboard")
 
-    atividade_id = request.GET.get("atividade")
     meta_filter_raw = request.GET.get("meta")
     meta_filter_id: int | None = None
     try:
@@ -54,8 +53,6 @@ def minhas_metas_view(request):
         .filter(unidade=unidade, meta__encerrada=False)
         .order_by("meta__data_limite", "meta__titulo")
     )
-    if atividade_id:
-        alocacoes = alocacoes.filter(meta__atividade_id=atividade_id)
 
     meta_ids = list(alocacoes.values_list("meta_id", flat=True))
     programadas_por_meta: dict[int, int] = {}
@@ -105,8 +102,6 @@ def minhas_metas_view(request):
     )
     if expediente_meta_id:
         itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
-    if atividade_id:
-        itens_qs = itens_qs.filter(meta__atividade_id=atividade_id)
     if meta_filter_id:
         itens_qs = itens_qs.filter(meta_id=meta_filter_id)
     if status_filter == "concluidas":

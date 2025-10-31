@@ -144,20 +144,7 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
-                    <form method="post" action="{% url 'metas:toggle_encerrada' m.id %}" class="d-inline">
-                      {% csrf_token %}
-                      {% if not m.encerrada %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Encerrar meta" onclick="return confirm('Tem certeza que deseja encerrar esta meta?')">
-                          <i class="bi bi-x-circle"></i> Encerrar
-                        </button>
-                      {% else %}
-                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Reabrir meta" onclick="return confirm('Reabrir a meta?')">
-                          <i class="bi bi-arrow-clockwise"></i> Reabrir
-                        </button>
-                      {% endif %}
-                    </form>
-
-                    <a href="{% url 'metas:atribuir-meta' m.id %}" class="btn btn-sm btn-outline-primary ms-1" title="Atribuir">
+                    <a href="{% url 'metas:atribuir-meta' m.id %}" class="btn btn-sm btn-outline-primary" title="Atribuir">
                       <i class="bi bi-list-check"></i> Atribuir Meta / Editar
                     </a>
                   </td>

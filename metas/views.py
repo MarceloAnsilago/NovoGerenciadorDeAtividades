@@ -1,5 +1,5 @@
 # metas/views.py
-from collections import deque
+from collections import deque, defaultdict
 from types import SimpleNamespace
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -9,7 +9,6 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.utils import timezone
 
 from core.utils import get_unidade_atual
 from core.models import No
@@ -21,25 +20,18 @@ from django.http import HttpResponseForbidden
 from django.views.decorators.http import require_http_methods
 from django.db.models.functions import ExtractYear
 
-@login_required
-def metas_unidade_view(request):
+def _prepare_metas_context(request, *, emit_messages=False):
     unidade = get_unidade_atual(request)
     unidade_real = unidade
     if not unidade:
-        messages.warning(request, "Selecione ou assuma uma unidade para visualizar e gerenciar metas.")
-        unidade = SimpleNamespace(id=None, nome="Nao selecionada")
-        alocacoes = MetaAlocacao.objects.none()
-        atividade_filtrada = None
-        return render(
-            request,
-            "metas/meta_lista.html",
-            {
-                "unidade": unidade,
-                "alocacoes": alocacoes,
-                "atividade_filtrada": None,
-                "has_unidade": False,
-            },
-        )
+        if emit_messages:
+            messages.warning(request, "Selecione ou assuma uma unidade para visualizar e gerenciar metas.")
+        return {
+            "unidade": SimpleNamespace(id=None, nome="Nao selecionada"),
+            "alocacoes": MetaAlocacao.objects.none(),
+            "atividade_filtrada": None,
+            "has_unidade": False,
+        }
 
     atividade_id = request.GET.get("atividade")
 
@@ -58,12 +50,18 @@ def metas_unidade_view(request):
         else:
             alocacoes = alocacoes.filter(meta__atividade_id=atividade_filtrada.id)
 
-    return render(request, "metas/meta_lista.html", {
+    return {
         "unidade": unidade,
         "alocacoes": alocacoes,
         "atividade_filtrada": atividade_filtrada,
         "has_unidade": True,
-    })
+    }
+
+
+@login_required
+def metas_unidade_view(request):
+    contexto = _prepare_metas_context(request, emit_messages=True)
+    return render(request, "metas/meta_lista.html", contexto)
 
 
 @login_required
@@ -95,17 +93,22 @@ def atividades_lista_view(request):
     page = request.GET.get("page")
     page_obj = paginator.get_page(page)
 
+    metas_context = _prepare_metas_context(request, emit_messages=True)
+
     return render(
         request,
         "metas/atividades_lista.html",
         {
             "unidade": unidade,
-            "unidade_nome": getattr(unidade, "nome", "Não selecionada"),
+            "unidade_nome": getattr(unidade, "nome", "Nao selecionada"),
             "atividades": page_obj.object_list,
             "page_obj": page_obj,
             "areas": Atividade.Area.choices,
             "area_selected": area,
             "q": q,
+            "alocacoes": metas_context.get("alocacoes", []),
+            "has_unidade": metas_context.get("has_unidade", True),
+            "atividade_filtrada": metas_context.get("atividade_filtrada"),
         },
     )
 
@@ -169,7 +172,7 @@ def definir_meta_view(request, atividade_id):
         "ano_selecionado": ano_selecionado,
         "status_selecionado": status_selecionado,
         "can_create": has_unidade,
-        "unidade_nome": getattr(unidade, "nome", "Não selecionada"),
+        "unidade_nome": getattr(unidade, "nome", "Nao selecionada"),
     })
 
 @login_required
@@ -397,148 +400,6 @@ def editar_meta_view(request, meta_id):
 
 
 @login_required
-@require_http_methods(["GET", "POST"])
-def encerrar_meta_view(request, meta_id):
-    """
-    Exibe uma pagina de confirmacao para encerrar a meta selecionada.
-    Segue o mesmo padrao visual usado para encerrar atividades em 'Minhas Metas'.
-    """
-    meta = get_object_or_404(
-        Meta.objects.select_related("atividade", "unidade_criadora"),
-        pk=meta_id,
-    )
-    unidade = get_unidade_atual(request)
-    if not unidade:
-        messages.error(request, "Selecione uma unidade antes de encerrar metas.")
-        return redirect("core:dashboard")
-
-    if meta.unidade_criadora_id != unidade.id and not request.user.is_superuser:
-        messages.warning(request, "Voce nao tem permissao para encerrar esta meta.")
-        return redirect("metas:metas-unidade")
-
-    alocacoes = list(meta.alocacoes.select_related("unidade").order_by("unidade__nome"))
-    alocacao_atual = next((a for a in alocacoes if a.unidade_id == unidade.id), None)
-    executado_unidade = getattr(alocacao_atual, "realizado", 0) if alocacao_atual else 0
-    alocado_unidade = getattr(alocacao_atual, "quantidade_alocada", 0) if alocacao_atual else 0
-
-    from programar.models import ProgramacaoItem  # import local para evitar ciclos
-    pendentes_qs = (
-        ProgramacaoItem.objects
-        .select_related("programacao", "veiculo")
-        .filter(programacao__unidade_id=unidade.id, meta_id=meta.id, concluido=False)
-        .order_by("programacao__data", "id")
-    )
-    pendentes_total = pendentes_qs.count()
-    pendentes_preview_raw = list(pendentes_qs[:5])
-    pendentes_preview = [
-        {
-            "id": pend.id,
-            "data": getattr(getattr(pend, "programacao", None), "data", None),
-            "veiculo": getattr(getattr(pend, "veiculo", None), "nome", "") or "",
-        }
-        for pend in pendentes_preview_raw
-    ]
-    pendentes_tem_mais = pendentes_total > len(pendentes_preview)
-
-    next_url = (
-        request.POST.get("next")
-        or request.GET.get("next")
-        or request.META.get("HTTP_REFERER")
-        or reverse("metas:metas-unidade")
-    )
-
-    if request.method == "POST":
-        encerrar_flag = (request.POST.get("encerrar") or "").strip().lower() in {"1", "true", "on", "sim"}
-        confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
-        encerrar_auto = (request.POST.get("encerrar_auto") or "").strip() == "1"
-        if not encerrar_flag:
-            messages.error(request, "Confirme o encerramento da meta antes de salvar.")
-        elif pendentes_total > 0 and not (confirmar_pendentes or encerrar_auto):
-            messages.warning(request, "Existem atividades pendentes desta meta. Confirme se deseja encerrar mesmo assim.")
-        else:
-            concluidas_auto = 0
-            if encerrar_auto and pendentes_total > 0:
-                concluidas_auto = _encerrar_auto_itens(
-                    pendentes_qs,
-                    request.user,
-                    meta,
-                )
-            if not meta.encerrada:
-                meta.encerrada = True
-                meta.save(update_fields=["encerrada"])
-                if concluidas_auto:
-                    messages.success(request, f"Meta encerrada e {concluidas_auto} atividade(s) pendente(s) marcada(s) como concluida(s).")
-                else:
-                    messages.success(request, "Meta encerrada com sucesso.")
-            else:
-                messages.info(request, "Esta meta ja estava encerrada.")
-            return redirect(next_url)
-    else:
-        confirmar_pendentes = False
-        encerrar_auto = False
-
-    contexto = {
-        "meta": meta,
-        "unidade": unidade,
-        "alocacoes": alocacoes,
-        "alocacao_atual": alocacao_atual,
-        "executado_unidade": executado_unidade,
-        "alocado_unidade": alocado_unidade,
-        "total_realizado": meta.realizado_total,
-        "total_alocado": meta.alocado_total,
-        "percentual_execucao": meta.percentual_execucao,
-        "next": next_url,
-        "pendentes_total": pendentes_total,
-        "pendentes_preview": pendentes_preview,
-        "pendentes_tem_mais": pendentes_tem_mais,
-        "confirmar_pendentes_checked": confirmar_pendentes,
-        "encerrar_auto_checked": encerrar_auto,
-        "pendentes_confirmacao_obrigatoria": request.method == "POST" and pendentes_total > 0 and not (confirmar_pendentes or encerrar_auto),
-    }
-    return render(request, "metas/encerrar_meta.html", contexto)
-
-
-def _encerrar_auto_itens(pendentes_qs, usuario, meta):
-    """
-    Marca os itens pendentes da meta como concluidos e registra progresso.
-    Retorna a quantidade de itens atualizados.
-    """
-    total_concluidos = 0
-    user_id = getattr(usuario, "id", None)
-    agora = timezone.now()
-    with transaction.atomic():
-        for item in pendentes_qs:
-            if getattr(item, "concluido", False):
-                continue
-            item.concluido = True
-            item.concluido_em = agora
-            item.concluido_por_id = user_id
-            item.save(update_fields=["concluido", "concluido_em", "concluido_por"])
-            total_concluidos += 1
-
-            prog = getattr(item, "programacao", None)
-            unidade_id = getattr(prog, "unidade_id", None)
-            if not unidade_id:
-                continue
-            aloc = (
-                MetaAlocacao.objects
-                .filter(meta_id=meta.id, unidade_id=unidade_id)
-                .order_by("id")
-                .first()
-            )
-            if not aloc:
-                continue
-            ProgressoMeta.objects.create(
-                alocacao_id=aloc.id,
-                data=getattr(prog, "data", timezone.localdate()),
-                quantidade=1,
-                registrado_por_id=user_id,
-                observacao="Progresso registrado automaticamente ao encerrar a meta.",
-            )
-    return total_concluidos
-
-
-@login_required
 @require_http_methods(["POST"])
 def excluir_meta_view(request, meta_id):
     """
@@ -733,4 +594,137 @@ def redistribuir_meta_view(request, meta_id, parent_aloc_id):
         "existing_total": existing_total,
         "parent_available": parent_available,
     })
+
+
+@login_required
+def encerrar_meta_view(request, meta_id):
+    unidade = get_unidade_atual(request)
+    next_url_default = reverse("metas:metas-unidade")
+    next_url = request.GET.get("next") or request.POST.get("next") or next_url_default
+
+    if not unidade:
+        messages.error(request, "Selecione ou assuma uma unidade antes de encerrar metas.")
+        return redirect(next_url)
+
+    meta = (
+        Meta.objects
+        .select_related("unidade_criadora", "atividade")
+        .filter(pk=meta_id)
+        .first()
+    )
+    if not meta:
+        messages.error(request, "Meta nǜo encontrada ou jǭ foi removida.")
+        return redirect(next_url)
+
+    if meta.unidade_criadora_id != getattr(unidade, "id", None) and not request.user.is_superuser:
+        messages.warning(request, "VocǦ nǜo tem permissǜo para encerrar esta meta.")
+        return redirect(next_url)
+
+    if meta.encerrada:
+        messages.info(request, "Meta jǭ estǭ encerrada.")
+        return redirect(next_url)
+
+    aloc_qs = (
+        MetaAlocacao.objects
+        .filter(meta=meta)
+        .select_related("unidade", "parent")
+        .annotate(realizado_total=Sum("progresso__quantidade"))
+        .order_by("parent_id", "unidade__nome", "id")
+    )
+    children_map = defaultdict(list)
+    for aloc in aloc_qs:
+        children_map[aloc.parent_id].append(aloc)
+
+    def build_tree(parent_id=None, depth=0):
+        nodes = []
+        for aloc in children_map.get(parent_id, []):
+            realizado = aloc.realizado_total or 0
+            quantidade = aloc.quantidade_alocada or 0
+            saldo = quantidade - realizado
+            if saldo < 0:
+                saldo = 0
+            percentual = 0.0
+            if quantidade:
+                percentual = min(100.0, (realizado / quantidade) * 100.0)
+            node = {
+                "aloc": aloc,
+                "depth": depth,
+                "indent": depth * 20,
+                "realizado": realizado,
+                "saldo": saldo,
+                "percentual": percentual,
+            }
+            node["filhos"] = build_tree(aloc.id, depth + 1)
+            node["has_children"] = bool(node["filhos"])
+            nodes.append(node)
+        return nodes
+
+    aloc_tree = build_tree()
+    aloc_top_total = sum((node["aloc"].quantidade_alocada or 0) for node in aloc_tree)
+
+    from programar.models import ProgramacaoItem
+
+    pendentes_qs = (
+        ProgramacaoItem.objects
+        .select_related("programacao", "programacao__unidade", "veiculo")
+        .filter(meta_id=meta.id, concluido=False)
+        .order_by("programacao__data", "id")
+    )
+    pendentes_total = pendentes_qs.count()
+    preview_limit = 5
+    pendentes_preview = []
+    for pend in pendentes_qs[:preview_limit]:
+        prog = getattr(pend, "programacao", None)
+        unidade_nome = getattr(getattr(prog, "unidade", None), "nome", "")
+        pendentes_preview.append({
+            "id": pend.id,
+            "data": getattr(prog, "data", None),
+            "unidade": unidade_nome,
+            "veiculo": getattr(getattr(pend, "veiculo", None), "nome", ""),
+        })
+    pendentes_tem_mais = pendentes_total > len(pendentes_preview)
+
+    encerrar_agora_checked = False
+    confirmar_pendentes_checked = False
+    form_errors = {}
+
+    if request.method == "POST":
+        encerrar_agora_checked = (request.POST.get("encerrar_agora") or "").strip().lower() in {"1", "true", "on", "sim"}
+        confirmar_pendentes_checked = (request.POST.get("confirmar_pendentes") or "").strip().lower() in {"1", "true", "on", "sim"}
+
+        if not encerrar_agora_checked:
+            form_errors["encerrar_agora"] = "Marque a confirma��ǜo para encerrar a meta."
+
+        if pendentes_total > 0 and not confirmar_pendentes_checked:
+            form_errors["confirmar_pendentes"] = "Confirme que deseja encerrar mesmo com atividades pendentes."
+
+        if not form_errors:
+            meta.encerrada = True
+            meta.save(update_fields=["encerrada"])
+            messages.success(request, "Meta encerrada com sucesso.")
+            return redirect(next_url)
+
+        messages.warning(request, "Revise as confirma����es antes de encerrar a meta.")
+
+    meta_realizado_total = meta.realizado_total
+    meta_percentual = meta.percentual_execucao
+
+    contexto = {
+        "meta": meta,
+        "unidade": unidade,
+        "aloc_tree": aloc_tree,
+        "tem_alocacoes": bool(aloc_qs),
+        "aloc_top_total": aloc_top_total,
+        "meta_alvo": meta.quantidade_alvo or 0,
+        "meta_realizado_total": meta_realizado_total,
+        "meta_percentual": meta_percentual,
+        "pendentes_total": pendentes_total,
+        "pendentes_preview": pendentes_preview,
+        "pendentes_tem_mais": pendentes_tem_mais,
+        "encerrar_agora_checked": encerrar_agora_checked,
+        "confirmar_pendentes_checked": confirmar_pendentes_checked,
+        "form_errors": form_errors,
+        "next_url": next_url,
+    }
+    return render(request, "metas/encerrar_meta.html", contexto)
 

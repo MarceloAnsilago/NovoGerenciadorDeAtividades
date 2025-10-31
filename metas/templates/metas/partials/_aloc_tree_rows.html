@@ -1,0 +1,20 @@
+{% for node in nodes %}
+<tr>
+  <td>
+    <span class="d-inline-block" style="padding-left: {{ node.indent }}px;">
+      {% if node.depth > 0 %}
+        <span class="text-muted me-1">&rsaquo;</span>
+      {% endif %}
+      {{ node.aloc.unidade.nome|default:"--" }}
+    </span>
+  </td>
+  <td>{{ node.aloc.quantidade_alocada|default:"0" }}</td>
+  <td>{{ node.realizado }}</td>
+  <td>{{ node.percentual|floatformat:1 }}%</td>
+  <td>{{ node.saldo }}</td>
+  <td>{{ node.aloc.observacao|default:"-" }}</td>
+</tr>
+{% if node.filhos %}
+  {% include "metas/partials/_aloc_tree_rows.html" with nodes=node.filhos only %}
+{% endif %}
+{% endfor %}

@@ -1,6 +1,4 @@
 from django.urls import path
-from .views import metas_unidade_view
-from .views import metas_unidade_view, atividades_lista_view
 from . import views
 
 app_name = "metas"
@@ -18,11 +16,11 @@ urlpatterns = [
     # editar meta (form)
     path("editar/<int:meta_id>/", views.editar_meta_view, name="editar"),
 
-    # pagina para encerrar meta
-    path("encerrar/<int:meta_id>/", views.encerrar_meta_view, name="encerrar-meta"),
-
     # excluir meta (POST)
     path("excluir/<int:meta_id>/", views.excluir_meta_view, name="excluir-meta"),
+
+    # encerrar meta (fluxo com estratificacao)
+    path("encerrar/<int:meta_id>/", views.encerrar_meta_view, name="encerrar-meta"),
 
     # alternar encerrada/reabrir (POST)
     path("toggle/<int:meta_id>/", views.toggle_encerrada_view, name="toggle_encerrada"),

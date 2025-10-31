@@ -1,4 +1,4 @@
-﻿{% extends "core/base.html" %}
+{% extends "core/base.html" %}
 {% load i18n %}
 
 {% block title %}Minhas Metas{% endblock %}
@@ -23,18 +23,7 @@
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="mb-0">Minhas Metas</h1>
 
-    <form method="get" class="d-flex align-items-center gap-2">
-      <input type="hidden" name="start" value="{{ dt_start|date:'Y-m-d' }}">
-      <input type="hidden" name="end" value="{{ dt_end|date:'Y-m-d' }}">
-      {% if status_filter %}
-        <input type="hidden" name="status" value="{{ status_filter }}">
-      {% endif %}
-      <input type="text" name="atividade" value="{{ request.GET.atividade }}"
-             class="form-control form-control-sm" placeholder="ID da atividade (opcional)">
-      <button class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-search"></i> Filtrar
-      </button>
-    </form>
+    <div></div>
   </div>
 
   {# ====== 1) GRID DE METAS (EM CIMA) ====== #}
@@ -59,7 +48,7 @@
                 {% endif %}
 
                 <div class="small text-secondary">
-                  ID Meta: {{ meta.id }} ÔÇó Criada por: {{ meta.criado_por.username }}
+                  ID Meta: {{ meta.id }} - Criada por: {{ meta.criado_por.username }}
                   <br>Unidade criadora: {{ meta.unidade_criadora.nome }}
                 </div>
 
@@ -69,7 +58,7 @@
                   </div>
                 {% endif %}
                 <div class="small text-secondary mt-1">
-                  Em programa├º├úo: {{ meta.programadas_total|default_if_none:"0" }}
+                  Em programacao: {{ meta.programadas_total|default_if_none:"0" }}
                 </div>
               </div>
             </div>
@@ -162,7 +151,7 @@
       {% endwith %}
     {% empty %}
       <div class="col-12">
-        <div class="alert alert-info mb-0">Nao h├í metas atribu├¡das ├á sua unidade.</div>
+        <div class="alert alert-info mb-0">Nao ha metas atribuidas a sua unidade.</div>
       </div>
     {% endfor %}
   </div>
@@ -172,7 +161,7 @@
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
         <div>
-          <h5 class="mb-1">Andamento da Programa├º├úo</h5>
+          <h5 class="mb-1">Andamento da Programacao</h5>
           <div class="text-muted small">
             Periodo:
             <strong>{{ dt_start|date:"d/m/Y" }}</strong>
@@ -190,9 +179,6 @@
         </div>
 
         <form method="get" class="d-flex align-items-center gap-2">
-          {% if request.GET.atividade %}
-            <input type="hidden" name="atividade" value="{{ request.GET.atividade }}">
-          {% endif %}
           <input type="date" name="start" value="{{ dt_start|date:'Y-m-d' }}" class="form-control form-control-sm">
           <input type="date" name="end"   value="{{ dt_end|date:'Y-m-d' }}"   class="form-control form-control-sm">
           <select name="status" class="form-select form-select-sm" style="max-width: 160px;">

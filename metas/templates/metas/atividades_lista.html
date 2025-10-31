@@ -17,7 +17,7 @@
       <!-- Filtros -->
       <form method="get" class="row g-2 mb-3">
         <div class="col-md-4">
-          <label class="form-label mb-0">Área</label>
+          <label class="form-label mb-0">Area</label>
           <select name="area" class="form-select">
             <option value="">Todas</option>
             {% for value, label in areas %}
@@ -28,7 +28,7 @@
 
         <div class="col-md-6">
           <label class="form-label mb-0">Buscar</label>
-          <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Título ou descrição">
+          <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Titulo ou descricao">
         </div>
 
         <div class="col-md-2 d-flex align-items-end">
@@ -42,17 +42,17 @@
       <table class="table table-hover align-middle">
         <thead>
           <tr>
-            <th>Título</th>
-            <th>Descrição</th>
-            <th>Área</th>
-            <th class="text-end">Ações</th>
+            <th>Titulo</th>
+            <th>Descricao</th>
+            <th>Area</th>
+            <th class="text-end">Acoes</th>
           </tr>
         </thead>
         <tbody>
           {% for atividade in atividades %}
             <tr>
               <td>{{ atividade.titulo }}</td>
-              <td>{{ atividade.descricao|default:"—" }}</td>
+              <td>{{ atividade.descricao|default:"" }}</td>
               <td>
                 {% if atividade.get_area_display %}
                   <span class="badge bg-secondary">{{ atividade.get_area_display }}</span>
@@ -74,5 +74,124 @@
       </table>
     </div>
   </div>
+
+  {% if has_unidade %}
+  <div class="card shadow-sm mt-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <div>
+        <strong><i class="bi bi-bullseye me-1"></i> Metas Alocadas (Resumo)</strong>
+        <div class="small text-muted">Visualizacao geral das metas da unidade.</div>
+      </div>
+      <a href="{% url 'metas:metas-unidade' %}" class="btn btn-sm btn-outline-secondary">Abrir tela completa</a>
+    </div>
+    <div class="card-body">
+      <div class="row g-2 mb-3">
+        <div class="col-md-4">
+          <label class="form-label mb-1">Periodo</label>
+          <div class="d-flex gap-2">
+            <input type="date" id="filtroMetasInicio" class="form-control form-control-sm">
+            <input type="date" id="filtroMetasFim" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label mb-1">Status</label>
+          <select id="filtroMetasStatus" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            <option value="andamento">Em andamento</option>
+            <option value="concluida">Concluidas</option>
+            <option value="atrasada">Atrasadas</option>
+            <option value="encerrada">Encerradas</option>
+          </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="button" class="btn btn-outline-primary w-100" id="btnAplicarFiltroMetas">
+            <i class="bi bi-funnel"></i> Aplicar filtro
+          </button>
+        </div>
+      </div>
+
+      <div class="table-responsive" id="tabelaMetasWrap">
+          <table class="table table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Titulo</th>
+                <th>Atividade</th>
+                <th>Prazo</th>
+                <th>Alocacao</th>
+                <th>Realizado</th>
+                <th>% Execucao</th>
+                <th>Status</th>
+                <th class="text-end">Acoes</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaMetasBody">
+              {% include "metas/partials/_metas_lista_rows.html" with alocacoes=alocacoes %}
+              {% if alocacoes %}
+            <tr class="metas-empty-row d-none">
+              <td colspan="8" class="text-center text-muted py-4">Nenhuma meta encontrada para os filtros informados.</td>
+            </tr>
+              {% else %}
+            <tr class="metas-empty-row">
+              <td colspan="8" class="text-center text-muted py-4">Nenhuma meta encontrada para os filtros informados.</td>
+            </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+  </div>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function() {
+  var btnFiltro = document.getElementById("btnAplicarFiltroMetas");
+  var tbody = document.getElementById("tabelaMetasBody");
+  if (!btnFiltro || !tbody) return;
+
+  function parseDate(value) {
+    if (!value) return null;
+    var parts = value.split("-");
+    if (parts.length !== 3) return null;
+    var year = Number(parts[0]);
+    var month = Number(parts[1]) - 1;
+    var day = Number(parts[2]);
+    var dt = new Date(year, month, day);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  btnFiltro.addEventListener("click", function() {
+    var inicio = parseDate(document.getElementById("filtroMetasInicio")?.value || "");
+    var fim = parseDate(document.getElementById("filtroMetasFim")?.value || "");
+    var status = (document.getElementById("filtroMetasStatus")?.value || "").toLowerCase();
+
+    var rows = Array.from(tbody.querySelectorAll("tr"));
+    var emptyRow = tbody.querySelector(".metas-empty-row");
+    var visibleCount = 0;
+
+    rows.forEach(function(row) {
+      if (row.classList.contains("metas-empty-row")) return;
+
+      var rowStatus = (row.getAttribute("data-meta-status") || "").toLowerCase();
+      var rowDataRaw = row.getAttribute("data-meta-data") || "";
+      var rowDate = parseDate(rowDataRaw);
+
+      var visible = true;
+      if (status && rowStatus !== status) visible = false;
+      if (visible && inicio && rowDate && rowDate < inicio) visible = false;
+      if (visible && fim && rowDate && rowDate > fim) visible = false;
+
+      row.classList.toggle("d-none", !visible);
+      if (visible) visibleCount += 1;
+    });
+
+    if (emptyRow) {
+      emptyRow.classList.toggle("d-none", visibleCount > 0);
+    }
+  });
+})();
+</script>
 {% endblock %}
