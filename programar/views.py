@@ -1346,10 +1346,57 @@ def concluir_item_form(request, item_id: int):
     )
     servidores = [getattr(l.servidor, "nome", f"Servidor {l.servidor_id}") for l in links]
 
+    meta = getattr(pi, "meta", None)
+    programacao = pi.programacao
+
+    pendentes_qs = ProgramacaoItem.objects.none()
+    pendentes_total = 0
+    pendentes_preview: list[dict[str, Any]] = []
+    pendentes_tem_mais = False
+    if meta and getattr(meta, "id", None):
+        pendentes_qs = (
+            ProgramacaoItem.objects
+            .select_related("programacao", "veiculo")
+            .filter(meta_id=meta.id, concluido=False)
+            .exclude(pk=pi.id)
+            .order_by("programacao__data", "id")
+        )
+        pendentes_total = pendentes_qs.count()
+        preview_limit = 5
+        for pend in pendentes_qs[:preview_limit]:
+            pend_prog = getattr(pend, "programacao", None)
+            pend_data = getattr(pend_prog, "data", None)
+            pendentes_preview.append({
+                "id": pend.id,
+                "data": pend_data,
+                "veiculo": getattr(getattr(pend, "veiculo", None), "nome", "") or "",
+            })
+        pendentes_tem_mais = pendentes_total > len(pendentes_preview)
+
     if request.method == "POST":
         realizado_raw = (request.POST.get("realizado") or "").strip().lower()
         concluido_flag = realizado_raw in {"1", "true", "on", "sim"}
         obs_final = (request.POST.get("observacoes") or "").strip()
+        confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
+
+        if concluido_flag and pendentes_total > 0 and not confirmar_pendentes:
+            # exige confirmacao explícita antes de concluir com pendencias
+            pi.concluido = concluido_flag
+            contexto = {
+                "item": pi,
+                "programacao": programacao,
+                "meta": meta,
+                "atividade": getattr(meta, "atividade", None),
+                "veiculo": getattr(pi, "veiculo", None),
+                "servidores": servidores,
+                "next": request.POST.get("next") or "/minhas-metas/",
+                "pendentes_total": pendentes_total,
+                "pendentes_preview": pendentes_preview,
+                "pendentes_tem_mais": pendentes_tem_mais,
+                "pendentes_confirmacao_obrigatoria": True,
+                "confirmar_pendentes_checked": confirmar_pendentes,
+            }
+            return render(request, "minhas_metas/concluir_item.html", contexto)
 
         if concluido_flag and not pi.concluido and unidade_id and meta and getattr(meta, "id", None):
             aloc = (
@@ -1392,11 +1439,16 @@ def concluir_item_form(request, item_id: int):
 
     contexto = {
         "item": pi,
-        "programacao": prog,
+        "programacao": programacao,
         "meta": meta,
         "atividade": getattr(meta, "atividade", None),
         "veiculo": getattr(pi, "veiculo", None),
         "servidores": servidores,
         "next": request.GET.get("next") or request.META.get("HTTP_REFERER", "/minhas-metas/"),
+        "pendentes_total": pendentes_total,
+        "pendentes_preview": pendentes_preview,
+        "pendentes_tem_mais": pendentes_tem_mais,
+        "pendentes_confirmacao_obrigatoria": False,
+        "confirmar_pendentes_checked": False,
     }
     return render(request, "minhas_metas/concluir_item.html", contexto)

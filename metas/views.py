@@ -413,12 +413,31 @@ def encerrar_meta_view(request, meta_id):
 
     if meta.unidade_criadora_id != unidade.id and not request.user.is_superuser:
         messages.warning(request, "Voce nao tem permissao para encerrar esta meta.")
-    return redirect("metas:metas-unidade")
+        return redirect("metas:metas-unidade")
 
     alocacoes = list(meta.alocacoes.select_related("unidade").order_by("unidade__nome"))
     alocacao_atual = next((a for a in alocacoes if a.unidade_id == unidade.id), None)
     executado_unidade = getattr(alocacao_atual, "realizado", 0) if alocacao_atual else 0
     alocado_unidade = getattr(alocacao_atual, "quantidade_alocada", 0) if alocacao_atual else 0
+
+    from programar.models import ProgramacaoItem  # import local para evitar ciclos
+    pendentes_qs = (
+        ProgramacaoItem.objects
+        .select_related("programacao", "veiculo")
+        .filter(programacao__unidade_id=unidade.id, meta_id=meta.id, concluido=False)
+        .order_by("programacao__data", "id")
+    )
+    pendentes_total = pendentes_qs.count()
+    pendentes_preview_raw = list(pendentes_qs[:5])
+    pendentes_preview = [
+        {
+            "id": pend.id,
+            "data": getattr(getattr(pend, "programacao", None), "data", None),
+            "veiculo": getattr(getattr(pend, "veiculo", None), "nome", "") or "",
+        }
+        for pend in pendentes_preview_raw
+    ]
+    pendentes_tem_mais = pendentes_total > len(pendentes_preview)
 
     next_url = (
         request.POST.get("next")
@@ -429,8 +448,11 @@ def encerrar_meta_view(request, meta_id):
 
     if request.method == "POST":
         encerrar_flag = (request.POST.get("encerrar") or "").strip().lower() in {"1", "true", "on", "sim"}
+        confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
         if not encerrar_flag:
             messages.error(request, "Confirme o encerramento da meta antes de salvar.")
+        elif pendentes_total > 0 and not confirmar_pendentes:
+            messages.warning(request, "Existem atividades pendentes desta meta. Confirme se deseja encerrar mesmo assim.")
         else:
             if not meta.encerrada:
                 meta.encerrada = True
@@ -439,6 +461,8 @@ def encerrar_meta_view(request, meta_id):
             else:
                 messages.info(request, "Esta meta ja estava encerrada.")
             return redirect(next_url)
+    else:
+        confirmar_pendentes = False
 
     contexto = {
         "meta": meta,
@@ -451,6 +475,11 @@ def encerrar_meta_view(request, meta_id):
         "total_alocado": meta.alocado_total,
         "percentual_execucao": meta.percentual_execucao,
         "next": next_url,
+        "pendentes_total": pendentes_total,
+        "pendentes_preview": pendentes_preview,
+        "pendentes_tem_mais": pendentes_tem_mais,
+        "confirmar_pendentes_checked": confirmar_pendentes,
+        "pendentes_confirmacao_obrigatoria": request.method == "POST" and pendentes_total > 0 and not confirmar_pendentes,
     }
     return render(request, "metas/encerrar_meta.html", contexto)
 

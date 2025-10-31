@@ -90,6 +90,43 @@
               Encerrar uma meta impede novas programacoes ou atribuicoes enquanto ela permanecer encerrada.
             </div>
 
+            {% if pendentes_total %}
+              <div class="alert alert-danger mt-2 mb-0">
+                <strong>Atencao:</strong> existem {{ pendentes_total }} atividade{{ pendentes_total|pluralize }} desta meta pendente{{ pendentes_total|pluralize }}.
+                {% if pendentes_preview %}
+                  <ul class="mt-2 mb-0 ps-3">
+                    {% for pend in pendentes_preview %}
+                      <li>
+                        {% if pend.data %}{{ pend.data|date:"d/m/Y" }}{% else %}Sem data{% endif %}
+                         - Item #{{ pend.id }}
+                        {% if pend.veiculo %}(Veiculo: {{ pend.veiculo }}){% endif %}
+                      </li>
+                    {% endfor %}
+                    {% if pendentes_tem_mais %}
+                      <li>... e outros itens pendentes.</li>
+                    {% endif %}
+                  </ul>
+                {% endif %}
+                <p class="mt-2 mb-0 small">
+                  Para encerrar com pendencias, confirme a opcao abaixo.
+                  {% if pendentes_confirmacao_obrigatoria %}
+                    <span class="text-danger fw-semibold">Confirme explicitamente para prosseguir.</span>
+                  {% endif %}
+                </p>
+              </div>
+              <div class="form-check mt-2">
+                <input class="form-check-input"
+                       type="checkbox"
+                       id="id_confirmar_pendentes"
+                       name="confirmar_pendentes"
+                       value="1"
+                       {% if confirmar_pendentes_checked %}checked{% endif %}>
+                <label class="form-check-label" for="id_confirmar_pendentes">
+                  Desejo encerrar esta meta mesmo com atividades pendentes.
+                </label>
+              </div>
+            {% endif %}
+
             <div>
               <label class="form-label d-block mt-1">Confirmar encerramento</label>
               <div class="form-check form-switch">
