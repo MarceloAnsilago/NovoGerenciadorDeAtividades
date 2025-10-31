@@ -1,14 +1,17 @@
 {# templates/descanso/servidor_descansos.html #}
 {% extends "core/base.html" %}
-{% block title %}Descansos — {{ servidor.nome }}{% endblock %}
+{% block title %}Descansos - {{ servidor.nome }}{% endblock %}
 
 {% block content %}
 {% now 'Y-m-d' as hoje %}
-<div class="container-fluid py-3">
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h1 class="h4 mb-0">Descansos — {{ servidor.nome }}</h1>
+<div class="container py-4">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+    <div>
+      <h1 class="h4 mb-1">Descansos &mdash; {{ servidor.nome }}</h1>
+      <p class="text-muted small mb-0">Acompanhe e ajuste os descansos cadastrados para o servidor.</p>
+    </div>
     <div class="d-flex gap-2">
-      <a href="{% url 'descanso:descansos_unidade' %}" class="btn btn-light btn-sm">
+      <a href="{% url 'descanso:descansos_unidade' %}" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-collection"></i> Todos
       </a>
       <a href="{% url 'descanso:criar_descanso' %}?servidor_id={{ servidor.id }}" class="btn btn-primary btn-sm">
@@ -17,71 +20,89 @@
     </div>
   </div>
 
-  <ul class="nav nav-pills small mb-2">
-    <li class="nav-item">
-      <a class="nav-link{% if status == 'ativos' %} active{% endif %}" href="?status=ativos">
-        Ativos <span class="badge bg-light text-dark ms-1">{{ counts.ativos }}</span>
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link{% if status == 'futuros' %} active{% endif %}" href="?status=futuros">
-        Futuros <span class="badge bg-light text-dark ms-1">{{ counts.futuros }}</span>
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link{% if status == 'finalizados' %} active{% endif %}" href="?status=finalizados">
-        Finalizados <span class="badge bg-light text-dark ms-1">{{ counts.finalizados }}</span>
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link{% if status == 'todos' %} active{% endif %}" href="?status=todos">
-        Todos <span class="badge bg-light text-dark ms-1">{{ counts.todos }}</span>
-      </a>
-    </li>
-  </ul>
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light d-flex align-items-start justify-content-between flex-wrap gap-3">
+      <div class="d-flex align-items-start gap-2">
+        <i class="bi bi-calendar-week text-primary fs-4"></i>
+        <div>
+          <strong>Visao geral</strong>
+          <div class="text-muted small">Use os filtros para localizar periodos ou alterar o status listado.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <ul class="nav nav-pills small flex-wrap gap-2 mb-3">
+        <li class="nav-item">
+          <a class="nav-link{% if status == 'ativos' %} active{% endif %}" href="?status=ativos">
+            Ativos <span class="badge bg-light text-dark ms-1">{{ counts.ativos }}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link{% if status == 'futuros' %} active{% endif %}" href="?status=futuros">
+            Futuros <span class="badge bg-light text-dark ms-1">{{ counts.futuros }}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link{% if status == 'finalizados' %} active{% endif %}" href="?status=finalizados">
+            Finalizados <span class="badge bg-light text-dark ms-1">{{ counts.finalizados }}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link{% if status == 'todos' %} active{% endif %}" href="?status=todos">
+            Todos <span class="badge bg-light text-dark ms-1">{{ counts.todos }}</span>
+          </a>
+        </li>
+      </ul>
 
-  {% include "partials/_filtros_descanso.html" %}
+      {% include "partials/_filtros_descanso.html" %}
+    </div>
+  </div>
 
   <div class="card shadow-sm">
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Tipo</th>
-            <th>Período</th>
-            <th class="text-center">Situação</th>
-            <th>Observações</th>
-            <th class="text-end">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for d in descansos %}
+    <div class="card-header bg-light d-flex align-items-center">
+      <strong><i class="bi bi-table me-1"></i> Descansos cadastrados</strong>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
             <tr>
-              <td>{{ d.get_tipo_display }}</td>
-              <td>{{ d.data_inicio }} — {{ d.data_fim }}</td>
-              <td class="text-center">
-                {% if d.data_inicio|stringformat:"s" <= hoje and d.data_fim|stringformat:"s" >= hoje %}
-                  <span class="badge bg-warning text-dark">Em andamento</span>
-                {% elif d.data_inicio|stringformat:"s" > hoje %}
-                  <span class="badge bg-info text-dark">Programado</span>
-                {% else %}
-                  <span class="badge bg-secondary">Encerrado</span>
-                {% endif %}
-              </td>
-              <td class="text-muted small">{{ d.observacoes|default:"—" }}</td>
-              <td class="text-end">
-                {% url 'descanso:editar_descanso' d.id as edit_base %}
-                {% url 'descanso:excluir_descanso' d.id as delete_base %}
-                {% include "partials/_botoes_acoes.html" %}
-              </td>
+              <th>Tipo</th>
+              <th>Periodo</th>
+              <th class="text-center">Situacao</th>
+              <th>Observacoes</th>
+              <th class="text-end">Acoes</th>
             </tr>
-          {% empty %}
-            <tr>
-              <td colspan="5" class="text-center text-muted py-4">Nenhum descanso encontrado.</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for d in descansos %}
+              <tr>
+                <td>{{ d.get_tipo_display }}</td>
+                <td>{{ d.data_inicio }} &ndash; {{ d.data_fim }}</td>
+                <td class="text-center">
+                  {% if d.data_inicio|stringformat:"s" <= hoje and d.data_fim|stringformat:"s" >= hoje %}
+                    <span class="badge bg-warning text-dark">Em andamento</span>
+                  {% elif d.data_inicio|stringformat:"s" > hoje %}
+                    <span class="badge bg-info text-dark">Programado</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Encerrado</span>
+                  {% endif %}
+                </td>
+                <td class="text-muted small">{{ d.observacoes|default:"&mdash;" }}</td>
+                <td class="text-end">
+                  {% url 'descanso:editar_descanso' d.id as edit_base %}
+                  {% url 'descanso:excluir_descanso' d.id as delete_base %}
+                  {% include "partials/_botoes_acoes.html" %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">Nenhum descanso encontrado.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
