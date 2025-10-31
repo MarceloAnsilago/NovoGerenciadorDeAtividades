@@ -7,6 +7,8 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.conf import settings
 from django.db.models import Sum, Count
+from django.http import JsonResponse
+from django.template.loader import render_to_string
 
 from core.utils import get_unidade_atual
 from metas.models import MetaAlocacao
@@ -31,6 +33,16 @@ def minhas_metas_view(request):
         return redirect("core:dashboard")
 
     atividade_id = request.GET.get("atividade")
+    meta_filter_raw = request.GET.get("meta")
+    meta_filter_id: int | None = None
+    try:
+        if meta_filter_raw:
+            meta_candidate = int(meta_filter_raw)
+            if meta_candidate > 0:
+                meta_filter_id = meta_candidate
+    except (TypeError, ValueError):
+        meta_filter_id = None
+
     status_filter = (request.GET.get("status") or "").lower()
     if status_filter not in {"concluidas", "pendentes"}:
         status_filter = ""
@@ -95,6 +107,8 @@ def minhas_metas_view(request):
         itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
     if atividade_id:
         itens_qs = itens_qs.filter(meta__atividade_id=atividade_id)
+    if meta_filter_id:
+        itens_qs = itens_qs.filter(meta_id=meta_filter_id)
     if status_filter == "concluidas":
         itens_qs = itens_qs.filter(concluido=True)
     elif status_filter == "pendentes":
@@ -134,6 +148,32 @@ def minhas_metas_view(request):
             "concluido": bool(getattr(item, "concluido", False)),
         })
 
+    selected_meta_title: str = ""
+    selected_meta = None
+    if meta_filter_id:
+        for aloc in alocacoes:
+            meta_obj = getattr(aloc, "meta", None)
+            if meta_obj and getattr(meta_obj, "id", None) == meta_filter_id:
+                selected_meta = meta_obj
+                break
+        if not selected_meta:
+            selected_meta = MetaAlocacao.objects.filter(meta_id=meta_filter_id, unidade=unidade).select_related("meta").first()
+            selected_meta = getattr(selected_meta, "meta", None)
+        if selected_meta:
+            selected_meta_title = getattr(selected_meta, "display_titulo", None) or getattr(selected_meta, "titulo", "")
+
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        html = render_to_string(
+            "minhas_metas/partials/_andamento_rows.html",
+            {"andamento": andamento},
+            request=request,
+        )
+        return JsonResponse({
+            "html": html,
+            "meta": meta_filter_id or None,
+            "meta_title": selected_meta_title,
+        })
+
     contexto = {
         "unidade": unidade,
         "alocacoes": alocacoes,
@@ -142,5 +182,7 @@ def minhas_metas_view(request):
         "dt_start": dt_start,
         "dt_end": dt_end,
         "status_filter": status_filter,
+        "meta_filter_id": meta_filter_id or 0,
+        "meta_filter_title": selected_meta_title,
     }
     return render(request, "minhas_metas/lista_metas.html", contexto)

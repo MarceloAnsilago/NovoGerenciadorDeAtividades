@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum
 from django.core.paginator import Paginator
 from django.db import transaction
+from django.utils import timezone
 
 from core.utils import get_unidade_atual
 from core.models import No
@@ -449,20 +450,32 @@ def encerrar_meta_view(request, meta_id):
     if request.method == "POST":
         encerrar_flag = (request.POST.get("encerrar") or "").strip().lower() in {"1", "true", "on", "sim"}
         confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
+        encerrar_auto = (request.POST.get("encerrar_auto") or "").strip() == "1"
         if not encerrar_flag:
             messages.error(request, "Confirme o encerramento da meta antes de salvar.")
-        elif pendentes_total > 0 and not confirmar_pendentes:
+        elif pendentes_total > 0 and not (confirmar_pendentes or encerrar_auto):
             messages.warning(request, "Existem atividades pendentes desta meta. Confirme se deseja encerrar mesmo assim.")
         else:
+            concluidas_auto = 0
+            if encerrar_auto and pendentes_total > 0:
+                concluidas_auto = _encerrar_auto_itens(
+                    pendentes_qs,
+                    request.user,
+                    meta,
+                )
             if not meta.encerrada:
                 meta.encerrada = True
                 meta.save(update_fields=["encerrada"])
-                messages.success(request, "Meta encerrada com sucesso.")
+                if concluidas_auto:
+                    messages.success(request, f"Meta encerrada e {concluidas_auto} atividade(s) pendente(s) marcada(s) como concluida(s).")
+                else:
+                    messages.success(request, "Meta encerrada com sucesso.")
             else:
                 messages.info(request, "Esta meta ja estava encerrada.")
             return redirect(next_url)
     else:
         confirmar_pendentes = False
+        encerrar_auto = False
 
     contexto = {
         "meta": meta,
@@ -479,9 +492,50 @@ def encerrar_meta_view(request, meta_id):
         "pendentes_preview": pendentes_preview,
         "pendentes_tem_mais": pendentes_tem_mais,
         "confirmar_pendentes_checked": confirmar_pendentes,
-        "pendentes_confirmacao_obrigatoria": request.method == "POST" and pendentes_total > 0 and not confirmar_pendentes,
+        "encerrar_auto_checked": encerrar_auto,
+        "pendentes_confirmacao_obrigatoria": request.method == "POST" and pendentes_total > 0 and not (confirmar_pendentes or encerrar_auto),
     }
     return render(request, "metas/encerrar_meta.html", contexto)
+
+
+def _encerrar_auto_itens(pendentes_qs, usuario, meta):
+    """
+    Marca os itens pendentes da meta como concluidos e registra progresso.
+    Retorna a quantidade de itens atualizados.
+    """
+    total_concluidos = 0
+    user_id = getattr(usuario, "id", None)
+    agora = timezone.now()
+    with transaction.atomic():
+        for item in pendentes_qs:
+            if getattr(item, "concluido", False):
+                continue
+            item.concluido = True
+            item.concluido_em = agora
+            item.concluido_por_id = user_id
+            item.save(update_fields=["concluido", "concluido_em", "concluido_por"])
+            total_concluidos += 1
+
+            prog = getattr(item, "programacao", None)
+            unidade_id = getattr(prog, "unidade_id", None)
+            if not unidade_id:
+                continue
+            aloc = (
+                MetaAlocacao.objects
+                .filter(meta_id=meta.id, unidade_id=unidade_id)
+                .order_by("id")
+                .first()
+            )
+            if not aloc:
+                continue
+            ProgressoMeta.objects.create(
+                alocacao_id=aloc.id,
+                data=getattr(prog, "data", timezone.localdate()),
+                quantidade=1,
+                registrado_por_id=user_id,
+                observacao="Progresso registrado automaticamente ao encerrar a meta.",
+            )
+    return total_concluidos
 
 
 @login_required

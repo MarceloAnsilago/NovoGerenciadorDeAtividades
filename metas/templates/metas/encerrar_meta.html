@@ -125,6 +125,17 @@
                   Desejo encerrar esta meta mesmo com atividades pendentes.
                 </label>
               </div>
+              <div class="form-check mt-1">
+                <input class="form-check-input"
+                       type="checkbox"
+                       id="id_encerrar_auto"
+                       name="encerrar_auto"
+                       value="1"
+                       {% if encerrar_auto_checked %}checked{% endif %}>
+                <label class="form-check-label" for="id_encerrar_auto">
+                  Concluir automaticamente todas as atividades pendentes antes de encerrar.
+                </label>
+              </div>
             {% endif %}
 
             <div>

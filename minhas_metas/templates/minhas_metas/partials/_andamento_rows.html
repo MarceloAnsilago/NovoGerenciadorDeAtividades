@@ -1,0 +1,37 @@
+{% for it in andamento %}
+<tr id="row-and-{{ it.item_id }}">
+  <td class="text-nowrap">{{ it.data|date:"d/m/Y" }}</td>
+  <td>
+    <div class="fw-semibold">{{ it.meta_titulo }}</div>
+    {% if it.atividade_nome %}
+      <div class="text-muted small">Atividade: {{ it.atividade_nome }}</div>
+    {% endif %}
+    <div class="text-muted small">Meta #{{ it.meta_id }}</div>
+  </td>
+  <td>
+    {% if it.servidores %}
+      <span class="text-body">{{ it.servidores|join:", " }}</span>
+    {% else %}
+      <span class="text-muted">&mdash;</span>
+    {% endif %}
+  </td>
+  <td class="text-nowrap">{{ it.veiculo|default:"&mdash;" }}</td>
+  <td>
+    <div class="d-flex align-items-center gap-2">
+      <span
+        class="badge {% if it.concluido %}bg-success-subtle text-success{% else %}bg-secondary-subtle text-secondary{% endif %}">
+        {% if it.concluido %}Executada{% else %}Pendente{% endif %}
+      </span>
+
+      <a class="btn btn-sm {% if it.concluido %}btn-success{% else %}btn-primary{% endif %}"
+         href="{% url 'programar:concluir-item-form' it.item_id %}?next={{ request.get_full_path|urlencode }}">
+        {% if it.concluido %}Concluida{% else %}Concluir{% endif %}
+      </a>
+    </div>
+  </td>
+</tr>
+{% empty %}
+<tr class="table-light">
+  <td colspan="5" class="text-center text-muted py-4">Nenhum item programado no per&iacute;odo.</td>
+</tr>
+{% endfor %}
