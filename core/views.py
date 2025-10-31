@@ -1,7 +1,6 @@
-# core/views.py
+from collections import defaultdict
 
-import random
-import string
+# core/views.py
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
@@ -17,9 +16,12 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import PermissionDenied
 from django.views.generic import TemplateView
 from django.urls import reverse
+from django.db import transaction
+from django.db.models import deletion
 
 from .models import No, UserProfile  # No (Unidade) e UserProfile
 from .models import No as Unidade
+from .utils import gerar_senha_provisoria
 from .services.dashboard_queries import (
     get_dashboard_kpis,
     get_metas_por_unidade,
@@ -34,6 +36,212 @@ from .services.dashboard_queries import (
 
 # Inicializa o modelo de usuário
 User = get_user_model()
+
+CASCADE = deletion.CASCADE
+PROTECT = deletion.PROTECT
+SET_NULL = deletion.SET_NULL
+SET_DEFAULT = deletion.SET_DEFAULT
+DO_NOTHING = deletion.DO_NOTHING
+ProtectedError = deletion.ProtectedError
+RESTRICT = getattr(deletion, "RESTRICT", None)
+
+ON_DELETE_ACTIONS = {
+    CASCADE: ("cascade", "Será removido automaticamente junto com o usuário."),
+    PROTECT: ("protect", "Bloqueia a exclusão enquanto esse registro existir."),
+    SET_NULL: ("set_null", "O vínculo será limpo; o registro permanece no sistema."),
+    SET_DEFAULT: ("set_default", "O vínculo receberá o valor padrão configurado."),
+    DO_NOTHING: ("do_nothing", "Nenhuma ação automática será realizada."),
+}
+if RESTRICT:
+    ON_DELETE_ACTIONS[RESTRICT] = ("restrict", "Bloqueia a exclusão (restrito).")
+
+ACTION_PRIORITY = {
+    "protect": 0,
+    "restrict": 0,
+    "cascade": 1,
+    "set_null": 2,
+    "set_default": 3,
+    "detach": 4,
+    "do_nothing": 5,
+    "unknown": 6,
+}
+
+DEPENDENCY_HINTS = {
+    "metas.meta": "Acesse Metas ► Metas da Unidade para reatribuir o criador ou encerrar a meta.",
+    "metas.metaalocacao": "Revise as alocações em Metas ► Atribuir Meta para redistribuir a responsabilidade.",
+    "metas.progessometa": "Revise os lançamentos em Metas ► Atribuir / Progresso antes de excluir.",
+    "atividades.atividade": "Abra Metas ► Atividades para transferir ou remover a atividade.",
+    "programar.programacaoitem": "Confira Programar ► Programações para desassociar esta meta/atividade.",
+    "descanso.descanso": "Vá em Descanso ► Servidores para remover ou reatribuir o registro.",
+    "plantao.plantao": "Confira Plantão ► Lista para ajustar o responsável pelo plantão.",
+}
+
+
+def _map_on_delete_action(on_delete):
+    if on_delete in ON_DELETE_ACTIONS:
+        return ON_DELETE_ACTIONS[on_delete]
+    if hasattr(on_delete, "__name__"):
+        name = on_delete.__name__
+        return (name.lower(), f"Ação '{name}' aplicada aos registros relacionados.")
+    return ("unknown", "Ação personalizada definida no modelo relacionado.")
+
+
+def _build_user_dependency_summary(user):
+    summary = []
+    totals = defaultdict(int)
+    blockers = []
+
+    for rel in user._meta.get_fields():
+        if not getattr(rel, "is_relation", False):
+            continue
+        if not getattr(rel, "auto_created", False):
+            continue
+        if not hasattr(rel, "get_accessor_name"):
+            continue
+
+        accessor_name = rel.get_accessor_name()
+        related_model = getattr(rel, "related_model", None)
+        if related_model is None:
+            continue
+
+        if getattr(rel, "many_to_many", False):
+            manager = getattr(user, accessor_name, None)
+            if manager is None:
+                continue
+            count = manager.count()
+            if not count:
+                continue
+            samples = [str(obj) for obj in manager.all()[:3]]
+            item = {
+                "relation": accessor_name,
+                "model": related_model._meta.verbose_name_plural,
+                "model_singular": related_model._meta.verbose_name,
+                "model_label": f"{related_model._meta.app_label}.{related_model._meta.model_name}",
+                "action": "detach",
+                "action_label": "As ligações serão removidas, mas os registros permanecerão disponíveis.",
+                "count": count,
+                "samples": samples,
+            }
+            summary.append(item)
+            totals["detach"] += count
+            continue
+
+        on_delete = getattr(rel, "on_delete", None)
+        if on_delete is None and hasattr(rel, "field") and rel.field.remote_field:
+            on_delete = rel.field.remote_field.on_delete
+
+        action_code, action_label = _map_on_delete_action(on_delete)
+
+        if rel.one_to_one:
+            try:
+                related_object = getattr(user, accessor_name)
+            except related_model.DoesNotExist:
+                continue
+            related_objects = [related_object]
+            count = 1
+        else:
+            manager = getattr(user, accessor_name, None)
+            if manager is None:
+                continue
+            qs = manager.all()
+            count = qs.count()
+            if not count:
+                continue
+            related_objects = list(qs[:3])
+
+        item = {
+            "relation": accessor_name,
+            "model": related_model._meta.verbose_name_plural,
+            "model_singular": related_model._meta.verbose_name,
+            "model_label": f"{related_model._meta.app_label}.{related_model._meta.model_name}",
+            "action": action_code,
+            "action_label": action_label,
+            "count": count,
+            "samples": [str(obj) for obj in related_objects],
+            "hint": DEPENDENCY_HINTS.get(f"{related_model._meta.app_label}.{related_model._meta.model_name}"),
+        }
+        summary.append(item)
+        totals[action_code] += count
+        if action_code in {"protect", "restrict"}:
+            blockers.append(item)
+
+    summary.sort(
+        key=lambda item: (
+            ACTION_PRIORITY.get(item["action"], 99),
+            item["model"],
+        )
+    )
+
+    return summary, dict(totals), blockers
+
+
+def _force_cleanup_user_dependencies(user):
+    """
+    Remove ou apaga dependências bloqueadoras (on_delete=PROTECT/RESTRICT) antes da exclusão.
+    Retorna um relatório com as operações executadas.
+    """
+    report = {"deleted": [], "detached": [], "errors": []}
+
+    for rel in user._meta.get_fields():
+        if not getattr(rel, "is_relation", False):
+            continue
+        if not getattr(rel, "auto_created", False):
+            continue
+        if not hasattr(rel, "get_accessor_name"):
+            continue
+
+        accessor_name = rel.get_accessor_name()
+        related_model = getattr(rel, "related_model", None)
+        if related_model is None:
+            continue
+
+        verbose_name = related_model._meta.verbose_name_plural
+
+        if getattr(rel, "many_to_many", False):
+            manager = getattr(user, accessor_name, None)
+            if manager is None:
+                continue
+            count = manager.count()
+            if not count:
+                continue
+            try:
+                manager.clear()
+                report["detached"].append({"model": verbose_name, "count": count})
+            except Exception as exc:
+                report["errors"].append({"model": verbose_name, "error": str(exc)})
+            continue
+
+        on_delete = getattr(rel, "on_delete", None)
+        if on_delete is None and hasattr(rel, "field") and rel.field.remote_field:
+            on_delete = rel.field.remote_field.on_delete
+
+        action_code, _ = _map_on_delete_action(on_delete)
+        if action_code not in {"protect", "restrict"}:
+            continue
+
+        try:
+            if rel.one_to_one:
+                try:
+                    related_object = getattr(user, accessor_name)
+                except related_model.DoesNotExist:
+                    continue
+                queryset = related_model.objects.filter(pk=related_object.pk)
+            else:
+                manager = getattr(user, accessor_name, None)
+                if manager is None:
+                    continue
+                queryset = manager.all()
+
+            deleted_count, _deleted_map = queryset.delete()
+            if deleted_count:
+                report["deleted"].append({"model": verbose_name, "count": deleted_count})
+        except ProtectedError as exc:
+            report["errors"].append({"model": verbose_name, "error": str(exc)})
+        except Exception as exc:
+            report["errors"].append({"model": verbose_name, "error": str(exc)})
+
+    return report
+
 
 # ============ DASHBOARD ============
 
@@ -111,6 +319,40 @@ def perfis(request):
 
 
 @login_required
+def perfil_dependencias(request, user_id):
+    if not (
+        request.user.is_superuser
+        or request.user.has_perm("auth.delete_user")
+        or request.user.has_perm("core.delete_userprofile")
+        or request.user.has_perm("core.add_userprofile")
+    ):
+        return JsonResponse(
+            {
+                "status": "forbidden",
+                "message": "Você não tem permissão para revisar ou excluir este perfil.",
+            },
+            status=403,
+        )
+
+    user = get_object_or_404(User, id=user_id)
+    summary, totals, blockers = _build_user_dependency_summary(user)
+
+    return JsonResponse({
+        "status": "ok",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+        },
+        "summary": summary,
+        "totals": totals,
+        "can_delete": len(blockers) == 0,
+    })
+
+
+@login_required
 @permission_required('core.add_userprofile', raise_exception=True)
 def criar_perfil(request):
     if request.method != "POST":
@@ -119,7 +361,10 @@ def criar_perfil(request):
     try:
         username = request.POST.get("username")
         email = request.POST.get("email")
-        is_staff = bool(request.POST.get("is_staff"))
+        raw_is_staff = request.POST.get("is_staff")
+        is_staff = False
+        if raw_is_staff is not None:
+            is_staff = str(raw_is_staff).strip().lower() in {"1", "true", "on", "yes"}
         unidade_id = request.POST.get("unidade_id")
 
         if not (username and email and unidade_id):
@@ -129,7 +374,7 @@ def criar_perfil(request):
             return JsonResponse({"status": "erro", "erro": "Já existe um usuário com esse nome."}, status=400)
 
         # Gera senha provisória
-        senha_provisoria = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+        senha_provisoria = gerar_senha_provisoria(8)
 
         # Cria usuário SEM senha real
         user = User(username=username, email=email, is_staff=is_staff)
@@ -157,20 +402,77 @@ def criar_perfil(request):
 
 @require_POST
 @login_required
-@permission_required('core.add_userprofile', raise_exception=True)
+@permission_required('auth.delete_user', raise_exception=True)
 def excluir_perfil(request, user_id):
     user = get_object_or_404(User, id=user_id)
 
+    force_requested = request.POST.get("force") in {"1", "true", "yes"}
+    cleanup_report = None
+
+    summary, totals, blockers = _build_user_dependency_summary(user)
+
+    if force_requested and blockers:
+        cleanup_report = _force_cleanup_user_dependencies(user)
+        summary, totals, blockers = _build_user_dependency_summary(user)
+
+    if blockers:
+        response_data = {
+            "status": "bloqueado",
+            "message": "Nao e possivel excluir o perfil enquanto existirem registros protegidos vinculados a este usuario.",
+            "summary": summary,
+            "totals": totals,
+            "force_available": True,
+        }
+        if cleanup_report:
+            response_data["cleanup"] = cleanup_report
+        if force_requested:
+            response_data["force_used"] = True
+        return JsonResponse(response_data, status=400)
+
+    if request.POST.get("confirm") not in {"1", "true", "yes"}:
+        response_data = {
+            "status": "confirm_required",
+            "message": "Confirme a exclusao enviando o parametro confirm=1.",
+            "summary": summary,
+            "totals": totals,
+            "force_available": True,
+        }
+        if cleanup_report:
+            response_data["cleanup"] = cleanup_report
+        if force_requested:
+            response_data["force_used"] = True
+        return JsonResponse(response_data, status=400)
+
     try:
-        user.delete()
-        return JsonResponse({"status": "excluido"})
-    except Exception as e:
-        try:
-            user.is_active = False
-            user.save()
-            return JsonResponse({"status": "inativado"})
-        except Exception as e2:
-            return JsonResponse({"status": "erro", "erro": str(e2)}, status=500)
+        with transaction.atomic():
+            user.delete()
+        response_data = {"status": "excluido"}
+        if cleanup_report:
+            response_data["cleanup"] = cleanup_report
+        if force_requested:
+            response_data["force_used"] = True
+        return JsonResponse(response_data)
+    except ProtectedError:
+        summary, totals, blockers = _build_user_dependency_summary(user)
+        response_data = {
+            "status": "bloqueado",
+            "message": "A exclusao foi bloqueada porque ainda existem registros protegidos.",
+            "summary": summary,
+            "totals": totals,
+            "force_available": True,
+        }
+        if cleanup_report:
+            response_data["cleanup"] = cleanup_report
+        if force_requested:
+            response_data["force_used"] = True
+        return JsonResponse(response_data, status=400)
+    except Exception as exc:
+        response_data = {"status": "erro", "erro": str(exc)}
+        if cleanup_report:
+            response_data["cleanup"] = cleanup_report
+        if force_requested:
+            response_data["force_used"] = True
+        return JsonResponse(response_data, status=500)
 
 
 @require_POST
@@ -184,7 +486,7 @@ def redefinir_senha(request, user_id):
     except UserProfile.DoesNotExist:
         return JsonResponse({"status": "erro", "erro": "Perfil não encontrado."}, status=404)
 
-    nova_senha = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    nova_senha = gerar_senha_provisoria(8)
     user.set_unusable_password()
     user.save()
 
@@ -201,22 +503,31 @@ def redefinir_senha(request, user_id):
 
 # ============ PRIMEIRO ACESSO / TROCA DE SENHA ============
 
-@login_required
 def primeiro_acesso_token_view(request):
     context = {}
     if request.method == 'POST':
-        username = request.POST.get('username')
-        token = request.POST.get('token')
+        username_input = (request.POST.get('username') or '').strip()
+        token = (request.POST.get('token') or '').strip()
+        context['username'] = username_input
+        context['token'] = token
+        if not username_input or not token:
+            context['erro'] = "Token invalido ou ja utilizado."
+            return render(request, 'core/primeiro_acesso_verificar.html', context)
         try:
-            user = User.objects.get(username=username)
-            profile = user.userprofile
-            if profile.senha_provisoria == token and not profile.ativado:
-                request.session['troca_user_id'] = user.id
-                return redirect('core:trocar_senha_primeiro_acesso')
-            context['erro'] = "Token inválido ou já utilizado."
+            user = User.objects.get(username__iexact=username_input)
         except User.DoesNotExist:
-            context['erro'] = "Usuário não encontrado."
-    return render(request, 'primeiro_acesso_verificar.html', context)
+            context['erro'] = "Usuario nao encontrado."
+            return render(request, 'core/primeiro_acesso_verificar.html', context)
+        try:
+            profile = user.userprofile
+        except UserProfile.DoesNotExist:
+            context['erro'] = "Usuario nao encontrado."
+            return render(request, 'core/primeiro_acesso_verificar.html', context)
+        if profile.senha_provisoria == token and not profile.ativado:
+            request.session['troca_user_id'] = user.id
+            return redirect('core:trocar_senha_primeiro_acesso')
+        context['erro'] = "Token invalido ou ja utilizado."
+    return render(request, 'core/primeiro_acesso_verificar.html', context)
 
 
 def trocar_senha_primeiro_acesso(request):
@@ -251,27 +562,36 @@ def trocar_senha_primeiro_acesso(request):
 
 def login_view(request):
     if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
-
-        user = authenticate(request, username=username, password=password)
+        username_input = (request.POST.get("username") or "").strip()
+        password = request.POST.get("password") or ""
+        if not username_input or not password:
+            messages.error(request, "Usuario ou senha invalidos.")
+            return render(request, "core/login.html")
+        user = authenticate(request, username=username_input, password=password)
         if user is not None:
             auth_login(request, user)
             return redirect("core:dashboard")
-
         try:
-            user_obj = User.objects.get(username=username)
-            profile = user_obj.userprofile
-        except (User.DoesNotExist, UserProfile.DoesNotExist):
-            messages.error(request, "Usuário ou senha inválidos.")
+            user_obj = User.objects.get(username__iexact=username_input)
+        except User.DoesNotExist:
+            messages.error(request, "Usuario ou senha invalidos.")
             return render(request, "core/login.html")
-
+        if user_obj.username != username_input:
+            user = authenticate(request, username=user_obj.username, password=password)
+            if user is not None:
+                auth_login(request, user)
+                return redirect("core:dashboard")
+        try:
+            profile = user_obj.userprofile
+        except UserProfile.DoesNotExist:
+            messages.error(request, "Usuario ou senha invalidos.")
+            return render(request, "core/login.html")
         if profile.senha_provisoria == password and not profile.ativado:
             request.session['troca_user_id'] = user_obj.id
             return redirect('core:trocar_senha_primeiro_acesso')
-
-        messages.error(request, "Usuário ou senha inválidos.")
+        messages.error(request, "Usuario ou senha invalidos.")
         return render(request, "core/login.html")
+
 
     return render(request, "core/login.html")
 

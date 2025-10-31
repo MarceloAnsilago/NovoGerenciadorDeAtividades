@@ -6,7 +6,7 @@
 {% block content %}
 <div class="container py-4">
   {% url 'core:dashboard' as dash_url %}
-  {% include "partials/_page_header.html" with title="Atividades" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-list-task" %}
+  {% include "partials/_page_header.html" with title="Atividades" subtitle="Unidade atual: "|add:unidade_nome back_url=dash_url icon="bi-list-task" %}
 
   <div class="card shadow-sm">
     <div class="card-header bg-light">

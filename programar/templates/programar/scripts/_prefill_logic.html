@@ -111,10 +111,16 @@
   // limpa todas alocaes visuais (no mexe no catlogo)
   function resetAllocations(opts){
     const options = opts || {};
-    document.querySelectorAll('#metaCardsContainer [data-meta-id]').forEach(card => {
-      delete card.dataset.itemId;
-      const drop = card.querySelector('.meta-dropzone') || card;
-      drop.innerHTML = '';
+    const container = document.getElementById('metaCardsContainer');
+    const cards = container ? Array.from(container.querySelectorAll('[data-meta-id]')) : [];
+    cards.forEach(card => {
+      if (options.keepCards) {
+        delete card.dataset.itemId;
+        const drop = card.querySelector('.meta-dropzone') || card;
+        if (drop) drop.innerHTML = '';
+      } else {
+        try { card.remove(); } catch (_) {}
+      }
     });
     const expEl = document.getElementById('expedienteAdmin');
     if (expEl && !options.skipExpediente){
@@ -122,6 +128,7 @@
       expEl.removeAttribute('data-lock');
       expEl.innerHTML = '';
     }
+    try { (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})(); } catch (_){}
   }
   NS.resetAllocations = resetAllocations;
 
@@ -189,7 +196,15 @@
 
     // Demais metas
     const title = metaTitleFromGrid(it.meta_id);
-    const card  = NS.ensureMetaCard?.(String(it.meta_id), title) || document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`);
+    let card = null;
+    if (it.id) {
+      card = document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"][data-item-id="${it.id}"]`);
+    }
+    if (!card) {
+      const existingCount = document.querySelectorAll(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`).length;
+      const opts = existingCount > 0 ? { forceNew: true } : {};
+      card = NS.ensureMetaCard?.(String(it.meta_id), title, opts) || document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`);
+    }
     if (!card) continue;
 
     if (it.id) card.dataset.itemId = String(it.id);

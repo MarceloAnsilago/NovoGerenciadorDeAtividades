@@ -52,6 +52,7 @@ urlpatterns = [
     path("estrutura/", views.admin_arvore, name="admin_arvore"),
     path("perfis/", views.perfis, name="perfis"),
     path("perfis/criar/", views.criar_perfil, name="criar_perfil"),
+    path("perfis/<int:user_id>/dependencias/", views.perfil_dependencias, name="perfil_dependencias"),
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
 

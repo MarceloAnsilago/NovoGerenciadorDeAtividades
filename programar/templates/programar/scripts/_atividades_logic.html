@@ -1,48 +1,52 @@
 <script>
-(function(){
-  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+(function () {
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
+  if (NS._atividadesLogicLoaded) return;
+  NS._atividadesLogicLoaded = true;
 
   const allocations = (NS._allocations = NS._allocations || Object.create(null));
   const el = (id) => document.getElementById(id);
-  const metaCardsContainer = () => el('metaCardsContainer');
+  const metaCardsContainer = () => el("metaCardsContainer");
 
-  function updateCounts(){ NS.updateCounts?.(); }
+  function updateCounts() { NS.updateCounts?.(); }
   function tryAddVeiculosOptions(select) {
-    if (!select || select.dataset.veiculosPopulado === '1') return;
+    if (!select || select.dataset.veiculosPopulado === "1") return;
     const data = Array.isArray(window.PROGRAMAR?.veiculosAtivos) ? window.PROGRAMAR.veiculosAtivos : [];
     if (!data.length) return;
-    data.forEach(v => {
+    data.forEach((v) => {
       if (!v || v.id == null) return;
       const value = String(v.id);
       if (select.querySelector(`option[value="${value}"]`)) return;
-      const opt = document.createElement('option');
+      const opt = document.createElement("option");
       opt.value = value;
-      const nome = (v.nome || '').trim();
-      const placa = (v.placa || '').trim();
+      const nome = (v.nome || "").trim();
+      const placa = (v.placa || "").trim();
       opt.textContent = placa ? `${nome} - ${placa}` : (nome || placa || `Veiculo #${value}`);
       select.appendChild(opt);
     });
-    select.dataset.veiculosPopulado = '1';
+    select.dataset.veiculosPopulado = "1";
   }
 
-  NS.ensureMetaCard = function(metaId, metaTitle){
-    const cont = metaCardsContainer(); 
+  NS.ensureMetaCard = function (metaId, metaTitle, options = {}) {
+    const cont = metaCardsContainer();
     if (!cont) return null;
 
-    // já existe? apenas foca/rola e sai
-    let card = cont.querySelector(`[data-meta-id="${metaId}"]`);
-    if (card){
-      tryAddVeiculosOptions(card.querySelector('select.card-veiculos'));
-      card.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
-      return card;
+    const forceNew = Boolean(options && options.forceNew);
+
+    if (!forceNew) {
+      const existing = cont.querySelector(`[data-meta-id="${metaId}"]`);
+      if (existing) {
+        tryAddVeiculosOptions(existing.querySelector("select.card-veiculos"));
+        existing.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+        return existing;
+      }
     }
 
-    // cria card NOVO com dropzone (sem tarja)
-    card = document.createElement('div');
-    card.className = 'card shadow-sm servidor-cardbox';
+    const card = document.createElement("div");
+    card.className = "card shadow-sm servidor-cardbox";
     card.dataset.metaId = metaId;
-    card.style.minWidth = '340px';
-    card.style.maxWidth = '370px';
+    card.style.minWidth = "340px";
+    card.style.maxWidth = "370px";
 
     card.innerHTML = `
       <div class="card-header bg-light border-bottom py-2">
@@ -68,33 +72,27 @@
     `;
 
     cont.appendChild(card);
-    tryAddVeiculosOptions(card.querySelector('select.card-veiculos'));
+    tryAddVeiculosOptions(card.querySelector("select.card-veiculos"));
 
-    // remove qualquer tarja/alert legado que outro script tenha colocado
-    card.querySelectorAll('.alert').forEach(n => n.remove());
+    card.querySelectorAll(".alert").forEach((n) => n.remove());
 
-    // Fechar card: limpa chips (se houver), ajusta allocations e contadores
-        
-    card.querySelector('.btn-close, .meta-close')?.addEventListener('click', (ev) => {
+    card.querySelector(".btn-close, .meta-close")?.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
       if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
 
-      // 1) replica o clique no X de cada chip (usa a MESMA lógica que já funciona)
-      const chipXs = Array.from(card.querySelectorAll('.servidor-chip .chip-remove'));
-      chipXs.forEach(b => { try { b.click(); } catch(_){} });
+      const chipXs = Array.from(card.querySelectorAll(".servidor-chip .chip-remove"));
+      chipXs.forEach((b) => { try { b.click(); } catch (_) {} });
 
-      // 2) fallback: se sobrar algum chip por qualquer motivo
-      if (card.querySelector('.servidor-chip')) {
-        try { window.ProgramarCards?.returnAllFromCard?.(card); } catch(_) {}
+      if (card.querySelector(".servidor-chip")) {
+        try { window.ProgramarCards?.returnAllFromCard?.(card); } catch (_) {}
       }
 
-      // 3) remove o card e atualiza contadores
-      try { card.remove(); } catch(_) {}
-      try { (window.PROGRAMAR?.updateCounts || window.ProgramarCards?.updateCounts)?.(); } catch(_) {}
+      try { card.remove(); } catch (_) {}
+      try { (window.PROGRAMAR?.updateCounts || window.ProgramarCards?.updateCounts)?.(); } catch (_) {}
     }, { capture: true });
 
-    card.scrollIntoView({behavior:'smooth', block:'nearest', inline:'start'});
+    card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
     updateCounts();
     return card;
   };

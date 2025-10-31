@@ -1,4 +1,7 @@
 # metas/views.py
+from collections import deque
+from types import SimpleNamespace
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
@@ -11,7 +14,7 @@ from core.utils import get_unidade_atual
 from core.models import No
 from atividades.models import Atividade
 
-from .models import Meta, MetaAlocacao
+from .models import Meta, MetaAlocacao, ProgressoMeta
 from .forms import MetaForm
 from django.http import HttpResponseForbidden
 from django.views.decorators.http import require_http_methods
@@ -20,15 +23,28 @@ from django.db.models.functions import ExtractYear
 @login_required
 def metas_unidade_view(request):
     unidade = get_unidade_atual(request)
+    unidade_real = unidade
     if not unidade:
-        messages.error(request, "Selecione uma unidade antes de ver as metas.")
-        return redirect("core:dashboard")
+        messages.warning(request, "Selecione ou assuma uma unidade para visualizar e gerenciar metas.")
+        unidade = SimpleNamespace(id=None, nome="Nao selecionada")
+        alocacoes = MetaAlocacao.objects.none()
+        atividade_filtrada = None
+        return render(
+            request,
+            "metas/meta_lista.html",
+            {
+                "unidade": unidade,
+                "alocacoes": alocacoes,
+                "atividade_filtrada": None,
+                "has_unidade": False,
+            },
+        )
 
     atividade_id = request.GET.get("atividade")
 
     alocacoes = (
         MetaAlocacao.objects.select_related("meta", "meta__atividade", "meta__unidade_criadora")
-        .filter(unidade=unidade)
+        .filter(unidade=unidade_real)
         .order_by("meta__data_limite", "meta__titulo")
     )
 
@@ -45,6 +61,7 @@ def metas_unidade_view(request):
         "unidade": unidade,
         "alocacoes": alocacoes,
         "atividade_filtrada": atividade_filtrada,
+        "has_unidade": True,
     })
 
 
@@ -77,19 +94,25 @@ def atividades_lista_view(request):
     page = request.GET.get("page")
     page_obj = paginator.get_page(page)
 
-    return render(request, "metas/atividades_lista.html", {
-        "unidade": unidade,
-        "atividades": page_obj.object_list,
-        "page_obj": page_obj,
-        "areas": Atividade.Area.choices,
-        "area_selected": area,
-        "q": q,
-    })
+    return render(
+        request,
+        "metas/atividades_lista.html",
+        {
+            "unidade": unidade,
+            "unidade_nome": getattr(unidade, "nome", "Não selecionada"),
+            "atividades": page_obj.object_list,
+            "page_obj": page_obj,
+            "areas": Atividade.Area.choices,
+            "area_selected": area,
+            "q": q,
+        },
+    )
 
 @login_required
 def definir_meta_view(request, atividade_id):
     atividade = get_object_or_404(Atividade, id=atividade_id)
     unidade = get_unidade_atual(request)
+    has_unidade = unidade is not None
 
     # Anos únicos baseados na data_limite
     anos_disponiveis = (
@@ -116,6 +139,9 @@ def definir_meta_view(request, atividade_id):
 
     # --- TRATAMENTO DE POST (CRIAR META) ---
     if request.method == "POST":
+        if not has_unidade:
+            messages.error(request, "Selecione ou assuma uma unidade antes de criar metas.")
+            return redirect("metas:definir-meta", atividade_id=atividade_id)
         form = MetaForm(request.POST)
         if form.is_valid():
             meta = form.save(commit=False)
@@ -126,8 +152,8 @@ def definir_meta_view(request, atividade_id):
             if hasattr(meta, "criado_por_id"):
                 meta.criado_por = request.user
             meta.save()
-            messages.success(request, "Meta criada com sucesso.")
-            return redirect("metas:metas-unidade")
+            messages.success(request, "Meta criada com sucesso. Agora atribua as unidades responsáveis.")
+            return redirect("metas:atribuir-meta", meta_id=meta.id)
         else:
             messages.error(request, "Corrija os erros do formulário.")
     else:
@@ -141,6 +167,8 @@ def definir_meta_view(request, atividade_id):
         "anos_disponiveis": anos_disponiveis,
         "ano_selecionado": ano_selecionado,
         "status_selecionado": status_selecionado,
+        "can_create": has_unidade,
+        "unidade_nome": getattr(unidade, "nome", "Não selecionada"),
     })
 
 @login_required
@@ -155,44 +183,52 @@ def atribuir_meta_view(request, meta_id):
     """
     unidade = get_unidade_atual(request)
     if not unidade:
-        messages.error(request, "Selecione uma unidade antes de atribuir metas.")
-        return redirect("core:dashboard")
+        messages.error(request, "Selecione ou assuma uma unidade antes de atribuir metas.")
+        return redirect("metas:metas-unidade")
 
-    meta = get_object_or_404(Meta, pk=meta_id)
+    meta = Meta.objects.filter(pk=meta_id).select_related("unidade_criadora", "atividade").first()
+    if not meta:
+        messages.error(request, "Meta não encontrada ou já foi removida.")
+        return redirect("metas:metas-unidade")
 
     # montar grupos: filhos diretos da unidade atual (ex.: supervisores -> unidades)
     grupos = []
-    # filhos diretos (nodos) — ex.: supervisores
     filhos_diretos = No.objects.filter(parent=unidade).order_by("nome")
     unidades_atribuiveis = []
+    unidades_vistas = set()
 
-    # Para cada nodo: incluir o próprio nodo (supervisor) como primeira unidade do grupo,
-    # seguido das suas unidades filhas (se existirem).
+    def registrar_unidade(nodo):
+        if nodo.id not in unidades_vistas:
+            unidades_atribuiveis.append(nodo)
+            unidades_vistas.add(nodo.id)
+
+    def coletar_descendentes(raiz):
+        resultado = []
+        fila = deque([raiz])
+        visitados = set()
+        while fila:
+            atual = fila.popleft()
+            filhos = list(atual.filhos.all().order_by("nome"))
+            for filho in filhos:
+                if filho.id in visitados:
+                    continue
+                visitados.add(filho.id)
+                resultado.append(filho)
+                fila.append(filho)
+        return resultado
+
     for nodo in filhos_diretos:
-        filhos = list(nodo.filhos.all().order_by("nome"))
-        if filhos:
-            # unidade_do_grupo: [nodo, filho1, filho2, ...]
-            unidades_do_grupo = [nodo] + filhos
-            grupos.append((nodo, unidades_do_grupo))
+        descendentes = coletar_descendentes(nodo)
+        unidades_do_grupo = [nodo] + descendentes if descendentes else [nodo]
+        grupos.append((nodo, unidades_do_grupo))
+        for unidade_do_grupo in unidades_do_grupo:
+            registrar_unidade(unidade_do_grupo)
 
-            # manter unidades_atribuiveis: supervisor primeiro, depois filhos
-            unidades_atribuiveis.append(nodo)
-            unidades_atribuiveis.extend(filhos)
-        else:
-            # nodo sem filhos: apresentamos apenas o nodo
-            grupos.append((nodo, [nodo]))
-            unidades_atribuiveis.append(nodo)
-
-    # Adiciona a própria unidade atual (ex.: GERENTE) como grupo no topo se ainda não estiver presente.
-    # Isso permite que a unidade principal receba alocação.
     if unidade:
         already_present = any(getattr(nodo, "pk", None) == getattr(unidade, "pk", None) for nodo, _ in grupos)
         if not already_present:
             grupos.insert(0, (unidade, [unidade]))
-
-        # garante que unidades_atribuiveis também contenha a própria unidade (sem duplicar)
-        if not any(getattr(u, "pk", None) == getattr(unidade, "pk", None) for u in unidades_atribuiveis):
-            unidades_atribuiveis.insert(0, unidade)
+        registrar_unidade(unidade)
 
     # carregar alocações existentes apenas para as unidades exibidas
     unidades_pks = [u.pk for u in unidades_atribuiveis]
@@ -377,7 +413,7 @@ def encerrar_meta_view(request, meta_id):
 
     if meta.unidade_criadora_id != unidade.id and not request.user.is_superuser:
         messages.warning(request, "Voce nao tem permissao para encerrar esta meta.")
-        return redirect("metas:metas-unidade")
+    return redirect("metas:metas-unidade")
 
     alocacoes = list(meta.alocacoes.select_related("unidade").order_by("unidade__nome"))
     alocacao_atual = next((a for a in alocacoes if a.unidade_id == unidade.id), None)
@@ -417,6 +453,56 @@ def encerrar_meta_view(request, meta_id):
         "next": next_url,
     }
     return render(request, "metas/encerrar_meta.html", contexto)
+
+
+@login_required
+@require_http_methods(["POST"])
+def excluir_meta_view(request, meta_id):
+    """
+    Exclui uma meta e suas alocações.
+    Apenas a unidade criadora da meta ou um superusuário podem excluir.
+    """
+    unidade = get_unidade_atual(request)
+    try:
+        meta = Meta.objects.select_related("unidade_criadora", "atividade").get(pk=meta_id)
+    except Meta.DoesNotExist:
+        messages.error(request, "Meta não encontrada ou já foi removida.")
+        return redirect("metas:metas-unidade")
+    next_url = (
+        request.POST.get("next")
+        or request.META.get("HTTP_REFERER")
+        or reverse("metas:metas-unidade")
+    )
+
+    if not unidade:
+        messages.error(request, "Selecione uma unidade antes de excluir metas.")
+        return redirect(next_url)
+
+    if meta.unidade_criadora_id != unidade.id and not request.user.is_superuser:
+        messages.warning(request, "Você não tem permissão para excluir esta meta.")
+        return redirect(next_url)
+
+    # segurança: impedir exclusão se houver programação vinculada ou execução registrada
+    from programar.models import ProgramacaoItem  # import local para evitar custos em módulo
+
+    if ProgramacaoItem.objects.filter(meta=meta).exists():
+        messages.error(
+            request,
+            "Meta não pode ser excluída: ela está vinculada à programação de atividades.",
+        )
+        return redirect(next_url)
+
+    if ProgressoMeta.objects.filter(alocacao__meta=meta).exists():
+        messages.error(
+            request,
+            "Meta não pode ser excluída porque já possui registros de execução.",
+        )
+        return redirect(next_url)
+
+    titulo = meta.display_titulo
+    meta.delete()
+    messages.success(request, f"Meta '{titulo}' excluída com sucesso.")
+    return redirect(next_url)
 
 
 @login_required

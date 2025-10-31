@@ -1,10 +1,44 @@
-(function(){
-  // Namespace do app
-  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+(function () {
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
+  if (NS._metasLogicLoaded) return;
+  NS._metasLogicLoaded = true;
 
-  // Função para buscar e renderizar as metas
-  NS.loadMetas = async function(dateStr = null) {
-    const metasGrid = document.getElementById('metasGrid');
+  function escapeSelector(value) {
+    const raw = String(value ?? "");
+    if (window.CSS && typeof window.CSS.escape === "function") {
+      try { return window.CSS.escape(raw); } catch (_) { return raw; }
+    }
+    return raw.replace(/["\\]/g, "\\$&");
+  }
+
+  function highlightExistingCard(metaId) {
+    const container = document.getElementById("metaCardsContainer");
+    if (!container) return;
+    const card = container.querySelector(`[data-meta-id="${escapeSelector(metaId)}"]`);
+    if (!card) return;
+    card.classList.add("border-warning");
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => card.classList.remove("border-warning"), 1500);
+  }
+
+  function confirmLimite(programadasAtual, alocado) {
+    if (alocado <= 0 || programadasAtual < alocado) return true;
+    return window.confirm(
+      `Esta meta já possui ${programadasAtual} atividade${programadasAtual === 1 ? "" : "s"} em programação ` +
+      `para a unidade, igual ou maior que o total alocado (${alocado}). Deseja programar mesmo assim?`
+    );
+  }
+
+  function confirmDuplicado(existingCards) {
+    if (existingCards <= 0) return true;
+    const mensagem = existingCards === 1
+      ? "Já existe uma atividade desta meta programada para este dia. Deseja inserir outra?"
+      : `Já existem ${existingCards} atividades desta meta programadas para este dia. Deseja inserir mais uma?`;
+    return window.confirm(mensagem);
+  }
+
+  NS.loadMetas = async function (dateStr = null) {
+    const metasGrid = document.getElementById("metasGrid");
     if (!metasGrid) return;
 
     metasGrid.innerHTML = `
@@ -13,31 +47,33 @@
       </div>
     `;
 
-    // Use o endpoint correto!
     let url = NS.urls?.metas;
     if (!url) {
       metasGrid.innerHTML = `<div class="alert alert-danger">Endpoint de metas não configurado.</div>`;
       return;
     }
     if (dateStr) {
-      // Se o backend espera data na querystring
-      url += (url.includes('?') ? '&' : '?') + 'data=' + encodeURIComponent(dateStr);
+      url += (url.includes("?") ? "&" : "?") + "data=" + encodeURIComponent(dateStr);
     }
 
     try {
-      const resp = await fetch(url, {headers: {'X-Requested-With':'XMLHttpRequest'}});
+      const resp = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
       const data = await resp.json();
 
-      // Adapte se o JSON vier diferente!
       if (!data.metas || !Array.isArray(data.metas) || data.metas.length === 0) {
         metasGrid.innerHTML = `<div class="alert alert-light border mb-0">Nenhuma meta disponível.</div>`;
         return;
       }
 
-      // Renderiza os cards
-      metasGrid.innerHTML = data.metas.map(m => {
+      metasGrid.innerHTML = data.metas.map((m) => {
+        const programadas = Number(m.programadas_total || 0);
+        const alocado = Number(m.alocado_unidade || 0);
         return `
-          <button type="button" class="meta-card" data-id="${m.id}">
+          <button type="button"
+                  class="meta-card"
+                  data-id="${m.id}"
+                  data-programadas="${programadas}"
+                  data-alocado="${alocado}">
             <div class="meta-head">
               <span class="icon"><i class="bi bi-flag"></i></span>
               <h6 class="meta-title">${m.nome}</h6>
@@ -49,8 +85,9 @@
                 <span>Data limite:</span>
                 <strong>${new Date(m.data_limite).toLocaleDateString('pt-BR')}</strong>
               </div>
-            ` : ''}
-            <div class="meta-small mt-2">Alocado nesta unidade: <b>${m.alocado_unidade || 0}</b></div>
+            ` : ""}
+            <div class="meta-small mt-2">Em programação: <b>${programadas}</b></div>
+            <div class="meta-small mt-2">Alocado nesta unidade: <b>${alocado}</b></div>
             <div class="meta-progress mt-1">
               <div class="d-flex justify-content-between summary mb-1">
                 <span>Executado (unidade)</span>
@@ -60,30 +97,43 @@
             </div>
           </button>
         `;
-      }).join('');
+      }).join("");
 
-      // Evento de click para seleção
-      metasGrid.querySelectorAll('.meta-card').forEach(card => {
-        card.addEventListener('click', () => {
-          metasGrid.querySelectorAll('.meta-card').forEach(c => c.classList.remove('selected'));
-          card.classList.add('selected');
-          // Ao clicar, chama para abrir o card de atividade!
-          if (window.PROGRAMAR && typeof window.PROGRAMAR.ensureMetaCard === 'function') {
-            window.PROGRAMAR.ensureMetaCard(
-              card.dataset.id,
-              card.querySelector('.meta-title').textContent.trim()
-            );
+      metasGrid.querySelectorAll(".meta-card").forEach((card) => {
+        card.addEventListener("click", () => {
+          metasGrid.querySelectorAll(".meta-card").forEach((c) => c.classList.remove("selected"));
+          card.classList.add("selected");
+
+          const metaId = card.dataset.id;
+          if (!metaId) return;
+
+          const programadas = Number(card.dataset.programadas || "0") || 0;
+          const alocado = Number(card.dataset.alocado || "0") || 0;
+          const container = document.getElementById("metaCardsContainer");
+          const selector = `[data-meta-id="${escapeSelector(metaId)}"]`;
+          const cards = container ? Array.from(container.querySelectorAll(selector)) : [];
+          const existingCards = cards.length;
+          const novosNaoSalvos = cards.filter((c) => !c.dataset.itemId).length;
+          const totalAtual = programadas + novosNaoSalvos;
+
+          if (!confirmLimite(totalAtual, alocado)) return;
+
+          const metaTitulo = card.querySelector(".meta-title")?.textContent?.trim() || "";
+          const options = {};
+          if (existingCards > 0) {
+            if (!confirmDuplicado(existingCards)) {
+              highlightExistingCard(metaId);
+              return;
+            }
+            options.forceNew = true;
           }
+
+          window.PROGRAMAR?.ensureMetaCard?.(metaId, metaTitulo, options);
         });
       });
-
     } catch (err) {
       metasGrid.innerHTML = `<div class="alert alert-danger">Erro ao carregar metas.</div>`;
       console.error(err);
     }
   };
-
-  // Exemplo: você pode disparar manualmente NS.loadMetas(dataStr)
-  // quando abrir o modal ou quando a data for escolhida.
-
 })();

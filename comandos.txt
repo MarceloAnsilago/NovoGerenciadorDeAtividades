@@ -5,20 +5,39 @@ python manage.py runserver
 python manage.py shell
 
 admin
-Wn3@!xLr92
+admin123
 
 
-ULSAVunidade1
-phZfKheBOkS
+Presidente
+Presidente123
 
-gerente1.2
-keIzb4Xj
+gerente1 
+gerente1123
 
-gerente1.5
-FMekwKs3
+
+
+
+
+
+Teste1 
+Teste
+
+
+
+
+
+
+
+
+
 
 gerente1.6
 X26pDATy
+
+
+
+
+
 
 
 UNIDADE DIA 19

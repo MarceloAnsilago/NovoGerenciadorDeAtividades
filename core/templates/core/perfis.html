@@ -3,7 +3,7 @@
 
 {% block content %}
 <h1 class="mb-3">Perfis</h1>
-<p>Aqui você pode listar/gerenciar os perfis por unidade da estrutura organizacional.</p>
+<p>Aqui voce pode listar e gerenciar os perfis por unidade da estrutura organizacional.</p>
 
 <div class="accordion" id="accordionRoot">
   {% for unidade in unidades %}
@@ -15,20 +15,20 @@
   {% endfor %}
 </div>
 
-<!-- Modal Criar Perfil -->
+<!-- Modal criar perfil -->
 <div class="modal fade" id="modalCriarPerfil" tabindex="-1" aria-labelledby="modalCriarPerfilLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <form method="post" id="formCriarPerfil">
         {% csrf_token %}
         <div class="modal-header">
-          <h5 class="modal-title" id="modalCriarPerfilLabel">Criar Perfil</h5>
+          <h5 class="modal-title" id="modalCriarPerfilLabel">Criar perfil</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <input type="hidden" name="unidade_id" id="inputUnidadeId">
           <div class="mb-3">
-            <label for="id_username" class="form-label">Nome de Usuário</label>
+            <label for="id_username" class="form-label">Nome de usuario</label>
             <input type="text" class="form-control" name="username" id="id_username" required>
           </div>
           <div class="mb-3">
@@ -49,12 +49,12 @@
   </div>
 </div>
 
-<!-- Modal com informações -->
+<!-- Modal informativo -->
 <div class="modal fade" id="modalInfoPerfil" tabindex="-1" aria-labelledby="modalInfoPerfilLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modalInfoPerfilLabel">Informações</h5>
+        <h5 class="modal-title" id="modalInfoPerfilLabel">Informacoes</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" id="infoPerfilTexto"></div>
@@ -65,6 +65,26 @@
   </div>
 </div>
 
+<!-- Modal confirmar exclusao -->
+<div class="modal fade" id="modalExcluirPerfil" tabindex="-1" aria-labelledby="modalExcluirPerfilLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalExcluirPerfilLabel">Revisar exclusao de perfil</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body" id="modalExcluirPerfilBody">
+        <p class="text-muted mb-0">Carregando dependencias...</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmExcluirPerfil">
+          <i class="bi bi-trash"></i> Excluir definitivamente
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -84,114 +104,423 @@ function getCookie(name) {
   return cookieValue;
 }
 
-function handleExcluirPerfil(button) {
-  const userId = button.getAttribute("data-user-id");
-  if (!confirm("Tem certeza que deseja excluir este perfil?")) return;
+function fetchJson(url, options = {}) {
+  const headers = {
+    "Accept": "application/json",
+    ...(options.headers || {}),
+  };
+  const method = (options.method || "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD" && !headers["X-CSRFToken"]) {
+    headers["X-CSRFToken"] = getCookie("csrftoken");
+  }
+  const opts = {
+    credentials: "same-origin",
+    ...options,
+    headers,
+  };
 
-  fetch(`/perfis/${userId}/excluir/`, {
-    method: "POST",
-    headers: {
-      "X-CSRFToken": getCookie("csrftoken"),
-      "Accept": "application/json"
-    }
-  })
-  .then(res => {
-    if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
-    return res.json();
-  })
-  .then(data => {
-    if (data.status === "excluido" || data.status === "inativado") {
-      alert("✅ Perfil removido com sucesso.");
-      location.reload();
+  return fetch(url, opts).then(async (response) => {
+    const contentType = response.headers.get("content-type") || "";
+    let data;
+    if (contentType.includes("application/json")) {
+      data = await response.json();
     } else {
-      alert("Erro: " + (data.erro || "Não foi possível excluir o perfil."));
+    const text = await response.text();
+    data = { status: "erro", message: text };
+  }
+  return { ok: response.ok, status: response.status, data };
+});
+}
+
+function extractErrorMessage(err, fallback) {
+  if (!err) return fallback;
+  if (typeof err === "string") return err;
+  if (err.message) return err.message;
+  if (err.error) return err.error;
+  if (err.detail) return err.detail;
+  if (err.status_text) return err.status_text;
+  return fallback;
+}
+
+const modalExcluirPerfilEl = document.getElementById("modalExcluirPerfil");
+const modalExcluirPerfilLabel = document.getElementById("modalExcluirPerfilLabel");
+const modalExcluirPerfilBody = document.getElementById("modalExcluirPerfilBody");
+const btnConfirmExcluirPerfil = document.getElementById("btnConfirmExcluirPerfil");
+let modalExcluirPerfilInstance = null;
+let excluirPerfilContext = null;
+
+if (modalExcluirPerfilEl) {
+  modalExcluirPerfilInstance = new bootstrap.Modal(modalExcluirPerfilEl);
+  modalExcluirPerfilEl.addEventListener("hidden.bs.modal", () => {
+    excluirPerfilContext = null;
+    if (modalExcluirPerfilLabel) {
+      modalExcluirPerfilLabel.textContent = "Revisar exclusao de perfil";
     }
-  })
-  .catch(err => {
-    console.error("Erro na requisição:", err);
-    alert("Falha ao comunicar com o servidor.");
+    if (modalExcluirPerfilBody) {
+      modalExcluirPerfilBody.innerHTML = '<p class="text-muted mb-0">Carregando dependencias...</p>';
+    }
+    if (btnConfirmExcluirPerfil) {
+      btnConfirmExcluirPerfil.disabled = false;
+      btnConfirmExcluirPerfil.classList.remove("disabled");
+      btnConfirmExcluirPerfil.innerHTML = '<i class="bi bi-trash"></i> Excluir definitivamente';
+    }
   });
 }
+
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function renderDependenciasHtml(data) {
+  const summary = data.summary || [];
+  const derivedCanDelete = summary.every(item => !["protect", "restrict"].includes(item.action));
+  const canDelete = data.can_delete !== undefined ? data.can_delete : derivedCanDelete;
+  const forceAvailable = data.force_available !== false;
+  const contextUser = data.user || (excluirPerfilContext && excluirPerfilContext.user) || {};
+  const forceUsed = Boolean(data.force_used);
+  let html = `<p>Revise com atencao antes de excluir o usuario <strong>${escapeHtml(contextUser.username || "selecionado")}</strong>.</p>`;
+
+  if (!summary.length) {
+    html += '<div class="alert alert-success mb-3">Nenhum vinculo critico encontrado. A exclusao removera apenas o perfil e seus dados diretos.</div>';
+    if (data.message) {
+      html += `<p class="text-muted mb-0">${escapeHtml(data.message)}</p>`;
+    }
+    return html;
+  }
+
+  const grouped = summary.reduce((acc, item) => {
+    (acc[item.action] = acc[item.action] || []).push(item);
+    return acc;
+  }, {});
+
+  const blockers = (grouped.protect || []).concat(grouped.restrict || []);
+  const blockersCount = blockers.reduce((total, item) => total + (item.count || 0), 0);
+
+  const cleanup = data.cleanup || {};
+  const cleanupChunks = [];
+  const formatCleanupItems = (items) => items.map(item => `${escapeHtml(item.model)} (${item.count})`).join(', ');
+
+  if (cleanup.deleted && cleanup.deleted.length) {
+    cleanupChunks.push(`<li>Registros removidos: ${formatCleanupItems(cleanup.deleted)}</li>`);
+  }
+  if (cleanup.detached && cleanup.detached.length) {
+    cleanupChunks.push(`<li>Vinculos limpos: ${formatCleanupItems(cleanup.detached)}</li>`);
+  }
+  if (cleanupChunks.length) {
+    html += `<div class="alert alert-warning mb-3"><h6 class="mb-2">Limpeza automatica executada</h6><ul class="mb-0">${cleanupChunks.join('')}</ul></div>`;
+  }
+  if (cleanup.errors && cleanup.errors.length) {
+    html += `<div class="alert alert-danger"><strong>Falhas ao limpar dependencias:</strong><ul class="mb-0">${cleanup.errors.map(err => `<li>${escapeHtml(err.model)}: ${escapeHtml(err.error)}</li>`).join('')}</ul></div>`;
+  }
+
+  const sections = [
+    { action: "protect", title: "Bloqueios - acao necessaria", alert: "danger" },
+    { action: "restrict", title: "Restricoes - acao necessaria", alert: "danger" },
+    { action: "cascade", title: "Sera removido automaticamente", alert: "warning" },
+    { action: "set_null", title: "Registros permanecem, mas o vinculo sera limpo", alert: "info" },
+    { action: "set_default", title: "Registros receberao o valor padrao", alert: "info" },
+    { action: "detach", title: "Somente o vinculo sera removido", alert: "secondary" },
+    { action: "do_nothing", title: "Sem alteracoes automaticas", alert: "secondary" },
+    { action: "unknown", title: "Acao personalizada - revise manualmente", alert: "secondary" },
+  ];
+
+  sections.forEach(section => {
+    const items = grouped[section.action];
+    if (!items || !items.length) return;
+    html += `<div class="alert alert-${section.alert}"><h6 class="mb-2">${section.title}</h6><ul class="mb-0">`;
+      items.forEach(item => {
+        html += `<li><strong>${escapeHtml(item.model)}</strong> (${item.count})<br><span class="small text-muted">${escapeHtml(item.action_label)}</span>`;
+        if (item.samples && item.samples.length) {
+          html += `<div class="small mt-1">Exemplos: ${item.samples.map(escapeHtml).join(', ')}</div>`;
+        }
+        if (item.hint) {
+          html += `<div class="small text-info mt-1">Onde ajustar: ${escapeHtml(item.hint)}</div>`;
+        }
+        html += `</li>`;
+      });
+      html += `</ul></div>`;
+    });
+
+  if (!canDelete) {
+    html += '<div class="alert alert-danger mb-3"><strong>Importante:</strong> remova ou reatribua os itens marcados como bloqueio antes de excluir este perfil.</div>';
+    if (forceAvailable) {
+      const blockerLabel = blockersCount ? `${blockersCount} registro(s)` : 'os registros';
+      const checkedAttr = forceUsed ? ' checked' : '';
+      html += `<div class="alert alert-warning" id="forceDeleteContainer"><div class="form-check"><input class="form-check-input" type="checkbox" id="forceDeleteCheckbox"${checkedAttr}><label class="form-check-label fw-semibold text-danger" for="forceDeleteCheckbox">Estou ciente dos riscos e desejo forcar a exclusao, removendo definitivamente ${blockerLabel} bloqueador(es).</label></div><p class="small text-danger mb-0 d-none" id="forceDeleteWarning">Esta acao e irreversivel. Os registros listados nas secoes de Bloqueios serao excluidos antes do perfil.</p></div>`;
+    }
+  } else {
+    html += '<p class="text-muted mb-0">Ao confirmar, o perfil e os registros listados para remocao automatica serao excluidos.</p>';
+  }
+
+  return html;
+}
+
+
+function updateConfirmExcluirButton() {
+  if (!btnConfirmExcluirPerfil) return;
+  if (!excluirPerfilContext) {
+    btnConfirmExcluirPerfil.disabled = true;
+    btnConfirmExcluirPerfil.classList.add("disabled");
+    btnConfirmExcluirPerfil.innerHTML = '<i class="bi bi-trash"></i> Excluir definitivamente';
+    return;
+  }
+
+  const canDelete = Boolean(excluirPerfilContext.canDelete);
+  const forceDelete = Boolean(excluirPerfilContext.force);
+
+  if (canDelete) {
+    btnConfirmExcluirPerfil.disabled = false;
+    btnConfirmExcluirPerfil.classList.remove("disabled");
+    btnConfirmExcluirPerfil.innerHTML = '<i class="bi bi-trash"></i> Excluir definitivamente';
+    return;
+  }
+
+  if (forceDelete) {
+    btnConfirmExcluirPerfil.disabled = false;
+    btnConfirmExcluirPerfil.classList.remove("disabled");
+    btnConfirmExcluirPerfil.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Forcar exclusao agora';
+    return;
+  }
+
+  btnConfirmExcluirPerfil.disabled = true;
+  btnConfirmExcluirPerfil.classList.add("disabled");
+  btnConfirmExcluirPerfil.innerHTML = '<i class="bi bi-lock"></i> Exclusao bloqueada';
+}
+
+function setupForceDeleteControls() {
+  if (!modalExcluirPerfilBody || !excluirPerfilContext) {
+    if (excluirPerfilContext) {
+      excluirPerfilContext.force = false;
+    }
+    updateConfirmExcluirButton();
+    return;
+  }
+
+  const checkbox = modalExcluirPerfilBody.querySelector('#forceDeleteCheckbox');
+  const warning = modalExcluirPerfilBody.querySelector('#forceDeleteWarning');
+
+  if (!checkbox) {
+    excluirPerfilContext.force = false;
+    updateConfirmExcluirButton();
+    return;
+  }
+
+  const syncState = () => {
+    excluirPerfilContext.force = checkbox.checked;
+    if (warning) {
+      warning.classList.toggle('d-none', !checkbox.checked);
+    }
+    updateConfirmExcluirButton();
+  };
+
+  checkbox.addEventListener('change', syncState);
+  syncState();
+}
+
+function handleExcluirPerfil(button) {
+  const userId = button.getAttribute("data-user-id");
+  excluirPerfilContext = null;
+
+  if (modalExcluirPerfilBody) {
+    modalExcluirPerfilBody.innerHTML = '<p class="text-muted mb-0">Carregando dependencias...</p>';
+  }
+  if (btnConfirmExcluirPerfil) {
+    btnConfirmExcluirPerfil.disabled = true;
+    btnConfirmExcluirPerfil.classList.add("disabled");
+    btnConfirmExcluirPerfil.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Analisando';
+  }
+  if (modalExcluirPerfilInstance) {
+    modalExcluirPerfilInstance.show();
+  }
+
+  fetchJson(`/perfis/${userId}/dependencias/`)
+    .then(({ ok, data, status }) => {
+      if (!ok) {
+        throw data;
+      }
+      excluirPerfilContext = {
+        userId,
+        canDelete: Boolean(data.can_delete),
+        user: data.user,
+        force: Boolean(data.force_used),
+      };
+      if (modalExcluirPerfilLabel && data.user) {
+        modalExcluirPerfilLabel.textContent = `Revisar exclusao de ${data.user.username}`;
+      }
+      if (modalExcluirPerfilBody) {
+        modalExcluirPerfilBody.innerHTML = renderDependenciasHtml(data);
+      }
+      setupForceDeleteControls();
+      updateConfirmExcluirButton();
+    })
+    .catch(err => {
+      console.error("Erro ao carregar dependencias:", err);
+      const msg = extractErrorMessage(err, "Nao foi possivel carregar as dependencias deste perfil. Verifique permissao e tente novamente.");
+      if (modalExcluirPerfilBody) {
+        modalExcluirPerfilBody.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(msg)}</div>`;
+      }
+      if (btnConfirmExcluirPerfil) {
+        btnConfirmExcluirPerfil.disabled = true;
+        btnConfirmExcluirPerfil.classList.add("disabled");
+        btnConfirmExcluirPerfil.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Erro';
+      }
+      updateConfirmExcluirButton();
+    });
+  }
 
 function handleRedefinirSenha(button) {
   const userId = button.getAttribute("data-user-id");
   const username = button.getAttribute("data-username");
 
-  if (!confirm(`Gerar nova senha provisória para ${username}?`)) return;
+  if (!confirm(`Gerar nova senha provisoria para ${username}?`)) return;
 
-  fetch(`/perfis/${userId}/redefinir-senha/`, {
+  fetchJson(`/perfis/${userId}/redefinir-senha/`, {
     method: "POST",
-    headers: {
-      "X-CSRFToken": getCookie("csrftoken")
-    }
   })
-  .then(res => res.json())
-  .then(data => {
+  .then(({ ok, data }) => {
+    if (!ok) {
+      throw data;
+    }
     if (data.status === "ok") {
       document.getElementById("infoPerfilTexto").innerHTML = `
-        <p>🔐 A senha do usuário <strong>${data.username}</strong> foi redefinida com sucesso.</p>
-        <p><strong>Nova senha provisória:</strong> ${data.senha_provisoria}</p>
+        <p>Senha do usuario <strong>${escapeHtml(data.username)}</strong> redefinida com sucesso.</p>
+        <p><strong>Nova senha provisoria:</strong> ${escapeHtml(data.senha_provisoria)}</p>
         <hr>
-        <p><em>Instruções para o usuário:</em></p>
+        <p><em>Orientacoes para o usuario:</em></p>
         <ol>
-          <li>Faça login com a senha provisória acima.</li>
-          <li>Você será direcionado para a troca de senha.</li>
-          <li>Defina uma nova senha pessoal.</li>
+          <li>Acesse o sistema com a senha provisoria informada.</li>
+          <li>Conclua a troca de senha logo no primeiro acesso.</li>
         </ol>
       `;
       new bootstrap.Modal(document.getElementById("modalInfoPerfil")).show();
     } else {
-      alert("Erro ao redefinir senha: " + (data.erro || "Erro desconhecido."));
+      alert("Erro ao redefinir senha: " + (data.erro || "Falha desconhecida."));
+    }
+  })
+  .catch(err => {
+    console.error("Erro ao redefinir senha:", err);
+    const msg = extractErrorMessage(err, "Nao foi possivel redefinir a senha. Verifique as permissoes e tente novamente.");
+    alert(msg);
+  });
+}
+
+if (btnConfirmExcluirPerfil) {
+  btnConfirmExcluirPerfil.addEventListener("click", () => {
+    if (!excluirPerfilContext) {
+      return;
+    }
+
+    const canDelete = Boolean(excluirPerfilContext.canDelete);
+    const forceDelete = Boolean(excluirPerfilContext.force);
+
+    if (!canDelete && !forceDelete) {
+      return;
+    }
+
+    if (forceDelete && !window.confirm('Forcar a exclusao removera definitivamente os registros bloqueadores listados. Deseja continuar?')) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("confirm", "1");
+    if (forceDelete) {
+      formData.append("force", "1");
+    }
+
+    btnConfirmExcluirPerfil.disabled = true;
+    btnConfirmExcluirPerfil.classList.add("disabled");
+    btnConfirmExcluirPerfil.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Excluindo...';
+
+    fetchJson(`/perfis/${excluirPerfilContext.userId}/excluir/`, {
+        method: "POST",
+        body: formData
+      })
+      .then(({ ok, data }) => {
+        if (ok && data.status === "excluido") {
+          if (modalExcluirPerfilInstance) {
+            modalExcluirPerfilInstance.hide();
+          }
+          alert("Perfil removido com sucesso.");
+          location.reload();
+          return;
+        }
+
+      excluirPerfilContext.canDelete = Boolean(data.can_delete);
+      excluirPerfilContext.force = Boolean(data.force_used);
+      if (modalExcluirPerfilBody && data.summary) {
+        modalExcluirPerfilBody.innerHTML = renderDependenciasHtml(data);
+      } else if (modalExcluirPerfilBody && data.message) {
+        modalExcluirPerfilBody.innerHTML = `<div class="alert alert-warning mb-0">${escapeHtml(data.message)}</div>`;
+      }
+      setupForceDeleteControls();
+      updateConfirmExcluirButton();
+    })
+    .catch(err => {
+      console.error("Erro na exclusao:", err);
+      const msg = extractErrorMessage(err, "Nao foi possivel concluir a exclusao. Verifique os registros relacionados e tente novamente.");
+      if (modalExcluirPerfilBody) {
+        modalExcluirPerfilBody.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(msg)}</div>`;
+      }
+      btnConfirmExcluirPerfil.disabled = true;
+      btnConfirmExcluirPerfil.classList.add("disabled");
+      btnConfirmExcluirPerfil.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Erro';
+    });
+  });
+}
+
+const modalCriarPerfilEl = document.getElementById("modalCriarPerfil");
+if (modalCriarPerfilEl) {
+  modalCriarPerfilEl.addEventListener("show.bs.modal", event => {
+    const button = event.relatedTarget;
+    const unidadeId = button ? button.getAttribute("data-unidade-id") : "";
+    const input = document.getElementById("inputUnidadeId");
+    if (input) {
+      input.value = unidadeId || "";
     }
   });
 }
 
-// Preenche unidade_id ao abrir modal de criação
-document.getElementById('modalCriarPerfil').addEventListener('show.bs.modal', event => {
-  const button = event.relatedTarget;
-  const unidadeId = button.getAttribute('data-unidade-id');
-  document.getElementById('inputUnidadeId').value = unidadeId;
-});
+const formCriarPerfil = document.getElementById("formCriarPerfil");
+if (formCriarPerfil) {
+  formCriarPerfil.addEventListener("submit", event => {
+    event.preventDefault();
+    const formData = new FormData(formCriarPerfil);
 
-// Submete criação e mostra modal de informações
-document.getElementById("formCriarPerfil").addEventListener("submit", function (e) {
-  e.preventDefault();
-  const form = e.target;
-  const formData = new FormData(form);
-  const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
-
-  fetch("{% url 'core:criar_perfil' %}", {
-    method: "POST",
-    headers: { "X-CSRFToken": csrfToken },
-    body: formData
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.status === "ok") {
-      bootstrap.Modal.getInstance(document.getElementById('modalCriarPerfil')).hide();
-
-      document.getElementById("infoPerfilTexto").innerHTML = `
-        <p>✅ Usuário <strong>${data.username}</strong> criado com sucesso!</p>
-        <p><strong>Login:</strong> ${data.username}</p>
-        <p><strong>Senha provisória:</strong> ${data.senha_provisoria}</p>
-        <hr>
-        <p><em>Instruções para o usuário:</em></p>
-        <ol>
-          <li>Acesse o sistema com o login e senha provisória acima.</li>
-          <li>Você será redirecionado para a tela de troca de senha.</li>
-          <li>Defina sua nova senha para continuar.</li>
-        </ol>
-      `;
-      new bootstrap.Modal(document.getElementById('modalInfoPerfil')).show();
-      form.reset();
-    } else {
-      alert("Erro: " + (data.erro || "Não foi possível criar o perfil."));
-    }
-  })
-  .catch(error => {
-    console.error("Erro:", error);
-    alert("Erro ao processar requisição.");
+    fetchJson("{% url 'core:criar_perfil' %}", {
+      method: "POST",
+      body: formData,
+    })
+      .then(({ ok, data }) => {
+        if (!ok) {
+          throw data;
+        }
+        if (data.status === "ok") {
+          bootstrap.Modal.getInstance(document.getElementById("modalCriarPerfil")).hide();
+          document.getElementById("infoPerfilTexto").innerHTML = `
+            <p>Usuario <strong>${escapeHtml(data.username)}</strong> criado com sucesso.</p>
+            <p><strong>Login:</strong> ${escapeHtml(data.username)}</p>
+            <p><strong>Senha provisoria:</strong> ${escapeHtml(data.senha_provisoria)}</p>
+            <hr>
+            <p><em>Oriente o usuario a trocar a senha no primeiro acesso.</em></p>
+          `;
+          new bootstrap.Modal(document.getElementById("modalInfoPerfil")).show();
+          formCriarPerfil.reset();
+        } else {
+          alert("Erro: " + (data.erro || "Nao foi possivel criar o perfil."));
+        }
+      })
+      .catch(error => {
+        console.error("Erro ao criar perfil:", error);
+        const msg = extractErrorMessage(error, "Falha ao processar a requisicao.");
+        alert(msg);
+      });
   });
-});
+}
 </script>
 {% endblock %}

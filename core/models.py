@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
-import string
-import random
+
+from .utils import gerar_senha_provisoria as gerar_token
 
 
 class No(models.Model):
@@ -48,8 +48,7 @@ class UserProfile(models.Model):
         return f"{self.user.username} ({self.unidade.nome})"
 
     def gerar_senha_provisoria(self, tamanho=10):
-        caracteres = string.ascii_letters + string.digits
-        self.senha_provisoria = ''.join(random.choice(caracteres) for _ in range(tamanho))
+        self.senha_provisoria = gerar_token(tamanho)
         self.ativado = False
         self.save()
         return self.senha_provisoria

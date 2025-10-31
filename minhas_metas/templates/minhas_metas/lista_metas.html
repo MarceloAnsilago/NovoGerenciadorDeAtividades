@@ -49,6 +49,9 @@
                     Atividade: {{ meta.atividade.titulo }} (ID: {{ meta.atividade.id }})
                   </div>
                 {% endif %}
+                <div class="small text-secondary mt-1">
+                  Em programação: {{ meta.programadas_total|default_if_none:"0" }}
+                </div>
               </div>
             </div>
 

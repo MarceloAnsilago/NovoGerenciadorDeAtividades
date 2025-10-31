@@ -8,6 +8,12 @@
   {% url 'metas:atividades-lista' as back_url %}
   {% include "partials/_page_header.html" with title="Definir Meta" subtitle=atividade.titulo back_url=back_url icon="bi-bullseye" %}
 
+  {% if not can_create %}
+    <div class="alert alert-warning mb-3">
+      Assuma uma unidade antes de criar novas metas para esta atividade. Use o seletor de contexto no topo da página.
+    </div>
+  {% endif %}
+
   <!-- Card: Formulário de criação -->
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-light">
@@ -15,6 +21,7 @@
     </div>
 
     <div class="card-body">
+      {% if can_create %}
       <form method="post" novalidate>
         {% csrf_token %}
 
@@ -57,6 +64,11 @@
           </div>
         </div>
       </form>
+      {% else %}
+        <p class="text-muted mb-0">
+          Nenhuma unidade selecionada. Ao assumir uma unidade, este formulário ficará disponível para cadastro de metas.
+        </p>
+      {% endif %}
     </div>
   </div>
   <!-- /Card: Formulário -->
@@ -155,7 +167,13 @@
           </table>
         </div>
       {% else %}
-        <div class="text-center py-4 text-muted">Nenhuma meta criada para esta atividade.</div>
+        <div class="text-center py-4 text-muted">
+          {% if can_create %}
+            Nenhuma meta criada para esta atividade.
+          {% else %}
+            Assuma uma unidade para visualizar as metas relacionadas a esta atividade.
+          {% endif %}
+        </div>
       {% endif %}
     </div>
   </div>

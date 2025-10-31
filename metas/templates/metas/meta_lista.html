@@ -5,8 +5,14 @@
 
 {% block content %}
 <div class="container py-4">
-  {% url 'core:dashboard' as dash_url %}
-  {% include "partials/_page_header.html" with title="Metas" subtitle="Unidade atual: "|add:unidade.nome back_url=dash_url icon="bi-bullseye" %}
+  {% url 'metas:atividades-lista' as metas_inicio_url %}
+  {% include "partials/_page_header.html" with title="Metas" subtitle="Unidade atual: "|add:unidade.nome back_url=metas_inicio_url icon="bi-bullseye" %}
+
+  {% if not has_unidade %}
+    <div class="alert alert-warning mb-3">
+      Selecione ou assuma uma unidade antes de criar ou visualizar metas. Utilize o menu de contexto no topo da página.
+    </div>
+  {% endif %}
 
   {% if atividade_filtrada %}
     <div class="alert alert-info d-flex justify-content-between align-items-center">
@@ -93,7 +99,13 @@
           </table>
         </div>
       {% else %}
-        <div class="text-center py-4 text-muted">Nenhuma meta alocada.</div>
+        <div class="text-center py-4 text-muted">
+          {% if has_unidade %}
+            Nenhuma meta alocada.
+          {% else %}
+            Assuma uma unidade para visualizar as metas disponíveis.
+          {% endif %}
+        </div>
       {% endif %}
     </div>
   </div>

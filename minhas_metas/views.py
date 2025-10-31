@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.conf import settings
-from django.db.models import Sum
+from django.db.models import Sum, Count
 
 from core.utils import get_unidade_atual
 from metas.models import MetaAlocacao
@@ -44,6 +44,25 @@ def minhas_metas_view(request):
     )
     if atividade_id:
         alocacoes = alocacoes.filter(meta__atividade_id=atividade_id)
+
+    meta_ids = list(alocacoes.values_list("meta_id", flat=True))
+    programadas_por_meta: dict[int, int] = {}
+    if meta_ids:
+        itens_stats = (
+            ProgramacaoItem.objects
+            .filter(meta_id__in=meta_ids)
+            .values("meta_id")
+            .annotate(total=Count("id"))
+        )
+        programadas_por_meta = {
+            int(row["meta_id"]): int(row.get("total") or 0)
+            for row in itens_stats
+        }
+
+    for aloc in alocacoes:
+        meta_obj = getattr(aloc, "meta", None)
+        if meta_obj and getattr(meta_obj, "id", None):
+            setattr(meta_obj, "programadas_total", programadas_por_meta.get(int(meta_obj.id), 0))
 
     tem_filhos = unidade.filhos.exists()
 

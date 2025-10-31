@@ -1,60 +1,140 @@
 <script>
-(function(){
-  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+(function () {
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
+  if (NS._metasLogicLoaded) return;
+  NS._metasLogicLoaded = true;
 
-  NS.loadMetas = async function(dateStr = null){
-    const grid = document.getElementById('metasGrid');
-    if (!grid) return;
+  function escapeSelector(value) {
+    const raw = String(value ?? "");
+    if (window.CSS && typeof window.CSS.escape === "function") {
+      try { return window.CSS.escape(raw); } catch (_) { return raw; }
+    }
+    return raw.replace(/["\\]/g, "\\$&");
+  }
 
-    grid.innerHTML = `<div class="placeholder-glow"><span class="placeholder col-12 mb-2"></span></div>`;
+  function highlightExistingCard(metaId) {
+    const container = document.getElementById("metaCardsContainer");
+    if (!container) return;
+    const card = container.querySelector(`[data-meta-id="${escapeSelector(metaId)}"]`);
+    if (!card) return;
+    card.classList.add("border-warning");
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => card.classList.remove("border-warning"), 1500);
+  }
+
+  function confirmLimite(programadasAtual, alocado) {
+    if (alocado <= 0 || programadasAtual < alocado) return true;
+    return window.confirm(
+      `Esta meta já possui ${programadasAtual} atividade${programadasAtual === 1 ? "" : "s"} em programação ` +
+      `para a unidade, igual ou maior que o total alocado (${alocado}). Deseja programar mesmo assim?`
+    );
+  }
+
+  function confirmDuplicado(existingCards) {
+    if (existingCards <= 0) return true;
+    const mensagem = existingCards === 1
+      ? "Já existe uma atividade desta meta programada para este dia. Deseja inserir outra?"
+      : `Já existem ${existingCards} atividades desta meta programadas para este dia. Deseja inserir mais uma?`;
+    return window.confirm(mensagem);
+  }
+
+  NS.loadMetas = async function (dateStr = null) {
+    const metasGrid = document.getElementById("metasGrid");
+    if (!metasGrid) return;
+
+    metasGrid.innerHTML = `
+      <div class="placeholder-glow">
+        <span class="placeholder col-12 mb-2"></span>
+      </div>
+    `;
 
     let url = NS.urls?.metas;
-    if (!url){ grid.innerHTML = `<div class="alert alert-danger">Endpoint de metas não configurado.</div>`; return; }
-    if (dateStr){ url += (url.includes('?') ? '&' : '?') + 'data=' + encodeURIComponent(dateStr); }
+    if (!url) {
+      metasGrid.innerHTML = `<div class="alert alert-danger">Endpoint de metas não configurado.</div>`;
+      return;
+    }
+    if (dateStr) {
+      url += (url.includes("?") ? "&" : "?") + "data=" + encodeURIComponent(dateStr);
+    }
 
-    try{
-      const resp = await fetch(url, { headers:{'X-Requested-With':'XMLHttpRequest'} });
+    try {
+      const resp = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
       const data = await resp.json();
 
-      if (!data.metas || !Array.isArray(data.metas) || data.metas.length === 0){
-        grid.innerHTML = `<div class="alert alert-light border mb-0">Nenhuma meta disponível.</div>`;
+      if (!data.metas || !Array.isArray(data.metas) || data.metas.length === 0) {
+        metasGrid.innerHTML = `<div class="alert alert-light border mb-0">Nenhuma meta disponível.</div>`;
         return;
       }
 
-      grid.innerHTML = data.metas.map(m => `
-        <button type="button" class="meta-card" data-id="${m.id}">
-          <div class="meta-head">
-            <span class="icon"><i class="bi bi-flag"></i></span>
-            <h6 class="meta-title">${m.nome}</h6>
-          </div>
-          <div class="meta-sep"></div>
-          ${m.data_limite ? `
-            <div class="meta-date">
-              <i class="bi bi-calendar-event"></i>
-              <span>Data limite:</span>
-              <strong>${new Date(m.data_limite).toLocaleDateString('pt-BR')}</strong>
-            </div>` : ``}
-          <div class="meta-small mt-2">Alocado nesta unidade: <b>${m.alocado_unidade || 0}</b></div>
-          <div class="meta-progress mt-1">
-            <div class="d-flex justify-content-between summary mb-1">
-              <span>Executado (unidade)</span>
-              <span><b>${m.executado_unidade || 0}</b> / ${m.alocado_unidade || 0}</span>
+      metasGrid.innerHTML = data.metas.map((m) => {
+        const programadas = Number(m.programadas_total || 0);
+        const alocado = Number(m.alocado_unidade || 0);
+        return `
+          <button type="button"
+                  class="meta-card"
+                  data-id="${m.id}"
+                  data-programadas="${programadas}"
+                  data-alocado="${alocado}">
+            <div class="meta-head">
+              <span class="icon"><i class="bi bi-flag"></i></span>
+              <h6 class="meta-title">${m.nome}</h6>
             </div>
-            <div class="progress"><div class="progress-bar bg-primary" style="width:${(m.alocado_unidade ? Math.min(100, Math.round((m.executado_unidade/m.alocado_unidade)*100)) : 0)}%"></div></div>
-          </div>
-        </button>
-      `).join('');
+            <div class="meta-sep"></div>
+            ${m.data_limite ? `
+              <div class="meta-date">
+                <i class="bi bi-calendar-event"></i>
+                <span>Data limite:</span>
+                <strong>${new Date(m.data_limite).toLocaleDateString('pt-BR')}</strong>
+              </div>
+            ` : ""}
+            <div class="meta-small mt-2">Em programação: <b>${programadas}</b></div>
+            <div class="meta-small mt-1">Alocado nesta unidade: <b>${alocado}</b></div>
+            <div class="meta-progress mt-1">
+              <div class="d-flex justify-content-between summary mb-1">
+                <span>Executado (unidade)</span>
+                <span><b>${m.executado_unidade || 0}</b> / ${m.alocado_unidade || 0}</span>
+              </div>
+              <div class="progress"><div class="progress-bar bg-primary" style="width:${(m.alocado_unidade ? Math.min(100, Math.round((m.executado_unidade/m.alocado_unidade)*100)) : 0)}%"></div></div>
+            </div>
+          </button>
+        `;
+      }).join("");
 
-      grid.querySelectorAll('.meta-card').forEach(card=>{
-        card.addEventListener('click', ()=>{
-          grid.querySelectorAll('.meta-card').forEach(c=>c.classList.remove('selected'));
-          card.classList.add('selected');
-          NS.ensureMetaCard?.(card.dataset.id, card.querySelector('.meta-title').textContent.trim());
+      metasGrid.querySelectorAll(".meta-card").forEach((card) => {
+        card.addEventListener("click", () => {
+          metasGrid.querySelectorAll(".meta-card").forEach((c) => c.classList.remove("selected"));
+          card.classList.add("selected");
+
+          const metaId = card.dataset.id;
+          if (!metaId) return;
+
+          const programadas = Number(card.dataset.programadas || "0") || 0;
+          const alocado = Number(card.dataset.alocado || "0") || 0;
+          const container = document.getElementById("metaCardsContainer");
+          const selector = `[data-meta-id="${escapeSelector(metaId)}"]`;
+          const cards = container ? Array.from(container.querySelectorAll(selector)) : [];
+          const existingCards = cards.length;
+          const novosNaoSalvos = cards.filter((c) => !c.dataset.itemId).length;
+          const totalAtual = programadas + novosNaoSalvos;
+
+          if (!confirmLimite(totalAtual, alocado)) return;
+
+          const metaTitulo = card.querySelector(".meta-title")?.textContent?.trim() || "";
+          const options = {};
+          if (existingCards > 0) {
+            if (!confirmDuplicado(existingCards)) {
+              highlightExistingCard(metaId);
+              return;
+            }
+            options.forceNew = true;
+          }
+
+          window.PROGRAMAR?.ensureMetaCard?.(metaId, metaTitulo, options);
         });
       });
-    }catch(err){
+    } catch (err) {
+      metasGrid.innerHTML = `<div class="alert alert-danger">Erro ao carregar metas.</div>`;
       console.error(err);
-      grid.innerHTML = `<div class="alert alert-danger">Erro ao carregar metas.</div>`;
     }
   };
 })();

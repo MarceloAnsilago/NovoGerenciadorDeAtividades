@@ -1166,6 +1166,20 @@ def metas_disponiveis(request):
         except Exception:
             prog_sum = 0
         bucket[mid]["executado_unidade"] += int(prog_sum)
+        bucket[mid].setdefault("programadas_total", 0)
+
+    meta_ids = list(bucket.keys())
+    if meta_ids:
+        itens_stats = (
+            ProgramacaoItem.objects
+            .filter(meta_id__in=meta_ids)
+            .values("meta_id")
+            .annotate(total=Count("id"))
+        )
+        for row in itens_stats:
+            mid = int(row.get("meta_id") or 0)
+            if mid in bucket:
+                bucket[mid]["programadas_total"] = int(row.get("total") or 0)
 
     metas = list(bucket.values())
     metas.sort(
