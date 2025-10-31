@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum
 from django.core.paginator import Paginator
 from django.db import transaction
+from django.utils import timezone
 
 from core.utils import get_unidade_atual
 from core.models import No
@@ -596,6 +597,7 @@ def redistribuir_meta_view(request, meta_id, parent_aloc_id):
     })
 
 
+
 @login_required
 def encerrar_meta_view(request, meta_id):
     unidade = get_unidade_atual(request)
@@ -613,118 +615,241 @@ def encerrar_meta_view(request, meta_id):
         .first()
     )
     if not meta:
-        messages.error(request, "Meta nǜo encontrada ou jǭ foi removida.")
+        messages.error(request, "Meta nao encontrada ou ja foi removida.")
         return redirect(next_url)
 
     if meta.unidade_criadora_id != getattr(unidade, "id", None) and not request.user.is_superuser:
-        messages.warning(request, "VocǦ nǜo tem permissǜo para encerrar esta meta.")
+        messages.warning(request, "Voce nao tem permissao para encerrar esta meta.")
         return redirect(next_url)
 
     if meta.encerrada:
-        messages.info(request, "Meta jǭ estǭ encerrada.")
+        messages.info(request, "Meta ja esta encerrada.")
         return redirect(next_url)
-
-    aloc_qs = (
-        MetaAlocacao.objects
-        .filter(meta=meta)
-        .select_related("unidade", "parent")
-        .annotate(realizado_total=Sum("progresso__quantidade"))
-        .order_by("parent_id", "unidade__nome", "id")
-    )
-    children_map = defaultdict(list)
-    for aloc in aloc_qs:
-        children_map[aloc.parent_id].append(aloc)
-
-    def build_tree(parent_id=None, depth=0):
-        nodes = []
-        for aloc in children_map.get(parent_id, []):
-            realizado = aloc.realizado_total or 0
-            quantidade = aloc.quantidade_alocada or 0
-            saldo = quantidade - realizado
-            if saldo < 0:
-                saldo = 0
-            percentual = 0.0
-            if quantidade:
-                percentual = min(100.0, (realizado / quantidade) * 100.0)
-            node = {
-                "aloc": aloc,
-                "depth": depth,
-                "indent": depth * 20,
-                "realizado": realizado,
-                "saldo": saldo,
-                "percentual": percentual,
-            }
-            node["filhos"] = build_tree(aloc.id, depth + 1)
-            node["has_children"] = bool(node["filhos"])
-            nodes.append(node)
-        return nodes
-
-    aloc_tree = build_tree()
-    aloc_top_total = sum((node["aloc"].quantidade_alocada or 0) for node in aloc_tree)
 
     from programar.models import ProgramacaoItem
 
-    pendentes_qs = (
-        ProgramacaoItem.objects
-        .select_related("programacao", "programacao__unidade", "veiculo")
-        .filter(meta_id=meta.id, concluido=False)
-        .order_by("programacao__data", "id")
-    )
-    pendentes_total = pendentes_qs.count()
-    preview_limit = 5
-    pendentes_preview = []
-    for pend in pendentes_qs[:preview_limit]:
-        prog = getattr(pend, "programacao", None)
-        unidade_nome = getattr(getattr(prog, "unidade", None), "nome", "")
-        pendentes_preview.append({
-            "id": pend.id,
-            "data": getattr(prog, "data", None),
-            "unidade": unidade_nome,
-            "veiculo": getattr(getattr(pend, "veiculo", None), "nome", ""),
-        })
-    pendentes_tem_mais = pendentes_total > len(pendentes_preview)
+    def _compute_aloc_tree():
+        qs = (
+            MetaAlocacao.objects
+            .filter(meta=meta)
+            .select_related("unidade", "parent")
+            .annotate(realizado_total=Sum("progresso__quantidade"))
+            .order_by("parent_id", "unidade__nome", "id")
+        )
+        children_map = defaultdict(list)
+        for aloc in qs:
+            children_map[aloc.parent_id].append(aloc)
+
+        flat_nodes = []
+
+        def build_tree(parent_id=None, depth=0):
+            nodes = []
+            for aloc in children_map.get(parent_id, []):
+                realizado = aloc.realizado_total or 0
+                quantidade = aloc.quantidade_alocada or 0
+                saldo = quantidade - realizado
+                if saldo < 0:
+                    saldo = 0
+                percentual = 0.0
+                if quantidade:
+                    percentual = min(100.0, (realizado / quantidade) * 100.0)
+                node = {
+                    "aloc": aloc,
+                    "depth": depth,
+                    "indent": depth * 20,
+                    "realizado": realizado,
+                    "saldo": saldo,
+                    "percentual": percentual,
+                }
+                node["filhos"] = build_tree(aloc.id, depth + 1)
+                node["has_children"] = bool(node["filhos"])
+                flat_nodes.append(node)
+                nodes.append(node)
+            return nodes
+
+        tree = build_tree()
+        aloc_top_total = sum((node["aloc"].quantidade_alocada or 0) for node in tree)
+        saldo_total = sum(node["saldo"] for node in flat_nodes)
+        return qs, tree, aloc_top_total, saldo_total
+
+    def _compute_state():
+        aloc_qs, aloc_tree, aloc_top_total, saldo_total = _compute_aloc_tree()
+        pendentes_qs = (
+            ProgramacaoItem.objects
+            .select_related("programacao", "programacao__unidade", "veiculo")
+            .filter(meta_id=meta.id, concluido=False)
+            .order_by("programacao__data", "id")
+        )
+        pendentes_total = pendentes_qs.count()
+        preview_limit = 5
+        pendentes_preview = []
+        for pend in pendentes_qs[:preview_limit]:
+            prog = getattr(pend, "programacao", None)
+            unidade_nome = getattr(getattr(prog, "unidade", None), "nome", "")
+            pendentes_preview.append({
+                "id": pend.id,
+                "data": getattr(prog, "data", None),
+                "unidade": unidade_nome,
+                "veiculo": getattr(getattr(pend, "veiculo", None), "nome", ""),
+            })
+        pendentes_tem_mais = pendentes_total > len(pendentes_preview)
+
+        concluidos_total = (
+            ProgramacaoItem.objects
+            .filter(meta_id=meta.id, concluido=True)
+            .count()
+        )
+        total_programados = pendentes_total + concluidos_total
+
+        meta_realizado_total = meta.realizado_total
+        meta_percentual = meta.percentual_execucao
+
+        inconsistencias = []
+        alvo = meta.quantidade_alvo or 0
+        if alvo and meta_realizado_total < alvo:
+            inconsistencias.append({
+                "code": "execucao_incompleta",
+                "message": f"Execucao registrada em {meta_realizado_total} de {alvo} ({meta_percentual:.1f}%).",
+                "auto_fix": False,
+            })
+        if alvo and meta.alocado_total < alvo:
+            inconsistencias.append({
+                "code": "alocacao_incompleta",
+                "message": f"Alocacao total ({meta.alocado_total}) inferior ao alvo ({alvo}).",
+                "auto_fix": False,
+            })
+        if alvo and total_programados < alvo:
+            inconsistencias.append({
+                "code": "programacao_insuficiente",
+                "message": f"Programadas {total_programados} atividade(s) para um alvo de {alvo}.",
+                "auto_fix": False,
+            })
+        if pendentes_total:
+            inconsistencias.append({
+                "code": "pendencias_programacao",
+                "message": f"Existem {pendentes_total} atividade(s) programada(s) ainda pendente(s).",
+                "auto_fix": True,
+            })
+
+        state = {
+            "aloc_tree": aloc_tree,
+            "tem_alocacoes": bool(aloc_qs),
+            "aloc_top_total": aloc_top_total,
+            "saldo_total": saldo_total,
+            "pendentes_total": pendentes_total,
+            "pendentes_preview": pendentes_preview,
+            "pendentes_tem_mais": pendentes_tem_mais,
+            "meta_realizado_total": meta_realizado_total,
+            "meta_percentual": meta_percentual,
+            "meta_alvo": alvo,
+            "meta_alocado_total": meta.alocado_total,
+            "concluidos_total": concluidos_total,
+            "total_programados": total_programados,
+            "inconsistencias": inconsistencias,
+        }
+        return state, pendentes_qs
+
+    state, pendentes_qs = _compute_state()
 
     encerrar_agora_checked = False
     confirmar_pendentes_checked = False
+    resolver_pendentes_checked = False
+    auto_resolvidos = 0
+    auto_sem_alocacao = 0
     form_errors = {}
 
     if request.method == "POST":
         encerrar_agora_checked = (request.POST.get("encerrar_agora") or "").strip().lower() in {"1", "true", "on", "sim"}
         confirmar_pendentes_checked = (request.POST.get("confirmar_pendentes") or "").strip().lower() in {"1", "true", "on", "sim"}
+        resolver_pendentes_checked = (request.POST.get("resolver_pendentes") or "").strip().lower() in {"1", "true", "on", "sim"}
+
+        if resolver_pendentes_checked and state["pendentes_total"] > 0:
+            pendentes_list = list(pendentes_qs)
+            with transaction.atomic():
+                for pend in pendentes_list:
+                    prog = getattr(pend, "programacao", None)
+                    unidade_id = getattr(prog, "unidade_id", None)
+                    concluido_em = timezone.now()
+                    observacao_original = (pend.observacao or "").strip()
+                    nota_suffix = "Encerrado automaticamente ao encerrar a meta."
+                    observacao_final = observacao_original
+                    if nota_suffix not in observacao_original:
+                        observacao_final = (observacao_original + " " + nota_suffix).strip()
+
+                    ProgramacaoItem.objects.filter(pk=pend.pk).update(
+                        concluido=True,
+                        concluido_em=concluido_em,
+                        concluido_por_id=getattr(request.user, "id", None),
+                        observacao=observacao_final,
+                    )
+                    auto_resolvidos += 1
+
+                    if unidade_id:
+                        aloc = (
+                            MetaAlocacao.objects
+                            .filter(meta_id=meta.id, unidade_id=unidade_id)
+                            .order_by("id")
+                            .first()
+                        )
+                        if aloc:
+                            ProgressoMeta.objects.create(
+                                data=getattr(prog, "data", timezone.localdate()),
+                                quantidade=1,
+                                observacao="Encerramento automatico da meta",
+                                alocacao=aloc,
+                                registrado_por=request.user,
+                            )
+                        else:
+                            auto_sem_alocacao += 1
+                    else:
+                        auto_sem_alocacao += 1
+
+            meta.refresh_from_db()
+            state, pendentes_qs = _compute_state()
 
         if not encerrar_agora_checked:
-            form_errors["encerrar_agora"] = "Marque a confirma��ǜo para encerrar a meta."
+            form_errors["encerrar_agora"] = "Marque a confirmacao para encerrar a meta."
 
-        if pendentes_total > 0 and not confirmar_pendentes_checked:
+        if state["pendentes_total"] > 0 and not resolver_pendentes_checked and not confirmar_pendentes_checked:
             form_errors["confirmar_pendentes"] = "Confirme que deseja encerrar mesmo com atividades pendentes."
 
         if not form_errors:
             meta.encerrada = True
             meta.save(update_fields=["encerrada"])
-            messages.success(request, "Meta encerrada com sucesso.")
+            success_message = "Meta encerrada com sucesso."
+            if auto_resolvidos:
+                success_message += f" {auto_resolvidos} atividade(s) foram encerradas automaticamente."
+                if auto_sem_alocacao:
+                    success_message += f" {auto_sem_alocacao} registro(s) nao geraram progresso por falta de alocacao."
+            messages.success(request, success_message)
             return redirect(next_url)
 
-        messages.warning(request, "Revise as confirma����es antes de encerrar a meta.")
+        messages.warning(request, "Revise as confirmacoes antes de encerrar a meta.")
 
-    meta_realizado_total = meta.realizado_total
-    meta_percentual = meta.percentual_execucao
+    mostrar_confirmar_pendentes = state["pendentes_total"] > 0 and not resolver_pendentes_checked
 
     contexto = {
         "meta": meta,
         "unidade": unidade,
-        "aloc_tree": aloc_tree,
-        "tem_alocacoes": bool(aloc_qs),
-        "aloc_top_total": aloc_top_total,
-        "meta_alvo": meta.quantidade_alvo or 0,
-        "meta_realizado_total": meta_realizado_total,
-        "meta_percentual": meta_percentual,
-        "pendentes_total": pendentes_total,
-        "pendentes_preview": pendentes_preview,
-        "pendentes_tem_mais": pendentes_tem_mais,
+        "aloc_tree": state["aloc_tree"],
+        "tem_alocacoes": state["tem_alocacoes"],
+        "aloc_top_total": state["aloc_top_total"],
+        "saldo_total": state["saldo_total"],
+        "meta_alvo": state["meta_alvo"],
+        "meta_realizado_total": state["meta_realizado_total"],
+        "meta_percentual": state["meta_percentual"],
+        "meta_alocado_total": state["meta_alocado_total"],
+        "total_programados": state["total_programados"],
+        "concluidos_total": state["concluidos_total"],
+        "pendentes_total": state["pendentes_total"],
+        "pendentes_preview": state["pendentes_preview"],
+        "pendentes_tem_mais": state["pendentes_tem_mais"],
+        "inconsistencias": state["inconsistencias"],
+        "resolver_pendentes_checked": resolver_pendentes_checked,
         "encerrar_agora_checked": encerrar_agora_checked,
         "confirmar_pendentes_checked": confirmar_pendentes_checked,
+        "mostrar_confirmar_pendentes": mostrar_confirmar_pendentes,
         "form_errors": form_errors,
         "next_url": next_url,
     }
     return render(request, "metas/encerrar_meta.html", contexto)
-
