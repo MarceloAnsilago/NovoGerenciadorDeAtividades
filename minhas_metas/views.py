@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date
+from calendar import monthrange
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -77,12 +78,13 @@ def minhas_metas_view(request):
 
     today = timezone.localdate()
     default_start = today.replace(day=1)
+    default_end = today.replace(day=monthrange(today.year, today.month)[1])
 
     start_qs = request.GET.get("start")
     end_qs = request.GET.get("end")
 
     dt_start = _parse_iso(start_qs) or default_start
-    dt_end = _parse_iso(end_qs) or today
+    dt_end = _parse_iso(end_qs) or default_end
     if dt_end < dt_start:
         dt_end = dt_start
 

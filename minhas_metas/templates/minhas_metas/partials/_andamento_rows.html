@@ -24,7 +24,7 @@
       </span>
 
       <a class="btn btn-sm {% if it.concluido %}btn-success{% else %}btn-primary{% endif %}"
-         href="{% url 'programar:concluir-item-form' it.item_id %}?next={{ request.get_full_path|urlencode }}">
+         href="{% url 'programar:concluir-item-form' it.item_id %}?next={{ request.get_full_path|urlencode }}&source=minhas-metas">
         {% if it.concluido %}Concluida{% else %}Concluir{% endif %}
       </a>
     </div>

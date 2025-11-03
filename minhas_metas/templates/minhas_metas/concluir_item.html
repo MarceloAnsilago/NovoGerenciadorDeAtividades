@@ -55,6 +55,7 @@
           <form method="post" class="vstack gap-3">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ next|default:'/minhas-metas/' }}">
+            {% if source %}<input type="hidden" name="source" value="{{ source }}">{% endif %}
 
             <div>
               <label class="form-label d-block">Realizado?</label>

@@ -1337,6 +1337,8 @@ def concluir_item_form(request, item_id: int):
     prog = pi.programacao
     unidade_id = getattr(prog, "unidade_id", None)
     meta = pi.meta
+    source_context = (request.GET.get("source") or request.POST.get("source") or "").strip().lower()
+    ignorar_pendentes = source_context == "minhas-metas"
 
     links = (
         ProgramacaoItemServidor.objects
@@ -1353,7 +1355,7 @@ def concluir_item_form(request, item_id: int):
     pendentes_total = 0
     pendentes_preview: list[dict[str, Any]] = []
     pendentes_tem_mais = False
-    if meta and getattr(meta, "id", None):
+    if (not ignorar_pendentes) and meta and getattr(meta, "id", None):
         pendentes_qs = (
             ProgramacaoItem.objects
             .select_related("programacao", "veiculo")
@@ -1379,7 +1381,7 @@ def concluir_item_form(request, item_id: int):
         obs_final = (request.POST.get("observacoes") or "").strip()
         confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
 
-        if concluido_flag and pendentes_total > 0 and not confirmar_pendentes:
+        if (not ignorar_pendentes) and concluido_flag and pendentes_total > 0 and not confirmar_pendentes:
             # exige confirmacao explícita antes de concluir com pendencias
             pi.concluido = concluido_flag
             contexto = {
@@ -1395,6 +1397,7 @@ def concluir_item_form(request, item_id: int):
                 "pendentes_tem_mais": pendentes_tem_mais,
                 "pendentes_confirmacao_obrigatoria": True,
                 "confirmar_pendentes_checked": confirmar_pendentes,
+                "source": source_context,
             }
             return render(request, "minhas_metas/concluir_item.html", contexto)
 
@@ -1450,5 +1453,6 @@ def concluir_item_form(request, item_id: int):
         "pendentes_tem_mais": pendentes_tem_mais,
         "pendentes_confirmacao_obrigatoria": False,
         "confirmar_pendentes_checked": False,
+        "source": source_context,
     }
     return render(request, "minhas_metas/concluir_item.html", contexto)
