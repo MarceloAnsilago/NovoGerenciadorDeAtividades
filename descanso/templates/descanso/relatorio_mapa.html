@@ -52,9 +52,9 @@
                   <td>
                     <div class="days-grid">
                       {% for marcado in row.dias %}
-                        {% if marcado %}
-                          <span class="day-marked" title="Descanso">{{ forloop.counter }}</span>
-                        {% endif %}
+                        <span class="day-square {% if marcado %}day-marked{% else %}day-empty{% endif %}" title="Dia {{ forloop.counter }}{% if marcado %} em descanso{% endif %}">
+                          {{ forloop.counter }}
+                        </span>
                       {% endfor %}
                     </div>
                   </td>
@@ -73,9 +73,25 @@
 <style>
 /* visual na tela (igual ao seu) */
 .days-grid { display:flex; flex-wrap:wrap; gap:2px; }
+.day-square {
+  display:inline-flex;
+  width:24px;
+  height:24px;
+  align-items:center;
+  justify-content:center;
+  font-size:.7rem;
+  border-radius:4px;
+  border:1px solid #dee2e6;
+  background:#fff;
+  color:#555;
+}
+.day-empty {
+  background:#f8f9fa;
+}
 .day-marked {
-  display:inline-block; width:22px; height:22px; line-height:22px;
-  background:#222; color:#fff; border-radius:4px; font-size:.8rem;
+  background:#222;
+  color:#fff;
+  border-color:#222;
 }
 
 /* impressão */
@@ -100,6 +116,7 @@
   .month-block { break-inside: avoid; page-break-inside: avoid; margin-bottom:8mm; }
 
   h2, h4 { color:#000 !important; }
+  .day-square { border-color:#000 !important; color:#000 !important; background:#fff !important; }
   .day-marked { background:#000 !important; color:#fff !important; }
 }
 </style>
