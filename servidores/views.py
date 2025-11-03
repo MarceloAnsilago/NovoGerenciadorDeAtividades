@@ -1,31 +1,28 @@
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.core.paginator import Paginator
-from django.views.decorators.http import require_POST
-from django.db.models import Q
-
-from .models import Servidor
-from .forms import ServidorForm
-from core.utils import _get_unidade_atual  # seu util
-
-from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from django.contrib import messages
 from django.core.paginator import Paginator
-from django.views.decorators.http import require_POST
+from django.db import IntegrityError, transaction
 from django.db.models import Q
-from django.db import transaction, IntegrityError
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
+from django.utils.http import url_has_allowed_host_and_scheme
 
-from .models import Servidor
-from .forms import ServidorForm
 from core.utils import _get_unidade_atual  # seu util
+from .forms import CargoForm, ServidorForm
+from .models import Cargo, Servidor
+
+
+def _get_safe_next(request):
+    next_candidate = request.POST.get("next") or request.GET.get("next")
+    if next_candidate and url_has_allowed_host_and_scheme(next_candidate, allowed_hosts={request.get_host()}):
+        return next_candidate
+    return ""
 
 
 @login_required
 def lista(request):
     unidade = _get_unidade_atual(request)
-    qs = Servidor.objects.all().order_by("nome")
+    qs = Servidor.objects.select_related("cargo").all().order_by("nome")
     if unidade:
         qs = qs.filter(unidade=unidade)
 
@@ -144,3 +141,38 @@ def ativar(request, pk):
     else:
         messages.info(request, f"Servidor {serv.nome} já está ativo.")
     return redirect(request.POST.get("next") or "servidores:lista")
+
+
+@login_required
+def cargos_lista(request):
+    form = CargoForm(request.POST or None)
+    cargos = Cargo.objects.all().order_by("nome")
+    next_url = _get_safe_next(request)
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Cargo cadastrado com sucesso.")
+            if next_url:
+                return redirect(next_url)
+            return redirect("servidores:cargos_lista")
+        messages.error(request, "Corrija os erros abaixo.")
+    context = {"form": form, "cargos": cargos, "next_url": next_url}
+    return render(request, "servidores/cargos/lista.html", context)
+
+
+@login_required
+def cargo_editar(request, pk):
+    cargo = get_object_or_404(Cargo, pk=pk)
+    next_url = _get_safe_next(request)
+    if request.method == "POST":
+        form = CargoForm(request.POST, instance=cargo)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Cargo atualizado com sucesso.")
+            if next_url:
+                return redirect(next_url)
+            return redirect("servidores:cargos_lista")
+        messages.error(request, "Corrija os erros abaixo.")
+    else:
+        form = CargoForm(instance=cargo)
+    return render(request, "servidores/cargos/editar.html", {"form": form, "object": cargo, "next_url": next_url})

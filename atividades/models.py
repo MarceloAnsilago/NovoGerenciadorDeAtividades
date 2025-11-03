@@ -11,7 +11,7 @@ class Atividade(models.Model):
         APOIO  = "APOIO",  "Apoio"
         OUTROS = "OUTROS", "Outros"
 
-    titulo = models.CharField(max_length=200, unique=True)
+    titulo = models.CharField(max_length=200)
     descricao = models.TextField(blank=True)
 
     # aumente para caber "ANIMAL_VEGETAL"
@@ -30,6 +30,9 @@ class Atividade(models.Model):
 
     class Meta:
         ordering = ['titulo']
+        constraints = [
+            models.UniqueConstraint(fields=["titulo", "unidade_origem"], name="atividade_unique_titulo_unidade")
+        ]
 
     def __str__(self):
         return self.titulo

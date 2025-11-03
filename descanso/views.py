@@ -72,9 +72,17 @@ def lista_servidores(request):
         data_inicio__lte=hoje,
         data_fim__gte=hoje,
     )
-    servidores = servidores.annotate(tem_descanso_ativo=Exists(descanso_ativo_qs))
+    descanso_existe_qs = Descanso.objects.filter(servidor_id=OuterRef("pk"))
+    servidores = servidores.annotate(
+        tem_descanso_ativo=Exists(descanso_ativo_qs),
+        tem_descanso_registrado=Exists(descanso_existe_qs),
+    )
 
-    return render(request, "descanso/lista.html", {"servidores": servidores})
+    return render(
+        request,
+        "descanso/lista.html",
+        {"servidores": servidores},
+    )
 
 
 @login_required

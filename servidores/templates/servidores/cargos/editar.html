@@ -1,0 +1,46 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Editar Cargo{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  {% url 'servidores:cargos_lista' as lista_url %}
+  {% include "partials/_page_header.html" with title="Editar cargo" subtitle=object.nome back_url=lista_url icon="bi-briefcase" %}
+
+  {% include "partials/_messages.html" %}
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% if next_url %}
+          <input type="hidden" name="next" value="{{ next_url }}">
+        {% endif %}
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.nome.id_for_label }}">Nome</label>
+          {{ form.nome }}
+          <div class="text-danger small mt-1">{{ form.nome.errors }}</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.descricao.id_for_label }}">Descrição</label>
+          {{ form.descricao }}
+          <div class="text-danger small mt-1">{{ form.descricao.errors }}</div>
+        </div>
+        <div class="d-flex justify-content-end gap-2">
+          {% if next_url %}
+            <a class="btn btn-outline-secondary" href="{{ next_url }}">Cancelar</a>
+          {% else %}
+            <a class="btn btn-outline-secondary" href="{{ lista_url }}">Cancelar</a>
+          {% endif %}
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i> Salvar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

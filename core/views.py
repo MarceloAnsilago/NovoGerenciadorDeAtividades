@@ -6,7 +6,6 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST, require_GET
-from django.views.decorators.cache import cache_page
 from django.contrib.auth.decorators import login_required, user_passes_test, permission_required
 from django.contrib.auth import authenticate, logout, login as auth_login, get_user_model
 from django.contrib.auth.forms import SetPasswordForm
@@ -21,7 +20,7 @@ from django.db.models import deletion
 
 from .models import No, UserProfile  # No (Unidade) e UserProfile
 from .models import No as Unidade
-from .utils import gerar_senha_provisoria
+from .utils import gerar_senha_provisoria, get_unidade_scope_ids
 from .services.dashboard_queries import (
     get_dashboard_kpis,
     get_metas_por_unidade,
@@ -686,63 +685,62 @@ def dashboard_view(request):
 
 
 @login_required
-@cache_page(60)
 @require_GET
 def dashboard_kpis(request):
-    data = get_dashboard_kpis(request.user)
+    unidade_scope = get_unidade_scope_ids(request)
+    data = get_dashboard_kpis(request.user, unidade_ids=unidade_scope)
     return JsonResponse(data)
 
 
 @login_required
-@cache_page(60)
 @require_GET
 def dashboard_metas_por_unidade(request):
-    data = get_metas_por_unidade(request.user)
+    unidade_scope = get_unidade_scope_ids(request)
+    data = get_metas_por_unidade(request.user, unidade_ids=unidade_scope)
     return JsonResponse(data)
 
 
 @login_required
-@cache_page(60)
 @require_GET
 def dashboard_atividades_por_area(request):
-    data = get_atividades_por_area(request.user)
+    unidade_scope = get_unidade_scope_ids(request)
+    data = get_atividades_por_area(request.user, unidade_ids=unidade_scope)
     return JsonResponse(data)
 
 
 @login_required
-@cache_page(60)
 @require_GET
 def dashboard_progresso_mensal(request):
-    data = get_progresso_mensal(request.user)
+    unidade_scope = get_unidade_scope_ids(request)
+    data = get_progresso_mensal(request.user, unidade_ids=unidade_scope)
     return JsonResponse(data)
 
 
 @login_required
-@cache_page(60)
 @require_GET
 def dashboard_programacoes_status_mensal(request):
-    data = get_programacoes_status_mensal(request.user)
+    unidade_scope = get_unidade_scope_ids(request)
+    data = get_programacoes_status_mensal(request.user, unidade_ids=unidade_scope)
     return JsonResponse(data)
 
 
 @login_required
-@cache_page(60)
 @require_GET
 def dashboard_plantao_heatmap(request):
-    data = get_plantao_heatmap(request.user)
+    unidade_scope = get_unidade_scope_ids(request)
+    data = get_plantao_heatmap(request.user, unidade_ids=unidade_scope)
     return JsonResponse(data)
 
 
 @login_required
-@cache_page(60)
 @require_GET
 def dashboard_uso_veiculos(request):
-    data = get_uso_veiculos(request.user)
+    unidade_scope = get_unidade_scope_ids(request)
+    data = get_uso_veiculos(request.user, unidade_ids=unidade_scope)
     return JsonResponse(data)
 
 
 @login_required
-@cache_page(60)
 @require_GET
 def dashboard_top_servidores(request):
     try:
@@ -750,5 +748,6 @@ def dashboard_top_servidores(request):
     except (TypeError, ValueError):
         limit = 10
     limit = max(1, min(limit, 50))
-    data = get_top_servidores(request.user, limit=limit)
+    unidade_scope = get_unidade_scope_ids(request)
+    data = get_top_servidores(request.user, unidade_ids=unidade_scope, limit=limit)
     return JsonResponse(data)

@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
+from django.db import IntegrityError
 from django.db.models import Q
 from django.core.paginator import Paginator
 from .forms import AtividadeForm
@@ -53,9 +54,13 @@ def lista(request):
             atividade = form.save(commit=False)
             atividade.unidade_origem = unidade
             atividade.criado_por = request.user
-            atividade.save()
-            messages.success(request, "Atividade cadastrada com sucesso.")
-            return redirect("atividades:lista")
+            try:
+                atividade.save()
+            except IntegrityError:
+                form.add_error("titulo", "Já existe uma atividade com este título nesta unidade.")
+            else:
+                messages.success(request, "Atividade cadastrada com sucesso.")
+                return redirect("atividades:lista")
     else:
         form = AtividadeForm()
 
@@ -88,10 +93,14 @@ def editar(request, pk: int):
     if request.method == "POST":
         form = AtividadeForm(request.POST, instance=obj)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Atividade atualizada com sucesso.")
-            next_url = request.POST.get("next") or "atividades:lista"
-            return redirect(next_url)
+            try:
+                form.save()
+            except IntegrityError:
+                form.add_error("titulo", "Já existe uma atividade com este título nesta unidade.")
+            else:
+                messages.success(request, "Atividade atualizada com sucesso.")
+                next_url = request.POST.get("next") or "atividades:lista"
+                return redirect(next_url)
     else:
         form = AtividadeForm(instance=obj)
 

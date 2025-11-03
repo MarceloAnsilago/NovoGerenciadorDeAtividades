@@ -2,7 +2,7 @@
 import re
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Servidor
+from .models import Cargo, Servidor
 from core.models import No  # modelo de unidade, caso precise exibir a unidade
 
 PHONE_RE = re.compile(r'^\(?\d{2}\)?\s*\d{4,5}-?\d{4}$')
@@ -24,6 +24,12 @@ class ServidorForm(forms.ModelForm):
         self.fields["telefone"].label = "Telefone"
         self.fields["telefone"].widget.attrs.update({"class": "form-control telefone-mask", "placeholder": "(00) 00000-0000"})
 
+        if "cargo" in self.fields:
+            self.fields["cargo"].label = "Cargo"
+            self.fields["cargo"].empty_label = "Selecione um cargo"
+            self.fields["cargo"].queryset = Cargo.objects.all().order_by("nome")
+            self.fields["cargo"].widget.attrs.update({"class": "form-select"})
+
         self.fields["matricula"].label = "Matrícula"
         self.fields["matricula"].widget.attrs.update({"class": "form-control", "placeholder": "Matrícula"})
 
@@ -44,9 +50,10 @@ class ServidorForm(forms.ModelForm):
 
     class Meta:
         model = Servidor
-        fields = ["nome", "telefone", "matricula", "ativo"]  # mantenha `unidade` fora por padrão
+        fields = ["nome", "cargo", "telefone", "matricula", "ativo"]  # mantenha `unidade` fora por padrão
         widgets = {
             "nome": forms.TextInput(),
+            "cargo": forms.Select(),
             "telefone": forms.TextInput(),
             "matricula": forms.TextInput(),
             "ativo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -70,3 +77,17 @@ class ServidorForm(forms.ModelForm):
         if mat and len(mat) > 50:
             raise ValidationError("Matrícula muito longa.")
         return mat
+
+
+class CargoForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['nome'].label = 'Nome do cargo'
+        self.fields['nome'].widget.attrs.update({'class': 'form-control', 'placeholder': 'Ex.: Coordenador'})
+        self.fields['descricao'].label = 'Descricao'
+        self.fields['descricao'].required = False
+        self.fields['descricao'].widget.attrs.update({'class': 'form-control', 'rows': 3, 'placeholder': 'Detalhes ou observacoes'})
+
+    class Meta:
+        model = Cargo
+        fields = ['nome', 'descricao']

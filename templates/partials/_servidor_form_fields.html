@@ -7,7 +7,7 @@
 {% endif %}
 
 <div class="row g-3">
-  <div class="col-md-6">
+  <div class="col-md-8">
     <label for="{{ form.nome.id_for_label }}" class="form-label">
       <i class="bi bi-person-fill me-1"></i> Nome
     </label>
@@ -18,7 +18,34 @@
     <div class="text-danger small mt-1">{{ form.nome.errors }}</div>
   </div>
 
-  <div class="col-md-3">
+  <div class="col-md-4">
+    <label for="{{ form.cargo.id_for_label }}" class="form-label">
+      <i class="bi bi-briefcase me-1"></i> Cargo
+    </label>
+    <div class="d-flex gap-2">
+      <div class="flex-grow-1">
+        {{ form.cargo }}
+      </div>
+      <a class="btn btn-outline-secondary d-flex align-items-center gap-1" href="{% url 'servidores:cargos_lista' %}?next={{ request.get_full_path|urlencode }}">
+        <i class="bi bi-plus-circle"></i>
+        <span>Novo</span>
+      </a>
+    </div>
+    <div class="form-text">Não encontrou? Abra em nova aba para cadastrar.</div>
+    <div class="text-danger small mt-1">{{ form.cargo.errors }}</div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6 col-lg-4">
+    <label for="{{ form.matricula.id_for_label }}" class="form-label">
+      <i class="bi bi-credit-card-2-front me-1"></i> Matrícula
+    </label>
+    {{ form.matricula }}
+    <div class="text-danger small mt-1">{{ form.matricula.errors }}</div>
+  </div>
+
+  <div class="col-md-6 col-lg-4">
     <label for="{{ form.telefone.id_for_label }}" class="form-label">
       <i class="bi bi-telephone me-1"></i> Telefone
     </label>
@@ -27,15 +54,7 @@
     <div class="text-danger small mt-1">{{ form.telefone.errors }}</div>
   </div>
 
-  <div class="col-md-3">
-    <label for="{{ form.matricula.id_for_label }}" class="form-label">
-      <i class="bi bi-credit-card-2-front me-1"></i> Matrícula
-    </label>
-    {{ form.matricula }}
-    <div class="text-danger small mt-1">{{ form.matricula.errors }}</div>
-  </div>
-
-  <div class="col-md-3 d-flex align-items-center">
+  <div class="col-md-6 col-lg-4 d-flex align-items-center">
     <div class="form-check mt-4 mb-0">
       {{ form.ativo }}
       <label class="form-check-label" for="{{ form.ativo.id_for_label }}">Ativo</label>

@@ -8,18 +8,24 @@ from django.db.models.functions import Coalesce, TruncMonth, TruncWeek
 from django.utils import timezone
 
 from atividades.models import Atividade
-from metas.models import Meta, ProgressoMeta
+from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from plantao.models import SemanaServidor
 from programar.models import ProgramacaoItem, ProgramacaoItemServidor
 from servidores.models import Servidor
 
 
-def _filter_by_scope(queryset, user):
+def _filter_by_unidades(queryset, unidade_ids, field_lookup):
     """
-    Hook de escopo. Caso haja regras de filtragem por unidade/perfil,
-    ajustar aqui. Por enquanto retorna queryset sem alteracoes.
+    Aplica recorte por unidades de forma centralizada.
+    - unidade_ids=None: n��o aplica filtro (escopo global).
+    - unidade_ids vazio: retorna queryset vazio.
+    - caso contr��rio: aplica filtro <field_lookup>__in=unidade_ids.
     """
-    return queryset
+    if unidade_ids is None:
+        return queryset
+    if not unidade_ids:
+        return queryset.none()
+    return queryset.filter(**{f"{field_lookup}__in": unidade_ids})
 
 
 def _month_sequence(months: int = 12) -> List[date]:
@@ -49,20 +55,24 @@ def _week_sequence(weeks: int = 12) -> List[date]:
     return sequence
 
 
-def get_dashboard_kpis(user) -> dict:
-    metas = _filter_by_scope(Meta.objects.all(), user)
+def get_dashboard_kpis(user, unidade_ids=None) -> dict:
+    metas = _filter_by_unidades(Meta.objects.all(), unidade_ids, "alocacoes__unidade_id").distinct()
     total_metas = metas.count()
     metas_ativas = metas.filter(encerrada=False).count()
     metas_concluidas = metas.filter(encerrada=True).count()
 
-    programacoes = _filter_by_scope(ProgramacaoItem.objects.all(), user)
+    programacoes = _filter_by_unidades(
+        ProgramacaoItem.objects.all(),
+        unidade_ids,
+        "programacao__unidade_id",
+    )
     hoje = timezone.localdate()
     atividades_concluidas_hoje = programacoes.filter(
         concluido=True,
         concluido_em__date=hoje,
     ).count()
 
-    servidores_qs = _filter_by_scope(Servidor.objects.all(), user)
+    servidores_qs = _filter_by_unidades(Servidor.objects.all(), unidade_ids, "unidade_id")
     servidores_ativos = servidores_qs.filter(ativo=True).count()
 
     percentual_concluidas = 0.0
@@ -77,18 +87,29 @@ def get_dashboard_kpis(user) -> dict:
     }
 
 
-def get_metas_por_unidade(user) -> dict:
+def get_metas_por_unidade(user, *, unidade_ids=None) -> dict:
+    """
+    Retorna o total de metas ativas por unidade considerando as alocações efetivas.
+    - As metas encerradas são desconsideradas.
+    - Quando unidade_ids é fornecido, limita o resultado às unidades informadas.
+    """
+    alocacoes = _filter_by_unidades(
+        MetaAlocacao.objects.select_related("unidade", "meta"),
+        unidade_ids,
+        "unidade_id",
+    )
+
     qs = (
-        _filter_by_scope(Meta.objects.select_related("unidade_criadora"), user)
-        .values("unidade_criadora__nome")
-        .annotate(total=Count("id"))
-        .order_by("-total", "unidade_criadora__nome")
+        alocacoes.filter(meta__encerrada=False)
+        .values("unidade__nome")
+        .annotate(total=Count("meta", distinct=True))
+        .order_by("-total", "unidade__nome")
     )
 
     labels = []
     data = []
     for item in qs:
-        labels.append(item["unidade_criadora__nome"] or "Sem unidade")
+        labels.append(item["unidade__nome"] or "Sem unidade")
         data.append(item["total"])
 
     return {
@@ -104,10 +125,10 @@ def get_metas_por_unidade(user) -> dict:
     }
 
 
-def get_atividades_por_area(user) -> dict:
+def get_atividades_por_area(user, *, unidade_ids=None) -> dict:
     area_labels = dict(Atividade.Area.choices)
     qs = (
-        _filter_by_scope(Atividade.objects.all(), user)
+        _filter_by_unidades(Atividade.objects.all(), unidade_ids, "unidade_origem_id")
         .values("area")
         .annotate(total=Count("id"))
         .order_by("-total")
@@ -135,12 +156,12 @@ def get_atividades_por_area(user) -> dict:
     }
 
 
-def get_progresso_mensal(user) -> dict:
+def get_progresso_mensal(user, *, unidade_ids=None) -> dict:
     months = _month_sequence()
     start_date = months[0]
 
     qs = (
-        _filter_by_scope(ProgressoMeta.objects.all(), user)
+        _filter_by_unidades(ProgressoMeta.objects.all(), unidade_ids, "alocacao__unidade_id")
         .filter(data__gte=start_date)
         .annotate(mes=TruncMonth("data"))
         .values("mes")
@@ -171,13 +192,13 @@ def get_progresso_mensal(user) -> dict:
     }
 
 
-def get_programacoes_status_mensal(user) -> dict:
+def get_programacoes_status_mensal(user, *, unidade_ids=None) -> dict:
     months = _month_sequence()
     start_date = months[0]
     tz = timezone.get_current_timezone()
 
     qs = (
-        _filter_by_scope(ProgramacaoItem.objects.all(), user)
+        _filter_by_unidades(ProgramacaoItem.objects.all(), unidade_ids, "programacao__unidade_id")
         .filter(
             criado_em__gte=timezone.make_aware(
                 datetime.combine(start_date, time.min),
@@ -222,12 +243,16 @@ def get_programacoes_status_mensal(user) -> dict:
     }
 
 
-def get_plantao_heatmap(user) -> dict:
+def get_plantao_heatmap(user, *, unidade_ids=None) -> dict:
     weeks = _week_sequence()
     start_date = weeks[0]
 
     qs = (
-        _filter_by_scope(SemanaServidor.objects.select_related("semana"), user)
+        _filter_by_unidades(
+            SemanaServidor.objects.select_related("semana", "servidor"),
+            unidade_ids,
+            "servidor__unidade_id",
+        )
         .filter(semana__inicio__gte=start_date)
         .annotate(semana_inicio=TruncWeek("semana__inicio"))
         .values("semana_inicio")
@@ -259,11 +284,12 @@ def get_plantao_heatmap(user) -> dict:
     }
 
 
-def get_uso_veiculos(user) -> dict:
+def get_uso_veiculos(user, *, unidade_ids=None) -> dict:
     qs = (
-        _filter_by_scope(
+        _filter_by_unidades(
             ProgramacaoItem.objects.select_related("veiculo").filter(veiculo__isnull=False),
-            user,
+            unidade_ids,
+            "programacao__unidade_id",
         )
         .values("veiculo__nome")
         .annotate(total=Count("id"))
@@ -288,11 +314,12 @@ def get_uso_veiculos(user) -> dict:
     }
 
 
-def get_top_servidores(user, limit: int = 10) -> dict:
+def get_top_servidores(user, *, unidade_ids=None, limit: int = 10) -> dict:
     qs = (
-        _filter_by_scope(
-            ProgramacaoItemServidor.objects.select_related("servidor"),
-            user,
+        _filter_by_unidades(
+            ProgramacaoItemServidor.objects.select_related("servidor", "item__programacao"),
+            unidade_ids,
+            "item__programacao__unidade_id",
         )
         .values("servidor__nome")
         .annotate(total=Count("id"))
