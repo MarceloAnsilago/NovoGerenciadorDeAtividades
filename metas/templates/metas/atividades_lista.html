@@ -8,6 +8,73 @@
   {% url 'core:dashboard' as dash_url %}
   {% include "partials/_page_header.html" with title="Atividades" subtitle="Unidade atual: "|add:unidade_nome back_url=dash_url icon="bi-list-task" %}
 
+  {% if has_unidade %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <div>
+        <strong><i class="bi bi-bullseye me-1"></i> Metas Alocadas (Resumo)</strong>
+        <div class="small text-muted">Visualizacao geral das metas da unidade.</div>
+      </div>
+      <a href="{% url 'metas:metas-unidade' %}" class="btn btn-sm btn-outline-secondary">Abrir tela completa</a>
+    </div>
+    <div class="card-body">
+      <div class="row g-2 mb-3">
+        <div class="col-md-4">
+          <label class="form-label mb-1">Periodo</label>
+          <div class="d-flex gap-2">
+            <input type="date" id="filtroMetasInicio" class="form-control form-control-sm">
+            <input type="date" id="filtroMetasFim" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label mb-1">Status</label>
+          <select id="filtroMetasStatus" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            <option value="andamento">Em andamento</option>
+            <option value="concluida">Concluidas</option>
+            <option value="atrasada">Atrasadas</option>
+            <option value="encerrada">Encerradas</option>
+          </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="button" class="btn btn-outline-primary w-100" id="btnAplicarFiltroMetas">
+            <i class="bi bi-funnel"></i> Aplicar filtro
+          </button>
+        </div>
+      </div>
+
+      <div class="table-responsive" id="tabelaMetasWrap">
+          <table class="table table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Titulo</th>
+                <th>Atividade</th>
+                <th>Prazo</th>
+                <th>Alocacao</th>
+                <th>Realizado</th>
+                <th>% Execucao</th>
+                <th>Status</th>
+                <th class="text-end">Acoes</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaMetasBody">
+              {% include "metas/partials/_metas_lista_rows.html" with alocacoes=alocacoes %}
+              {% if alocacoes %}
+            <tr class="metas-empty-row d-none">
+              <td colspan="8" class="text-center text-muted py-4">Nenhuma meta encontrada para os filtros informados.</td>
+            </tr>
+              {% else %}
+            <tr class="metas-empty-row">
+              <td colspan="8" class="text-center text-muted py-4">Nenhuma meta encontrada para os filtros informados.</td>
+            </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+  </div>
+  {% endif %}
+
   <div class="card shadow-sm">
     <div class="card-header bg-light">
       <strong><i class="bi bi-list-task me-1"></i> Atividades Cadastradas</strong>
@@ -75,72 +142,6 @@
     </div>
   </div>
 
-  {% if has_unidade %}
-  <div class="card shadow-sm mt-4">
-    <div class="card-header bg-light d-flex justify-content-between align-items-center">
-      <div>
-        <strong><i class="bi bi-bullseye me-1"></i> Metas Alocadas (Resumo)</strong>
-        <div class="small text-muted">Visualizacao geral das metas da unidade.</div>
-      </div>
-      <a href="{% url 'metas:metas-unidade' %}" class="btn btn-sm btn-outline-secondary">Abrir tela completa</a>
-    </div>
-    <div class="card-body">
-      <div class="row g-2 mb-3">
-        <div class="col-md-4">
-          <label class="form-label mb-1">Periodo</label>
-          <div class="d-flex gap-2">
-            <input type="date" id="filtroMetasInicio" class="form-control form-control-sm">
-            <input type="date" id="filtroMetasFim" class="form-control form-control-sm">
-          </div>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label mb-1">Status</label>
-          <select id="filtroMetasStatus" class="form-select form-select-sm">
-            <option value="">Todos</option>
-            <option value="andamento">Em andamento</option>
-            <option value="concluida">Concluidas</option>
-            <option value="atrasada">Atrasadas</option>
-            <option value="encerrada">Encerradas</option>
-          </select>
-        </div>
-        <div class="col-md-4 d-flex align-items-end">
-          <button type="button" class="btn btn-outline-primary w-100" id="btnAplicarFiltroMetas">
-            <i class="bi bi-funnel"></i> Aplicar filtro
-          </button>
-        </div>
-      </div>
-
-      <div class="table-responsive" id="tabelaMetasWrap">
-          <table class="table table-striped align-middle mb-0">
-            <thead>
-              <tr>
-                <th>Titulo</th>
-                <th>Atividade</th>
-                <th>Prazo</th>
-                <th>Alocacao</th>
-                <th>Realizado</th>
-                <th>% Execucao</th>
-                <th>Status</th>
-                <th class="text-end">Acoes</th>
-              </tr>
-            </thead>
-            <tbody id="tabelaMetasBody">
-              {% include "metas/partials/_metas_lista_rows.html" with alocacoes=alocacoes %}
-              {% if alocacoes %}
-            <tr class="metas-empty-row d-none">
-              <td colspan="8" class="text-center text-muted py-4">Nenhuma meta encontrada para os filtros informados.</td>
-            </tr>
-              {% else %}
-            <tr class="metas-empty-row">
-              <td colspan="8" class="text-center text-muted py-4">Nenhuma meta encontrada para os filtros informados.</td>
-            </tr>
-              {% endif %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-  </div>
-  {% endif %}
 </div>
 {% endblock %}
 
