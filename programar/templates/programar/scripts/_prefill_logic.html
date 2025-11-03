@@ -116,6 +116,7 @@
     cards.forEach(card => {
       if (options.keepCards) {
         delete card.dataset.itemId;
+        window.PROGRAMAR?.syncMetaConclusionLink?.(card);
         const drop = card.querySelector('.meta-dropzone') || card;
         if (drop) drop.innerHTML = '';
       } else {
@@ -207,7 +208,13 @@
     }
     if (!card) continue;
 
-    if (it.id) card.dataset.itemId = String(it.id);
+    if (it.id) {
+      card.dataset.itemId = String(it.id);
+      window.PROGRAMAR?.syncMetaConclusionLink?.(card);
+    } else {
+      delete card.dataset.itemId;
+      window.PROGRAMAR?.syncMetaConclusionLink?.(card);
+    }
 
     const ta = card.querySelector('textarea[name="observacao"]');
     if (ta) ta.value = it.observacao || '';

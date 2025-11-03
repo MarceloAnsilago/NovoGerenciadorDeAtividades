@@ -9,6 +9,33 @@
   const metaCardsContainer = () => el("metaCardsContainer");
 
   function updateCounts() { NS.updateCounts?.(); }
+  function syncConclusionLink(card) {
+    if (!card) return;
+    const link = card.querySelector(".meta-concluir");
+    if (!link) return;
+    const base = link.dataset.urlBase || window.PROGRAMAR?.urls?.concluirItemBase || "";
+    const itemId = card.dataset.itemId;
+    if (itemId && base) {
+      let href = base;
+      if (href.includes("/0/")) {
+        href = href.replace(/\/0(\/concluir\/?)/, `/${itemId}$1`);
+      } else if (href.includes("__ID__")) {
+        href = href.replace(/__ID__/g, String(itemId));
+      } else if (!/\d+/.test(href.slice(-1))) {
+        href = href.replace(/$/, `/${itemId}`);
+      }
+      const next = encodeURIComponent("/minhas-metas/");
+      const query = `?source=minhas-metas&next=${next}`;
+      link.href = href + query;
+      link.classList.remove("d-none");
+      link.setAttribute("aria-disabled", "false");
+    } else {
+      link.href = "#";
+      link.classList.add("d-none");
+      link.setAttribute("aria-disabled", "true");
+    }
+  }
+  NS.syncMetaConclusionLink = syncConclusionLink;
   function tryAddVeiculosOptions(select) {
     if (!select || select.dataset.veiculosPopulado === "1") return;
     const data = Array.isArray(window.PROGRAMAR?.veiculosAtivos) ? window.PROGRAMAR.veiculosAtivos : [];
@@ -54,6 +81,13 @@
           <b class="meta-title-text">${metaTitle}</b>
           <div class="d-flex align-items-center gap-2">
             <span class="badge bg-primary count-meta">0</span>
+            <a class="btn btn-outline-success btn-sm py-0 px-1 meta-concluir d-none"
+               href="#"
+               data-url-base="{% url 'programar:concluir-item-form' 0 %}"
+               title="Concluir item em Minhas Metas"
+               aria-label="Concluir item em Minhas Metas">
+              <i class="bi bi-check2-square"></i>
+            </a>
             <button type="button" class="btn-close meta-close" aria-label="Remover" title="Remover card"></button>
 
           </div>
@@ -93,6 +127,7 @@
     }, { capture: true });
 
     card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    syncConclusionLink(card);
     updateCounts();
     return card;
   };

@@ -11,7 +11,8 @@
     excluir:        "{% url 'programar:excluir_programacao' %}",
     plantaoSemana:  "{% url 'plantao:servidores_por_intervalo' %}",
     relatorios:     "{% url 'programar:relatorios_parcial' %}",
-    printRelatorioSemana: "{% url 'programar:print_relatorio_semana' %}"
+    printRelatorioSemana: "{% url 'programar:print_relatorio_semana' %}",
+    concluirItemBase: "{% url 'programar:concluir-item-form' 0 %}"
   };
   try {
     NS.veiculosAtivos = JSON.parse("{{ VEICULOS_ATIVOS_JSON|escapejs }}") || [];
