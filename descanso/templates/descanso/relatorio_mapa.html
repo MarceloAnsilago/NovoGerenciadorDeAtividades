@@ -22,14 +22,9 @@
         </button>
       </form>
 
-      <div class="btn-group btn-group-sm" role="group" aria-label="Imprimir">
-        <button class="btn btn-outline-secondary" type="button" onclick="setPrintOrientation('portrait')">
-          <i class="bi bi-printer"></i> Retrato
-        </button>
-        <button class="btn btn-primary" type="button" onclick="setPrintOrientation('landscape')">
-          <i class="bi bi-printer-fill"></i> Paisagem
-        </button>
-      </div>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="window.print()">
+        <i class="bi bi-printer"></i> Imprimir
+      </button>
 
       <a href="{% url 'descanso:lista_servidores' %}" class="btn btn-sm btn-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
@@ -109,28 +104,5 @@
 }
 </style>
 
-<script>
-function setPrintOrientation(orientation) {
-  // remove override anterior
-  const old = document.getElementById('print-orientation');
-  if (old) old.remove();
-
-  // injeta orientação desejada (sem especificar tamanho)
-  const style = document.createElement('style');
-  style.id = 'print-orientation';
-  style.textContent = `@media print { @page { size: ${orientation}; } }`;
-  document.head.appendChild(style);
-
-  // remove após imprimir para não afetar próximas vezes
-  const cleanup = () => {
-    const s = document.getElementById('print-orientation');
-    if (s) s.remove();
-    window.removeEventListener('afterprint', cleanup);
-  };
-  window.addEventListener('afterprint', cleanup);
-
-  window.print();
-}
-</script>
 
 {% endblock %}

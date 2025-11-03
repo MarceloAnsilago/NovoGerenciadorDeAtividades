@@ -384,6 +384,18 @@ def relatorio_mapa(request):
         rows.sort(key=lambda r: r["servidor"].nome.lower())
         meses_data.append((mes, nome, rows))
 
-    anos_opcoes = list(range(ano - 2, ano + 3))
+    anos_disponiveis = set()
+    q_anos = Descanso.objects.filter(servidor__in=servidores_qs).values_list("data_inicio__year", "data_fim__year")
+    for inicio_ano_val, fim_ano_val in q_anos:
+        if inicio_ano_val:
+            anos_disponiveis.add(inicio_ano_val)
+        if fim_ano_val:
+            anos_disponiveis.add(fim_ano_val)
+    if not anos_disponiveis:
+        anos_disponiveis.add(ano)
+    else:
+        anos_disponiveis.add(ano)
+    anos_opcoes = sorted(anos_disponiveis)
+
     ctx = {"ano": ano, "anos_opcoes": anos_opcoes, "meses_data": meses_data}
     return render(request, "descanso/relatorio_mapa.html", ctx)
