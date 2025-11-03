@@ -1,4 +1,4 @@
-from django.conf import settings
+﻿from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -9,9 +9,10 @@ from servidores.models import Servidor
 
 class Descanso(models.Model):
     class Tipo(models.TextChoices):
-        FERIAS = "FERIAS", "Férias"
-        LICENCA = "LICENCA", "Licença"
-        FOLGA_COMP = "FOLGA_COMP", "Folga compensatória"
+        RECESSO = "RECESSO", "Recesso"
+        FERIAS = "FERIAS", "Ferias"
+        LICENCA = "LICENCA", "Licenca"
+        FOLGA_COMP = "FOLGA_COMP", "Folga compensatoria"
         AFASTAMENTO = "AFASTAMENTO", "Afastamento"
         ATESTADO = "ATESTADO", "Atestado"
 
@@ -39,18 +40,21 @@ class Descanso(models.Model):
 
     def clean(self):
         if self.data_fim < self.data_inicio:
-            raise ValidationError("A data final não pode ser anterior à data inicial.")
+            raise ValidationError("A data final nÃ£o pode ser anterior Ã  data inicial.")
 
-        # Validação de sobreposição de períodos para o mesmo servidor
+        # ValidaÃ§Ã£o de sobreposiÃ§Ã£o de perÃ­odos para o mesmo servidor
         qs = Descanso.objects.filter(servidor=self.servidor)
         if self.pk:
             qs = qs.exclude(pk=self.pk)
-        # Sobrepõe quando inicio <= fim_existente e fim >= inicio_existente
+        # SobrepÃµe quando inicio <= fim_existente e fim >= inicio_existente
         overlap = qs.filter(data_inicio__lte=self.data_fim, data_fim__gte=self.data_inicio).exists()
         if overlap:
-            raise ValidationError("Já existe um descanso cadastrado que sobrepõe este período para esse servidor.")
+            raise ValidationError("JÃ¡ existe um descanso cadastrado que sobrepÃµe este perÃ­odo para esse servidor.")
 
     @property
     def ativo_agora(self) -> bool:
         hoje = timezone.localdate()
         return self.data_inicio <= hoje <= self.data_fim
+
+
+
