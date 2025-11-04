@@ -1,10 +1,15 @@
-<div class="d-flex align-items-center gap-2 my-3" id="programar-select-semana-wrapper">
-  <label for="programar-select-semana" class="mb-0 small text-muted">Semana:</label>
-  <select id="programar-select-semana" class="form-select form-select-sm w-auto">
-    <option value="">Selecione a semana</option>
-  </select>
-  <div class="ms-auto btn-group">
-    <button id="programar-btnImprimirProgramacao" class="btn btn-outline-primary btn-sm">Imprimir programação</button>
-    <button id="programar-btnImprimirVista" class="btn btn-outline-secondary btn-sm">Imprimir vista</button>
+<div class="card shadow-sm my-3" id="programar-select-range-wrapper">
+  <div class="card-body d-flex align-items-center gap-2 flex-wrap">
+    <label id="programar-range-label" for="programar-select-semana" class="mb-0 small text-muted">Semana:</label>
+    <select id="programar-select-semana" class="form-select form-select-sm" style="min-width:220px;">
+      <option value="">Selecione a semana</option>
+    </select>
+  </div>
+  <div class="card-footer bg-transparent d-flex justify-content-end">
+    <div class="btn-group text-nowrap">
+      <button id="programar-btnImprimirMes" class="btn btn-outline-secondary btn-sm">Imprimir mes</button>
+      <button id="programar-btnImprimirProgramacao" class="btn btn-outline-primary btn-sm">Imprimir programacao</button>
+      <button id="programar-btnImprimirVista" class="btn btn-outline-secondary btn-sm">Imprimir vista</button>
+    </div>
   </div>
 </div>

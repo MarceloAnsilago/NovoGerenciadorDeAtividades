@@ -1,6 +1,7 @@
 <script>
 (function(){
   const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+  NS.periodo = NS.periodo || 'semana';
   const DEBUG = true; // mude para false se não quiser logs
 
   function setLoading(container){
@@ -31,7 +32,12 @@
     delete container.dataset.start;
     delete container.dataset.end;
 
-    const url = `${NS.urls.relatorios}?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+    let url = `${NS.urls.relatorios}?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+    try {
+      if (String(NS.periodo || '').toLowerCase() === 'mes') {
+        url += '&hide_just=1';
+      }
+    } catch (_) {}
     if (DEBUG) console.info('[programar] fetch relatorios:', url);
 
     try{
@@ -101,5 +107,229 @@
       showError(container, 'Erro ao carregar relatórios.');
     }
   };
+  // Button: Imprimir mes (loads current month report on screen)
+  document.addEventListener('click', function(ev){
+    var target = ev.target;
+    if (!target || !target.closest) return;
+    var btn = target.closest('#programar-btnImprimirMes');
+    if (!btn) return;
+    ev.preventDefault();
+    try {
+      var today = new Date();
+      var start = new Date(today.getFullYear(), today.getMonth(), 1);
+      var end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      function isoLocal(d){
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, '0');
+        var da = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + da;
+      }
+      window.PROGRAMAR = window.PROGRAMAR || {};
+      window.PROGRAMAR.periodo = 'mes';
+      var s = isoLocal(start);
+      var e = isoLocal(end);
+      if (typeof window.PROGRAMAR.loadRelatoriosForRange === 'function') {
+        window.PROGRAMAR.loadRelatoriosForRange(s, e);
+      }
+    } catch (_e) { /* noop */ }
+  }, true);
+})();
+</script>
+<script>
+(function(){
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
+  NS.periodo = NS.periodo || 'semana';
+
+  function isoDate(d){ return d.toISOString().slice(0,10); }
+  function prevOrSameSaturday(d){ const x = new Date(d); const sh=(x.getDay()-6+7)%7; x.setDate(x.getDate()-sh); return x; }
+
+  function populateWeeksSelectStandalone(){
+    const select = document.getElementById('programar-select-semana');
+    if (!select) return;
+    select.innerHTML = '<option value="">Selecione a semana</option>';
+
+    const today = new Date();
+    const base = prevOrSameSaturday(today);
+    const starts = [];
+    for (let i = 11; i >= 0; i--) {
+      const ini = new Date(base);
+      ini.setDate(ini.getDate() - i * 7);
+      starts.push(ini);
+    }
+
+    starts.forEach((ini) => {
+      const fim = new Date(ini);
+      fim.setDate(fim.getDate() + 6);
+      const opt = document.createElement('option');
+      opt.value = isoDate(ini) + '_' + isoDate(fim);
+      opt.dataset.inicio = isoDate(ini);
+      opt.dataset.fim = isoDate(fim);
+      opt.textContent = `${ini.toLocaleDateString('pt-BR')} a ${fim.toLocaleDateString('pt-BR')}`;
+      select.appendChild(opt);
+    });
+
+    // auto-seleciona a semana atual e carrega
+    if (select.options.length > 1) {
+      select.selectedIndex = select.options.length - 1;
+      const opt = select.options[select.selectedIndex];
+      const s = opt?.dataset?.inicio, e = opt?.dataset?.fim;
+      if (s && e && typeof NS.loadRelatoriosForRange === 'function') {
+        NS.loadRelatoriosForRange(s, e).finally(() => {
+          ['programar-btnImprimirProgramacao', 'btnImprimirProgramacao'].forEach(id => {
+            const b = document.getElementById(id);
+            if (b) { b.disabled = false; b.dataset.start = s; b.dataset.end = e; }
+          });
+          const cont = document.getElementById('programar-relatoriosContainer');
+          if (cont) cont.__filled = true;
+        });
+      }
+    }
+  }
+
+  // Meses (ultimos 12)
+  function populateMonthsSelectStandalone(){
+    const select = document.getElementById('programar-select-semana');
+    const label = document.getElementById('programar-range-label');
+    if (!select) return;
+    if (label) label.textContent = 'Mes:';
+    select.innerHTML = '<option value="">Selecione o mes</option>';
+
+    const today = new Date();
+    const months = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth(), 1);
+      d.setMonth(d.getMonth() - i);
+      months.push(d);
+    }
+
+    months.forEach((ini) => {
+      const start = new Date(ini.getFullYear(), ini.getMonth(), 1);
+      const end = new Date(ini.getFullYear(), ini.getMonth() + 1, 0);
+      const opt = document.createElement('option');
+      opt.value = isoDate(start) + '_' + isoDate(end);
+      opt.dataset.inicio = isoDate(start);
+      opt.dataset.fim = isoDate(end);
+      try {
+        const lab = start.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        opt.textContent = lab.charAt(0).toUpperCase() + lab.slice(1);
+      } catch (_) {
+        opt.textContent = `${start.getMonth()+1}/${start.getFullYear()}`;
+      }
+      select.appendChild(opt);
+    });
+
+    // auto-seleciona o mes atual e carrega
+    if (select.options.length > 1) {
+      select.selectedIndex = select.options.length - 1;
+      const opt = select.options[select.selectedIndex];
+      const s = opt?.dataset?.inicio, e = opt?.dataset?.fim;
+      if (s && e && typeof NS.loadRelatoriosForRange === 'function') {
+        NS.periodo = 'mes';
+        NS.loadRelatoriosForRange(s, e).finally(() => {
+          ['programar-btnImprimirProgramacao', 'btnImprimirProgramacao'].forEach(id => {
+            const b = document.getElementById(id);
+            if (b) { b.disabled = false; b.dataset.start = s; b.dataset.end = e; }
+          });
+          const cont = document.getElementById('programar-relatoriosContainer');
+          if (cont) cont.__filled = true;
+        });
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    // Se existir o calendario, _calendar_init cuida disso
+    if (document.getElementById('programar-calendar')) return;
+
+    const sel = document.getElementById('programar-select-semana');
+    if (!sel) return;
+    const periodo = document.getElementById('programar-select-periodo');
+    const label = document.getElementById('programar-range-label');
+    if (label) label.textContent = 'Semana:';
+
+    sel.addEventListener('change', function(){
+      const opt = this.options[this.selectedIndex];
+      const s = opt?.dataset?.inicio, e = opt?.dataset?.fim;
+      if (s && e && typeof NS.loadRelatoriosForRange === 'function') {
+        NS.periodo = 'semana';
+        NS.loadRelatoriosForRange(s, e).finally(() => {
+          ['programar-btnImprimirProgramacao', 'btnImprimirProgramacao'].forEach(id => {
+            const b = document.getElementById(id);
+            if (b) { b.disabled = false; b.dataset.start = s; b.dataset.end = e; }
+          });
+          const cont = document.getElementById('programar-relatoriosContainer');
+          if (cont) cont.__filled = true;
+        });
+      }
+    });
+
+    if (periodo) {
+      periodo.addEventListener('change', function(){
+        const v = String(this.value || '').toLowerCase();
+        NS.periodo = v || 'semana';
+        if (v === 'semana') {
+          if (label) label.textContent = 'Semana:';
+          populateWeeksSelectStandalone();
+        } else {
+          populateMonthsSelectStandalone();
+        }
+      });
+    }
+
+    // popula na carga inicial
+    if (NS.periodo === 'mes') populateMonthsSelectStandalone();
+    else populateWeeksSelectStandalone();
+  });
+
+  // fallback se o DOM j estiver pronto (pa páginas que injetam este script aps do load)
+  if (document.readyState !== 'loading') {
+    try {
+      if (!document.getElementById('programar-calendar')) {
+        const sel = document.getElementById('programar-select-semana');
+        const periodo = document.getElementById('programar-select-periodo');
+        const label = document.getElementById('programar-range-label');
+        if (sel) {
+          if (label) label.textContent = 'Semana:';
+          if (!sel.dataset.relBound) {
+            sel.addEventListener('change', function(){
+              const opt = this.options[this.selectedIndex];
+              const s = opt?.dataset?.inicio, e = opt?.dataset?.fim;
+              if (s && e && typeof NS.loadRelatoriosForRange === 'function') {
+                NS.periodo = 'semana';
+                NS.loadRelatoriosForRange(s, e).finally(() => {
+                  ['programar-btnImprimirProgramacao', 'btnImprimirProgramacao'].forEach(id => {
+                    const b = document.getElementById(id);
+                    if (b) { b.disabled = false; b.dataset.start = s; b.dataset.end = e; }
+                  });
+                  const cont = document.getElementById('programar-relatoriosContainer');
+                  if (cont) cont.__filled = true;
+                });
+              }
+            });
+            sel.dataset.relBound = '1';
+          }
+
+          if (periodo && !periodo.dataset.relBound) {
+            periodo.addEventListener('change', function(){
+              const v = String(this.value || '').toLowerCase();
+              NS.periodo = v || 'semana';
+              if (v === 'semana') {
+                if (label) label.textContent = 'Semana:';
+                populateWeeksSelectStandalone();
+              } else {
+                populateMonthsSelectStandalone();
+              }
+            });
+            periodo.dataset.relBound = '1';
+          }
+
+          const cur = String(periodo?.value || 'semana').toLowerCase();
+          NS.periodo = cur || 'semana';
+          if (NS.periodo === 'mes') populateMonthsSelectStandalone();
+          else populateWeeksSelectStandalone();
+        }
+      }
+    } catch (_e) {}
+  }
 })();
 </script>

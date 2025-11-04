@@ -1,10 +1,10 @@
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
   const el = document.getElementById('programar-calendar');
   if (!el) return;
 
-  // 🔒 desabilita botões de imprimir até que uma semana seja escolhida
+  // desabilita botoes de imprimir ate escolher uma semana
   const printBtns = ['programar-btnImprimirProgramacao','btnImprimirProgramacao']
     .map(id => document.getElementById(id));
   printBtns.forEach(b => { if (b) b.disabled = true; });
@@ -19,23 +19,18 @@ document.addEventListener('DOMContentLoaded', function(){
 
     events: NS.urls.eventsFeed,
 
-    // ✅ agora: só popula o select; NÃO chama o relatório automaticamente
+    // agora so popula o select; NAO chama o relatorio automaticamente
     datesSet(arg){
       window._lastCalendarArg = arg;
       populateWeeksSelect(arg);
-      // limpa datasets dos botões enquanto nada foi selecionado
-      printBtns.forEach(b => {
-        if (b) { delete b.dataset.start; delete b.dataset.end; b.disabled = true; }
-      });
-      // opcional: mostra dica “Selecione uma semana”
+      printBtns.forEach(b => { if (b) { delete b.dataset.start; delete b.dataset.end; b.disabled = true; } });
       const cont = document.getElementById('programar-relatoriosContainer');
       if (cont && !cont.__filled) {
-        cont.innerHTML = `<div class="alert alert-light border mb-0">Selecione uma semana.</div>`;
+        cont.innerHTML = '<div class="alert alert-light border mb-0">Selecione uma semana.</div>';
       }
     },
 
     dateClick(info){
-      // (o modal continua igual; não mexemos aqui)
       if (typeof NS.openProgramarModal === 'function') {
         const dataBR = info.date.toLocaleDateString('pt-BR', { timeZone:'UTC' });
         NS.openProgramarModal(info.dateStr, dataBR);
@@ -44,14 +39,13 @@ document.addEventListener('DOMContentLoaded', function(){
   });
   calendar.render();
 
-  // ---- select de semanas (Sáb→Sex) já existente; mantenha seu populateWeeksSelect ----
   function isoDate(d){ return d.toISOString().slice(0,10); }
   function prevOrSameSaturday(d){ const x = new Date(d); const sh=(x.getDay()-6+7)%7; x.setDate(x.getDate()-sh); return x; }
 
   function populateWeeksSelect(arg){
     const select = document.getElementById('programar-select-semana');
     if (!select) return;
-    select.innerHTML = `<option value="">Selecione a semana</option>`;
+    select.innerHTML = '<option value="">Selecione a semana</option>';
     const viewStart = new Date(arg.start), viewEndEx = new Date(arg.end);
     let sat = prevOrSameSaturday(viewStart);
     while (sat < viewEndEx){
@@ -60,28 +54,30 @@ document.addEventListener('DOMContentLoaded', function(){
       opt.value = isoDate(ini) + '_' + isoDate(fim);
       opt.dataset.inicio = isoDate(ini);
       opt.dataset.fim = isoDate(fim);
-      opt.textContent = `${ini.toLocaleDateString('pt-BR')} → ${fim.toLocaleDateString('pt-BR')}`;
+      opt.textContent = ini.toLocaleDateString('pt-BR') + ' → ' + fim.toLocaleDateString('pt-BR');
       select.appendChild(opt);
       sat.setDate(sat.getDate()+7);
     }
-    // não seleciona nada automaticamente
   }
 
-  // carrega relatório APENAS quando selecionar
-  document.getElementById('programar-select-semana')?.addEventListener('change', function(){
-    const opt = this.options[this.selectedIndex];
-    const s = opt?.dataset?.inicio, e = opt?.dataset?.fim;
-    if (s && e && typeof NS.loadRelatoriosForRange === 'function') {
-      NS.loadRelatoriosForRange(s, e).finally(() => {
-        // habilita botões com o range escolhido
-        printBtns.forEach(b => { if (b) { b.disabled = false; b.dataset.start = s; b.dataset.end = e; }});
-        const cont = document.getElementById('programar-relatoriosContainer');
-        if (cont) cont.__filled = true;
-      });
-    } else {
-      // se limpar seleção, desabilita de novo
-      printBtns.forEach(b => { if (b) b.disabled = true; });
-    }
-  });
+  // carrega relatorio APENAS quando selecionar
+  const semanaSelect = document.getElementById('programar-select-semana');
+  if (semanaSelect) {
+    semanaSelect.addEventListener('change', function(){
+      const opt = this.options[this.selectedIndex];
+      const s = opt?.dataset?.inicio, e = opt?.dataset?.fim;
+      if (s && e && typeof NS.loadRelatoriosForRange === 'function') {
+        // garantir que semanal mostre justificativas
+        try { NS.periodo = 'semana'; } catch(_) {}
+        NS.loadRelatoriosForRange(s, e).finally(() => {
+          printBtns.forEach(b => { if (b) { b.disabled = false; b.dataset.start = s; b.dataset.end = e; }});
+          const cont = document.getElementById('programar-relatoriosContainer');
+          if (cont) cont.__filled = true;
+        });
+      } else {
+        printBtns.forEach(b => { if (b) b.disabled = true; });
+      }
+    });
+  }
 });
 </script>

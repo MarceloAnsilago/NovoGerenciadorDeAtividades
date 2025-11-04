@@ -91,7 +91,6 @@ def _impedidos_por_descanso(unidade_id: int | None, data_ref):
         )
         .order_by("servidor_id", "-data_inicio", "-id")
     )
-
     impedidos_map: Dict[int, dict] = {}
     for d in qs:
         if d.servidor_id in impedidos_map:
@@ -402,11 +401,31 @@ def _fetch_plantonistas_via_bridge(request, start: str, end: str) -> List[Dict[s
             req._dont_enforce_csrf_checks = True  # type: ignore[attr-defined]
 
             resp = plantao_views.servidores_por_intervalo(req)  # type: ignore[attr-defined]
-            raw = getattr(resp, "content", b"").decode(getattr(resp, "charset", "utf-8")) if hasattr(resp, "content") else ""
-            data = json.loads(raw) if raw.strip() else {}
-            servidores = data.get("servidores") if isinstance(data, dict) else None
-            if isinstance(servidores, list) and servidores:
-                return servidores
+            raw = getattr(resp, "content", b"")
+            if isinstance(raw, (bytes, bytearray)):
+                raw = raw.decode(getattr(resp, "charset", "utf-8"))
+            else:
+                raw = str(raw or "")
+            data = json.loads(raw) if str(raw).strip() else {}
+            semanas = data.get("semanas") if isinstance(data, dict) else None
+            if isinstance(semanas, list) and semanas:
+                dedup = []
+                seen = set()
+                for sem in semanas:
+                    for srv in (sem.get("servidores") or []):
+                        # usa id quando disponivel; senao (nome,telefone)
+                        key = srv.get("id")
+                        if key is None:
+                            key = (srv.get("nome") or "", srv.get("telefone") or "")
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        dedup.append({
+                            "nome": srv.get("nome") or srv.get("servidor") or "",
+                            "telefone": srv.get("telefone") or "",
+                        })
+                if dedup:
+                    return dedup
         except Exception:
             continue
 
@@ -424,17 +443,24 @@ def _fetch_plantonistas_via_orm(request, start: str, end: str) -> List[Dict[str,
 
     try:
         from plantao.models import Semana, SemanaServidor  # type: ignore
-
+        unidade_id = get_unidade_atual_id(request)
         plantao_id = request.GET.get("plantao_id") or request.session.get("plantao_id")
         qs = Semana.objects.filter(inicio__lte=de, fim__gte=ds)
         if plantao_id:
             qs = qs.filter(plantao_id=plantao_id)
+        # aplica escopo por unidade quando disponivel (evita misturar outras unidades)
+        if unidade_id:
+            try:
+                qs = qs.filter(plantao__unidade_id=unidade_id)
+            except Exception:
+                pass
 
         semanas = list(qs.order_by("ordem", "inicio"))
         if not semanas:
             return []
 
         out: List[Dict[str, Any]] = []
+        seen: set = set()
         for sem in semanas:
             ss_qs = (
                 SemanaServidor.objects.filter(semana=sem)
@@ -444,6 +470,10 @@ def _fetch_plantonistas_via_orm(request, start: str, end: str) -> List[Dict[str,
             for ss in ss_qs:
                 nome = getattr(getattr(ss, "servidor", None), "nome", "") or ""
                 tel = getattr(ss, "telefone_snapshot", "") or ""
+                key = (nome, tel)
+                if key in seen:
+                    continue
+                seen.add(key)
                 out.append({"nome": nome, "telefone": tel})
         return out
     except Exception:
@@ -763,7 +793,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         if dt.weekday() >= 5:
             tem_bloco_extra = any(b["kind"] != "expediente" for b in blocks)
             if not tem_bloco_extra:
-                # Finais de semana s? entram quando h? algo al?m do expediente administrativo
+                # Final de semana fica fora quando ha apenas expediente administrativo
                 continue
 
         total = len(blocks)
@@ -974,6 +1004,12 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         + "</div>"
     )
 
+    try:
+        hide_just = str(request.GET.get("hide_just", "")).strip().lower() in {"1", "true", "yes", "on", "y"}
+    except Exception:
+        hide_just = False
+    if hide_just:
+        return style + bloco_programacao
     return style + bloco_programacao + bloco_atividades
 
 

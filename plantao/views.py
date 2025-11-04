@@ -696,7 +696,15 @@ def servidores_por_intervalo(request):
         return JsonResponse({"ok": False, "error": "invalid date format"}, status=400)
 
     # busca plantões que intersectam o intervalo
-    plantoes = Plantao.objects.filter(inicio__lte=dt_end, fim__gte=dt_start).order_by('inicio')
+    unidade_id = get_unidade_atual_id(request)
+    plantoes_qs = Plantao.objects.filter(inicio__lte=dt_end, fim__gte=dt_start)
+    try:
+        field_names = [f.name for f in Plantao._meta.fields]
+    except Exception:
+        field_names = []
+    if ("unidade" in field_names or "unidade_id" in field_names) and unidade_id:
+        plantoes_qs = plantoes_qs.filter(unidade_id=unidade_id)
+    plantoes = plantoes_qs.order_by('inicio')
     if not plantoes.exists():
         return JsonResponse({"ok": True, "semanas": []})
 
