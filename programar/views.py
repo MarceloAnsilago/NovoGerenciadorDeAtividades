@@ -760,6 +760,12 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         if impedidos:
             blocks.append({"kind": "impedidos", "dados": impedidos})
 
+        if dt.weekday() >= 5:
+            tem_bloco_extra = any(b["kind"] != "expediente" for b in blocks)
+            if not tem_bloco_extra:
+                # Finais de semana s? entram quando h? algo al?m do expediente administrativo
+                continue
+
         total = len(blocks)
 
         # linhas desse DIA

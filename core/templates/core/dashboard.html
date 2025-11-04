@@ -14,6 +14,71 @@
     </div>
   </div>
 
+  {% if hierarchy_summary %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+      <span>Resumo hierárquico da unidade</span>
+      <span class="text-muted small">Valores específicos da unidade atual e dos filhos</span>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Unidade</th>
+              <th class="text-end">Metas ativas</th>
+              <th class="text-end">% metas concluídas</th>
+              <th class="text-end">Atividades concluídas hoje</th>
+              <th class="text-end">Servidores ativos</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="table-primary">
+              <td>
+                <strong>{{ hierarchy_summary.current.nome }}</strong>
+                <span class="badge bg-primary-subtle text-primary ms-2">Atual</span>
+              </td>
+              <td class="text-end">{{ hierarchy_summary.current.metrics.metas_ativas }}</td>
+              <td class="text-end">{{ hierarchy_summary.current.metrics.percentual_metas_concluidas|floatformat:1 }}%</td>
+              <td class="text-end">{{ hierarchy_summary.current.metrics.atividades_concluidas_hoje }}</td>
+              <td class="text-end">{{ hierarchy_summary.current.metrics.servidores_ativos }}</td>
+            </tr>
+            {% if hierarchy_summary.children %}
+              {% for child in hierarchy_summary.children %}
+              <tr>
+                <td>{{ child.nome }}</td>
+                <td class="text-end">{{ child.metrics.metas_ativas }}</td>
+                <td class="text-end">{{ child.metrics.percentual_metas_concluidas|floatformat:1 }}%</td>
+                <td class="text-end">{{ child.metrics.atividades_concluidas_hoje }}</td>
+                <td class="text-end">{{ child.metrics.servidores_ativos }}</td>
+              </tr>
+              {% endfor %}
+              {% if hierarchy_summary.children_metrics %}
+              <tr class="table-secondary">
+                <td><strong>Total dos filhos</strong></td>
+                <td class="text-end">{{ hierarchy_summary.children_metrics.metas_ativas }}</td>
+                <td class="text-end">{{ hierarchy_summary.children_metrics.percentual_metas_concluidas|floatformat:1 }}%</td>
+                <td class="text-end">{{ hierarchy_summary.children_metrics.atividades_concluidas_hoje }}</td>
+                <td class="text-end">{{ hierarchy_summary.children_metrics.servidores_ativos }}</td>
+              </tr>
+              {% endif %}
+            {% endif %}
+            {% if hierarchy_summary.children and hierarchy_summary.aggregate %}
+            <tr class="table-light fw-semibold">
+              <td>{{ hierarchy_summary.aggregate.label|default:"Total geral" }}</td>
+              <td class="text-end">{{ hierarchy_summary.aggregate.metrics.metas_ativas }}</td>
+              <td class="text-end">{{ hierarchy_summary.aggregate.metrics.percentual_metas_concluidas|floatformat:1 }}%</td>
+              <td class="text-end">{{ hierarchy_summary.aggregate.metrics.atividades_concluidas_hoje }}</td>
+              <td class="text-end">{{ hierarchy_summary.aggregate.metrics.servidores_ativos }}</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="row g-3" data-kpis-container>
     <div class="col-12 col-sm-6 col-xl-3">
       <div class="card shadow-sm h-100">

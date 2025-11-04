@@ -20,7 +20,7 @@ from django.db.models import deletion
 
 from .models import No, UserProfile  # No (Unidade) e UserProfile
 from .models import No as Unidade
-from .utils import gerar_senha_provisoria, get_unidade_scope_ids
+from .utils import gerar_senha_provisoria, get_unidade_scope_ids, get_unidade_atual
 from .services.dashboard_queries import (
     get_dashboard_kpis,
     get_metas_por_unidade,
@@ -681,7 +681,62 @@ class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 @login_required
 def dashboard_view(request):
-    return render(request, "core/dashboard.html")
+    unidade = get_unidade_atual(request)
+    hierarchy_summary = None
+
+    if unidade:
+        def collect_ids(root_id: int) -> list[int]:
+            collected = {root_id}
+            frontier = [root_id]
+            while frontier:
+                child_ids = list(No.objects.filter(parent_id__in=frontier).values_list("id", flat=True))
+                child_ids = [cid for cid in child_ids if cid not in collected]
+                if not child_ids:
+                    break
+                collected.update(child_ids)
+                frontier = child_ids
+            return list(collected)
+
+        current_metrics = get_dashboard_kpis(request.user, unidade_ids=[unidade.id])
+
+        children_rows = []
+        all_children_ids: set[int] = set()
+        for child in unidade.filhos.order_by("nome"):
+            child_branch_ids = collect_ids(child.id)
+            all_children_ids.update(child_branch_ids)
+            children_rows.append(
+                {
+                    "id": child.id,
+                    "nome": child.nome,
+                    "metrics": get_dashboard_kpis(request.user, unidade_ids=child_branch_ids),
+                }
+            )
+
+        aggregate_ids = collect_ids(unidade.id)
+        aggregate_metrics = get_dashboard_kpis(request.user, unidade_ids=aggregate_ids)
+        children_aggregate = None
+        if all_children_ids:
+            children_ids_list = sorted(all_children_ids)
+            children_aggregate = get_dashboard_kpis(request.user, unidade_ids=children_ids_list)
+
+        hierarchy_summary = {
+            "current": {
+                "id": unidade.id,
+                "nome": unidade.nome,
+                "metrics": current_metrics,
+            },
+            "children": children_rows,
+            "children_metrics": children_aggregate,
+            "aggregate": {
+                "metrics": aggregate_metrics,
+                "label": "Total (unidade atual + descendentes)",
+            },
+        }
+
+    context = {
+        "hierarchy_summary": hierarchy_summary,
+    }
+    return render(request, "core/dashboard.html", context)
 
 
 @login_required
