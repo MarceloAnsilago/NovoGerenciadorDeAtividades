@@ -224,14 +224,26 @@ def get_programacoes_status_mensal(user, *, unidade_ids=None) -> dict:
     start_date = months[0]
     tz = timezone.get_current_timezone()
 
-    qs = (
-        _filter_by_unidades(ProgramacaoItem.objects.all(), unidade_ids, "programacao__unidade_id")
-        .filter(
-            criado_em__gte=timezone.make_aware(
-                datetime.combine(start_date, time.min),
-                tz,
-            )
+    base_qs = _filter_by_unidades(
+        ProgramacaoItem.objects.select_related("programacao", "meta"),
+        unidade_ids,
+        "programacao__unidade_id",
+    ).filter(
+        criado_em__gte=timezone.make_aware(
+            datetime.combine(start_date, time.min),
+            tz,
         )
+    )
+
+    # Garante que as programações consideradas correspondem a metas alocadas
+    if unidade_ids is not None:
+        if unidade_ids:
+            base_qs = base_qs.filter(meta__alocacoes__unidade_id__in=unidade_ids)
+        else:
+            base_qs = base_qs.none()
+
+    qs = (
+        base_qs
         .annotate(mes=TruncMonth("criado_em", tzinfo=tz))
         .values("mes")
         .annotate(
