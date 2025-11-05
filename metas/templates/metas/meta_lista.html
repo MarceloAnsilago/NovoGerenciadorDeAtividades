@@ -27,6 +27,21 @@
     </div>
   {% endif %}
 
+  {% if area_selected or status_selected %}
+    <div class="alert alert-info d-flex justify-content-between align-items-center">
+      <div>
+        {% if area_selected %}
+          Filtro de área: <strong>{{ area_selected }}</strong>
+        {% endif %}
+        {% if status_selected %}
+          {% if area_selected %} · {% endif %}
+          Status: <strong>{{ status_selected }}</strong>
+        {% endif %}
+      </div>
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'metas:metas-unidade' %}">Limpar filtro</a>
+    </div>
+  {% endif %}
+
   <div class="card shadow-sm">
     <div class="card-header bg-light">
       <strong><i class="bi bi-bullseye me-1"></i> Metas Alocadas</strong>

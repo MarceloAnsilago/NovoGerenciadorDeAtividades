@@ -126,29 +126,56 @@ def get_metas_por_unidade(user, *, unidade_ids=None) -> dict:
 
 
 def get_atividades_por_area(user, *, unidade_ids=None) -> dict:
+    """
+    Distribui por área as ATIVIDADES PROGRAMADAS (ProgramacaoItem),
+    baseando-se na área da Atividade vinculada à Meta do item.
+
+    - Escopo por unidade é aplicado via Programacao.unidade.
+    - Itens cuja meta não possua atividade são classificados como OUTROS.
+    """
     area_labels = dict(Atividade.Area.choices)
+
+    base_qs = _filter_by_unidades(
+        ProgramacaoItem.objects.select_related("meta__atividade", "programacao").filter(
+            meta__encerrada=False
+        ),
+        unidade_ids,
+        "programacao__unidade_id",
+    )
+
+    # Garante que a meta do item esta alocada para a(s) unidade(s) do escopo
+    if unidade_ids is not None:
+        if unidade_ids:
+            base_qs = base_qs.filter(meta__alocacoes__unidade_id__in=unidade_ids)
+        else:
+            base_qs = base_qs.none()
+
     qs = (
-        _filter_by_unidades(Atividade.objects.all(), unidade_ids, "unidade_origem_id")
-        .values("area")
-        .annotate(total=Count("id"))
+        base_qs
+        .values("meta__atividade__area")
+        .annotate(total=Count("id", distinct=True))
         .order_by("-total")
     )
 
     labels = []
     data = []
+    codes = []
     palette = ["#0d6efd", "#198754", "#ffc107", "#dc3545", "#6f42c1", "#20c997", "#0dcaf0"]
 
     for item in qs:
-        labels.append(area_labels.get(item["area"], item["area"]))
+        area_code = item.get("meta__atividade__area") or Atividade.Area.OUTROS
+        labels.append(area_labels.get(area_code, area_code))
         data.append(item["total"])
+        codes.append(area_code)
 
     background = [palette[i % len(palette)] for i in range(len(labels))]
 
     return {
         "labels": labels,
+        "codes": codes,
         "datasets": [
             {
-                "label": "Atividades",
+                "label": "Atividades programadas",
                 "backgroundColor": background,
                 "data": data,
             }

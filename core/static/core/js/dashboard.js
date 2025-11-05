@@ -102,9 +102,10 @@
       }
     );
 
+    const atividadesAreaPayload = await fetchJson(endpoints.atividadesPorArea);
     renderChart(
       "chartAtividadesArea",
-      await fetchJson(endpoints.atividadesPorArea),
+      atividadesAreaPayload,
       {
         type: "doughnut",
         options: {
@@ -112,6 +113,15 @@
           maintainAspectRatio: false,
           plugins: {
             legend: { position: "bottom" },
+          },
+          onClick: (evt, elements) => {
+            if (!elements || !elements.length) return;
+            const idx = elements[0].index;
+            const codes = (atividadesAreaPayload && atividadesAreaPayload.codes) || [];
+            const code = codes[idx];
+            const base = "/metas/";
+            const url = code ? `${base}?area=${encodeURIComponent(code)}&status=ativas` : `${base}?status=ativas`;
+            window.location.href = url;
           },
         },
       }

@@ -35,6 +35,8 @@ def _prepare_metas_context(request, *, emit_messages=False):
         }
 
     atividade_id = request.GET.get("atividade")
+    area_code = (request.GET.get("area") or "").strip()
+    status = (request.GET.get("status") or "").strip()
 
     alocacoes = (
         MetaAlocacao.objects.select_related("meta", "meta__atividade", "meta__unidade_criadora")
@@ -51,10 +53,35 @@ def _prepare_metas_context(request, *, emit_messages=False):
         else:
             alocacoes = alocacoes.filter(meta__atividade_id=atividade_filtrada.id)
 
+    # Filtro de área (permite navegar do dashboard)
+    if area_code:
+        if area_code == Atividade.Area.ANIMAL:
+            alocacoes = alocacoes.filter(
+                Q(meta__atividade__area=Atividade.Area.ANIMAL)
+                | Q(meta__atividade__area=Atividade.Area.ANIMAL_VEGETAL)
+            )
+        elif area_code == Atividade.Area.VEGETAL:
+            alocacoes = alocacoes.filter(
+                Q(meta__atividade__area=Atividade.Area.VEGETAL)
+                | Q(meta__atividade__area=Atividade.Area.ANIMAL_VEGETAL)
+            )
+        elif area_code == Atividade.Area.OUTROS:
+            alocacoes = alocacoes.filter(meta__atividade__isnull=True)
+        else:
+            alocacoes = alocacoes.filter(meta__atividade__area=area_code)
+
+    # Filtro de status (ativas/encerradas)
+    if status == "ativas":
+        alocacoes = alocacoes.filter(meta__encerrada=False)
+    elif status == "encerradas":
+        alocacoes = alocacoes.filter(meta__encerrada=True)
+
     return {
         "unidade": unidade,
         "alocacoes": alocacoes,
         "atividade_filtrada": atividade_filtrada,
+        "area_selected": area_code,
+        "status_selected": status,
         "has_unidade": True,
     }
 
