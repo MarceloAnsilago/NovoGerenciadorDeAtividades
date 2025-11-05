@@ -55,6 +55,24 @@
       return;
     }
 
+    if (canvasId === "chartTopServidores") {
+      try {
+        const totalBars = (payload.labels && payload.labels.length) || 0;
+        const targetHeight = Math.max(280, totalBars * 28);
+        canvas.height = targetHeight;
+        const container = canvas.parentElement;
+        if (container) {
+          const maxHeight = Math.max(320, Math.min(targetHeight, 560));
+          container.style.maxHeight = `${maxHeight}px`;
+          container.style.minHeight = "280px";
+          container.style.overflowY = totalBars > 10 ? "auto" : "hidden";
+          container.style.paddingRight = "8px";
+        }
+      } catch (e) {
+        console.warn("Falha ao ajustar altura do gráfico de servidores:", e);
+      }
+    }
+
     const config = {
       ...baseConfig,
       data: {
@@ -67,6 +85,11 @@
       charts[canvasId].data = config.data;
       charts[canvasId].options = config.options || {};
       charts[canvasId].update();
+      try {
+        charts[canvasId].resize();
+      } catch (e) {
+        /* ignore */
+      }
       return;
     }
 
@@ -215,9 +238,12 @@
       }
     );
 
+    const topServPayload = await fetchJson(endpoints.topServidores);
+    const hasStack = (topServPayload?.datasets || []).length > 1;
+    const topHints = topServPayload?.hints || [];
     renderChart(
       "chartTopServidores",
-      await fetchJson(endpoints.topServidores),
+      topServPayload,
       {
         type: "bar",
         options: {
@@ -225,12 +251,31 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { display: false },
+            legend: { display: hasStack },
+            tooltip: {
+              callbacks: {
+                label(context) {
+                  const dsLabel = context.dataset?.label || "";
+                  const value = context.parsed?.x ?? context.parsed ?? 0;
+                  return `${dsLabel}: ${value}`;
+                },
+                footer(items) {
+                  if (!items || !items.length) return "";
+                  const idx = items[0].dataIndex;
+                  const hint = topHints[idx];
+                  return hint ? hint : "";
+                },
+              },
+            },
           },
           scales: {
             x: {
               beginAtZero: true,
               ticks: { precision: 0 },
+              stacked: hasStack,
+            },
+            y: {
+              stacked: hasStack,
             },
           },
         },

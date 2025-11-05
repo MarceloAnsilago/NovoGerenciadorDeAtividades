@@ -799,10 +799,10 @@ def dashboard_uso_veiculos(request):
 @require_GET
 def dashboard_top_servidores(request):
     try:
-        limit = int(request.GET.get("limit", 10))
+        limit = int(request.GET.get("limit", 50))
     except (TypeError, ValueError):
-        limit = 10
-    limit = max(1, min(limit, 50))
+        limit = 50
+    limit = max(1, min(limit, 200))
     unidade_scope = get_unidade_scope_ids(request)
     data = get_top_servidores(request.user, unidade_ids=unidade_scope, limit=limit)
     return JsonResponse(data)

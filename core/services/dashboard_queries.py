@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from typing import List
 
+from django.conf import settings
 from django.db.models import Count, Sum, Q, IntegerField, Value
 from django.db.models.functions import Coalesce, TruncMonth, TruncWeek
 from django.utils import timezone
@@ -388,30 +389,121 @@ def get_uso_veiculos(user, *, unidade_ids=None) -> dict:
 
 
 def get_top_servidores(user, *, unidade_ids=None, limit: int = 10) -> dict:
-    qs = (
-        _filter_by_unidades(
-            ProgramacaoItemServidor.objects.select_related("servidor", "item__programacao").filter(servidor__ativo=True),
-            unidade_ids,
-            "item__programacao__unidade_id",
-        )
-        .values("servidor__nome")
-        .annotate(total=Count("id"))
-        .order_by("-total", "servidor__nome")[:limit]
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
+
+    base_qs = _filter_by_unidades(
+        ProgramacaoItemServidor.objects.select_related(
+            "servidor",
+            "item__programacao",
+            "item__meta",
+        ).filter(servidor__ativo=True),
+        unidade_ids,
+        "item__programacao__unidade_id",
     )
 
-    labels = []
-    data = []
+    if meta_expediente_id:
+        qs = (
+            base_qs.values("servidor__nome")
+            .annotate(
+                total=Count("id"),
+                expediente=Count("id", filter=Q(item__meta_id=meta_expediente_id)),
+                campo=Count("id", filter=~Q(item__meta_id=meta_expediente_id)),
+            )
+            .order_by("-campo", "-expediente", "servidor__nome")
+        )
+    else:
+        qs = (
+            base_qs.values("servidor__nome")
+            .annotate(
+                total=Count("id"),
+                expediente=Value(0, output_field=IntegerField()),
+                campo=Count("id"),
+            )
+            .order_by("-campo", "servidor__nome")
+        )
+
+    qs = qs[:limit]
+
+    labels: list[str] = []
+    expediente_data: list[int] = []
+    campo_data: list[int] = []
     for item in qs:
-        labels.append(item["servidor__nome"])
-        data.append(item["total"])
+        nome = item["servidor__nome"] or "Servidor"
+        labels.append(nome)
+        expediente = int(item.get("expediente") or 0)
+        campo = int(item.get("campo") or 0)
+        expediente_data.append(expediente)
+        campo_data.append(campo)
+
+    # monta dicas com atividades de campo (top 3 por servidor)
+    detail_map: dict[str, list[tuple[str, int]]] = {}
+    campo_exists = meta_expediente_id is not None
+    if campo_exists:
+        detalhes_qs = (
+            base_qs.exclude(item__meta_id=meta_expediente_id)
+            .values("servidor__nome", "item__meta__titulo")
+            .annotate(total=Count("id"))
+            .order_by("servidor__nome", "-total", "item__meta__titulo")
+        )
+        for row in detalhes_qs:
+            nome = row["servidor__nome"] or "Servidor"
+            meta_titulo = row["item__meta__titulo"] or "Atividade"
+            total = int(row.get("total") or 0)
+            if total <= 0:
+                continue
+            detail_map.setdefault(nome, [])
+            if len(detail_map[nome]) < 3:
+                detail_map[nome].append((meta_titulo, total))
+
+    hints: list[str] = []
+    for idx, nome in enumerate(labels):
+        expediente = expediente_data[idx] if idx < len(expediente_data) else 0
+        campo = campo_data[idx] if idx < len(campo_data) else 0
+
+        if campo_exists:
+            if campo > 0:
+                detalhes = detail_map.get(nome, [])
+                if detalhes:
+                    texto = ", ".join(f"{titulo} ({qt})" for titulo, qt in detalhes)
+                    hints.append(f"Campo: {texto}")
+                else:
+                    hints.append("Campo: atividades diversas")
+            else:
+                hints.append("Somente expediente administrativo")
+        else:
+            hints.append("")
+
+    datasets = []
+    stack_name = None
+    if meta_expediente_id and any(expediente_data):
+        stack_name = "total"
+
+    campo_dataset = {
+        "label": "Atividades de campo",
+        "backgroundColor": "#0d6efd",
+        "data": campo_data,
+    }
+    if stack_name:
+        campo_dataset["stack"] = stack_name
+
+    datasets.append(campo_dataset)
+
+    if stack_name:
+        datasets.append(
+            {
+                "label": "Expediente administrativo",
+                "backgroundColor": "#adb5bd",
+                "data": expediente_data,
+                "stack": stack_name,
+            }
+        )
 
     return {
         "labels": labels,
-        "datasets": [
-            {
-                "label": "Participacoes",
-                "backgroundColor": "#6f42c1",
-                "data": data,
-            }
-        ],
+        "datasets": datasets,
+        "hints": hints,
     }
