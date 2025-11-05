@@ -147,9 +147,10 @@
       }
     );
 
+    const progStatusPayload = await fetchJson(endpoints.programacoesStatus);
     renderChart(
       "chartProgramacoesStatus",
-      await fetchJson(endpoints.programacoesStatus),
+      progStatusPayload,
       {
         type: "bar",
         options: {
@@ -157,6 +158,28 @@
           maintainAspectRatio: false,
           plugins: {
             legend: { position: "bottom" },
+            tooltip: {
+              callbacks: {
+                label(context) {
+                  const dsLabel = context.dataset?.label || "";
+                  const value = context.parsed?.y ?? context.parsed ?? 0;
+                  return `${dsLabel}: ${value}`;
+                },
+                footer(items) {
+                  if (!items || !items.length) return "";
+                  const idx = items[0].dataIndex;
+                  const dsLabel = items[0].dataset?.label || "";
+                  const hints = (progStatusPayload && progStatusPayload.hints) || {};
+                  let hint = "";
+                  if ((dsLabel || "").toLowerCase().includes("conclu")) {
+                    hint = (hints.concluidas && hints.concluidas[idx]) || "";
+                  } else if ((dsLabel || "").toLowerCase().includes("penden")) {
+                    hint = (hints.pendentes && hints.pendentes[idx]) || "";
+                  }
+                  return hint ? `Atividade: ${hint}` : "";
+                },
+              },
+            },
           },
           scales: {
             x: { stacked: true },

@@ -265,6 +265,36 @@ def get_programacoes_status_mensal(user, *, unidade_ids=None) -> dict:
         concluidas_data.append(concluidas_map.get(month_start, 0))
         pendentes_data.append(pendentes_map.get(month_start, 0))
 
+    # --- Hints por mes com a atividade (titulo) mais frequente por status ---
+    hints_concluidas_map = {}
+    hints_pendentes_map = {}
+    detalhe_qs = (
+        base_qs
+        .annotate(mes=TruncMonth("criado_em", tzinfo=tz))
+        .values("mes", "concluido", "meta__atividade__titulo")
+        .annotate(total=Count("id"))
+        .order_by("mes", "-total")
+    )
+    for row in detalhe_qs:
+        mes = row.get("mes")
+        if mes is None:
+            continue
+        mes_key = mes.date() if hasattr(mes, "date") else mes
+        titulo = row.get("meta__atividade__titulo") or "Outros"
+        if row.get("concluido"):
+            cur = hints_concluidas_map.get(mes_key) or []
+            if titulo not in cur:
+                cur.append(titulo)
+                hints_concluidas_map[mes_key] = cur[:3]
+        else:
+            cur = hints_pendentes_map.get(mes_key) or []
+            if titulo not in cur:
+                cur.append(titulo)
+                hints_pendentes_map[mes_key] = cur[:3]
+
+    hints_concluidas = [", ".join(hints_concluidas_map.get(m, [])) for m in months]
+    hints_pendentes = [", ".join(hints_pendentes_map.get(m, [])) for m in months]
+
     return {
         "labels": labels,
         "datasets": [
@@ -279,6 +309,10 @@ def get_programacoes_status_mensal(user, *, unidade_ids=None) -> dict:
                 "data": pendentes_data,
             },
         ],
+        "hints": {
+            "concluidas": hints_concluidas,
+            "pendentes": hints_pendentes,
+        },
     }
 
 
