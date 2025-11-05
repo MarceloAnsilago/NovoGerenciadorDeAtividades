@@ -57,7 +57,7 @@ def lista_servidores(request):
     hoje = timezone.localdate()
     unidade_id = get_unidade_atual_id(request)
 
-    servidores = Servidor.objects.select_related("unidade")
+    servidores = Servidor.objects.select_related("unidade").filter(ativo=True)
     if unidade_id:
         servidores = servidores.filter(unidade_id=unidade_id)
     else:
@@ -328,7 +328,7 @@ def relatorio_mapa(request):
         ano = timezone.localdate().year
 
     unidade_id = get_unidade_atual_id(request)
-    servidores_qs = Servidor.objects.select_related("unidade")
+    servidores_qs = Servidor.objects.select_related("unidade").filter(ativo=True)
     if unidade_id:
         servidores_qs = servidores_qs.filter(unidade_id=unidade_id)
     else:

@@ -10,7 +10,7 @@ class DescansoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         unidade_id = get_unidade_atual_id(request) if request else None
 
-        qs = Servidor.objects.select_related("unidade")
+        qs = Servidor.objects.select_related("unidade").filter(ativo=True)
         if unidade_id:
             qs = qs.filter(unidade_id=unidade_id)
         else:

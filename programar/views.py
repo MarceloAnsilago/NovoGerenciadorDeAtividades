@@ -86,6 +86,7 @@ def _impedidos_por_descanso(unidade_id: int | None, data_ref):
         .select_related("servidor")
         .filter(
             servidor__unidade_id=unidade_id,
+            servidor__ativo=True,
             data_inicio__lte=data_ref,
             data_fim__gte=data_ref,
         )
@@ -132,7 +133,7 @@ def _servidores_status_para_data(
             "motivo": item.get("motivo"),
         })
 
-    servidores_qs = Servidor.objects.filter(unidade_id=unidade_id).order_by("nome")
+    servidores_qs = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).order_by("nome")
     if impedidos_ids:
         servidores_qs = servidores_qs.exclude(id__in=impedidos_ids)
 
@@ -220,6 +221,9 @@ def salvar_programacao(request):
         ids_payload: set[int] = set()
         total_vinculos = 0
 
+        # mapa de servidores ativos por unidade para validar entrada
+        ativos_ids = set(Servidor.objects.filter(unidade_id=unidade_id, ativo=True).values_list("id", flat=True)) if unidade_id else set()
+
         for it in itens_in:
             raw_meta_id = it.get("meta_id")
             try:
@@ -240,6 +244,9 @@ def salvar_programacao(request):
                 try:
                     sid_int = int(sid)
                 except (TypeError, ValueError):
+                    continue
+                if ativos_ids and sid_int not in ativos_ids:
+                    # ignora servidor inativo ou de outra unidade
                     continue
                 if sid_int in vistos_servidores:
                     continue
@@ -463,7 +470,7 @@ def _fetch_plantonistas_via_orm(request, start: str, end: str) -> List[Dict[str,
         seen: set = set()
         for sem in semanas:
             ss_qs = (
-                SemanaServidor.objects.filter(semana=sem)
+                SemanaServidor.objects.filter(semana=sem, servidor__ativo=True)
                 .select_related("servidor")
                 .order_by("ordem", "servidor__nome")
             )
@@ -533,7 +540,7 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
     if item_ids:
         for link in (
             ProgramacaoItemServidor.objects
-            .filter(item_id__in=item_ids)
+            .filter(item_id__in=item_ids, servidor__ativo=True)
             .select_related("servidor")
             .order_by("servidor__nome")
         ):
@@ -1265,7 +1272,7 @@ def programacao_do_dia_orm(request):
     serv_objs_by_item: Dict[int, List[Dict[str, Any]]] = {}
     if item_ids:
         for link in (
-            ProgramacaoItemServidor.objects.filter(item_id__in=item_ids)
+            ProgramacaoItemServidor.objects.filter(item_id__in=item_ids, servidor__ativo=True)
             .select_related("servidor")
         ):
             iid = int(getattr(link, "item_id"))
@@ -1385,7 +1392,7 @@ def concluir_item_form(request, item_id: int):
     links = (
         ProgramacaoItemServidor.objects
         .select_related("servidor")
-        .filter(item_id=pi.id)
+        .filter(item_id=pi.id, servidor__ativo=True)
         .order_by("servidor__nome")
     )
     servidores = [getattr(l.servidor, "nome", f"Servidor {l.servidor_id}") for l in links]

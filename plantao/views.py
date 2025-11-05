@@ -178,7 +178,7 @@ def lista_plantao(request):
         mapa_dd[d.servidor].append(d)
     servidores_com_descanso = dict(mapa_dd)
 
-    todos = Servidor.objects.filter(unidade_id=unidade_id).order_by("nome")
+    todos = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).order_by("nome")
     bloqueados_ids = (Descanso.objects
                       .filter(servidor__in=todos, data_inicio__lte=dt_ini, data_fim__gte=dt_fim)
                       .values_list("servidor_id", flat=True).distinct())
@@ -266,7 +266,7 @@ def lista_plantao(request):
         grupos_data = []
         for i, (ini, fim) in enumerate(weeks, start=1):
             ids = grupos_sel_ids.get(i, [])
-            objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids))}
+            objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids), ativo=True)}
             ordered = [objs[sid] for sid in ids if sid in objs]
             for obj in ordered:
                 tel = getattr(obj, "telefone", None) or getattr(obj, "celular", None) or ""
@@ -293,7 +293,7 @@ def lista_plantao(request):
             grupos_data = []
             for i, (ini, fim) in enumerate(weeks, start=1):
                 ids = grupos_sel_ids.get(i, [])
-                objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids))}
+                objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids), ativo=True)}
                 ordered = [objs[sid] for sid in ids if sid in objs]
                 for obj in ordered:
                     tel = getattr(obj, "telefone", None) or getattr(obj, "celular", None) or ""
@@ -331,7 +331,7 @@ def lista_plantao(request):
                     ids = grupos_sel_ids.get(i, [])
                     for ordem, sid in enumerate(ids, start=1):
                         try:
-                            srv = Servidor.objects.get(pk=sid)
+                            srv = Servidor.objects.get(pk=sid, ativo=True)
                             tel = getattr(srv, "telefone", None) or getattr(srv, "celular", None) or ""
                         except Servidor.DoesNotExist:
                             srv = None
@@ -354,7 +354,7 @@ def lista_plantao(request):
     grupos_data = []
     for i, (ini, fim) in enumerate(weeks, start=1):
         ids = grupos_sel_ids.get(i, [])
-        objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids))}
+        objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids), ativo=True)}
         ordered = [objs[sid] for sid in ids if sid in objs]
         for obj in ordered:
             tel = getattr(obj, "telefone", None) or getattr(obj, "celular", None) or ""

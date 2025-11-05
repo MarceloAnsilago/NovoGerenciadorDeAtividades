@@ -117,7 +117,7 @@ def minhas_metas_view(request):
         links = (
             ProgramacaoItemServidor.objects
             .select_related("servidor")
-            .filter(item_id__in=item_ids)
+            .filter(item_id__in=item_ids, servidor__ativo=True)
         )
         for link in links:
             servidor_nome = getattr(link.servidor, "nome", f"Servidor {link.servidor_id}")

@@ -276,7 +276,7 @@ def get_plantao_heatmap(user, *, unidade_ids=None) -> dict:
 
     qs = (
         _filter_by_unidades(
-            SemanaServidor.objects.select_related("semana", "servidor"),
+            SemanaServidor.objects.select_related("semana", "servidor").filter(servidor__ativo=True),
             unidade_ids,
             "servidor__unidade_id",
         )
@@ -344,7 +344,7 @@ def get_uso_veiculos(user, *, unidade_ids=None) -> dict:
 def get_top_servidores(user, *, unidade_ids=None, limit: int = 10) -> dict:
     qs = (
         _filter_by_unidades(
-            ProgramacaoItemServidor.objects.select_related("servidor", "item__programacao"),
+            ProgramacaoItemServidor.objects.select_related("servidor", "item__programacao").filter(servidor__ativo=True),
             unidade_ids,
             "item__programacao__unidade_id",
         )
