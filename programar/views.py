@@ -940,6 +940,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "    text-align: center !important;"
         "    vertical-align: middle !important;"
         "  }"
+        "  div.mt-4.rel-atividades{ break-before: page; page-break-before: always; }"
         "}"
         "</style>"
     )
