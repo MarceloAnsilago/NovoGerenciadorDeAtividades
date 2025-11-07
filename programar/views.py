@@ -915,13 +915,18 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "  .programacao-semana-table{"
         "    border-collapse: collapse !important;"
         "    table-layout: fixed;"
+        "    font-size: 11px;"
         "  }"
         "  .programacao-semana-table th, .programacao-semana-table td{"
-        "    padding: 4pt 6pt !important;"
-        "    line-height: 1.2 !important;"
+        "    padding: 2pt 4pt !important;"
+        "    line-height: 1.15 !important;"
         "    border-top: 0.5pt solid #000 !important;"
         "    vertical-align: top;"
         "  }"
+        "  .programacao-semana-table th:first-child, .programacao-semana-table td.dia-cell{"
+        "    min-width: 90px !important; width: 90px !important;"
+        "  }"
+        "  .print-cbx{ width:10px; height:10px; margin:0 3px 0 4px; border-width:1.2px; }"
         "  .programacao-semana-table thead th{"
         "    border-bottom: 0.75pt solid #000 !important;"
         "    border-top: 0.5pt solid #000 !important;"
@@ -930,6 +935,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "  .programacao-semana-table tbody td.dia-cell.day-end{"
         "    border-bottom: 1.5pt solid #000 !important;"
         "  }"
+        "  .rel-atividades .mini-table td{ padding:.25rem .35rem !important; }"
         "  .programacao-semana-table td.veiculo-cell{"
         "    text-align: center !important;"
         "    vertical-align: middle !important;"
@@ -946,7 +952,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "<table class='table table-sm align-middle mb-0 programacao-semana-table'>"
         "<thead class='table-light'>"
         "<tr>"
-        "<th style='width:110px'>Dia</th>"
+        "<th style='width:90px'>Dia</th>"
         "<th>Atividade</th>"
         "<th>Servidores</th>"
         "<th style='width:200px'>Veículo</th>"
@@ -1041,7 +1047,7 @@ def relatorios_parcial(request):
     html_out = f"""
     <div id="relatorioPrintArea" class="card border-0 shadow-sm">
       <div class="card-body">
-        <h5 class="card-title mb-2">Relatório (parcial)</h5>
+        <h5 class="card-title mb-2">Relatório semanal</h5>
         <div class="text-muted mb-3">Período: <strong>{html.escape(start)} → {html.escape(end)}</strong></div>
         <div class="mb-3">{plantonistas_html}</div>
         <hr class="my-3">
@@ -1072,8 +1078,8 @@ def print_relatorio_semana(request):
   <title>Relatório {html.escape(start)} → {html.escape(end)}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body{{padding:16px}}
-    @page{{ margin:12mm; }}
+    body{{padding:8px; font-size:11px}}
+    @page{{ margin:8mm; }}
     .table td,.table th{{ vertical-align: top; }}
     @media print{{ .no-print{{display:none!important}} }}
   </style>

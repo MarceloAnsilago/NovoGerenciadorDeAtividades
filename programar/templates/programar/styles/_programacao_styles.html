@@ -104,6 +104,14 @@
     display:inline;            /* flui como texto */
     color:#212529;
   }
+  /* Extra compact rules for printing */
+  @media print{
+    body{ font-size:11px; }
+    .programacao-semana-table{ font-size:11px; }
+    .programacao-semana-table th,.programacao-semana-table td{ padding:2pt 4pt !important; line-height:1.15 !important; }
+    .programacao-semana-table th:first-child,.programacao-semana-table td.dia-cell{ min-width:90px !important; width:90px !important; }
+    .print-cbx{ width:10px; height:10px; margin:0 3px 0 4px; border-width:1.2px; }
+  }
   /* ===== Cards de Metas (topo do modal) ===== */
   #programar-modalAtividade .metas-grid{
     display:grid;

@@ -123,9 +123,17 @@
   <title>Relatório ${titleRange}</title>
   ${styles}
   <style>
-    body{margin:0;padding:16px;background:#fff;font-family:system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;}
+    /* Compact print layout */
+    body{margin:0;padding:8px;background:#fff;font-family:system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:11px;}
     #relatorioPrintArea{box-shadow:none!important;border:0!important;}
-    @page{margin:12mm;}
+    /* Smaller margins to save paper */
+    @page{margin:8mm;}
+    /* Compact table defaults */
+    .programacao-semana-table{font-size:11px;}
+    .programacao-semana-table th,.programacao-semana-table td{padding:2pt 4pt!important;line-height:1.15!important}
+    .programacao-semana-table th:first-child,.programacao-semana-table td.dia-cell{min-width:90px!important;width:90px!important}
+    /* Smaller print checkboxes */
+    @media print{ .print-cbx{width:10px;height:10px;margin:0 3px 0 4px;border-width:1.2px} }
   </style>
 </head>
 <body>
