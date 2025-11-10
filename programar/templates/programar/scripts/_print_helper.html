@@ -2,6 +2,32 @@
 (function () {
   const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
 
+  function showSelectFeedback(msg){
+    try{
+      const sel = document.getElementById('programar-select-semana');
+      if (!sel) return;
+      sel.classList.add('is-invalid');
+      let fb = sel.nextElementSibling;
+      if (!fb || !fb.classList?.contains('invalid-feedback')){
+        fb = document.createElement('div');
+        fb.className = 'invalid-feedback d-block';
+        sel.insertAdjacentElement('afterend', fb);
+      }
+      fb.textContent = msg || 'Selecione um período.';
+      // limpa feedback ao escolher
+      if (!sel.dataset._fbBound){
+        sel.addEventListener('change', function(){
+          if (this.selectedIndex > 0){
+            this.classList.remove('is-invalid');
+            const n = this.nextElementSibling;
+            if (n && n.classList?.contains('invalid-feedback')) n.remove();
+          }
+        });
+        sel.dataset._fbBound = '1';
+      }
+    }catch(_e){}
+  }
+
   function collectStylesHtml() {
     const selectors = [
       "style#programar-styles",
@@ -129,7 +155,7 @@
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation?.();
     try{
       const range = resolveRange(btn);
-      if (!range) { alert('Selecione uma semana.'); return; }
+      if (!range) { showSelectFeedback('Selecione um período.'); return; }
       NS.reportMode = 'programacao-only';
       if (typeof NS.loadRelatoriosForRange === 'function'){
         NS.loadRelatoriosForRange(range.start, range.end);
@@ -143,7 +169,7 @@
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation?.();
     try{
       const range = resolveRange(btn);
-      if (!range) { alert('Selecione uma semana.'); return; }
+      if (!range) { showSelectFeedback('Selecione um período.'); return; }
       NS.reportMode = 'just-only';
       if (typeof NS.loadRelatoriosForRange === 'function'){
         NS.loadRelatoriosForRange(range.start, range.end);
