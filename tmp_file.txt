@@ -1,10 +1,10 @@
-﻿{% extends "programar/base.html" %}
+{% extends "programar/base.html" %}
 
 {% block page_header %}
   <div class="container my-4 d-flex align-items-center justify-content-between">
-    <h1 class="mb-0">RelatÃ³rios da Semana</h1>
+    <h1 class="mb-0">Relatórios da Semana</h1>
     <div class="btn-group">
-      <button id="btnImprimirProgramacao" class="btn btn-outline-primary btn-sm">Imprimir programaÃ§Ã£o</button>
+      <button id="btnImprimirProgramacao" class="btn btn-outline-primary btn-sm">Imprimir programação</button>
       
     </div>
   </div>
@@ -18,7 +18,6 @@
 {% endblock %}
 
 {% block page_scripts %}
-  {% include "programar/scripts/_urls_context.html" %}
-  {% include "programar/scripts/_print_helper.html" %}
   {% include "programar/scripts/_relatorios_logic.html" %}
 {% endblock %}
+

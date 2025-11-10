@@ -4,9 +4,11 @@ document.addEventListener('DOMContentLoaded', function(){
   const el = document.getElementById('programar-calendar');
   if (!el) return;
 
-  // desabilita botoes de imprimir ate escolher uma semana
-  const printBtns = ['programar-btnImprimirProgramacao','btnImprimirProgramacao']
-    .map(id => document.getElementById(id));
+  // desabilita botoes de gerar/imprimir ate escolher uma semana
+  const printBtns = [
+    'programar-btnImprimirProgramacao','btnImprimirProgramacao',
+    'programar-btnImprimirJustificativas','btnImprimirJustificativas'
+  ].map(id => document.getElementById(id));
   printBtns.forEach(b => { if (b) b.disabled = true; });
 
   const calendar = new FullCalendar.Calendar(el, {
@@ -60,22 +62,18 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }
 
-  // carrega relatorio APENAS quando selecionar
+  // ao selecionar, apenas habilita os botoes e guarda o intervalo; NAO carrega automaticamente
   const semanaSelect = document.getElementById('programar-select-semana');
   if (semanaSelect) {
     semanaSelect.addEventListener('change', function(){
       const opt = this.options[this.selectedIndex];
       const s = opt?.dataset?.inicio, e = opt?.dataset?.fim;
-      if (s && e && typeof NS.loadRelatoriosForRange === 'function') {
-        // garantir que semanal mostre justificativas
+      // apenas repassa o range para os botoes; nao chama loadRelatoriosForRange aqui
+      if (s && e) {
         try { NS.periodo = 'semana'; } catch(_) {}
-        NS.loadRelatoriosForRange(s, e).finally(() => {
-          printBtns.forEach(b => { if (b) { b.disabled = false; b.dataset.start = s; b.dataset.end = e; }});
-          const cont = document.getElementById('programar-relatoriosContainer');
-          if (cont) cont.__filled = true;
-        });
+        printBtns.forEach(b => { if (b) { b.disabled = false; b.dataset.start = s; b.dataset.end = e; }});
       } else {
-        printBtns.forEach(b => { if (b) b.disabled = true; });
+        printBtns.forEach(b => { if (b) { b.disabled = true; delete b.dataset.start; delete b.dataset.end; } });
       }
     });
   }

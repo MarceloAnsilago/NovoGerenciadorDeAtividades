@@ -25,4 +25,32 @@
   {% include "programar/scripts/_relatorios_logic.html" %}
   {% include "programar/scripts/_modal_logic.html" %}
   {% include "programar/scripts/_calendar_init.html" %}
+  <script>
+    (function(){
+      function fixTitulo(){
+        try{
+          const cont = document.getElementById('programar-relatoriosContainer');
+          if (!cont) return;
+          const ttl = cont.querySelector('#relatorioPrintArea h5.card-title');
+          if (ttl) ttl.textContent = 'Programação semanal de atividades';
+        }catch(_e){}
+      }
+      const mo = new MutationObserver(function(muts){
+        for (const m of muts){
+          for (const n of m.addedNodes){
+            if (!(n instanceof Element)) continue;
+            if (n.id === 'relatorioPrintArea' || n.querySelector?.('#relatorioPrintArea')){
+              setTimeout(fixTitulo, 0);
+              return;
+            }
+          }
+        }
+      });
+      document.addEventListener('DOMContentLoaded', function(){
+        fixTitulo();
+        const root = document.getElementById('programar-relatoriosContainer') || document.documentElement;
+        mo.observe(root, {childList:true, subtree:true});
+      });
+    })();
+  </script>
 {% endblock %}

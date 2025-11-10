@@ -1,0 +1,324 @@
+﻿<script>
+(function () {
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
+
+  function getRangeFromSelect() {
+    const sel = document.getElementById("programar-select-semana");
+    if (!sel || sel.selectedIndex <= 0) return null;
+    const opt = sel.options[sel.selectedIndex];
+    return { start: opt.dataset.inicio, end: opt.dataset.fim };
+  }
+
+  function resolveRange(btn) {
+    if (!btn) return null;
+    const { start, end } = btn.dataset || {};
+    if (start && end) return { start, end };
+    return getRangeFromSelect();
+  }
+
+  function collectStylesHtml() {
+    const selectors = [
+      "style#programar-styles",
+      "style[data-print-include]",
+      'link[rel="stylesheet"][href*="bootstrap"]',
+      'link[rel="stylesheet"][href*="bootstrap-icons"]',
+    ];
+    const seen = new Set();
+    const parts = [];
+    selectors.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        const html = el.outerHTML;
+        if (html && !seen.has(html)) {
+          seen.add(html);
+          parts.push(html);
+        }
+      });
+    });
+    return parts.join("\n");
+  }
+
+  function printCurrentRelatorio(btn) {
+    if (!btn || btn.dataset.printing === "1") return;
+
+    const range = resolveRange(btn);
+    if (!range || !range.start || !range.end) {
+      alert("Selecione uma semana.");
+      return;
+    }
+
+    const container = document.getElementById("programar-relatoriosContainer");
+    if (!container) {
+      alert("Relatório não disponível para impressão.");
+      return;
+    }
+    const target =
+      container.querySelector("#relatorioPrintArea") || container.firstElementChild || container;
+    let html = target?.outerHTML || "";
+    try{
+      // Ajusta titulo no conteudo antes de imprimir
+      html = html
+        .replace(/Relat\u00F3rio semanal/gi, 'Programa\u00E7\u00E3o semanal de atividades')
+        .replace(/Relat..rio semanal/gi, 'Programa\u00E7\u00E3o semanal de atividades');
+    }catch(_e){}
+    if (!html.trim()) {
+      alert("Nenhum relatório carregado para imprimir.");
+      return;
+    }
+
+    btn.dataset.printing = "1";
+    btn.disabled = true;
+
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.position = "fixed";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+    document.body.appendChild(iframe);
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      delete btn.dataset.printing;
+      btn.disabled = false;
+      iframe.remove();
+    };
+    const fallbackTimer = window.setTimeout(cleanup, 60000);
+
+    iframe.onload = () => {
+      try {
+        const win = iframe.contentWindow;
+        if (!win) {
+          cleanup();
+          return;
+        }
+        win.onafterprint = () => {
+          window.clearTimeout(fallbackTimer);
+          window.setTimeout(cleanup, 20);
+        };
+        win.focus();
+        // Aguarda render/layout para evitar primeira pgina em branco
+        window.setTimeout(() => {
+          try {
+            win.print();
+          } catch (err) {
+            console.error("[programar] print() falhou", err);
+            cleanup();
+          }
+        }, 250);
+      } catch (err) {
+        console.error("[programar] preparação de impressão falhou", err);
+        cleanup();
+      }
+    };
+
+    try {
+      const styles = collectStylesHtml();
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) {
+        cleanup();
+        return;
+      }
+      const titleRange = `${range.start} &#8594; ${range.end}`;
+      doc.open();
+      doc.write(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Programacao semanal de atividades ${titleRange}</title>
+  ${styles}
+  <style>
+    /* Compact print layout */
+    body{margin:0;padding:8px;background:#fff;font-family:system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:11px;}
+    #relatorioPrintArea{box-shadow:none!important;border:0!important;}
+    /* Smaller margins to save paper */
+    @page{margin:8mm;}
+    /* Compact table defaults */
+    .programacao-semana-table{font-size:11px;}
+    .programacao-semana-table th,.programacao-semana-table td{padding:2pt 4pt!important;line-height:1.15!important}
+    .programacao-semana-table th:first-child,.programacao-semana-table td.dia-cell{min-width:90px!important;width:90px!important}
+    /* Smaller print checkboxes */
+    @media print{ .print-cbx{width:10px;height:10px;margin:0 3px 0 4px;border-width:1.2px} }
+  </style>
+</head>
+<body>
+${html}
+</body>
+</html>`);
+      doc.close();
+    } catch (err) {
+      console.error("[programar] composição de impressão falhou", err);
+      cleanup();
+    }
+  }
+
+  // Print via dedicated server endpoint in an iframe
+  function printFromUrl(url, btn){
+    if (!url) return;
+    if (btn) { btn.disabled = true; btn.dataset.printing = "1"; }
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.position = "fixed";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      try{ iframe.remove(); }catch(_e){}
+      if (btn) { btn.disabled = false; delete btn.dataset.printing; }
+    };
+    const fallback = setTimeout(cleanup, 60000);
+    iframe.onload = () => {
+      try{
+        const win = iframe.contentWindow;
+        if (!win) { cleanup(); return; }
+        win.onafterprint = () => { clearTimeout(fallback); setTimeout(cleanup, 20); };
+        // Give it a moment to paint before printing
+        setTimeout(() => { try{ win.print(); } catch(_e){ cleanup(); } }, 250);
+      }catch(_e){ cleanup(); }
+    };
+    iframe.src = url;
+    document.body.appendChild(iframe);
+  }
+
+  // Print only a specific element, in the current tab
+  function printElementInPlace(el, btn){
+    if (!el) return;
+    if (btn) { btn.disabled = true; btn.dataset.printing = "1"; }
+    const PORTAL_ID = "__printPortal";
+    const STYLE_ID = "__printPortalStyle";
+    const oldPortal = document.getElementById(PORTAL_ID);
+    if (oldPortal) try{ oldPortal.remove(); }catch(_e){}
+    let st = document.getElementById(STYLE_ID);
+    if (!st){
+      st = document.createElement('style');
+      st.id = STYLE_ID;
+      // Esconde tudo e exibe apenas o portal e seus filhos
+      st.textContent = `@media print{ body.__just-print *{ display:none!important } body.__just-print #${PORTAL_ID}, body.__just-print #${PORTAL_ID} *{ display:initial!important } }`;
+      document.head.appendChild(st);
+    }
+    const portal = document.createElement('div');
+    portal.id = PORTAL_ID;
+    portal.setAttribute('aria-hidden','true');
+    portal.style.position = 'static';
+    portal.innerHTML = el.outerHTML; // includes embedded <style> from the report
+    document.body.appendChild(portal);
+
+    let cleaned=false;
+    const cleanup = () => {
+      if (cleaned) return; cleaned=true;
+      document.body.classList.remove('__just-print');
+      try{ portal.remove(); }catch(_e){}
+      if (btn) { btn.disabled = false; delete btn.dataset.printing; }
+    };
+    const to = setTimeout(cleanup, 60000);
+    const after = () => { clearTimeout(to); setTimeout(cleanup, 30); window.removeEventListener('afterprint', after); };
+    window.addEventListener('afterprint', after);
+    document.body.classList.add('__just-print');
+    setTimeout(() => { try{ window.print(); } catch(_e){ cleanup(); } }, 250);
+  }
+
+  document.addEventListener(
+    "click",
+    (ev) => {
+      const btn = ev.target.closest?.("#programar-btnImprimirProgramacao, #btnImprimirProgramacao");
+      if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      ev.stopImmediatePropagation?.();
+      try{
+        const range = resolveRange(btn);
+        const base = NS.urls?.printRelatorioSemana;
+        if (range && base){
+          const url = `${base}?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}`;
+          // Prefer abrir em nova aba (mais claro ao usuário)
+          const w = window.open(url, '_blank', 'noopener');
+          if (!w) {
+            // Fallback se pop-up bloqueado
+            return printFromUrl(url, btn);
+          }
+          try { w.focus(); } catch(_e) {}
+          return;
+        }
+      }catch(_e){}
+      // fallback: print current area
+      printCurrentRelatorio(btn);
+    },
+    true
+  );
+
+  // Print justifications together in current tab (same content area)
+  document.addEventListener(
+    "click",
+    async (ev) => {
+      const btn = ev.target.closest?.("#programar-btnImprimirJustificativas, #btnImprimirJustificativas");
+      if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      ev.stopImmediatePropagation?.();
+      try{
+        const range = resolveRange(btn);
+        const api = NS.urls?.relatorios;
+        if (range && api){
+          const container = document.getElementById('programar-relatoriosContainer');
+          if (container) {
+            container.innerHTML = `<div class="text-center my-3"><div class="spinner-border" role="status" aria-hidden="true"></div><div class="small text-muted mt-2">Preparando justificativas…</div></div>`;
+          }
+          const url = `${api}?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}&only_just=1`;
+          fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.json())
+            .then(data => {
+              if (container && data && typeof data.html === 'string') {
+                container.innerHTML = data.html;
+              }
+              // Override para evitar 1ª página em branco (remove quebra forçada)
+              const id = 'programar-print-override';
+              let st = document.getElementById(id);
+              if (!st) {
+                st = document.createElement('style');
+                st.id = id;
+                st.textContent = `.rel-atividades{ break-before:auto !important; page-break-before:auto !important; }`;
+                document.head.appendChild(st);
+              }
+              // Imprimir via iframe para preservar CSS e margens
+              printCurrentRelatorio(btn);
+            })
+            .catch(() => {
+              // Fallback para endpoint dedicado na mesma aba se o JSON falhar
+              const base = NS.urls?.printRelatorioJustificativas;
+              if (base){
+                const purl = `${base}?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}`;
+                try { window.location.assign(purl); } catch(_e) { printFromUrl(purl, btn); }
+              }
+            });
+          return;
+        }
+      }catch(_e){}
+      // fallback: print current area
+      printCurrentRelatorio(btn);
+    },
+    true
+  );
+})();
+</script>
+  // Toolbar print inside the rendered report
+  document.addEventListener('click', function(ev){
+    const btn = ev.target.closest?.('#relatorio-btn-print');
+    if (!btn) return;
+    ev.preventDefault();
+    const NS = window.PROGRAMAR || {};
+    const cont = document.getElementById('programar-relatoriosContainer');
+    const start = cont?.dataset?.start; const end = cont?.dataset?.end;
+    if (!start || !end) { alert('Selecione uma semana.'); return; }
+    const mode = String(NS.reportMode||'all').toLowerCase();
+    let base = (mode === 'just-only') ? NS.urls?.printRelatorioJustificativas : NS.urls?.printRelatorioSemana;
+    if (!base) return;
+    const url = ${base}?start=&end=;
+    const w = window.open(url, '_blank', 'noopener');
+    try{ w && w.focus(); }catch(_e){}
+  }, true);

@@ -2,20 +2,6 @@
 (function () {
   const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
 
-  function getRangeFromSelect() {
-    const sel = document.getElementById("programar-select-semana");
-    if (!sel || sel.selectedIndex <= 0) return null;
-    const opt = sel.options[sel.selectedIndex];
-    return { start: opt.dataset.inicio, end: opt.dataset.fim };
-  }
-
-  function resolveRange(btn) {
-    if (!btn) return null;
-    const { start, end } = btn.dataset || {};
-    if (start && end) return { start, end };
-    return getRangeFromSelect();
-  }
-
   function collectStylesHtml() {
     const selectors = [
       "style#programar-styles",
@@ -40,124 +26,143 @@
   function printCurrentRelatorio(btn) {
     if (!btn || btn.dataset.printing === "1") return;
 
-    const range = resolveRange(btn);
+    // Resolve range (from the button or from the select fallback)
+    function getRangeFromSelect() {
+      const sel = document.getElementById('programar-select-semana');
+      if (!sel || sel.selectedIndex <= 0) return null;
+      const opt = sel.options[sel.selectedIndex];
+      return { start: opt.dataset.inicio, end: opt.dataset.fim };
+    }
+    function resolveRangeLocal(b) {
+      if (!b) return getRangeFromSelect();
+      const { start, end } = b.dataset || {};
+      if (start && end) return { start, end };
+      return getRangeFromSelect();
+    }
+
+    const range = resolveRangeLocal(btn);
     if (!range || !range.start || !range.end) {
-      alert("Selecione uma semana.");
+      alert('Selecione uma semana.');
       return;
     }
 
-    const container = document.getElementById("programar-relatoriosContainer");
-    if (!container) {
-      alert("Relatório não disponível para impressão.");
-      return;
-    }
-    const target =
-      container.querySelector("#relatorioPrintArea") || container.firstElementChild || container;
-    const html = target?.outerHTML || "";
-    if (!html.trim()) {
-      alert("Nenhum relatório carregado para imprimir.");
-      return;
-    }
+    const container = document.getElementById('programar-relatoriosContainer');
+    const target = container?.querySelector('#relatorioPrintArea') || container?.firstElementChild || container;
+    let html = target?.outerHTML || '';
+    if (!html.trim()) { alert('Nenhum relatório carregado para imprimir.'); return; }
 
     btn.dataset.printing = "1";
     btn.disabled = true;
 
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.style.position = "fixed";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.opacity = "0";
-    iframe.style.pointerEvents = "none";
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    Object.assign(iframe.style, { position: 'fixed', width: '0', height: '0', opacity: '0', pointerEvents: 'none' });
     document.body.appendChild(iframe);
 
     let cleaned = false;
-    const cleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      delete btn.dataset.printing;
-      btn.disabled = false;
-      iframe.remove();
-    };
+    const cleanup = () => { if (cleaned) return; cleaned = true; delete btn.dataset.printing; btn.disabled = false; iframe.remove(); };
     const fallbackTimer = window.setTimeout(cleanup, 60000);
 
     iframe.onload = () => {
       try {
         const win = iframe.contentWindow;
-        if (!win) {
-          cleanup();
-          return;
-        }
-        win.onafterprint = () => {
-          window.clearTimeout(fallbackTimer);
-          window.setTimeout(cleanup, 20);
-        };
+        if (!win) { cleanup(); return; }
+        win.onafterprint = () => { window.clearTimeout(fallbackTimer); window.setTimeout(cleanup, 20); };
         win.focus();
-        window.setTimeout(() => {
-          try {
-            win.print();
-          } catch (err) {
-            console.error("[programar] print() falhou", err);
-            cleanup();
-          }
-        }, 30);
-      } catch (err) {
-        console.error("[programar] preparação de impressão falhou", err);
-        cleanup();
-      }
+        window.setTimeout(() => { try { win.print(); } catch(_) { cleanup(); } }, 250);
+      } catch(_) { cleanup(); }
     };
 
     try {
       const styles = collectStylesHtml();
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!doc) {
-        cleanup();
-        return;
-      }
+      if (!doc) { cleanup(); return; }
       const titleRange = `${range.start} &#8594; ${range.end}`;
       doc.open();
-      doc.write(`<!doctype html>
+  doc.write(`<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>Relatório ${titleRange}</title>
   ${styles}
   <style>
-    /* Compact print layout */
     body{margin:0;padding:8px;background:#fff;font-family:system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:11px;}
     #relatorioPrintArea{box-shadow:none!important;border:0!important;}
-    /* Smaller margins to save paper */
     @page{margin:8mm;}
-    /* Compact table defaults */
+    /* Esconde qualquer toolbar marcada como no-print */
+    @media print{ .no-print{ display:none!important } }
+    /* Evita página em branco antes das justificativas */
+    div.mt-4.rel-atividades{ break-before:auto !important; page-break-before:auto !important; }
+    .rel-atividades:first-child{ break-before:auto !important; page-break-before:auto !important; }
     .programacao-semana-table{font-size:11px;}
     .programacao-semana-table th,.programacao-semana-table td{padding:2pt 4pt!important;line-height:1.15!important}
     .programacao-semana-table th:first-child,.programacao-semana-table td.dia-cell{min-width:90px!important;width:90px!important}
-    /* Smaller print checkboxes */
     @media print{ .print-cbx{width:10px;height:10px;margin:0 3px 0 4px;border-width:1.2px} }
   </style>
-</head>
-<body>
-${html}
-</body>
-</html>`);
+  </head>
+  <body>
+  ${html}
+  </body>
+  </html>`);
       doc.close();
-    } catch (err) {
-      console.error("[programar] composição de impressão falhou", err);
-      cleanup();
-    }
+    } catch(_) { cleanup(); }
   }
 
-  document.addEventListener(
-    "click",
-    (ev) => {
-      const btn = ev.target.closest?.("#programar-btnImprimirProgramacao, #btnImprimirProgramacao");
-      if (!btn) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      ev.stopImmediatePropagation?.();
-      printCurrentRelatorio(btn);
-    },
-    true
-  );
+  function getRangeFromSelect() {
+    const sel = document.getElementById('programar-select-semana');
+    if (!sel || sel.selectedIndex <= 0) return null;
+    const opt = sel.options[sel.selectedIndex];
+    return { start: opt.dataset.inicio, end: opt.dataset.fim };
+  }
+
+  function resolveRange(btn) {
+    if (!btn) return null;
+    const { start, end } = btn.dataset || {};
+    if (start && end) return { start, end };
+    return getRangeFromSelect();
+  }
+
+  // Botões principais da barra (agora: gerar na tela)
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest?.('#programar-btnImprimirProgramacao, #btnImprimirProgramacao');
+    if (!btn) return;
+    ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation?.();
+    try{
+      const range = resolveRange(btn);
+      if (!range) { alert('Selecione uma semana.'); return; }
+      NS.reportMode = 'programacao-only';
+      if (typeof NS.loadRelatoriosForRange === 'function'){
+        NS.loadRelatoriosForRange(range.start, range.end);
+      }
+    }catch(_e){}
+  }, true);
+
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest?.('#programar-btnImprimirJustificativas, #btnImprimirJustificativas');
+    if (!btn) return;
+    ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation?.();
+    try{
+      const range = resolveRange(btn);
+      if (!range) { alert('Selecione uma semana.'); return; }
+      NS.reportMode = 'just-only';
+      if (typeof NS.loadRelatoriosForRange === 'function'){
+        NS.loadRelatoriosForRange(range.start, range.end);
+      }
+    }catch(_e){}
+  }, true);
+
+  // Botão de imprimir dentro do relatório gerado
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest?.('#relatorio-btn-print');
+    if (!btn) return;
+    ev.preventDefault();
+    // Passa o intervalo atual para o botão e imprime via iframe (sem nova aba)
+    try{
+      const cont = document.getElementById('programar-relatoriosContainer');
+      const start = cont?.dataset?.start; const end = cont?.dataset?.end;
+      if (start && end) { btn.dataset.start = start; btn.dataset.end = end; }
+    }catch(_e){}
+    printCurrentRelatorio(btn);
+  }, true);
 })();
 </script>

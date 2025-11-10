@@ -1018,10 +1018,21 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         + "</div>"
     )
 
+    # flags para filtrar conteúdo: permitem forçar via atributo do request
     try:
-        hide_just = str(request.GET.get("hide_just", "")).strip().lower() in {"1", "true", "yes", "on", "y"}
+        only_just = bool(getattr(request, "_force_only_just", False)) or (
+            str(request.GET.get("only_just", "")).strip().lower() in {"1", "true", "yes", "on", "y"}
+        )
     except Exception:
-        hide_just = False
+        only_just = bool(getattr(request, "_force_only_just", False))
+    if only_just:
+        return style + bloco_atividades
+    try:
+        hide_just = bool(getattr(request, "_force_hide_just", False)) or (
+            str(request.GET.get("hide_just", "")).strip().lower() in {"1", "true", "yes", "on", "y"}
+        )
+    except Exception:
+        hide_just = bool(getattr(request, "_force_hide_just", False))
     if hide_just:
         return style + bloco_programacao
     return style + bloco_programacao + bloco_atividades
@@ -1049,13 +1060,30 @@ def relatorios_parcial(request):
     <div id="relatorioPrintArea" class="card border-0 shadow-sm">
       <div class="card-body">
         <h5 class="card-title mb-2">Relatório semanal</h5>
-        <div class="text-muted mb-3">Período: <strong>{html.escape(start)} → {html.escape(end)}</strong></div>
+        <div class="text-muted mb-3">Período: <strong>{html.escape(start)} &#8594; {html.escape(end)}</strong></div>
         <div class="mb-3">{plantonistas_html}</div>
         <hr class="my-3">
         {tabela_semana_html}
       </div>
     </div>
     """
+    # Override do wrapper quando pedirem apenas justificativas (sem cabeçalho)
+    try:
+        __only = str(request.GET.get("only_just", "")).strip().lower() in {"1","true","yes","on","y"}
+    except Exception:
+        __only = False
+    try:
+        __hide = str(request.GET.get("hide_just", "")).strip().lower() in {"1","true","yes","on","y"}
+    except Exception:
+        __hide = False
+    if __only and not __hide:
+        html_out = f"""
+        <div id=\"relatorioPrintArea\" class=\"card border-0 shadow-sm\">
+          <div class=\"card-body\">
+            {tabela_semana_html}
+          </div>
+        </div>
+        """
     return JsonResponse({"ok": True, "html": html_out})
 
 
@@ -1064,6 +1092,19 @@ def relatorios_parcial(request):
 def print_relatorio_semana(request):
     start = request.GET.get("start", "")
     end = request.GET.get("end", "")
+
+    # força ocultar justificativas neste modo de impressão
+    try:
+        q = request.GET.copy()
+        q["hide_just"] = "1"
+        request.GET = q
+    except Exception:
+        pass
+    # fallback robusto via atributo no request
+    try:
+        setattr(request, "_force_hide_just", True)
+    except Exception:
+        pass
 
     servidores = _fetch_plantonistas_via_bridge(request, start, end)
     if not servidores:
@@ -1076,12 +1117,17 @@ def print_relatorio_semana(request):
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Relatório {html.escape(start)} → {html.escape(end)}</title>
+  <title>Relatório {html.escape(start)} &#8594; {html.escape(end)}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body{{padding:8px; font-size:11px}}
     @page{{ margin:8mm; }}
     .table td,.table th{{ vertical-align: top; }}
+    /* Garantia extra: oculta bloco de programacao neste modo */
+    #programar-programacao-semana-block{{ display:none !important }}
+    .programacao-semana-table{{ display:none !important }}
+    /* Garantia extra: oculta bloco de justificativas neste modo */
+    .rel-atividades{{ display:none !important }}
     @media print{{ .no-print{{display:none!important}} }}
   </style>
 </head>
@@ -1091,9 +1137,62 @@ def print_relatorio_semana(request):
       <h3 class="mb-0">Relatório semanal</h3>
       <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">Imprimir</button>
     </div>
-    <div class="text-muted mb-3">Período: <strong>{html.escape(start)} → {html.escape(end)}</strong></div>
+    <div class="text-muted mb-3">Período: <strong>{html.escape(start)} &#8594; {html.escape(end)}</strong></div>
     <div class="mb-3">{plantonistas_html}</div>
     <hr class="my-3">
+    {tabela_semana_html}
+  </div>
+</body>
+</html>"""
+    return HttpResponse(html_out)
+
+
+@login_required
+@require_GET
+def print_relatorio_justificativas(request):
+    start = request.GET.get("start", "")
+    end = request.GET.get("end", "")
+
+    # força modo somente justificativas via query flag
+    try:
+        q = request.GET.copy()
+        q["only_just"] = "1"
+        request.GET = q
+    except Exception:
+        pass
+    # fallback robusto via atributo no request
+    try:
+        setattr(request, "_force_only_just", True)
+    except Exception:
+        pass
+
+    tabela_semana_html = _render_programacao_semana_html(request, start, end)
+
+    html_out = f"""<!doctype html>
+<html>
+<head>
+  <meta charset=\"utf-8\">
+  <title>Justificativas {html.escape(start)} &#8594; {html.escape(end)}</title>
+  <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
+  <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css\">
+  <style>
+    body{{padding:8px; font-size:11px}}
+    @page{{ margin:8mm; }}
+    .table td,.table th{{ vertical-align: top; }}
+    /* Avoid blank first page when only justifications */
+    .rel-atividades{{ break-before:auto !important; page-break-before:auto !important; }}
+    @media print{{ .no-print{{display:none!important}} }}
+  </style>
+</head>
+<body>
+  <div class=\"container\">
+    <div class=\"d-flex align-items-center justify-content-between no-print mb-3\">
+      <h3 class=\"mb-0\">Justificativa de atividades nao realizadas</h3>
+      <div class=\"btn-group btn-group-sm\">
+        <button class=\"btn btn-outline-secondary\" onclick=\"window.print()\">Imprimir</button>
+      </div>
+    </div>
+    <div class=\"text-muted mb-3\">Periodo: <strong>{html.escape(start)} &#8594; {html.escape(end)}</strong></div>
     {tabela_semana_html}
   </div>
 </body>
@@ -1512,3 +1611,4 @@ def concluir_item_form(request, item_id: int):
         "source": source_context,
     }
     return render(request, "minhas_metas/concluir_item.html", contexto)
+
