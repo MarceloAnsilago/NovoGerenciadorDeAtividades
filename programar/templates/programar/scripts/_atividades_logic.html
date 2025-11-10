@@ -7,6 +7,9 @@
   const allocations = (NS._allocations = NS._allocations || Object.create(null));
   const el = (id) => document.getElementById(id);
   const metaCardsContainer = () => el("metaCardsContainer");
+  function shouldAutoScroll(){
+    try { return Boolean(window.PROGRAMAR?.autoScrollModal); } catch(_) { return false; }
+  }
 
   function updateCounts() { NS.updateCounts?.(); }
   function syncConclusionLink(card) {
@@ -64,7 +67,9 @@
       const existing = cont.querySelector(`[data-meta-id="${metaId}"]`);
       if (existing) {
         tryAddVeiculosOptions(existing.querySelector("select.card-veiculos"));
-        existing.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+        if (shouldAutoScroll()) {
+          existing.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+        }
         return existing;
       }
     }
@@ -126,7 +131,9 @@
       try { (window.PROGRAMAR?.updateCounts || window.ProgramarCards?.updateCounts)?.(); } catch (_) {}
     }, { capture: true });
 
-    card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    if (shouldAutoScroll()) {
+      card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    }
     syncConclusionLink(card);
     updateCounts();
     return card;

@@ -17,7 +17,11 @@
     const card = container.querySelector(`[data-meta-id="${escapeSelector(metaId)}"]`);
     if (!card) return;
     card.classList.add("border-warning");
-    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    try {
+      if (window.PROGRAMAR?.autoScrollModal) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    } catch (_) {}
     setTimeout(() => card.classList.remove("border-warning"), 1500);
   }
 
