@@ -74,7 +74,8 @@
                   class="meta-card"
                   data-id="${m.id}"
                   data-programadas="${programadas}"
-                  data-alocado="${alocado}">
+                  data-alocado="${alocado}"
+                  data-month="${m.data_limite ? (new Date(m.data_limite).getFullYear() + '-' + String(new Date(m.data_limite).getMonth()+1).padStart(2,'0')) : 'nodate'}">
             <div class="meta-head">
               <span class="icon"><i class="bi bi-flag"></i></span>
               <h6 class="meta-title">${m.nome}</h6>
@@ -99,6 +100,30 @@
           </button>
         `;
       }).join("");
+
+      // === Abas por mês (filtro visual) ===
+      try{
+        const months = []; const labels = {};
+        (data.metas||[]).forEach(m=>{
+          let key='nodate', lab='Sem data';
+          if (m.data_limite){ const d=new Date(m.data_limite); const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); key=k; try{ const t=d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); lab=t.charAt(0).toUpperCase()+t.slice(1);}catch(_){ lab=k; } }
+          if (!months.includes(key)){ months.push(key); labels[key]=lab; }
+        });
+        // garante exibir a aba do mês selecionado
+        if (dateStr){ const d=new Date(dateStr); const sel=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); if (!months.includes(sel)){ months.push(sel); try{ const t=d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); labels[sel]=t.charAt(0).toUpperCase()+t.slice(1);}catch(_){ labels[sel]=sel; } } }
+        {
+          let cur = (dateStr ? (new Date(dateStr).getFullYear()+'-'+String(new Date(dateStr).getMonth()+1).padStart(2,'0')) : (months[0]||''));
+          const parts = ["<ul class='nav nav-tabs mb-2' id='metasTabs' role='tablist'>"];
+          parts.push(`<li class='nav-item' role='presentation'><button class='nav-link ${!cur?'active':''}' data-key='' type='button' role='tab'>Todos</button></li>`);
+          months.forEach(k=>{ const active=(k===cur); parts.push(`<li class='nav-item' role='presentation'><button class='nav-link ${active?'active':''}' data-key='${k}' type='button' role='tab'>${labels[k]}</button></li>`); });
+          parts.push("</ul>");
+          // coloca abas acima do grid
+          metasGrid.insertAdjacentHTML('beforebegin', parts.join(''));
+          function applyFilter(key){ metasGrid.querySelectorAll('.meta-card').forEach(c=>{ const mk=c.getAttribute('data-month')||'nodate'; c.style.display = (!key || mk===key) ? '' : 'none'; }); const tabs = metasGrid.previousElementSibling?.querySelectorAll?.('.nav-link') || []; tabs.forEach(b=>{ b.classList.toggle('active', b.getAttribute('data-key')===key); }); }
+          const tabContainer = metasGrid.previousElementSibling; tabContainer?.querySelectorAll?.('.nav-link')?.forEach(btn=>{ btn.addEventListener('click', ()=> applyFilter(btn.getAttribute('data-key'))); });
+          applyFilter(cur);
+        }
+      }catch(_e){}
 
       metasGrid.querySelectorAll(".meta-card").forEach((card) => {
         card.addEventListener("click", () => {
