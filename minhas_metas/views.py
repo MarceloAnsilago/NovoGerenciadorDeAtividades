@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from datetime import date
 from calendar import monthrange
 
@@ -47,7 +47,7 @@ def minhas_metas_view(request):
     if status_filter not in {"concluidas", "pendentes"}:
         status_filter = ""
 
-    alocacoes = (
+    alocacoes_qs = (
         MetaAlocacao.objects
         .select_related("meta", "meta__atividade", "meta__criado_por", "meta__unidade_criadora")
         .annotate(realizado_unidade=Sum("progresso__quantidade"))
@@ -55,7 +55,7 @@ def minhas_metas_view(request):
         .order_by("meta__data_limite", "meta__titulo")
     )
 
-    meta_ids = list(alocacoes.values_list("meta_id", flat=True))
+    meta_ids = list(alocacoes_qs.values_list("meta_id", flat=True))
     programadas_por_meta: dict[int, int] = {}
     if meta_ids:
         itens_stats = (
@@ -69,12 +69,37 @@ def minhas_metas_view(request):
             for row in itens_stats
         }
 
+    alocacoes = list(alocacoes_qs)
     for aloc in alocacoes:
         meta_obj = getattr(aloc, "meta", None)
         if meta_obj and getattr(meta_obj, "id", None):
             setattr(meta_obj, "programadas_total", programadas_por_meta.get(int(meta_obj.id), 0))
 
+    month_keys = OrderedDict()
+    for aloc in alocacoes:
+        meta_obj = getattr(aloc, "meta", None)
+        if not meta_obj:
+            continue
+        limite = getattr(meta_obj, "data_limite", None)
+        if limite and hasattr(limite, "date") and not isinstance(limite, date):
+            limite = limite.date()
+        if limite:
+            key = f"{limite.year}-{limite.month:02d}"
+            try:
+                label = limite.strftime("%B de %Y")
+            except Exception:
+                label = key
+            label = label.capitalize()
+        else:
+            key = "nodate"
+            label = "Sem data"
+        if key not in month_keys:
+            month_keys[key] = label
+        setattr(meta_obj, "month_key", key)
+
     tem_filhos = unidade.filhos.exists()
+
+    meta_month_filters = [{"key": key, "label": label} for key, label in month_keys.items()]
 
     today = timezone.localdate()
     default_start = today.replace(day=1)
@@ -181,5 +206,6 @@ def minhas_metas_view(request):
         "status_filter": status_filter,
         "meta_filter_id": meta_filter_id or 0,
         "meta_filter_title": selected_meta_title,
+        "meta_month_filters": meta_month_filters,
     }
     return render(request, "minhas_metas/lista_metas.html", contexto)

@@ -26,11 +26,28 @@
     <div></div>
   </div>
 
+  <div class="mb-3" id="metaMonthTabsWrapper">
+    <ul class="nav nav-tabs mb-0" id="metaMonthTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" type="button" role="tab" data-month-filter="">
+          Todos
+        </button>
+      </li>
+      {% for filter in meta_month_filters %}
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" type="button" role="tab" data-month-filter="{{ filter.key }}">
+            {{ filter.label }}
+          </button>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+
   {# ====== 1) GRID DE METAS (EM CIMA) ====== #}
-  <div class="row g-3">
+  <div class="row g-3" id="metaCardsGrid">
     {% for aloc in alocacoes %}
       {% with meta=aloc.meta %}
-      <div class="col-12 col-md-6 col-lg-4">
+    <div class="col-12 col-md-6 col-lg-4" data-month-key="{{ meta.month_key|default:'nodate' }}">
         <div class="card h-100 shadow-sm meta-click-card{% if meta_filter_id == meta.id %} meta-card-selected{% endif %}"
              role="button"
              tabindex="0"
@@ -212,6 +229,34 @@
   </div>
 </div>
 
+{# ====== JS: filtros de mes ===== #}
+<script>
+(function () {
+  var grid = document.getElementById("metaCardsGrid");
+  var tabs = Array.from(document.querySelectorAll("#metaMonthTabs .nav-link"));
+  if (!grid || !tabs.length) return;
+
+  var cards = Array.from(grid.querySelectorAll("[data-month-key]"));
+  function applyMonthFilter(key) {
+    cards.forEach(function (card) {
+      var matches = !key || card.dataset.monthKey === key;
+      card.style.display = matches ? "" : "none";
+    });
+    tabs.forEach(function (tab) {
+      var tabKey = tab.dataset.monthFilter || "";
+      tab.classList.toggle("active", tabKey === (key || ""));
+    });
+  }
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      applyMonthFilter(tab.dataset.monthFilter || "");
+    });
+  });
+
+  applyMonthFilter("");
+})();
+</script>
 {# ====== JS: aplica o width das barras a partir do data-pct ====== #}
 <script>
 (function () {
