@@ -15,6 +15,21 @@ from core.utils import get_unidade_atual
 from metas.models import MetaAlocacao
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 
+MONTH_NAMES_PT = (
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+)
+
 
 def _parse_iso(value: str | None) -> date | None:
     if not value:
@@ -85,11 +100,7 @@ def minhas_metas_view(request):
             limite = limite.date()
         if limite:
             key = f"{limite.year}-{limite.month:02d}"
-            try:
-                label = limite.strftime("%B de %Y")
-            except Exception:
-                label = key
-            label = label.capitalize()
+            label = f"{MONTH_NAMES_PT[limite.month - 1]} de {limite.year}"
         else:
             key = "nodate"
             label = "Sem data"
