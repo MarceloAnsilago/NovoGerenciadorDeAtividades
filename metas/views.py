@@ -454,28 +454,29 @@ def excluir_meta_view(request, meta_id):
         messages.warning(request, "Você não tem permissão para excluir esta meta.")
         return redirect(next_url)
 
-    # segurança: impedir exclusão se houver programação vinculada ou execução registrada
-    from programar.models import ProgramacaoItem  # import local para evitar custos em módulo
+    from programar.models import ProgramacaoItem  # import local para evitar custos em modulo
 
-    if ProgramacaoItem.objects.filter(meta=meta).exists():
-        messages.error(
-            request,
-            "Meta não pode ser excluída: ela está vinculada à programação de atividades.",
+    atividades_qs = ProgramacaoItem.objects.filter(meta=meta)
+    atividades_removidas = atividades_qs.count()
+
+    with transaction.atomic():
+        if atividades_removidas:
+            atividades_qs.delete()
+
+        titulo = meta.display_titulo
+        meta.delete()
+
+    mensagem = f"Meta '{titulo}' excluida com sucesso."
+    if atividades_removidas:
+        plural = 's' if atividades_removidas != 1 else ''
+        verbo = 'foram' if atividades_removidas != 1 else 'foi'
+        mensagem += (
+            f" {atividades_removidas} atividade{plural} planejada{plural} {verbo} removida{plural}"
+            " junto com as programacoes vinculadas."
         )
-        return redirect(next_url)
-
-    if ProgressoMeta.objects.filter(alocacao__meta=meta).exists():
-        messages.error(
-            request,
-            "Meta não pode ser excluída porque já possui registros de execução.",
-        )
-        return redirect(next_url)
-
-    titulo = meta.display_titulo
-    meta.delete()
-    messages.success(request, f"Meta '{titulo}' excluída com sucesso.")
+    mensagem += ' Todos os registros ligados a essa meta foram removidos em cascata.'
+    messages.success(request, mensagem)
     return redirect(next_url)
-
 
 @login_required
 def toggle_encerrada_view(request, meta_id):

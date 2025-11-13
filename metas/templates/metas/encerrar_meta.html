@@ -195,5 +195,29 @@
       </div>
     </div>
   </form>
+
+  <div class="card shadow-sm border-danger border-opacity-50">
+    <div class="card-body">
+      <div class="d-flex flex-column flex-md-row gap-3 align-items-start">
+        <div class="flex-grow-1">
+          <h2 class="h6 mb-1 text-danger"><i class="bi bi-trash me-1"></i>Excluir meta</h2>
+          <p class="mb-0 text-muted small">
+            Exclui definitivamente esta meta, todas as alocações, registros de progresso e atividades vinculadas à programação.
+            Essa ação é irreversível e remove em cascata tudo relacionado a ela.
+          </p>
+        </div>
+        <form method="post" action="{% url 'metas:excluir-meta' meta.id %}" class="me-md-2">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next_url }}">
+          <button
+            type="submit"
+            class="btn btn-outline-danger fw-semibold"
+            onclick="return confirm('Tem certeza? A exclusão remove esta meta e todas as atividades vinculadas.')">
+            Excluir meta
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

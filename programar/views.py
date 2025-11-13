@@ -1256,6 +1256,8 @@ def events_feed(request):
         pid = prog["id"]
         contadores = counts.get(pid, {"total": 0, "concluidas": 0})
         total = contadores["total"]
+        if total == 0:
+            continue
         concluidas = contadores["concluidas"]
 
         total_label = f"{total} atividade{'s' if total != 1 else ''}"
