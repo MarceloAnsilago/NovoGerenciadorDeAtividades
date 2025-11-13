@@ -22,6 +22,10 @@
   <td class="text-end">
     {% if request.user.is_superuser or meta.unidade_criadora_id == unidade.id %}
       <div class="d-inline-flex flex-wrap justify-content-end gap-2">
+        <a href="{% url 'metas:editar' meta.id %}?next={{ request.get_full_path|urlencode }}"
+           class="btn btn-sm btn-outline-warning">
+          <i class="bi bi-pencil"></i> Editar
+        </a>
         {% if meta.encerrada %}
           <form method="post"
                 action="{% url 'metas:toggle_encerrada' meta.id %}"
