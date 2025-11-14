@@ -4,6 +4,17 @@ document.addEventListener('DOMContentLoaded', function(){
   const el = document.getElementById('programar-calendar');
   if (!el) return;
 
+  (function ensureCalendarEventStyles() {
+    if (document.getElementById('programar-calendar-event-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'programar-calendar-event-styles';
+    style.textContent = `
+      .programar-event-lines{display:flex;flex-direction:column;gap:.15rem;font-size:.75rem;line-height:1.1;word-break:break-word;}
+      .programar-event-line{white-space:normal;}
+    `;
+    document.head.appendChild(style);
+  })();
+
   // desabilita botoes de gerar/imprimir ate escolher uma semana
   const printBtns = [
     'programar-btnImprimirProgramacao','btnImprimirProgramacao',
@@ -20,6 +31,31 @@ document.addEventListener('DOMContentLoaded', function(){
     buttonText: { today: 'Hoje' },
 
     events: NS.urls.eventsFeed,
+    eventContent(info) {
+      const nomes = info.event.extendedProps?.nomes_atividades;
+      const textos = Array.isArray(nomes) ? nomes : [];
+      if (!textos.length) {
+        return null;
+      }
+      const container = document.createElement('div');
+      container.className = 'programar-event-lines';
+      textos.forEach((line) => {
+        const lineEl = document.createElement('div');
+        lineEl.className = 'programar-event-line';
+        lineEl.textContent = line;
+        container.appendChild(lineEl);
+      });
+      return { domNodes: [container] };
+    },
+    eventClick(info) {
+      if (typeof NS.openProgramarModal === 'function') {
+        const data = info.event.start;
+        if (data instanceof Date) {
+          const dataBR = data.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+          NS.openProgramarModal(data.toISOString().slice(0, 10), dataBR);
+        }
+      }
+    },
 
     // agora so popula o select; NAO chama o relatorio automaticamente
     datesSet(arg){

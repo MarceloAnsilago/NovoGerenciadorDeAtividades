@@ -1227,6 +1227,7 @@ def events_feed(request):
     programacoes = list(qs.values("id", "data", "concluida"))
     prog_ids = [p["id"] for p in programacoes]
     counts: Dict[int, Dict[str, int]] = {pid: {"total": 0, "concluidas": 0} for pid in prog_ids}
+    metas_por_programacao: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
 
     if prog_ids:
         itens_qs = ProgramacaoItem.objects.filter(programacao_id__in=prog_ids)
@@ -1250,6 +1251,31 @@ def events_feed(request):
                     "total": int(row.get("total") or 0),
                     "concluidas": int(row.get("concluidas") or 0),
                 }
+        seen_por_prog: Dict[int, set[str]] = {pid: set() for pid in prog_ids}
+        itens_com_meta = itens_qs.select_related("meta", "meta__atividade").order_by("programacao_id", "meta__titulo")
+        for item in itens_com_meta:
+            pid = item.programacao_id
+            if pid not in metas_por_programacao:
+                continue
+            meta = getattr(item, "meta", None)
+            if not meta:
+                continue
+            titulo = getattr(meta, "display_titulo", None)
+            if not titulo:
+                titulo = getattr(meta, "titulo", None)
+            if not titulo:
+                atividade = getattr(meta, "atividade", None)
+                if atividade:
+                    titulo = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
+            if not titulo:
+                continue
+            titulo = str(titulo).strip()
+            if not titulo:
+                continue
+            if titulo in seen_por_prog[pid]:
+                continue
+            seen_por_prog[pid].add(titulo)
+            metas_por_programacao[pid].append(titulo)
 
     data = []
     for prog in programacoes:
@@ -1260,9 +1286,11 @@ def events_feed(request):
             continue
         concluidas = contadores["concluidas"]
 
+        nome_atividades = metas_por_programacao.get(pid) or []
+        nome_titulo = "; ".join(nome_atividades) if nome_atividades else ""
         total_label = f"{total} atividade{'s' if total != 1 else ''}"
         concluidas_label = f"{concluidas} concluida{'s' if concluidas != 1 else ''}"
-        title = f"({total_label} | {concluidas_label})"
+        title = nome_titulo or f"({total_label} | {concluidas_label})"
         if prog.get("concluida"):
             title = "[Concluída] " + title
 
@@ -1274,6 +1302,7 @@ def events_feed(request):
             "extendedProps": {
                 "total_programadas": total,
                 "total_concluidas": concluidas,
+                "nomes_atividades": nome_atividades,
             },
         })
     return JsonResponse(data, safe=False)
