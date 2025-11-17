@@ -1402,7 +1402,7 @@ def programacao_do_dia_orm(request):
         return JsonResponse({"ok": True, "itens": []})
 
     itens_qs = ProgramacaoItem.objects.filter(programacao=prog).values(
-        "id", "meta_id", "observacao", "veiculo_id"
+        "id", "meta_id", "observacao", "veiculo_id", "concluido"
     )
     item_ids = [it["id"] for it in itens_qs]
     serv_ids_by_item: Dict[int, List[int]] = {}
@@ -1427,6 +1427,7 @@ def programacao_do_dia_orm(request):
             "meta_id": meta_id,
             "observacao": it.get("observacao") or "",
             "veiculo_id": it.get("veiculo_id"),
+            "concluido": bool(it.get("concluido")),
             "servidores_ids": serv_ids_by_item.get(iid, []),
             "servidores": serv_objs_by_item.get(iid, []),
         }

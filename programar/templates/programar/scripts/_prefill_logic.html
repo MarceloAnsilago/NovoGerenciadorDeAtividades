@@ -210,11 +210,11 @@
 
     if (it.id) {
       card.dataset.itemId = String(it.id);
-      window.PROGRAMAR?.syncMetaConclusionLink?.(card);
     } else {
       delete card.dataset.itemId;
-      window.PROGRAMAR?.syncMetaConclusionLink?.(card);
     }
+    card.dataset.concluido = it.concluido ? "true" : "false";
+    window.PROGRAMAR?.syncMetaConclusionLink?.(card);
 
     const ta = card.querySelector('textarea[name="observacao"]');
     if (ta) ta.value = it.observacao || '';

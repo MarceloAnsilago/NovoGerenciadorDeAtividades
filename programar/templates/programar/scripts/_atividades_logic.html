@@ -12,6 +12,32 @@
   }
 
   function updateCounts() { NS.updateCounts?.(); }
+
+  function isCardConcluded(card) {
+    if (!card) return false;
+    const raw = String(card.dataset.concluido || "").toLowerCase();
+    return raw === "true" || raw === "1";
+  }
+
+  function applyConclusionStyles(link, concluded) {
+    if (!link) return;
+    if (concluded) {
+      link.classList.add("btn-success");
+      link.classList.remove("btn-outline-success");
+    } else {
+      link.classList.remove("btn-success");
+      link.classList.add("btn-outline-success");
+    }
+    const icon = link.querySelector("i");
+    if (icon) {
+      icon.classList.toggle("bi-check2-square", !concluded);
+      icon.classList.toggle("bi-check-circle", concluded);
+    }
+    const label = concluded ? "Atividade concluída em Minhas Metas" : "Concluir item em Minhas Metas";
+    link.title = label;
+    link.setAttribute("aria-label", label);
+  }
+
   function syncConclusionLink(card) {
     if (!card) return;
     const link = card.querySelector(".meta-concluir");
@@ -37,6 +63,7 @@
       link.classList.add("d-none");
       link.setAttribute("aria-disabled", "true");
     }
+    applyConclusionStyles(link, isCardConcluded(card));
   }
   NS.syncMetaConclusionLink = syncConclusionLink;
   function tryAddVeiculosOptions(select) {
@@ -109,6 +136,7 @@
         </div>
       </div>
     `;
+    card.dataset.concluido = "false";
 
     cont.appendChild(card);
     tryAddVeiculosOptions(card.querySelector("select.card-veiculos"));
