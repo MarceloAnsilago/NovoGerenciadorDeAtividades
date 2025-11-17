@@ -884,6 +884,11 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
     # ---------- CSS embutido ----------
     style = (
         "<style>"
+        "/* ====== RELATÓRIO ====== */"
+        ".report-container{ max-width:1200px; margin-left:auto; margin-right:auto; padding:0 0.5rem; }"
+        ".report-toolbar{ display:flex; align-items:center; gap:.35rem; }"
+        ".report-toolbar .btn{ min-width:110px; }"
+        ".report-toolbar .btn i{ margin-right:.35rem; }"
         "/* ====== TELA ====== */"
         ".programacao-semana-table tbody td.veiculo-cell{"
         "  text-align:center !important; vertical-align:middle !important;"
@@ -895,7 +900,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table th:first-child, .programacao-semana-table td.dia-cell{ min-width:110px; }"
         ".programacao-semana-table td, .programacao-semana-table th{ vertical-align: top; }"
 
-        "/* Relatório 'Justificativa…' */"
+        "/* Relatório 'Justificativa' */"
         ".rel-atividades .card-ativ{ page-break-inside: avoid; }"
         ".rel-atividades .mini-table{ width:100%; border-collapse:collapse; }"
         ".rel-atividades .mini-table td{ border:1px solid var(--bs-border-color); padding:.35rem .5rem; }"
@@ -941,6 +946,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "    vertical-align: middle !important;"
         "  }"
         "  div.mt-4.rel-atividades{ break-before: page; page-break-before: always; }"
+        "  .report-toolbar, .report-toolbar .btn, .report-toolbar .btn-group, .btn{ display:none !important; }"
         "}"
         "</style>"
     )
@@ -1055,15 +1061,35 @@ def relatorios_parcial(request):
 
     plantonistas_html = _render_plantonistas_html(servidores, start, end)
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
+    period_label = f"{html.escape(start)} &#8594; {html.escape(end)}"
 
     html_out = f"""
     <div id="relatorioPrintArea" class="card border-0 shadow-sm">
       <div class="card-body">
-        <h5 class="card-title mb-2">Relatório semanal</h5>
-        <div class="text-muted mb-3">Período: <strong>{html.escape(start)} &#8594; {html.escape(end)}</strong></div>
-        <div class="mb-3">{plantonistas_html}</div>
-        <hr class="my-3">
-        {tabela_semana_html}
+        <div class="container mt-3 report-container px-0">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">
+              <i class="bi bi-list-check me-2"></i> Relatório de atividades
+            </h2>
+            <div id="relatorio-toolbar" class="report-toolbar no-print">
+              <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary" title="Imprimir relatório" onclick="window.print()">
+                  <i class="bi bi-printer me-1"></i> Imprimir
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="text-muted small mb-3">
+            Período: <strong>{period_label}</strong>
+          </div>
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-0">
+              <div class="mb-3">{plantonistas_html}</div>
+              <hr class="my-3">
+              {tabela_semana_html}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     """
@@ -1112,6 +1138,7 @@ def print_relatorio_semana(request):
 
     plantonistas_html = _render_plantonistas_html(servidores, start, end)
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
+    period_label = f"{html.escape(start)} &#8594; {html.escape(end)}"
 
     html_out = f"""<!doctype html>
 <html>
@@ -1119,28 +1146,33 @@ def print_relatorio_semana(request):
   <meta charset="utf-8">
   <title>Relatório {html.escape(start)} &#8594; {html.escape(end)}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
     body{{padding:8px; font-size:11px}}
     @page{{ margin:8mm; }}
-    .table td,.table th{{ vertical-align: top; }}
-    /* Garantia extra: oculta bloco de programacao neste modo */
-    #programar-programacao-semana-block{{ display:none !important }}
-    .programacao-semana-table{{ display:none !important }}
-    /* Garantia extra: oculta bloco de justificativas neste modo */
-    .rel-atividades{{ display:none !important }}
-    @media print{{ .no-print{{display:none!important}} }}
+    .report-container{{ max-width:1100px; margin:0 auto; }}
+    .report-toolbar{{ display:flex; align-items:center; gap:.35rem; }}
+    .report-toolbar .btn{{ min-width:110px; }}
+    @media print{{ .report-toolbar, .report-toolbar .btn, .no-print {{display:none!important;}} }}
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="d-flex align-items-center justify-content-between no-print mb-3">
+  <div class="container mt-3 report-container">
+    <div class="d-flex justify-content-between align-items-center mb-3 no-print">
       <h3 class="mb-0">Relatório semanal</h3>
-      <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">Imprimir</button>
+      <div class="report-toolbar">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+          <i class="bi bi-printer me-1"></i> Imprimir
+        </button>
+      </div>
     </div>
-    <div class="text-muted mb-3">Período: <strong>{html.escape(start)} &#8594; {html.escape(end)}</strong></div>
-    <div class="mb-3">{plantonistas_html}</div>
-    <hr class="my-3">
-    {tabela_semana_html}
+    <div class="text-muted small mb-3">Período: <strong>{period_label}</strong></div>
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        <div class="mb-3">{plantonistas_html}</div>
+        <div>{tabela_semana_html}</div>
+      </div>
+    </div>
   </div>
 </body>
 </html>"""
@@ -1167,33 +1199,40 @@ def print_relatorio_justificativas(request):
         pass
 
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
+    period_label = f"{html.escape(start)} &#8594; {html.escape(end)}"
 
     html_out = f"""<!doctype html>
 <html>
 <head>
-  <meta charset=\"utf-8\">
+  <meta charset="utf-8">
   <title>Justificativas {html.escape(start)} &#8594; {html.escape(end)}</title>
-  <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
-  <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css\">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
     body{{padding:8px; font-size:11px}}
     @page{{ margin:8mm; }}
-    .table td,.table th{{ vertical-align: top; }}
-    /* Avoid blank first page when only justifications */
-    .rel-atividades{{ break-before:auto !important; page-break-before:auto !important; }}
-    @media print{{ .no-print{{display:none!important}} }}
+    .report-container{{ max-width:1100px; margin:0 auto; }}
+    .report-toolbar{{ display:flex; align-items:center; gap:.35rem; }}
+    .report-toolbar .btn{{ min-width:110px; }}
+    @media print{{ .report-toolbar, .report-toolbar .btn, .no-print {{display:none!important;}} }}
   </style>
 </head>
 <body>
-  <div class=\"container\">
-    <div class=\"d-flex align-items-center justify-content-between no-print mb-3\">
-      <h3 class=\"mb-0\">Justificativa de atividades nao realizadas</h3>
-      <div class=\"btn-group btn-group-sm\">
-        <button class=\"btn btn-outline-secondary\" onclick=\"window.print()\">Imprimir</button>
+  <div class="container mt-3 report-container">
+    <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+      <h3 class="mb-0">Justificativa de atividades não realizadas</h3>
+      <div class="report-toolbar">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+          <i class="bi bi-printer me-1"></i> Imprimir
+        </button>
       </div>
     </div>
-    <div class=\"text-muted mb-3\">Periodo: <strong>{html.escape(start)} &#8594; {html.escape(end)}</strong></div>
-    {tabela_semana_html}
+    <div class="text-muted small mb-3">Período: <strong>{period_label}</strong></div>
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        {tabela_semana_html}
+      </div>
+    </div>
   </div>
 </body>
 </html>"""
