@@ -4,6 +4,9 @@ python manage.py runserver
 
 python manage.py shell
 
+
+flyctl deploy -a gerenciador-de-atividades
+
 admin
 admin123
 
