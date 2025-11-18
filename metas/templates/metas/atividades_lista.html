@@ -30,7 +30,7 @@
           <label class="form-label mb-1">Status</label>
           <select id="filtroMetasStatus" class="form-select form-select-sm">
             <option value="">Todos</option>
-            <option value="andamento">Em andamento</option>
+            <option value="andamento" selected>Em andamento</option>
             <option value="concluida">Concluidas</option>
             <option value="atrasada">Atrasadas</option>
             <option value="encerrada">Encerradas</option>
@@ -164,7 +164,7 @@
     return Number.isNaN(dt.getTime()) ? null : dt;
   }
 
-  btnFiltro.addEventListener("click", function() {
+  function aplicarFiltro() {
     var inicio = parseDate(document.getElementById("filtroMetasInicio")?.value || "");
     var fim = parseDate(document.getElementById("filtroMetasFim")?.value || "");
     var status = (document.getElementById("filtroMetasStatus")?.value || "").toLowerCase();
@@ -192,7 +192,10 @@
     if (emptyRow) {
       emptyRow.classList.toggle("d-none", visibleCount > 0);
     }
-  });
+  }
+
+  btnFiltro.addEventListener("click", aplicarFiltro);
+  aplicarFiltro();
 })();
 </script>
 {% endblock %}

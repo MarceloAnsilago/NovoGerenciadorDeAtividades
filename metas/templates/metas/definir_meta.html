@@ -100,7 +100,7 @@
           <div class="col-auto">
             <label for="status" class="form-label mb-0">Filtrar por status:</label>
             <select name="status" id="status" class="form-select" onchange="this.form.submit()">
-              <option value="">Todos os status</option>
+              <option value="" {% if status_selecionado == '' %}selected{% endif %}>Todos os status</option>
               <option value="andamento" {% if status_selecionado == 'andamento' %}selected{% endif %}>Em andamento</option>
               <option value="concluida" {% if status_selecionado == 'concluida' %}selected{% endif %}>Concluída</option>
               <option value="atrasada" {% if status_selecionado == 'atrasada' %}selected{% endif %}>Atrasada</option>

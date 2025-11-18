@@ -156,7 +156,13 @@ def definir_meta_view(request, atividade_id):
     )
 
     ano_selecionado = request.GET.get("ano")
-    status_selecionado = request.GET.get("status")
+    status_param = request.GET.get("status")
+    if status_param is None:
+        status_selecionado = "andamento"
+    elif status_param in {"concluida", "atrasada", "andamento", ""}:
+        status_selecionado = status_param
+    else:
+        status_selecionado = ""
 
     metas_atividade = Meta.objects.filter(atividade=atividade)
     if ano_selecionado:

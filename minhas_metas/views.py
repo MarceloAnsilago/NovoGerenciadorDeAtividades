@@ -58,9 +58,16 @@ def minhas_metas_view(request):
     except (TypeError, ValueError):
         meta_filter_id = None
 
-    status_filter = (request.GET.get("status") or "").lower()
-    if status_filter not in {"concluidas", "pendentes"}:
-        status_filter = ""
+    status_param = request.GET.get("status")
+    status_value = (status_param or "").lower()
+    if status_value not in {"concluidas", "pendentes"}:
+        status_value = ""
+
+    status_query_filter = status_value
+    status_dropdown = status_value
+    if status_param is None:
+        status_query_filter = "pendentes"
+        status_dropdown = "pendentes"
 
     alocacoes_qs = (
         MetaAlocacao.objects
@@ -142,9 +149,9 @@ def minhas_metas_view(request):
         itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
     if meta_filter_id:
         itens_qs = itens_qs.filter(meta_id=meta_filter_id)
-    if status_filter == "concluidas":
+    if status_query_filter == "concluidas":
         itens_qs = itens_qs.filter(concluido=True)
-    elif status_filter == "pendentes":
+    elif status_query_filter == "pendentes":
         itens_qs = itens_qs.filter(concluido=False)
 
     item_ids = list(itens_qs.values_list("id", flat=True))
@@ -214,7 +221,7 @@ def minhas_metas_view(request):
         "andamento": andamento,
         "dt_start": dt_start,
         "dt_end": dt_end,
-        "status_filter": status_filter,
+        "status_filter": status_dropdown,
         "meta_filter_id": meta_filter_id or 0,
         "meta_filter_title": selected_meta_title,
         "meta_month_filters": meta_month_filters,
