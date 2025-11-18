@@ -72,19 +72,44 @@
     }
   };
 
+  function isoDate(d){
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function monthRangeFromCalendar(){
+    try{
+      const arg = window._lastCalendarArg;
+      const view = arg?.view;
+      if (view?.currentStart && view?.currentEnd){
+        const start = new Date(view.currentStart);
+        const end = new Date(view.currentEnd);
+        end.setDate(end.getDate() - 1);
+        if (end < start){
+          end.setTime(start.getTime());
+        }
+        return { start, end };
+      }
+    }catch(_e){}
+    return null;
+  }
+
+  function fallbackMonthRange(){
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth()+1, 0);
+    return { start, end };
+  }
+
   // Botão opcional: Imprimir mês (gera relatório do mês na tela)
   document.addEventListener('click', function(ev){
     const btn = ev.target.closest?.('#programar-btnImprimirMes');
-    if (!btn) return; ev.preventDefault();
+    if (!btn) return;
+    ev.preventDefault();
     try{
-      const today = new Date();
-      const start = new Date(today.getFullYear(), today.getMonth(), 1);
-      const end = new Date(today.getFullYear(), today.getMonth()+1, 0);
-      const iso = d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const range = monthRangeFromCalendar() || fallbackMonthRange();
       NS.reportMode = 'programacao-only';
-      NS.loadRelatoriosForRange(iso(start), iso(end));
+      NS.loadRelatoriosForRange(isoDate(range.start), isoDate(range.end));
     }catch(_e){}
   });
-
 })();
 </script>

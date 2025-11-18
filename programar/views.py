@@ -1073,7 +1073,7 @@ def relatorios_parcial(request):
             </h2>
             <div id="relatorio-toolbar" class="report-toolbar no-print">
               <div class="btn-group btn-group-sm">
-                <button type="button" class="btn btn-outline-secondary" title="Imprimir relatório" onclick="window.print()">
+                <button id="relatorio-btn-print" type="button" class="btn btn-outline-secondary" title="Imprimir relatório">
                   <i class="bi bi-printer me-1"></i> Imprimir
                 </button>
               </div>
