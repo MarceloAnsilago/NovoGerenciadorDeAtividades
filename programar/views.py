@@ -162,6 +162,19 @@ def _parse_date(s: str) -> date | None:
     except Exception:
         return None
 
+def _format_iso_to_br(date_str: str) -> str:
+    if not date_str:
+        return ""
+    raw = date_str[:10]
+    try:
+        parsed = datetime.strptime(raw, "%Y-%m-%d").date()
+        return parsed.strftime("%d/%m/%Y")
+    except Exception:
+        return html.escape(date_str)
+
+def _period_label_br(start: str, end: str) -> str:
+    return f"{_format_iso_to_br(start)} &#8594; {_format_iso_to_br(end)}"
+
 @login_required
 @csrf_protect
 @require_POST
@@ -1061,7 +1074,7 @@ def relatorios_parcial(request):
 
     plantonistas_html = _render_plantonistas_html(servidores, start, end)
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
-    period_label = f"{html.escape(start)} &#8594; {html.escape(end)}"
+    period_label = _period_label_br(start, end)
 
     html_out = f"""
     <div id="relatorioPrintArea" class="card border-0 shadow-sm">
@@ -1138,13 +1151,13 @@ def print_relatorio_semana(request):
 
     plantonistas_html = _render_plantonistas_html(servidores, start, end)
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
-    period_label = f"{html.escape(start)} &#8594; {html.escape(end)}"
+    period_label = _period_label_br(start, end)
 
     html_out = f"""<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Relatório {html.escape(start)} &#8594; {html.escape(end)}</title>
+  <title>Relatório {period_label}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
@@ -1199,13 +1212,13 @@ def print_relatorio_justificativas(request):
         pass
 
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
-    period_label = f"{html.escape(start)} &#8594; {html.escape(end)}"
+    period_label = _period_label_br(start, end)
 
     html_out = f"""<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Justificativas {html.escape(start)} &#8594; {html.escape(end)}</title>
+  <title>Justificativas {period_label}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
