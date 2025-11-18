@@ -51,10 +51,16 @@
 
 <script>
 (function(){
-  // Recarrega a página toda sempre que a modal for FECHADA
+  const refresh = () => {
+    try {
+      const handler = window.PROGRAMAR?.refreshCalendarEvents;
+      if (typeof handler === 'function') handler();
+    } catch (_err) {}
+  };
+
   document.addEventListener('hidden.bs.modal', function (ev) {
     if (!ev.target || ev.target.id !== 'programar-modalAtividade') return;
-    window.location.reload();
+    refresh();
   });
 })();
 </script>

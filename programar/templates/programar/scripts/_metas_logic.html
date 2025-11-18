@@ -106,6 +106,10 @@
       }).join("");
 
       // === Abas por mês (filtro visual) ===
+      const existingTabs = document.getElementById("metasTabs");
+      if (existingTabs) {
+        existingTabs.remove();
+      }
       try{
         const months = []; const labels = {};
         (data.metas||[]).forEach(m=>{

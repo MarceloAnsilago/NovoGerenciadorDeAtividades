@@ -76,6 +76,15 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   });
   calendar.render();
+  NS.calendar = calendar;
+
+  function refreshCalendarEvents() {
+    if (!calendar || typeof calendar.refetchEvents !== 'function') return;
+    calendar.refetchEvents();
+  }
+  NS.refreshCalendarEvents = refreshCalendarEvents;
+  document.addEventListener('programar:saved', refreshCalendarEvents);
+  document.addEventListener('programar:deleted', refreshCalendarEvents);
 
   function isoDate(d){ return d.toISOString().slice(0,10); }
   function prevOrSameSaturday(d){ const x = new Date(d); const sh=(x.getDay()-6+7)%7; x.setDate(x.getDate()-sh); return x; }
