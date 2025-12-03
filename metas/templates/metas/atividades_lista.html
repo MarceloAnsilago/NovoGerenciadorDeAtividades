@@ -12,12 +12,29 @@
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
       <div>
-        <strong><i class="bi bi-bullseye me-1"></i> Metas Alocadas (Resumo)</strong>
+        <strong><i class="bi bi-bullseye me-1"></i> Metas Alocadas</strong>
         <div class="small text-muted">Visualizacao geral das metas da unidade.</div>
       </div>
       <a href="{% url 'metas:metas-unidade' %}" class="btn btn-sm btn-outline-secondary">Abrir tela completa</a>
     </div>
     <div class="card-body">
+      <div class="mb-3" id="metasMonthTabsWrapper">
+        <ul class="nav nav-tabs" id="metasMonthTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" type="button" role="tab" data-month-filter="">
+              Todos
+            </button>
+          </li>
+          {% for filter in meta_month_filters %}
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" type="button" role="tab" data-month-filter="{{ filter.key }}">
+                {{ filter.label }}
+              </button>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+
       <div class="row g-2 mb-3">
         <div class="col-md-4">
           <label class="form-label mb-1">Periodo</label>
@@ -151,6 +168,10 @@
 (function() {
   var btnFiltro = document.getElementById("btnAplicarFiltroMetas");
   var tbody = document.getElementById("tabelaMetasBody");
+  var monthTabs = Array.from(document.querySelectorAll("#metasMonthTabs .nav-link"));
+  var startInput = document.getElementById("filtroMetasInicio");
+  var endInput = document.getElementById("filtroMetasFim");
+  var selectedMonthKey = "";
   if (!btnFiltro || !tbody) return;
 
   function parseDate(value) {
@@ -164,10 +185,38 @@
     return Number.isNaN(dt.getTime()) ? null : dt;
   }
 
+  function getRangeFromMonthKey(key) {
+    if (!key || key === "nodate") return null;
+    var parts = key.split("-");
+    if (parts.length !== 2) return null;
+    var year = Number(parts[0]);
+    var month = Number(parts[1]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
+    var start = new Date(year, month - 1, 1);
+    var end = new Date(year, month, 0);
+    var pad = function(n) { return String(n).padStart(2, "0"); };
+    return {
+      start: year + "-" + pad(month) + "-" + pad(start.getDate()),
+      end: year + "-" + pad(month) + "-" + pad(end.getDate())
+    };
+  }
+
+  function applyRangeInputs(range) {
+    if (!startInput || !endInput) return;
+    if (!range) {
+      startInput.value = "";
+      endInput.value = "";
+      return;
+    }
+    startInput.value = range.start;
+    endInput.value = range.end;
+  }
+
   function aplicarFiltro() {
     var inicio = parseDate(document.getElementById("filtroMetasInicio")?.value || "");
     var fim = parseDate(document.getElementById("filtroMetasFim")?.value || "");
     var status = (document.getElementById("filtroMetasStatus")?.value || "").toLowerCase();
+    var monthKey = (selectedMonthKey || "").toLowerCase();
 
     var rows = Array.from(tbody.querySelectorAll("tr"));
     var emptyRow = tbody.querySelector(".metas-empty-row");
@@ -178,10 +227,12 @@
 
       var rowStatus = (row.getAttribute("data-meta-status") || "").toLowerCase();
       var rowDataRaw = row.getAttribute("data-meta-data") || "";
+      var rowMonthKey = (row.getAttribute("data-meta-month") || "").toLowerCase();
       var rowDate = parseDate(rowDataRaw);
 
       var visible = true;
       if (status && rowStatus !== status) visible = false;
+      if (visible && monthKey && rowMonthKey !== monthKey) visible = false;
       if (visible && inicio && rowDate && rowDate < inicio) visible = false;
       if (visible && fim && rowDate && rowDate > fim) visible = false;
 
@@ -195,6 +246,20 @@
   }
 
   btnFiltro.addEventListener("click", aplicarFiltro);
+  if (monthTabs.length) {
+    monthTabs.forEach(function(tab) {
+      tab.addEventListener("click", function() {
+        selectedMonthKey = tab.getAttribute("data-month-filter") || "";
+        monthTabs.forEach(function(t) {
+          var key = t.getAttribute("data-month-filter") || "";
+          t.classList.toggle("active", key === selectedMonthKey);
+        });
+        var range = getRangeFromMonthKey(selectedMonthKey);
+        applyRangeInputs(range);
+        aplicarFiltro();
+      });
+    });
+  }
   aplicarFiltro();
 })();
 </script>

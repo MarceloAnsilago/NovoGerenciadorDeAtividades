@@ -1,7 +1,8 @@
 {% for aloc in alocacoes %}
 {% with meta=aloc.meta %}
 <tr data-meta-status="{% if meta.encerrada %}encerrada{% elif meta.atrasada %}atrasada{% elif meta.concluida %}concluida{% else %}andamento{% endif %}"
-    data-meta-data="{{ meta.data_limite|date:'Y-m-d' }}">
+    data-meta-data="{{ meta.data_limite|date:'Y-m-d' }}"
+    data-meta-month="{{ meta.month_key|default:'nodate' }}">
   <td>{{ meta.display_titulo }}</td>
   <td>{% if meta.atividade %}{{ meta.atividade.titulo }}{% else %}<span class="text-muted">--</span>{% endif %}</td>
   <td>{{ meta.data_limite|date:"d/m/Y"|default:"--" }}</td>

@@ -1,5 +1,6 @@
 # metas/views.py
-from collections import deque, defaultdict
+from collections import deque, defaultdict, OrderedDict
+from datetime import date
 from types import SimpleNamespace
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -20,6 +21,43 @@ from .forms import MetaForm
 from django.http import HttpResponseForbidden
 from django.views.decorators.http import require_http_methods
 from django.db.models.functions import ExtractYear
+
+MONTH_NAMES_PT = (
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+)
+
+
+def _build_month_filters(alocacoes):
+    month_keys = OrderedDict()
+    for aloc in alocacoes:
+        meta_obj = getattr(aloc, "meta", None)
+        if not meta_obj:
+            continue
+        limite = getattr(meta_obj, "data_limite", None)
+        if limite and hasattr(limite, "date") and not isinstance(limite, date):
+            limite = limite.date()
+        if limite:
+            key = f"{limite.year}-{limite.month:02d}"
+            label = f"{MONTH_NAMES_PT[limite.month - 1]} de {limite.year}"
+        else:
+            key = "nodate"
+            label = "Sem data"
+        if key not in month_keys:
+            month_keys[key] = label
+        setattr(meta_obj, "month_key", key)
+
+    return [{"key": key, "label": label} for key, label in month_keys.items()]
 
 def _prepare_metas_context(request, *, emit_messages=False):
     unidade = get_unidade_atual(request)
@@ -76,6 +114,9 @@ def _prepare_metas_context(request, *, emit_messages=False):
     elif status == "encerradas":
         alocacoes = alocacoes.filter(meta__encerrada=True)
 
+    alocacoes = list(alocacoes)
+    meta_month_filters = _build_month_filters(alocacoes)
+
     return {
         "unidade": unidade,
         "alocacoes": alocacoes,
@@ -83,6 +124,7 @@ def _prepare_metas_context(request, *, emit_messages=False):
         "area_selected": area_code,
         "status_selected": status,
         "has_unidade": True,
+        "meta_month_filters": meta_month_filters,
     }
 
 
@@ -131,13 +173,14 @@ def atividades_lista_view(request):
             "unidade_nome": getattr(unidade, "nome", "Nao selecionada"),
             "atividades": page_obj.object_list,
             "page_obj": page_obj,
-            "areas": Atividade.Area.choices,
-            "area_selected": area,
-            "q": q,
-            "alocacoes": metas_context.get("alocacoes", []),
-            "has_unidade": metas_context.get("has_unidade", True),
-            "atividade_filtrada": metas_context.get("atividade_filtrada"),
-        },
+        "areas": Atividade.Area.choices,
+        "area_selected": area,
+        "q": q,
+        "alocacoes": metas_context.get("alocacoes", []),
+        "has_unidade": metas_context.get("has_unidade", True),
+        "atividade_filtrada": metas_context.get("atividade_filtrada"),
+        "meta_month_filters": metas_context.get("meta_month_filters", []),
+    },
     )
 
 @login_required
