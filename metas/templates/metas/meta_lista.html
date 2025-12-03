@@ -48,6 +48,22 @@
     </div>
     <div class="card-body">
       {% if alocacoes %}
+        <div class="mb-3" id="metasMonthTabsWrapper">
+          <ul class="nav nav-tabs" id="metasMonthTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" type="button" role="tab" data-month-filter="">
+                Todos
+              </button>
+            </li>
+            {% for filter in meta_month_filters %}
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" type="button" role="tab" data-month-filter="{{ filter.key }}">
+                  {{ filter.label }}
+                </button>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
         <div class="table-responsive">
           <table class="table table-striped align-middle mb-0">
             <thead>
@@ -62,9 +78,9 @@
                 <th class="text-end">Acoes</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="tabelaMetasBody">
               {% for aloc in alocacoes %}
-              <tr>
+              <tr data-meta-month="{{ aloc.meta.month_key|default:'nodate' }}">
                 <td>{{ aloc.meta.display_titulo }}</td>
                 <td>
                   {% if aloc.meta.atividade %}
@@ -131,4 +147,38 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function() {
+  var tabs = Array.from(document.querySelectorAll("#metasMonthTabs .nav-link"));
+  var tbody = document.getElementById("tabelaMetasBody");
+  var selectedKey = "";
+  if (!tabs.length || !tbody) return;
+
+  function aplicarFiltro() {
+    var key = (selectedKey || "").toLowerCase();
+    var rows = Array.from(tbody.querySelectorAll("tr"));
+    rows.forEach(function(row) {
+      var rowKey = (row.getAttribute("data-meta-month") || "").toLowerCase();
+      var visible = !key || rowKey === key;
+      row.classList.toggle("d-none", !visible);
+    });
+  }
+
+  tabs.forEach(function(tab) {
+    tab.addEventListener("click", function() {
+      selectedKey = tab.getAttribute("data-month-filter") || "";
+      tabs.forEach(function(t) {
+        var tk = t.getAttribute("data-month-filter") || "";
+        t.classList.toggle("active", tk === selectedKey);
+      });
+      aplicarFiltro();
+    });
+  });
+  aplicarFiltro();
+})();
+</script>
 {% endblock %}
