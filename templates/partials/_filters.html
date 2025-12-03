@@ -9,8 +9,8 @@
     <div class="col-md-3">
       <label class="form-label" for="id_status">Status</label>
       <select id="id_status" name="status" class="form-select">
-        <option value="todos" {% if status == "todos" or not status %}selected{% endif %}>Todos</option>
-        <option value="ativos" {% if status == "ativos" %}selected{% endif %}>Ativos</option>
+        <option value="todos" {% if status == "todos" %}selected{% endif %}>Todos</option>
+        <option value="ativos" {% if status == "ativos" or not status %}selected{% endif %}>Ativos</option>
         <option value="inativos" {% if status == "inativos" %}selected{% endif %}>Inativos</option>
       </select>
     </div>

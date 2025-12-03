@@ -14,7 +14,7 @@
     <label for="id_status" class="form-label">Status</label>
     <select id="id_status" name="status" class="form-select form-select-sm">
       <option value="">Todos</option>
-      <option value="ATIVAS" {% if status_selected == "ATIVAS" %}selected{% endif %}>Ativas</option>
+      <option value="ATIVAS" {% if status_selected == "ATIVAS" or not status_selected %}selected{% endif %}>Ativas</option>
       <option value="INATIVAS" {% if status_selected == "INATIVAS" %}selected{% endif %}>Inativas</option>
     </select>
   </div>

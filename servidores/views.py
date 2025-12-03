@@ -27,7 +27,11 @@ def lista(request):
         qs = qs.filter(unidade=unidade)
 
     q = (request.GET.get("q") or "").strip()
-    status = (request.GET.get("status") or "").strip().lower()
+    raw_status = request.GET.get("status")
+    if raw_status is None:
+        status = "ativos"
+    else:
+        status = raw_status.strip().lower()
     if q:
         qs = qs.filter(Q(nome__icontains=q) | Q(matricula__icontains=q) | Q(telefone__icontains=q))
     if status == "ativos":

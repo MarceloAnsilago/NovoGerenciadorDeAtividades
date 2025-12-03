@@ -22,7 +22,11 @@ def lista(request):
 
     # --- Filtros GET ---
     area = (request.GET.get("area") or "").strip()
-    status = (request.GET.get("status") or "").strip()
+    raw_status = request.GET.get("status")
+    if raw_status is None:
+        status = "ATIVAS"
+    else:
+        status = raw_status.strip()
     q = (request.GET.get("q") or "").strip()
 
     # Filtro de área (inclusivo p/ Animal/Vegetal)

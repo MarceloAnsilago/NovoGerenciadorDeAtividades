@@ -38,7 +38,11 @@ def lista_veiculos(request: HttpRequest) -> HttpResponse:
     # Filtros
     qs = Veiculo.objects.filter(unidade=unidade).order_by("nome")
     q = (request.GET.get("q") or "").strip()
-    status = (request.GET.get("status") or "todos").strip()
+    raw_status = request.GET.get("status")
+    if raw_status is None:
+        status = "ativos"
+    else:
+        status = (raw_status or "").strip()
 
     if q:
         qs = qs.filter(Q(nome__icontains=q) | Q(placa__icontains=q))
