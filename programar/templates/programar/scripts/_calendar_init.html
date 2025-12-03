@@ -9,8 +9,23 @@ document.addEventListener('DOMContentLoaded', function(){
     const style = document.createElement('style');
     style.id = 'programar-calendar-event-styles';
     style.textContent = `
-      .programar-event-lines{display:flex;flex-direction:column;gap:.15rem;font-size:.75rem;line-height:1.1;word-break:break-word;}
+      .programar-event{display:flex;flex-direction:column;gap:.35rem;color:#1f2937;}
+      .programar-event-status{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:700;padding:.3rem .55rem;border-radius:.6rem;line-height:1.2;border:1px solid #c8d9f0;background:#edf3ff;color:#0b4f9c;}
+      .programar-event-status i{font-size:.95rem;}
+      .programar-event-status .programar-event-count{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums;color:#0b4f9c;}
+      .programar-event-status.is-done{background:#e8f2ff;border-color:#bcd8ff;color:#0b4f9c;}
+      .programar-event-status.is-done .programar-event-count{color:#0b4f9c;}
+      .programar-event-status.is-partial{background:#eaf2ff;border-color:#c7d6ff;color:#1f3f82;}
+      .programar-event-status.is-partial .programar-event-count{color:#1f3f82;}
+      .programar-event-status.is-pending{background:#fdecef;border-color:#f5c2c7;color:#842029;}
+      .programar-event-status.is-pending .programar-event-count{color:#842029;}
+      .programar-event-lines{display:flex;flex-direction:column;gap:.2rem;font-size:.78rem;line-height:1.15;word-break:break-word;color:#4b5563;}
       .programar-event-line{white-space:normal;}
+      .prog-event-card{border:1px solid #d8e6fb;background:#f7f9fd;border-radius:.65rem;box-shadow:0 1px 4px rgba(15,23,42,.05);}
+      .prog-event-card.is-done{background:#eef6ff;border-color:#c6defc;}
+      .prog-event-card.is-partial{background:#f1f5ff;border-color:#d7e3ff;}
+      .prog-event-card.is-pending{background:#fff4f5;border-color:#f5c2c7;}
+      .prog-event-card .fc-event-main{padding:8px 9px;}
     `;
     document.head.appendChild(style);
   })();
@@ -22,6 +37,18 @@ document.addEventListener('DOMContentLoaded', function(){
   ].map(id => document.getElementById(id));
   printBtns.forEach(b => { if (b) b.disabled = true; });
 
+  function computeStatus(props){
+    const total = Number(props?.total_programadas || 0);
+    const concluidas = Number(props?.total_concluidas || 0);
+    const done = total > 0 && concluidas >= total;
+    const partial = !done && concluidas > 0;
+    return {
+      key: done ? 'done' : (partial ? 'partial' : 'pending'),
+      total,
+      concluidas,
+    };
+  }
+
   const calendar = new FullCalendar.Calendar(el, {
     locale: 'pt-br',
     timeZone: 'local',
@@ -32,20 +59,45 @@ document.addEventListener('DOMContentLoaded', function(){
 
     events: NS.urls.eventsFeed,
     eventContent(info) {
-      const nomes = info.event.extendedProps?.nomes_atividades;
+      const props = info.event.extendedProps || {};
+      const status = computeStatus(props);
+      const nomes = props.nomes_atividades;
       const textos = Array.isArray(nomes) ? nomes : [];
-      if (!textos.length) {
-        return null;
-      }
+
+      const statusCfg = {
+        done: { icon: 'bi-check-circle-fill', label: 'Concluida' },
+        partial: { icon: 'bi-dash-circle-fill', label: 'Em andamento' },
+        pending: { icon: 'bi-x-circle-fill', label: 'Pendente' },
+      }[status.key] || { icon: 'bi-x-circle-fill', label: 'Pendente' };
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'programar-event';
+
+      const statusEl = document.createElement('div');
+      statusEl.className = `programar-event-status is-${status.key}`;
+      statusEl.innerHTML = `
+        <i class="bi ${statusCfg.icon}"></i>
+        <span>${statusCfg.label}</span>
+        <span class="programar-event-count">${status.concluidas}/${status.total}</span>
+      `;
+      wrapper.appendChild(statusEl);
+
       const container = document.createElement('div');
       container.className = 'programar-event-lines';
-      textos.forEach((line) => {
+      const linhas = textos.length ? textos : [info.event.title || 'Atividades'];
+      linhas.forEach((line) => {
         const lineEl = document.createElement('div');
         lineEl.className = 'programar-event-line';
         lineEl.textContent = line;
         container.appendChild(lineEl);
       });
-      return { domNodes: [container] };
+      wrapper.appendChild(container);
+
+      return { domNodes: [wrapper] };
+    },
+    eventClassNames(arg){
+      const status = computeStatus(arg.event.extendedProps || {});
+      return ['prog-event-card', `is-${status.key}`];
     },
     eventClick(info) {
       if (typeof NS.openProgramarModal === 'function') {
