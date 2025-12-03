@@ -198,6 +198,7 @@
         <form method="get" class="d-flex align-items-center gap-2">
           <input type="date" name="start" value="{{ dt_start|date:'Y-m-d' }}" class="form-control form-control-sm">
           <input type="date" name="end"   value="{{ dt_end|date:'Y-m-d' }}"   class="form-control form-control-sm">
+          <input type="hidden" name="month" value="{{ request.GET.month|default:'' }}">
           <select name="status" class="form-select form-select-sm" style="max-width: 160px;">
             <option value="" {% if not status_filter %}selected{% endif %}>Todas</option>
             <option value="concluidas" {% if status_filter == 'concluidas' %}selected{% endif %}>Concluidas</option>
@@ -234,9 +235,48 @@
 (function () {
   var grid = document.getElementById("metaCardsGrid");
   var tabs = Array.from(document.querySelectorAll("#metaMonthTabs .nav-link"));
+  var startInput = document.querySelector('input[name="start"]');
+  var endInput = document.querySelector('input[name="end"]');
   if (!grid || !tabs.length) return;
 
   var cards = Array.from(grid.querySelectorAll("[data-month-key]"));
+  function formatIso(d) {
+    var month = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + month + "-" + day;
+  }
+
+  function getRangeFromMonthKey(key) {
+    if (!key || key === "nodate") return null;
+    var parts = key.split("-");
+    if (parts.length !== 2) return null;
+    var year = Number(parts[0]);
+    var month = Number(parts[1]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
+    var start = new Date(year, month - 1, 1);
+    var end = new Date(year, month, 0);
+    return { start: formatIso(start), end: formatIso(end) };
+  }
+
+  function applyRangeToInputs(range) {
+    if (!range) return;
+    if (startInput) startInput.value = range.start;
+    if (endInput) endInput.value = range.end;
+  }
+
+  function reloadWithRange(range, monthKey) {
+    if (!range) return;
+    var url = new URL(window.location.href);
+    url.searchParams.set("start", range.start);
+    url.searchParams.set("end", range.end);
+    if (monthKey) {
+      url.searchParams.set("month", monthKey);
+    } else {
+      url.searchParams.delete("month");
+    }
+    window.location.href = url.toString();
+  }
+
   function applyMonthFilter(key) {
     cards.forEach(function (card) {
       var matches = !key || card.dataset.monthKey === key;
@@ -250,11 +290,18 @@
 
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function () {
-      applyMonthFilter(tab.dataset.monthFilter || "");
+      var key = tab.dataset.monthFilter || "";
+      applyMonthFilter(key);
+      var range = getRangeFromMonthKey(key);
+      if (range) {
+        applyRangeToInputs(range);
+        reloadWithRange(range, key);
+      }
     });
   });
 
-  applyMonthFilter("");
+  var initialMonth = new URL(window.location.href).searchParams.get("month") || "";
+  applyMonthFilter(initialMonth);
 })();
 </script>
 {# ====== JS: aplica o width das barras a partir do data-pct ====== #}
