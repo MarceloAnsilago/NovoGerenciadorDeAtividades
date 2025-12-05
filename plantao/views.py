@@ -507,6 +507,10 @@ def ver_plantoes(request):
         except (ValueError, TypeError):
             ano_selected = None
             # se valor inválido, ignoramos e mostramos tudo
+    # se nenhum ano foi escolhido (ou inválido), usa automaticamente o maior ano disponível como padrão
+    if ano_selected is None and years:
+        ano_selected = years[0]
+        plantoes = plantoes_base.filter(inicio__year__lte=ano_selected, fim__year__gte=ano_selected).order_by("-inicio")
 
     plantoes_list = list(plantoes)
 
