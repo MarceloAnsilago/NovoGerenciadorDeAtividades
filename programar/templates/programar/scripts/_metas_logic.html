@@ -73,23 +73,28 @@
       metasGrid.innerHTML = data.metas.map((m) => {
         const programadas = Number(m.programadas_total || 0);
         const alocado = Number(m.alocado_unidade || 0);
+        const d = m.data_limite ? new Date(m.data_limite) : null;
+        const monthKey = d ? (d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")) : "nodate";
+        const yearKey = d ? String(d.getFullYear()) : "nodate";
+        const dataLimiteStr = d ? d.toLocaleDateString("pt-BR") : "";
         return `
           <button type="button"
                   class="meta-card"
                   data-id="${m.id}"
                   data-programadas="${programadas}"
                   data-alocado="${alocado}"
-                  data-month="${m.data_limite ? (new Date(m.data_limite).getFullYear() + '-' + String(new Date(m.data_limite).getMonth()+1).padStart(2,'0')) : 'nodate'}">
+                  data-month="${monthKey}"
+                  data-year="${yearKey}">
             <div class="meta-head">
               <span class="icon"><i class="bi bi-flag"></i></span>
               <h6 class="meta-title">${m.nome}</h6>
             </div>
             <div class="meta-sep"></div>
-            ${m.data_limite ? `
+            ${d ? `
               <div class="meta-date">
                 <i class="bi bi-calendar-event"></i>
                 <span>Data limite:</span>
-                <strong>${new Date(m.data_limite).toLocaleDateString('pt-BR')}</strong>
+                <strong>${dataLimiteStr}</strong>
               </div>
             ` : ""}
             <div class="meta-small mt-2">Em programação: <b>${programadas}</b></div>
@@ -105,33 +110,135 @@
         `;
       }).join("");
 
-      // === Abas por mês (filtro visual) ===
-      const existingTabs = document.getElementById("metasTabs");
-      if (existingTabs) {
-        existingTabs.remove();
-      }
-      try{
-        const months = []; const labels = {};
-        (data.metas||[]).forEach(m=>{
-          let key='nodate', lab='Sem data';
-          if (m.data_limite){ const d=new Date(m.data_limite); const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); key=k; try{ const t=d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); lab=t.charAt(0).toUpperCase()+t.slice(1);}catch(_){ lab=k; } }
-          if (!months.includes(key)){ months.push(key); labels[key]=lab; }
+      // === Filtros por ano e mês ===
+      const cards = Array.from(metasGrid.querySelectorAll(".meta-card"));
+
+      // popula seletor de ano (default: maior ano disponível)
+      const yearSelect = document.getElementById("metasYearSelect");
+      if (yearSelect) {
+        const years = [];
+        let hasNoDate = false;
+        cards.forEach((c) => {
+          const y = c.getAttribute("data-year") || "nodate";
+          if (y === "nodate") {
+            hasNoDate = true;
+            return;
+          }
+          if (!years.includes(y)) years.push(y);
         });
-        // garante exibir a aba do mês selecionado
-        if (dateStr){ const d=new Date(dateStr); const sel=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); if (!months.includes(sel)){ months.push(sel); try{ const t=d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); labels[sel]=t.charAt(0).toUpperCase()+t.slice(1);}catch(_){ labels[sel]=sel; } } }
-        {
-          let cur = (dateStr ? (new Date(dateStr).getFullYear()+'-'+String(new Date(dateStr).getMonth()+1).padStart(2,'0')) : (months[0]||''));
-          const parts = ["<ul class='nav nav-tabs mb-2' id='metasTabs' role='tablist'>"];
-          parts.push(`<li class='nav-item' role='presentation'><button class='nav-link ${!cur?'active':''}' data-key='' type='button' role='tab'>Todos</button></li>`);
-          months.forEach(k=>{ const active=(k===cur); parts.push(`<li class='nav-item' role='presentation'><button class='nav-link ${active?'active':''}' data-key='${k}' type='button' role='tab'>${labels[k]}</button></li>`); });
-          parts.push("</ul>");
-          // coloca abas acima do grid
-          metasGrid.insertAdjacentHTML('beforebegin', parts.join(''));
-          function applyFilter(key){ metasGrid.querySelectorAll('.meta-card').forEach(c=>{ const mk=c.getAttribute('data-month')||'nodate'; c.style.display = (!key || mk===key) ? '' : 'none'; }); const tabs = metasGrid.previousElementSibling?.querySelectorAll?.('.nav-link') || []; tabs.forEach(b=>{ b.classList.toggle('active', b.getAttribute('data-key')===key); }); }
-          const tabContainer = metasGrid.previousElementSibling; tabContainer?.querySelectorAll?.('.nav-link')?.forEach(btn=>{ btn.addEventListener('click', ()=> applyFilter(btn.getAttribute('data-key'))); });
-          applyFilter(cur);
+        years.sort((a, b) => Number(b) - Number(a));
+
+        const currentStored = NS.metaYearSelected || null;
+        let defaultYear = currentStored;
+        if (!defaultYear) {
+          if (years.length > 0) defaultYear = years[0];
+          else if (hasNoDate) defaultYear = "nodate";
         }
-      }catch(_e){}
+
+        yearSelect.innerHTML = "";
+        years.forEach((y) => {
+          const opt = document.createElement("option");
+          opt.value = y;
+          opt.textContent = y;
+          if (y === defaultYear) opt.selected = true;
+          yearSelect.appendChild(opt);
+        });
+        if (hasNoDate) {
+          const optNo = document.createElement("option");
+          optNo.value = "nodate";
+          optNo.textContent = "Sem data";
+          if (defaultYear === "nodate") optNo.selected = true;
+          yearSelect.appendChild(optNo);
+        }
+        if (!yearSelect.value && defaultYear) yearSelect.value = defaultYear;
+        NS.metaYearSelected = yearSelect.value || "";
+      }
+
+      const buildMonthTabs = () => {
+        const existingTabs = document.getElementById("metasTabs");
+        if (existingTabs) existingTabs.remove();
+
+        const selectedYear = NS.metaYearSelected || "";
+        const months = [];
+        const labels = {};
+        cards.forEach((c) => {
+          const cy = c.getAttribute("data-year") || "nodate";
+          if (selectedYear && cy !== selectedYear) return;
+          const mk = c.getAttribute("data-month") || "nodate";
+          if (mk === "nodate") return;
+          if (!months.includes(mk)) {
+            months.push(mk);
+            try {
+              const [yy, mm] = mk.split("-").map(Number);
+              const dt = new Date(yy, mm - 1, 1);
+              const lbl = dt.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+              labels[mk] = lbl.charAt(0).toUpperCase() + lbl.slice(1);
+            } catch (_e) {
+              labels[mk] = mk;
+            }
+          }
+        });
+
+        if (months.length === 0) {
+          NS.metaMonthSelected = "";
+          return;
+        }
+
+        let curMonth = "";
+        if (NS.metaMonthSelected && months.includes(NS.metaMonthSelected)) {
+          curMonth = NS.metaMonthSelected;
+        } else {
+          curMonth = months[0];
+          NS.metaMonthSelected = curMonth;
+        }
+
+        const parts = ["<ul class='nav nav-tabs mb-2' id='metasTabs' role='tablist'>"];
+        months.forEach((k) => {
+          const active = k === curMonth;
+          parts.push(`<li class='nav-item' role='presentation'><button class='nav-link ${active ? "active" : ""}' data-key='${k}' type='button' role='tab'>${labels[k] || k}</button></li>`);
+        });
+        parts.push("</ul>");
+        metasGrid.insertAdjacentHTML("beforebegin", parts.join(""));
+
+        const applyMonthFilter = (key) => {
+          NS.metaMonthSelected = key || "";
+          applyFilters();
+          const tabs = metasGrid.previousElementSibling?.querySelectorAll?.(".nav-link") || [];
+          tabs.forEach((b) => { b.classList.toggle("active", b.getAttribute("data-key") === key); });
+        };
+
+        const tabContainer = metasGrid.previousElementSibling;
+        tabContainer?.querySelectorAll?.(".nav-link")?.forEach((btn) => {
+          btn.addEventListener("click", () => applyMonthFilter(btn.getAttribute("data-key")));
+        });
+      };
+
+      const applyFilters = () => {
+        const selectedYear = NS.metaYearSelected || "";
+        const selectedMonth = NS.metaMonthSelected || "";
+        cards.forEach((card) => {
+          const cy = card.getAttribute("data-year") || "nodate";
+          const cm = card.getAttribute("data-month") || "nodate";
+          let visible = true;
+          if (selectedYear) visible = cy === selectedYear;
+          if (visible && selectedMonth) visible = cm === selectedMonth;
+          card.style.display = visible ? "" : "none";
+        });
+      };
+
+      if (yearSelect) {
+        yearSelect.addEventListener("change", () => {
+          NS.metaYearSelected = yearSelect.value || "";
+          NS.metaMonthSelected = "";
+          const tabs = document.getElementById("metasTabs");
+          if (tabs) tabs.remove();
+          buildMonthTabs();
+          applyFilters();
+        });
+      }
+
+      buildMonthTabs();
+      applyFilters();
 
       metasGrid.querySelectorAll(".meta-card").forEach((card) => {
         card.addEventListener("click", () => {

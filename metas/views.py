@@ -115,6 +115,32 @@ def _prepare_metas_context(request, *, emit_messages=False):
         alocacoes = alocacoes.filter(meta__encerrada=True)
 
     alocacoes = list(alocacoes)
+
+    # anos disponíveis pelas datas limite
+    years_set = set()
+    for aloc in alocacoes:
+        limite = getattr(getattr(aloc, "meta", None), "data_limite", None)
+        if limite and hasattr(limite, "year"):
+            years_set.add(limite.year)
+    years = sorted(years_set, reverse=True)
+
+    ano_raw = request.GET.get("ano")
+    ano_selected = None
+    if ano_raw:
+        try:
+            ano_selected = int(ano_raw)
+        except (ValueError, TypeError):
+            ano_selected = None
+    if ano_selected is None and years:
+        ano_selected = years[0]
+
+    if ano_selected:
+        alocacoes = [
+            aloc for aloc in alocacoes
+            if getattr(getattr(aloc, "meta", None), "data_limite", None)
+            and getattr(aloc.meta.data_limite, "year", None) == ano_selected
+        ]
+
     meta_month_filters = _build_month_filters(alocacoes)
 
     return {
@@ -125,6 +151,8 @@ def _prepare_metas_context(request, *, emit_messages=False):
         "status_selected": status,
         "has_unidade": True,
         "meta_month_filters": meta_month_filters,
+        "years": years,
+        "ano_selected": ano_selected,
     }
 
 
@@ -180,6 +208,8 @@ def atividades_lista_view(request):
         "has_unidade": metas_context.get("has_unidade", True),
         "atividade_filtrada": metas_context.get("atividade_filtrada"),
         "meta_month_filters": metas_context.get("meta_month_filters", []),
+        "years": metas_context.get("years", []),
+        "ano_selected": metas_context.get("ano_selected"),
     },
     )
 

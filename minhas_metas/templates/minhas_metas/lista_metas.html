@@ -26,21 +26,34 @@
     <div></div>
   </div>
 
-  <div class="mb-3" id="metaMonthTabsWrapper">
-    <ul class="nav nav-tabs mb-0" id="metaMonthTabs" role="tablist">
-      <li class="nav-item" role="presentation">
-        <button class="nav-link active" type="button" role="tab" data-month-filter="">
-          Todos
-        </button>
-      </li>
-      {% for filter in meta_month_filters %}
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" type="button" role="tab" data-month-filter="{{ filter.key }}">
-            {{ filter.label }}
-          </button>
-        </li>
-      {% endfor %}
-    </ul>
+  <div class="mb-3 d-flex flex-wrap align-items-center justify-content-between gap-3" id="metaMonthTabsWrapper">
+    <div class="flex-grow-1">
+      {% if meta_month_filters %}
+      <ul class="nav nav-tabs mb-0" id="metaMonthTabs" role="tablist">
+        {% for filter in meta_month_filters %}
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if forloop.first %}active{% endif %}" type="button" role="tab" data-month-filter="{{ filter.key }}">
+              {{ filter.label }}
+            </button>
+          </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+        <p class="text-muted mb-0 small">Nenhuma meta com data limite para o filtro atual.</p>
+      {% endif %}
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <label for="metaYearSelect" class="form-label small mb-0">Ano</label>
+      <select id="metaYearSelect" class="form-select form-select-sm" aria-label="Filtrar metas por ano">
+        {% if years %}
+          {% for y in years %}
+            <option value="{{ y }}" {% if ano_selected == y %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        {% else %}
+          <option value="" selected>Sem anos disponíveis</option>
+        {% endif %}
+      </select>
+    </div>
   </div>
 
   {# ====== 1) GRID DE METAS (EM CIMA) ====== #}
@@ -199,6 +212,7 @@
           <input type="date" name="start" value="{{ dt_start|date:'Y-m-d' }}" class="form-control form-control-sm">
           <input type="date" name="end"   value="{{ dt_end|date:'Y-m-d' }}"   class="form-control form-control-sm">
           <input type="hidden" name="month" value="{{ request.GET.month|default:'' }}">
+          <input type="hidden" name="ano" value="{{ ano_selected|default:'' }}">
           <select name="status" class="form-select form-select-sm" style="max-width: 160px;">
             <option value="" {% if not status_filter %}selected{% endif %}>Todas</option>
             <option value="concluidas" {% if status_filter == 'concluidas' %}selected{% endif %}>Concluidas</option>
@@ -230,13 +244,26 @@
   </div>
 </div>
 
-{# ====== JS: filtros de mes ===== #}
+{# ====== JS: filtros de mes/ano ===== #}
 <script>
 (function () {
   var grid = document.getElementById("metaCardsGrid");
   var tabs = Array.from(document.querySelectorAll("#metaMonthTabs .nav-link"));
   var startInput = document.querySelector('input[name="start"]');
   var endInput = document.querySelector('input[name="end"]');
+  var yearSelect = document.getElementById("metaYearSelect");
+
+  if (yearSelect) {
+    yearSelect.addEventListener("change", function () {
+      var url = new URL(window.location.href);
+      var ano = yearSelect.value;
+      if (ano) url.searchParams.set("ano", ano);
+      else url.searchParams.delete("ano");
+      url.searchParams.delete("month");
+      window.location.href = url.toString();
+    });
+  }
+
   if (!grid || !tabs.length) return;
 
   var cards = Array.from(grid.querySelectorAll("[data-month-key]"));
@@ -300,8 +327,11 @@
     });
   });
 
-  var initialMonth = new URL(window.location.href).searchParams.get("month") || "";
-  applyMonthFilter(initialMonth);
+  var urlObj = new URL(window.location.href);
+  var initialMonth = urlObj.searchParams.get("month") || "";
+  var activeTab = tabs.find(function (t) { return t.classList.contains("active"); });
+  var initialKey = initialMonth || (activeTab ? activeTab.dataset.monthFilter || "" : "");
+  applyMonthFilter(initialKey);
 })();
 </script>
 {# ====== JS: aplica o width das barras a partir do data-pct ====== #}

@@ -97,6 +97,31 @@ def minhas_metas_view(request):
         if meta_obj and getattr(meta_obj, "id", None):
             setattr(meta_obj, "programadas_total", programadas_por_meta.get(int(meta_obj.id), 0))
 
+    # anos disponíveis (baseados na data_limite)
+    years_set: set[int] = set()
+    for aloc in alocacoes:
+        limite = getattr(getattr(aloc, "meta", None), "data_limite", None)
+        if limite and hasattr(limite, "year"):
+            years_set.add(limite.year)
+    years = sorted(years_set, reverse=True)
+
+    ano_raw = request.GET.get("ano")
+    ano_selected: int | None = None
+    if ano_raw:
+        try:
+            ano_selected = int(ano_raw)
+        except (ValueError, TypeError):
+            ano_selected = None
+    if ano_selected is None and years:
+        ano_selected = years[0]
+
+    if ano_selected:
+        alocacoes = [
+            aloc for aloc in alocacoes
+            if getattr(getattr(aloc, "meta", None), "data_limite", None)
+            and getattr(aloc.meta.data_limite, "year", None) == ano_selected
+        ]
+
     month_keys = OrderedDict()
     for aloc in alocacoes:
         meta_obj = getattr(aloc, "meta", None)
@@ -222,6 +247,8 @@ def minhas_metas_view(request):
         "dt_start": dt_start,
         "dt_end": dt_end,
         "status_filter": status_dropdown,
+        "years": years,
+        "ano_selected": ano_selected,
         "meta_filter_id": meta_filter_id or 0,
         "meta_filter_title": selected_meta_title,
         "meta_month_filters": meta_month_filters,
