@@ -32,54 +32,75 @@
       </div>
       {# ====== /FILTRO POR ANO ====== #}
 
-      <div class="table-responsive">
-        <table class="table mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Nome</th>
-              <th>Início</th>
-              <th>Fim</th>
-              <th>Criado por</th>
-              <th>Criado em</th>
-              <th class="text-end">Ações</th>
-            </tr>
-          </thead>
-          <tbody id="plantoes-tbody">
-            {% for p in plantoes %}
-            <tr data-pk="{{ p.pk }}" id="plantao-row-{{ p.pk }}">
-              <td>
-                {% if p.nome %}
-                  {{ p.nome }}
-                {% else %}
-                  {{ p.inicio|date:"d/m/Y" }} a {{ p.fim|date:"d/m/Y" }}
-                {% endif %}
-              </td>
-              <td>{{ p.inicio|date:"d/m/Y" }}</td>
-              <td>{{ p.fim|date:"d/m/Y" }}</td>
-              <td>
-                {% if p.criado_por %}
-                  {{ p.criado_por.get_full_name|default:p.criado_por.username }}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-              <td>{{ p.criado_em|date:"d/m/Y H:i" }}</td>
-              <td class="text-end">
-                <div class="btn-group">
-                  <button class="btn btn-sm btn-outline-primary btn-open" data-pk="{{ p.pk }}" type="button">
-                    <i class="bi bi-folder2-open"></i> Abrir
-                  </button>
-                  <button class="btn btn-sm btn-outline-danger btn-delete" data-pk="{{ p.pk }}" type="button">
-                    <i class="bi bi-trash"></i> Excluir
-                  </button>
-                </div>
-              </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="6" class="text-muted">Nenhum plantão salvo.</td></tr>
+      <div id="plantoes-tabs-container" class="px-3 pt-3">
+        {% if months_data %}
+          <ul class="nav nav-tabs flex-wrap gap-1" id="plantoes-month-tabs" role="tablist">
+            {% for month in months_data %}
+              <li class="nav-item" role="presentation">
+                <button class="nav-link {% if month_active %}{% if month_active == month.num %}active{% endif %}{% else %}{% if forloop.first %}active{% endif %}{% endif %}" id="tab-{{ month.num }}" data-bs-toggle="tab" data-bs-target="#pane-{{ month.num }}" type="button" role="tab" aria-controls="pane-{{ month.num }}" aria-selected="{% if month_active %}{% if month_active == month.num %}true{% else %}false{% endif %}{% else %}{% if forloop.first %}true{% else %}false{% endif %}{% endif %}">
+                  {{ month.label }}
+                  <span class="badge {% if month.count %}bg-primary{% else %}bg-secondary{% endif %} ms-1">{{ month.count }}</span>
+                </button>
+              </li>
             {% endfor %}
-          </tbody>
-        </table>
+          </ul>
+
+          <div class="tab-content border-start border-end border-bottom p-3" id="plantoes-month-content">
+            {% for month in months_data %}
+              <div class="tab-pane fade {% if month_active %}{% if month_active == month.num %}show active{% endif %}{% else %}{% if forloop.first %}show active{% endif %}{% endif %}" id="pane-{{ month.num }}" role="tabpanel" aria-labelledby="tab-{{ month.num }}">
+                <div class="table-responsive">
+                  <table class="table mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Nome</th>
+                        <th>Início</th>
+                        <th>Fim</th>
+                        <th>Criado por</th>
+                        <th>Criado em</th>
+                        <th class="text-end">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody class="plantoes-tbody">
+                      {% for p in month.plantoes %}
+                      <tr data-plantao-row="1" data-pk="{{ p.pk }}" data-month="{{ month.num }}">
+                        <td>
+                          {% if p.nome %}
+                            {{ p.nome }}
+                          {% else %}
+                            {{ p.inicio|date:"d/m/Y" }} a {{ p.fim|date:"d/m/Y" }}
+                          {% endif %}
+                        </td>
+                        <td>{{ p.inicio|date:"d/m/Y" }}</td>
+                        <td>{{ p.fim|date:"d/m/Y" }}</td>
+                        <td>
+                          {% if p.criado_por %}
+                            {{ p.criado_por.get_full_name|default:p.criado_por.username }}
+                          {% else %}
+                            -
+                          {% endif %}
+                        </td>
+                        <td>{{ p.criado_em|date:"d/m/Y H:i" }}</td>
+                        <td class="text-end">
+                          <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary btn-open" data-pk="{{ p.pk }}" type="button">
+                              <i class="bi bi-folder2-open"></i> Abrir
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger btn-delete" data-pk="{{ p.pk }}" type="button">
+                              <i class="bi bi-trash"></i> Excluir
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted px-3 pb-3 pt-1 mb-0">Nenhum plantão salvo para o filtro atual.</p>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -120,11 +141,17 @@ const csrftoken = getCookie('csrftoken');
 let currentPlantaoPk = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  const tbody = document.getElementById('plantoes-tbody');
   const detalheContainer = document.getElementById('plantao-detalhe-container');
   const btnPrint = document.getElementById('btn-imprimir-plantao');
   const baseUrlEl = document.getElementById('plantao-fragment-url-base');
   const baseFragmentUrl = baseUrlEl ? baseUrlEl.getAttribute('data-url') : null;
+  const getPlantaoRows = (pk = null) => {
+    const selector = pk ? `[data-plantao-row=\"1\"][data-pk=\"${pk}\"]` : '[data-plantao-row=\"1\"]';
+    return Array.from(document.querySelectorAll(selector));
+  };
+  const clearRowHighlights = () => getPlantaoRows().forEach(r => r.classList.remove('table-active'));
+  const highlightRows = (pk) => getPlantaoRows(pk).forEach(r => r.classList.add('table-active'));
+  const removeRows = (pk) => getPlantaoRows(pk).forEach(r => r.remove());
 
   // delegação de clicks (abre/excluir)
   document.body.addEventListener('click', async (ev) => {
@@ -154,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // esconder imprimir
           if (btnPrint) btnPrint.style.display = 'none';
           currentPlantaoPk = null;
-          document.querySelectorAll('#plantoes-tbody tr').forEach(r=>r.classList.remove('table-active'));
+          clearRowHighlights();
         } else {
           const html = await resp.text();
           if (detalheContainer) detalheContainer.innerHTML = html || '<div class="alert alert-warning">Fragmento vazio.</div>';
@@ -165,16 +192,15 @@ document.addEventListener('DOMContentLoaded', () => {
           if (btnPrint) btnPrint.style.display = 'inline-block';
 
           // destacar linha ativa
-          document.querySelectorAll('#plantoes-tbody tr').forEach(r=>r.classList.remove('table-active'));
-          const row = document.getElementById(`plantao-row-${pk}`);
-          if (row) row.classList.add('table-active');
+          clearRowHighlights();
+          highlightRows(pk);
         }
       } catch (err) {
         console.error('Erro fetch fragmento:', err);
         if (detalheContainer) detalheContainer.innerHTML = `<div class="alert alert-danger">Erro inesperado ao carregar escala.</div>`;
         if (btnPrint) btnPrint.style.display = 'none';
         currentPlantaoPk = null;
-        document.querySelectorAll('#plantoes-tbody tr').forEach(r=>r.classList.remove('table-active'));
+        clearRowHighlights();
       } finally {
         btnOpen.disabled = false;
         btnOpen.innerHTML = originalHtml;
@@ -215,8 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (resp.ok && data && data.ok) {
           // remove linha
-          const row = document.getElementById(`plantao-row-${pk}`);
-          if (row) row.remove();
+          removeRows(pk);
           // limpa detalhe caso seja o plantão aberto
           if (String(currentPlantaoPk) === String(pk)) {
             if (detalheContainer) detalheContainer.innerHTML = '';

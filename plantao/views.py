@@ -1,6 +1,6 @@
 # stdlib
 from types import SimpleNamespace
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from collections import defaultdict, Counter
 from itertools import chain
 import traceback
@@ -454,6 +454,11 @@ def ver_plantoes(request):
     Página que lista plantões salvos. Suporta filtro por ano (GET ?ano=YYYY)
     e respeita a unidade atual (exceto para staff).
     """
+    MONTH_NAMES_PT = (
+        "Janeiro", "Fevereiro", "Março", "Abril",
+        "Maio", "Junho", "Julho", "Agosto",
+        "Setembro", "Outubro", "Novembro", "Dezembro",
+    )
     # base queryset (ordenada)
     plantoes_base = Plantao.objects.order_by("-inicio")
 
@@ -503,8 +508,60 @@ def ver_plantoes(request):
             ano_selected = None
             # se valor inválido, ignoramos e mostramos tudo
 
+    plantoes_list = list(plantoes)
+
+    # agrupamento por mês (abas)
+    month_map = {m: [] for m in range(1, 13)}
+    for p in plantoes_list:
+        ini = getattr(p, "inicio", None)
+        fim = getattr(p, "fim", None)
+        if not (ini and fim):
+            continue
+
+        # se filtrou por ano, restringe o intervalo ao ano selecionado
+        if ano_selected:
+            interval_start = date(ano_selected, 1, 1)
+            interval_end = date(ano_selected, 12, 31)
+            if fim < interval_start or ini > interval_end:
+                continue
+            ini = max(ini, interval_start)
+            fim = min(fim, interval_end)
+
+        cursor = date(ini.year, ini.month, 1)
+        while cursor <= fim:
+            month_map[cursor.month].append(p)
+            # avança para o 1º dia do próximo mês
+            if cursor.month == 12:
+                cursor = date(cursor.year + 1, 1, 1)
+            else:
+                cursor = date(cursor.year, cursor.month + 1, 1)
+
+    months_data = []
+    months_with_items = []
+    for idx, label in enumerate(MONTH_NAMES_PT, start=1):
+        items = month_map.get(idx, [])
+        if not items:
+            continue  # exibe somente abas com plantão
+        months_with_items.append(idx)
+        months_data.append({
+            "num": idx,
+            "label": label,
+            "plantoes": items,
+            "count": len(items),
+        })
+
+    today_month_func = getattr(timezone, "localdate", None)
+    today_month = today_month_func().month if callable(today_month_func) else datetime.today().month
+    month_active = None
+    if months_with_items:
+        month_active = today_month if today_month in months_with_items else months_with_items[0]
+        if month_active < 1 or month_active > 12:
+            month_active = months_with_items[0]
+
     context = {
-        "plantoes": plantoes,
+        "plantoes": plantoes_list,
+        "months_data": months_data,
+        "month_active": month_active,
         "years": years,
         "ano_selected": ano_selected,
     }
