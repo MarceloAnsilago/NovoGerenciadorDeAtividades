@@ -24,7 +24,7 @@
             <ul class="nav nav-tabs" id="metasMonthTabs" role="tablist">
               {% for filter in meta_month_filters %}
                 <li class="nav-item" role="presentation">
-                  <button class="nav-link {% if forloop.first %}active{% endif %}" type="button" role="tab" data-month-filter="{{ filter.key }}">
+                  <button class="nav-link {% if filter.key == meta_month_default %}active{% elif forloop.first and not meta_month_default %}active{% endif %}" type="button" role="tab" data-month-filter="{{ filter.key }}">
                     {{ filter.label }}
                   </button>
                 </li>
@@ -185,7 +185,7 @@
   var startInput = document.getElementById("filtroMetasInicio");
   var endInput = document.getElementById("filtroMetasFim");
   var yearSelect = document.getElementById("metaYearSelect");
-  var selectedMonthKey = "";
+  var selectedMonthKey = "{{ meta_month_default|default:'' }}";
   if (!btnFiltro || !tbody) return;
 
   if (yearSelect) {
@@ -274,6 +274,8 @@
   if (monthTabs.length) {
     var activeTab = monthTabs.find(function(t){ return t.classList.contains("active"); }) || monthTabs[0];
     selectedMonthKey = activeTab ? (activeTab.getAttribute("data-month-filter") || "") : "";
+    var initialRange = getRangeFromMonthKey(selectedMonthKey);
+    applyRangeInputs(initialRange);
 
     monthTabs.forEach(function(tab) {
       tab.addEventListener("click", function() {

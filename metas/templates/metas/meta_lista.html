@@ -51,13 +51,13 @@
         <div class="mb-3" id="metasMonthTabsWrapper">
           <ul class="nav nav-tabs" id="metasMonthTabs" role="tablist">
             <li class="nav-item" role="presentation">
-              <button class="nav-link active" type="button" role="tab" data-month-filter="">
+              <button class="nav-link {% if not meta_month_default %}active{% endif %}" type="button" role="tab" data-month-filter="">
                 Todos
               </button>
             </li>
             {% for filter in meta_month_filters %}
               <li class="nav-item" role="presentation">
-                <button class="nav-link" type="button" role="tab" data-month-filter="{{ filter.key }}">
+                <button class="nav-link {% if filter.key == meta_month_default %}active{% endif %}" type="button" role="tab" data-month-filter="{{ filter.key }}">
                   {{ filter.label }}
                 </button>
               </li>
@@ -155,7 +155,7 @@
 (function() {
   var tabs = Array.from(document.querySelectorAll("#metasMonthTabs .nav-link"));
   var tbody = document.getElementById("tabelaMetasBody");
-  var selectedKey = "";
+  var selectedKey = "{{ meta_month_default|default:'' }}";
   if (!tabs.length || !tbody) return;
 
   function aplicarFiltro() {

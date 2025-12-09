@@ -60,6 +60,7 @@ def _build_month_filters(alocacoes):
     return [{"key": key, "label": label} for key, label in month_keys.items()]
 
 def _prepare_metas_context(request, *, emit_messages=False):
+    today = timezone.localdate()
     unidade = get_unidade_atual(request)
     unidade_real = unidade
     if not unidade:
@@ -132,7 +133,8 @@ def _prepare_metas_context(request, *, emit_messages=False):
         except (ValueError, TypeError):
             ano_selected = None
     if ano_selected is None and years:
-        ano_selected = years[0]
+        current_year = today.year
+        ano_selected = current_year if current_year in years else years[0]
 
     if ano_selected:
         alocacoes = [
@@ -142,6 +144,17 @@ def _prepare_metas_context(request, *, emit_messages=False):
         ]
 
     meta_month_filters = _build_month_filters(alocacoes)
+    month_keys_order = [m.get("key") for m in meta_month_filters if "key" in m]
+
+    month_param = request.GET.get("month") or ""
+    today_key = f"{today.year}-{today.month:02d}"
+    month_default = ""
+    if month_param and month_param in month_keys_order:
+        month_default = month_param
+    elif today_key in month_keys_order:
+        month_default = today_key
+    elif month_keys_order:
+        month_default = month_keys_order[0]
 
     return {
         "unidade": unidade,
@@ -153,6 +166,7 @@ def _prepare_metas_context(request, *, emit_messages=False):
         "meta_month_filters": meta_month_filters,
         "years": years,
         "ano_selected": ano_selected,
+        "meta_month_default": month_default,
     }
 
 
@@ -210,6 +224,7 @@ def atividades_lista_view(request):
         "meta_month_filters": metas_context.get("meta_month_filters", []),
         "years": metas_context.get("years", []),
         "ano_selected": metas_context.get("ano_selected"),
+        "meta_month_default": metas_context.get("meta_month_default", ""),
     },
     )
 
