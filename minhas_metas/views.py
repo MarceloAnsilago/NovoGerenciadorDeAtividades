@@ -58,6 +58,8 @@ def minhas_metas_view(request):
     except (TypeError, ValueError):
         meta_filter_id = None
 
+    today = timezone.localdate()
+
     status_param = request.GET.get("status")
     status_value = (status_param or "").lower()
     if status_value not in {"concluidas", "pendentes"}:
@@ -113,7 +115,8 @@ def minhas_metas_view(request):
         except (ValueError, TypeError):
             ano_selected = None
     if ano_selected is None and years:
-        ano_selected = years[0]
+        current_year = today.year
+        ano_selected = current_year if current_year in years else years[0]
 
     if ano_selected:
         alocacoes = [
@@ -142,11 +145,27 @@ def minhas_metas_view(request):
 
     tem_filhos = unidade.filhos.exists()
 
+    month_param = request.GET.get("month") or ""
+    today_key = f"{today.year}-{today.month:02d}"
+    month_default_key: str | None = None
+    if month_param and month_param in month_keys:
+        month_default_key = month_param
+    elif today_key in month_keys:
+        month_default_key = today_key
+    elif month_keys:
+        month_default_key = next(iter(month_keys))
+
     meta_month_filters = [{"key": key, "label": label} for key, label in month_keys.items()]
 
-    today = timezone.localdate()
     default_start = today.replace(day=1)
     default_end = today.replace(day=monthrange(today.year, today.month)[1])
+    if (not request.GET.get("start")) and (not request.GET.get("end")) and month_default_key and month_default_key not in {"nodate", today_key}:
+        try:
+            m_year, m_month = [int(part) for part in month_default_key.split("-")]
+            default_start = date(m_year, m_month, 1)
+            default_end = date(m_year, m_month, monthrange(m_year, m_month)[1])
+        except Exception:
+            pass
 
     start_qs = request.GET.get("start")
     end_qs = request.GET.get("end")
@@ -252,5 +271,6 @@ def minhas_metas_view(request):
         "meta_filter_id": meta_filter_id or 0,
         "meta_filter_title": selected_meta_title,
         "meta_month_filters": meta_month_filters,
+        "meta_month_default": month_default_key or "",
     }
     return render(request, "minhas_metas/lista_metas.html", contexto)
