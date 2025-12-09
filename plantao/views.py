@@ -507,9 +507,11 @@ def ver_plantoes(request):
         except (ValueError, TypeError):
             ano_selected = None
             # se valor inválido, ignoramos e mostramos tudo
-    # se nenhum ano foi escolhido (ou inválido), usa automaticamente o maior ano disponível como padrão
+    # se nenhum ano foi escolhido (ou inválido), usa automaticamente o ano atual (se existir); senão o maior ano disponível como padrão
+    today_local = getattr(timezone, "localdate", None)
+    today = today_local() if callable(today_local) else datetime.today().date()
     if ano_selected is None and years:
-        ano_selected = years[0]
+        ano_selected = today.year if today.year in years else years[0]
         plantoes = plantoes_base.filter(inicio__year__lte=ano_selected, fim__year__gte=ano_selected).order_by("-inicio")
 
     plantoes_list = list(plantoes)
@@ -556,9 +558,18 @@ def ver_plantoes(request):
 
     today_month_func = getattr(timezone, "localdate", None)
     today_month = today_month_func().month if callable(today_month_func) else datetime.today().month
+    month_param_raw = request.GET.get("month") or ""
+    try:
+        month_param = int(month_param_raw)
+    except (ValueError, TypeError):
+        month_param = None
+
     month_active = None
     if months_with_items:
-        month_active = today_month if today_month in months_with_items else months_with_items[0]
+        if month_param and month_param in months_with_items:
+            month_active = month_param
+        else:
+            month_active = today_month if today_month in months_with_items else months_with_items[0]
         if month_active < 1 or month_active > 12:
             month_active = months_with_items[0]
 
