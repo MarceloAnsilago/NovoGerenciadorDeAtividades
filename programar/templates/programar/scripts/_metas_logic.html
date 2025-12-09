@@ -129,9 +129,11 @@
         years.sort((a, b) => Number(b) - Number(a));
 
         const currentStored = NS.metaYearSelected || null;
+        const currentYear = String(new Date().getFullYear());
         let defaultYear = currentStored;
         if (!defaultYear) {
-          if (years.length > 0) defaultYear = years[0];
+          if (years.includes(currentYear)) defaultYear = currentYear;
+          else if (years.length > 0) defaultYear = years[0];
           else if (hasNoDate) defaultYear = "nodate";
         }
 
@@ -188,7 +190,9 @@
         if (NS.metaMonthSelected && months.includes(NS.metaMonthSelected)) {
           curMonth = NS.metaMonthSelected;
         } else {
-          curMonth = months[0];
+          const now = new Date();
+          const curKey = `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+          curMonth = months.includes(curKey) ? curKey : months[0];
           NS.metaMonthSelected = curMonth;
         }
 
