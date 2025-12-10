@@ -29,7 +29,9 @@ from .utils import verifica_conflito_plantao
 def _get_plantao_respeitando_unidade(request, pk):
     """
     Retorna um Plantao (ou 404) aplicando filtro por unidade, se o model Plantao
-    tiver o campo `unidade`. Staff vê tudo; usuários normais só veem plantões da unidade atual.
+    tiver o campo `unidade`. Quando houver unidade no contexto ela é sempre aplicada
+    como recorte; sem contexto liberamos o acesso (staff consegue ver tudo apenas
+    se não estiver assumindo nenhuma unidade).
     """
     unidade_id = get_unidade_atual_id(request)
     # verifica se o model Plantao tem campo 'unidade' (compatibilidade)
@@ -40,8 +42,8 @@ def _get_plantao_respeitando_unidade(request, pk):
 
     qs = Plantao.objects.all()
     if "unidade" in field_names or "unidade_id" in field_names:
-        # se existe unidade no contexto e não é staff, filtra por unidade_id
-        if unidade_id and not request.user.is_staff:
+        # se existe unidade no contexto, sempre filtramos por ela
+        if unidade_id:
             qs = qs.filter(unidade_id=unidade_id)
         # se unidade_id None -> não aplicamos filtro (útil para admin ou contextos sem unidade)
     # get_object_or_404 aceita uma queryset como primeiro argumento
@@ -462,14 +464,14 @@ def ver_plantoes(request):
     # base queryset (ordenada)
     plantoes_base = Plantao.objects.order_by("-inicio")
 
-    # aplica filtro de unidade se Plantao tem campo unidade e há unidade no contexto (exceto staff)
+    # aplica filtro de unidade se Plantao tem campo unidade e há unidade no contexto
     try:
         field_names = [f.name for f in Plantao._meta.fields]
     except Exception:
         field_names = []
 
     unidade_id = get_unidade_atual_id(request)
-    if ("unidade" in field_names or "unidade_id" in field_names) and unidade_id and not request.user.is_staff:
+    if ("unidade" in field_names or "unidade_id" in field_names) and unidade_id:
         plantoes_base = plantoes_base.filter(unidade_id=unidade_id)
 
     # --- construir lista de anos disponíveis (com base nos campos inicio/fim) ---
