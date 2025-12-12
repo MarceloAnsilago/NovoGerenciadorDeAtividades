@@ -52,9 +52,9 @@
                   {% if perm.id in form.initial.permissoes %}checked{% endif %}
                 >
                 <label class="form-check-label" for="perm_{{ perm.id }}">
-                  {{ perm.name|perm_label }}
+                  {{ perm|perm_friendly }}
                   <span class="text-muted small">
-                    ({{ perm.content_type.model|lower|lookup:model_labels }})
+                    ({{ perm.codename }})
                   </span>
                 </label>
               </div>
