@@ -531,6 +531,10 @@ def editar_meta_view(request, meta_id):
         messages.warning(request, "Esta meta já foi encerrada e não pode ser editada.")
         return redirect(next_url)
 
+    # info somente leitura
+    meta_alocado_total = meta.alocado_total or 0
+    meta_programadas_total = ProgramacaoItem.objects.filter(meta=meta).count()
+
     def _build_form(data=None):
         f = MetaForm(data=data, instance=meta)
         # Em edição, data_limite passa a ser obrigatória e deve vir pré-preenchida com o valor atual.
@@ -548,7 +552,7 @@ def editar_meta_view(request, meta_id):
             new_qty = form.cleaned_data.get("quantidade_alvo") or 0
             old_qty = meta.quantidade_alvo or 0
             if new_qty < old_qty:
-                from programar.models import ProgramacaoItem  # import tardio p/ evitar custo global
+                # usa import global; já disponível no topo do módulo
                 programadas_total = ProgramacaoItem.objects.filter(meta=meta).count()
                 if programadas_total > new_qty:
                     form.add_error(
@@ -580,6 +584,8 @@ def editar_meta_view(request, meta_id):
         "meta": meta,
         "unidade": unidade,
         "back_url": next_url,
+        "meta_alocado_total": meta_alocado_total,
+        "meta_programadas_total": meta_programadas_total,
     })
 
 
