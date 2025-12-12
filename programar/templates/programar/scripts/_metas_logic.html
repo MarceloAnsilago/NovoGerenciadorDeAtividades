@@ -224,8 +224,9 @@
           const cy = card.getAttribute("data-year") || "nodate";
           const cm = card.getAttribute("data-month") || "nodate";
           let visible = true;
-          if (selectedYear) visible = cy === selectedYear;
-          if (visible && selectedMonth) visible = cm === selectedMonth;
+          // Metas sem data_limite (cy === "nodate") devem sempre aparecer.
+          if (selectedYear && cy !== "nodate") visible = cy === selectedYear;
+          if (visible && selectedMonth && cm !== "nodate") visible = cm === selectedMonth;
           card.style.display = visible ? "" : "none";
         });
       };

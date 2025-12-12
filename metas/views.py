@@ -137,10 +137,11 @@ def _prepare_metas_context(request, *, emit_messages=False):
         ano_selected = current_year if current_year in years else years[0]
 
     if ano_selected:
+        # Mantemos metas sem data_limite mesmo com filtro de ano para que não "sumam" da lista.
         alocacoes = [
             aloc for aloc in alocacoes
-            if getattr(getattr(aloc, "meta", None), "data_limite", None)
-            and getattr(aloc.meta.data_limite, "year", None) == ano_selected
+            if not getattr(getattr(aloc, "meta", None), "data_limite", None)
+            or getattr(aloc.meta.data_limite, "year", None) == ano_selected
         ]
 
     meta_month_filters = _build_month_filters(alocacoes)
@@ -506,9 +507,27 @@ def editar_meta_view(request, meta_id):
     if request.method == "POST":
         form = MetaForm(request.POST, instance=meta)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Meta atualizada com sucesso.")
-            return redirect("metas:metas-unidade")
+            new_qty = form.cleaned_data.get("quantidade_alvo") or 0
+            old_qty = meta.quantidade_alvo or 0
+            if new_qty < old_qty:
+                from programar.models import ProgramacaoItem  # import tardio p/ evitar custo global
+                programadas_total = ProgramacaoItem.objects.filter(meta=meta).count()
+                if programadas_total > new_qty:
+                    form.add_error(
+                        "quantidade_alvo",
+                        (
+                            f"Existem {programadas_total} atividade(s) desta meta já programadas. "
+                            f"Remova-as da programação antes de reduzir a quantidade alvo para {new_qty}."
+                        ),
+                    )
+                else:
+                    form.save()
+                    messages.success(request, "Meta atualizada com sucesso.")
+                    return redirect("metas:metas-unidade")
+            else:
+                form.save()
+                messages.success(request, "Meta atualizada com sucesso.")
+                return redirect("metas:metas-unidade")
         else:
             messages.error(request, "Corrija os erros do formulário.")
     else:

@@ -7,6 +7,12 @@ python manage.py shell
 
 flyctl deploy -a gerenciador-de-atividades
 
+supabase 
+celosmg@hotmail.com
+Sup@celo321
+------------
+GTA@2025_idaron#Prod!     <--banco producao
+
 admin
 admin123
 

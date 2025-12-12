@@ -119,10 +119,11 @@ def minhas_metas_view(request):
         ano_selected = current_year if current_year in years else years[0]
 
     if ano_selected:
+        # Inclui metas sem data_limite mesmo quando um ano específico está selecionado.
         alocacoes = [
             aloc for aloc in alocacoes
-            if getattr(getattr(aloc, "meta", None), "data_limite", None)
-            and getattr(aloc.meta.data_limite, "year", None) == ano_selected
+            if not getattr(getattr(aloc, "meta", None), "data_limite", None)
+            or getattr(aloc.meta.data_limite, "year", None) == ano_selected
         ]
 
     month_keys = OrderedDict()
