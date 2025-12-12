@@ -496,16 +496,29 @@ def editar_meta_view(request, meta_id):
     Segurança simples: só permite editar se a unidade atual for a unidade_criadora
     ou se o usuário for superuser.
     """
+    next_url_default = reverse("metas:metas-unidade")
+    next_url = request.GET.get("next") or request.POST.get("next") or next_url_default
     unidade = get_unidade_atual(request)
     meta = get_object_or_404(Meta, pk=meta_id)
 
     # checagem de permissão básica
     if unidade and meta.unidade_criadora_id != unidade.id and not request.user.is_superuser:
         messages.warning(request, "Você só pode editar metas da unidade atual.")
-        return redirect("metas:metas-unidade")
+        return redirect(next_url)
+
+    def _build_form(data=None):
+        f = MetaForm(data=data, instance=meta)
+        # Em edição, data_limite passa a ser obrigatória e deve vir pré-preenchida com o valor atual.
+        f.fields["data_limite"].required = True
+        initial_date = getattr(meta, "data_limite", None)
+        f.fields["data_limite"].initial = initial_date
+        if data is None:
+            # garante preenchimento no GET mesmo se o field initial for ignorado pelo widget
+            f.initial["data_limite"] = initial_date
+        return f
 
     if request.method == "POST":
-        form = MetaForm(request.POST, instance=meta)
+        form = _build_form(request.POST)
         if form.is_valid():
             new_qty = form.cleaned_data.get("quantidade_alvo") or 0
             old_qty = meta.quantidade_alvo or 0
@@ -531,12 +544,13 @@ def editar_meta_view(request, meta_id):
         else:
             messages.error(request, "Corrija os erros do formulário.")
     else:
-        form = MetaForm(instance=meta)
+        form = _build_form()
 
     return render(request, "metas/editar_meta.html", {
         "form": form,
         "meta": meta,
         "unidade": unidade,
+        "back_url": next_url,
     })
 
 

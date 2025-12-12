@@ -13,10 +13,18 @@ class MetaForm(forms.ModelForm):
             "data_limite": "Data limite",
         }
         widgets = {
-            "data_limite": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "data_limite": forms.DateInput(
+                format="%Y-%m-%d",
+                attrs={"type": "date", "class": "form-control"},
+            ),
             "quantidade_alvo": forms.NumberInput(attrs={"class": "form-control"}),
             "descricao": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # garante que o input type=date use o formato ISO (YYYY-MM-DD) para preencher o valor inicial
+        self.fields["data_limite"].input_formats = ["%Y-%m-%d", "%d/%m/%Y"]
 
 class MetaAlocacaoForm(forms.ModelForm):
     class Meta:

@@ -48,22 +48,19 @@
     </div>
     <div class="card-body">
       {% if alocacoes %}
-        <div class="mb-3" id="metasMonthTabsWrapper">
-          <ul class="nav nav-tabs" id="metasMonthTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-              <button class="nav-link {% if not meta_month_default %}active{% endif %}" type="button" role="tab" data-month-filter="">
-                Todos
-              </button>
-            </li>
-            {% for filter in meta_month_filters %}
-              <li class="nav-item" role="presentation">
-                <button class="nav-link {% if filter.key == meta_month_default %}active{% endif %}" type="button" role="tab" data-month-filter="{{ filter.key }}">
-                  {{ filter.label }}
-                </button>
-              </li>
-            {% endfor %}
-          </ul>
-        </div>
+        {% if meta_month_filters %}
+          <div class="mb-3" id="metasMonthTabsWrapper">
+            <ul class="nav nav-tabs" id="metasMonthTabs" role="tablist">
+              {% for filter in meta_month_filters %}
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link {% if forloop.first and not meta_month_default %}active{% elif filter.key == meta_month_default %}active{% endif %}" type="button" role="tab" data-month-filter="{{ filter.key }}">
+                    {{ filter.label }}
+                  </button>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
         <div class="table-responsive">
           <table class="table table-striped align-middle mb-0">
             <thead>
@@ -155,8 +152,14 @@
 (function() {
   var tabs = Array.from(document.querySelectorAll("#metasMonthTabs .nav-link"));
   var tbody = document.getElementById("tabelaMetasBody");
+  if (!tbody) return;
+
+  // define a seleção inicial: usa meta_month_default se existir; senão, primeiro tab
   var selectedKey = "{{ meta_month_default|default:'' }}";
-  if (!tabs.length || !tbody) return;
+  if (!selectedKey && tabs.length) {
+    selectedKey = tabs[0].getAttribute("data-month-filter") || "";
+    tabs[0].classList.add("active");
+  }
 
   function aplicarFiltro() {
     var key = (selectedKey || "").toLowerCase();
