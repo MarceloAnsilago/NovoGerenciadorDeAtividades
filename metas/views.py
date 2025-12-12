@@ -7,7 +7,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Count
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.utils import timezone
@@ -17,6 +17,7 @@ from core.models import No
 from atividades.models import Atividade
 
 from .models import Meta, MetaAlocacao, ProgressoMeta
+from programar.models import ProgramacaoItem
 from .forms import MetaForm
 from django.http import HttpResponseForbidden
 from django.views.decorators.http import require_http_methods
@@ -116,6 +117,25 @@ def _prepare_metas_context(request, *, emit_messages=False):
         alocacoes = alocacoes.filter(meta__encerrada=True)
 
     alocacoes = list(alocacoes)
+
+    # total de programações (pendentes ou concluídas) por meta na unidade atual
+    try:
+        meta_ids = [getattr(aloc, "meta_id", None) for aloc in alocacoes if getattr(aloc, "meta_id", None)]
+        prog_counts = (
+            ProgramacaoItem.objects
+            .filter(meta_id__in=meta_ids, programacao__unidade=unidade_real)
+            .values("meta_id")
+            .annotate(total=Count("id"))
+        )
+        prog_count_map = {row["meta_id"]: row["total"] for row in prog_counts}
+    except Exception:
+        prog_count_map = {}
+
+    for aloc in alocacoes:
+        prog_total = prog_count_map.get(getattr(aloc, "meta_id", None), 0)
+        setattr(aloc, "programadas_total", prog_total)
+        if getattr(aloc, "meta", None):
+            setattr(aloc.meta, "programadas_total", prog_total)
 
     # anos disponíveis pelas datas limite
     years_set = set()
@@ -506,6 +526,11 @@ def editar_meta_view(request, meta_id):
         messages.warning(request, "Você só pode editar metas da unidade atual.")
         return redirect(next_url)
 
+    # evita edicao de metas ja encerradas
+    if meta.encerrada:
+        messages.warning(request, "Esta meta já foi encerrada e não pode ser editada.")
+        return redirect(next_url)
+
     def _build_form(data=None):
         f = MetaForm(data=data, instance=meta)
         # Em edição, data_limite passa a ser obrigatória e deve vir pré-preenchida com o valor atual.
@@ -532,6 +557,10 @@ def editar_meta_view(request, meta_id):
                             f"Existem {programadas_total} atividade(s) desta meta já programadas. "
                             f"Remova-as da programação antes de reduzir a quantidade alvo para {new_qty}."
                         ),
+                    )
+                    messages.error(
+                        request,
+                        "Remova as atividades programadas desta meta antes de reduzir a quantidade alvo.",
                     )
                 else:
                     form.save()

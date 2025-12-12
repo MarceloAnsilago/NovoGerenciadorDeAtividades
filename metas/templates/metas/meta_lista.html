@@ -65,10 +65,10 @@
           <table class="table table-striped align-middle mb-0">
             <thead>
               <tr>
-                <th>Titulo</th>
                 <th>Atividade</th>
-                <th>Prazo</th>
-                <th>Alocacao</th>
+                <th class="text-center">Prazo</th>
+                <th class="text-center">Meta (alvo)</th>
+                <th class="text-center">Programadas</th>
                 <th>Realizado</th>
                 <th>% Execucao</th>
                 <th>Status</th>
@@ -78,16 +78,16 @@
             <tbody id="tabelaMetasBody">
               {% for aloc in alocacoes %}
               <tr data-meta-month="{{ aloc.meta.month_key|default:'nodate' }}">
-                <td>{{ aloc.meta.display_titulo }}</td>
                 <td>
                   {% if aloc.meta.atividade %}
                     {{ aloc.meta.atividade.titulo }}
                   {% else %}
-                    <span class="text-muted">--</span>
+                    {{ aloc.meta.display_titulo }}
                   {% endif %}
                 </td>
-                <td>{{ aloc.meta.data_limite|date:"d/m/Y"|default:"--" }}</td>
-                <td>{{ aloc.quantidade_alocada|default:"0" }}</td>
+                <td class="text-center">{{ aloc.meta.data_limite|date:"d/m/Y"|default:"--" }}</td>
+                <td class="text-center">{{ aloc.meta.quantidade_alvo|default:"0" }}</td>
+                <td class="text-center">{{ aloc.programadas_total|default:"0" }}</td>
                 <td>{{ aloc.realizado|default:"0" }}</td>
                 <td>{{ aloc.percentual_execucao|floatformat:1 }}%</td>
                 <td>
@@ -104,24 +104,24 @@
                 <td class="text-end">
                   {% if request.user.is_superuser or aloc.meta.unidade_criadora_id == unidade.id %}
                     <div class="d-inline-flex flex-wrap justify-content-end gap-2">
-                      {% if aloc.meta.encerrada %}
-                        <form method="post" action="{% url 'metas:toggle_encerrada' aloc.meta.id %}" class="d-inline">
-                          {% csrf_token %}
-                          <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                          <button type="submit" class="btn btn-sm btn-outline-secondary" title="Reabrir meta">
-                            <i class="bi bi-arrow-clockwise"></i> Reabrir
-                          </button>
-                        </form>
-                      {% else %}
-                        <a href="{% url 'metas:encerrar-meta' aloc.meta.id %}?next={{ request.get_full_path|urlencode }}"
-                           class="btn btn-sm btn-outline-danger">
-                          <i class="bi bi-flag"></i> Encerrar
-                        </a>
-                      {% endif %}
-                      <a href="{% url 'metas:atribuir-meta' aloc.meta.id %}"
-                         class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-arrow-left-right"></i> Atribuir / Redistribuir
-                      </a>
+                  {% if aloc.meta.encerrada %}
+                    <form method="post" action="{% url 'metas:toggle_encerrada' aloc.meta.id %}" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button type="submit" class="btn btn-sm btn-outline-secondary" title="Reabrir meta">
+                        <i class="bi bi-arrow-clockwise"></i> Reabrir
+                      </button>
+                    </form>
+                  {% else %}
+                    <a href="{% url 'metas:encerrar-meta' aloc.meta.id %}?next={{ request.get_full_path|urlencode }}"
+                       class="btn btn-sm btn-outline-danger">
+                      <i class="bi bi-flag"></i> Encerrar
+                    </a>
+                  {% endif %}
+                  <a href="{% url 'metas:atribuir-meta' aloc.meta.id %}"
+                     class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-arrow-left-right"></i> Atribuir / Redistribuir
+                  </a>
                     </div>
                   {% else %}
                     <span class="text-muted small">Sem acoes disponiveis</span>
