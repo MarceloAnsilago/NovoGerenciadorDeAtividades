@@ -1,4 +1,8 @@
 # descanso/views.py
+from calendar import monthrange
+from collections import Counter
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -48,9 +52,57 @@ def _format_conflicts(conflicts):
             }
         )
     return payload
-from datetime import date
-from collections import OrderedDict
-from calendar import monthrange
+
+MONTH_NAMES_PT = (
+    "Janeiro", "Fevereiro", "Março", "Abril",
+    "Maio", "Junho", "Julho", "Agosto",
+    "Setembro", "Outubro", "Novembro", "Dezembro",
+)
+
+
+def _get_requested_year(request):
+    try:
+        return int(request.GET.get("ano") or timezone.localdate().year)
+    except (TypeError, ValueError):
+        return timezone.localdate().year
+
+
+def _build_descanso_month_filters(year, include_nodate=False):
+    filters = [
+        {"key": f"{year}-{month:02d}", "label": f"{MONTH_NAMES_PT[month - 1]} {year}"}
+        for month in range(1, 13)
+    ]
+    if include_nodate:
+        filters.append({"key": "nodate", "label": "Sem data"})
+    return filters
+
+
+def _get_descanso_month_keys(descanso, year):
+    inicio = getattr(descanso, "data_inicio", None)
+    fim = getattr(descanso, "data_fim", None)
+    if not inicio or not fim:
+        return ["nodate"]
+
+    ano_inicio = date(year, 1, 1)
+    ano_fim = date(year, 12, 31)
+    inicio_filtrado = max(inicio, ano_inicio)
+    fim_filtrado = min(fim, ano_fim)
+    if inicio_filtrado > fim_filtrado:
+        return []
+
+    keys = []
+    mes_atual = inicio_filtrado.month
+    ano_atual = inicio_filtrado.year
+    while True:
+        keys.append(f"{ano_atual}-{mes_atual:02d}")
+        if ano_atual == fim_filtrado.year and mes_atual == fim_filtrado.month:
+            break
+        if mes_atual == 12:
+            mes_atual = 1
+            ano_atual += 1
+        else:
+            mes_atual += 1
+    return keys
 
 @login_required
 def lista_servidores(request):
@@ -142,6 +194,9 @@ def criar_descanso(request):
 def descansos_unidade(request):
     """Lista de descansos da UNIDADE atual, com filtros."""
     hoje = timezone.localdate()
+    ano = _get_requested_year(request)
+    inicio_ano = date(ano, 1, 1)
+    fim_ano = date(ano, 12, 31)
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
         messages.error(request, "Selecione uma unidade para visualizar os descansos.")
@@ -150,48 +205,62 @@ def descansos_unidade(request):
     qs = (Descanso.objects
           .select_related("servidor", "servidor__unidade")
           .filter(servidor__unidade_id=unidade_id))
-
-    status = request.GET.get("status", "ativos")  # ativos|futuros|finalizados|todos
-    tipo = request.GET.get("tipo")
-    inicio = request.GET.get("inicio")
-    fim = request.GET.get("fim")
-    q = request.GET.get("q")
-
-    if status == "ativos":
-        qs = qs.filter(data_inicio__lte=hoje, data_fim__gte=hoje)
-    elif status == "futuros":
-        qs = qs.filter(data_inicio__gt=hoje)
-    elif status == "finalizados":
-        qs = qs.filter(data_fim__lt=hoje)
-
-    if tipo:
-        qs = qs.filter(tipo=tipo)
-    if inicio:
-        qs = qs.filter(data_fim__gte=inicio)
-    if fim:
-        qs = qs.filter(data_inicio__lte=fim)
-    if q:
-        qs = qs.filter(Q(servidor__nome__icontains=q) | Q(observacoes__icontains=q))
+    qs = qs.filter(data_inicio__lte=fim_ano, data_fim__gte=inicio_ano)
 
     qs = qs.order_by("-data_inicio", "-id")
+    descansos = list(qs)
 
-    base = Descanso.objects.filter(servidor__unidade_id=unidade_id)
-    counts = {
-        "ativos": base.filter(data_inicio__lte=hoje, data_fim__gte=hoje).count(),
-        "futuros": base.filter(data_inicio__gt=hoje).count(),
-        "finalizados": base.filter(data_fim__lt=hoje).count(),
-        "todos": base.count(),
-    }
+    has_nodate = False
+    for descanso in descansos:
+        keys = _get_descanso_month_keys(descanso, ano)
+        descanso.month_keys = keys
+        if "nodate" in keys:
+            has_nodate = True
+
+    month_filters = _build_descanso_month_filters(ano, include_nodate=has_nodate)
+    month_counts = Counter()
+    for descanso in descansos:
+        for key in descanso.month_keys:
+            month_counts[key] += 1
+    for mf in month_filters:
+        mf["count"] = month_counts.get(mf["key"], 0)
+    month_keys = [mf["key"] for mf in month_filters]
+    month_param = (request.GET.get("month") or "").strip()
+    month_default = ""
+    if month_param and month_param in month_keys:
+        month_default = month_param
+    elif month_keys:
+        today_key = f"{hoje.year}-{hoje.month:02d}"
+        if ano == hoje.year and today_key in month_keys:
+            month_default = today_key
+        else:
+            month_default = month_keys[0]
+
+    anos_disponiveis = set()
+    q_anos = Descanso.objects.filter(servidor__unidade_id=unidade_id).values_list(
+        "data_inicio__year", "data_fim__year"
+    )
+    for inicio_ano_val, fim_ano_val in q_anos:
+        if inicio_ano_val:
+            anos_disponiveis.add(inicio_ano_val)
+        if fim_ano_val:
+            anos_disponiveis.add(fim_ano_val)
+    if not anos_disponiveis:
+        anos_disponiveis.add(ano)
+    else:
+        anos_disponiveis.add(ano)
+    anos_opcoes = sorted(anos_disponiveis)
 
     return render(
         request,
         "descanso/descansos_unidade.html",
         {
-            "descansos": qs,
-            "status": status,
-            "counts": counts,
-            "tipos": Descanso.Tipo.choices,
-            "filtros": {"tipo": tipo, "inicio": inicio, "fim": fim, "q": q},
+            "descansos": descansos,
+            "month_filters": month_filters,
+            "month_default": month_default,
+            "ano": ano,
+            "anos_opcoes": anos_opcoes,
+            "total_descansos": len(descansos),
         },
     )
 

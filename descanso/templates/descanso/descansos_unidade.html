@@ -26,36 +26,53 @@
       <div class="d-flex align-items-start gap-2">
         <i class="bi bi-calendar-week text-primary fs-4"></i>
         <div>
-          <strong>Visao geral</strong>
-          <div class="text-muted small">Refine a lista por status, tipo, periodo ou termos de busca.</div>
+          <strong>Visão geral</strong>
+          <div class="text-muted small">Use as abas para filtrar o mês e selecione o ano acima.</div>
         </div>
       </div>
     </div>
     <div class="card-body">
-      <ul class="nav nav-pills small flex-wrap gap-2 mb-3">
-        <li class="nav-item">
-          <a class="nav-link{% if status == 'ativos' %} active{% endif %}" href="?status=ativos">
-            Ativos <span class="badge bg-light text-dark ms-1">{{ counts.ativos }}</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link{% if status == 'futuros' %} active{% endif %}" href="?status=futuros">
-            Futuros <span class="badge bg-light text-dark ms-1">{{ counts.futuros }}</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link{% if status == 'finalizados' %} active{% endif %}" href="?status=finalizados">
-            Finalizados <span class="badge bg-light text-dark ms-1">{{ counts.finalizados }}</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link{% if status == 'todos' %} active{% endif %}" href="?status=todos">
-            Todos <span class="badge bg-light text-dark ms-1">{{ counts.todos }}</span>
-          </a>
-        </li>
-      </ul>
-
-      {% include "partials/_filtros_descanso.html" %}
+      {% if month_filters %}
+        <div class="mb-3" id="descansosMonthTabsWrapper">
+          <div class="d-flex flex-wrap align-items-end justify-content-between gap-3">
+            <ul class="nav nav-tabs small flex-wrap gap-2" id="descansosMonthTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link{% if not month_default %} active{% endif %}" type="button" role="tab" data-month-filter="">
+                  Todos
+                  <span class="badge bg-primary text-white ms-1 rounded-pill">{{ total_descansos }}</span>
+                </button>
+              </li>
+              {% for filter in month_filters %}
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link{% if filter.key == month_default %} active{% endif %}"
+                    type="button"
+                    role="tab"
+                    data-month-filter="{{ filter.key }}">
+                    {{ filter.label }}
+                    <span class="badge bg-primary text-white ms-1 rounded-pill">{{ filter.count }}</span>
+                  </button>
+                </li>
+              {% endfor %}
+            </ul>
+            <form method="get" class="d-flex align-items-end gap-2 flex-wrap" id="descansosYearForm">
+              <div class="d-flex flex-column">
+                <label class="form-label small text-muted mb-1">Ano</label>
+                <select name="ano" class="form-select form-select-sm">
+                  {% for ano_opcao in anos_opcoes %}
+                    <option value="{{ ano_opcao }}" {% if ano_opcao == ano %}selected{% endif %}>
+                      {{ ano_opcao }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button class="btn btn-sm btn-outline-primary" type="submit">
+                <i class="bi bi-arrow-repeat me-1"></i> Atualizar
+              </button>
+            </form>
+          </div>
+        </div>
+      {% endif %}
     </div>
   </div>
 
@@ -65,7 +82,7 @@
     </div>
     <div class="card-body p-0">
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table id="descansosTable" class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
               <th>Servidor</th>
@@ -78,7 +95,7 @@
           </thead>
           <tbody>
             {% for d in descansos %}
-              <tr>
+              <tr data-descanso-months="{{ d.month_keys|join:',' }}">
                 <td class="fw-medium">
                   <a href="{% url 'descanso:descansos_servidor' d.servidor_id %}" class="text-decoration-none">
                     {{ d.servidor.nome }}
@@ -113,4 +130,53 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function () {
+  const tabs = Array.from(document.querySelectorAll("#descansosMonthTabs button[data-month-filter]"));
+  const tbody = document.querySelector("#descansosTable tbody");
+  if (!tabs.length || !tbody) return;
+
+  let selectedKey = "{{ month_default|default:''|lower }}";
+
+  const applyFilter = () => {
+    const key = (selectedKey || "").toLowerCase();
+    tbody.querySelectorAll("tr").forEach((row) => {
+      const rowKeys = (row.getAttribute("data-descanso-months") || "")
+        .split(",")
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean);
+      const show = !key || rowKeys.includes(key);
+      row.classList.toggle("d-none", !show);
+    });
+  };
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      selectedKey = (tab.getAttribute("data-month-filter") || "").toLowerCase();
+      tabs.forEach((inner) => {
+        const innerKey = (inner.getAttribute("data-month-filter") || "").toLowerCase();
+        inner.classList.toggle("active", innerKey === selectedKey);
+      });
+      applyFilter();
+    });
+  });
+
+  // ensure the initial tab is highlighted if necessary
+  tabs.forEach((tab) => {
+    const key = (tab.getAttribute("data-month-filter") || "").toLowerCase();
+    tab.classList.toggle("active", key === selectedKey);
+  });
+
+  applyFilter();
+})();
+const yearForm = document.querySelector("#descansosYearForm");
+const yearSelect = yearForm?.querySelector("select[name='ano']");
+if (yearForm && yearSelect) {
+  yearSelect.addEventListener("change", () => yearForm.submit());
+}
+</script>
 {% endblock %}
