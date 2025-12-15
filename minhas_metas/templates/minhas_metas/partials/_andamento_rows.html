@@ -2,7 +2,9 @@
 <tr id="row-and-{{ it.item_id }}">
   <td class="text-nowrap">{{ it.data|date:"d/m/Y" }}</td>
   <td>
-    <div class="fw-semibold">{{ it.meta_titulo }}</div>
+    <div class="fw-semibold">
+      <i class="bi bi-card-text text-primary me-1" aria-hidden="true"></i>{{ it.meta_titulo }}
+    </div>
     {% if it.atividade_nome %}
       <div class="text-muted small">Atividade: {{ it.atividade_nome }}</div>
     {% endif %}

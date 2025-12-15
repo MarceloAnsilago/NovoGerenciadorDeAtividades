@@ -139,7 +139,7 @@
       <table class="table table-hover align-middle">
         <thead>
           <tr>
-            <th>Titulo</th>
+            <th><i class="bi bi-card-text me-1"></i> Titulo</th>
             <th>Descricao</th>
             <th>Area</th>
             <th class="text-end">Acoes</th>
@@ -148,7 +148,10 @@
         <tbody>
           {% for atividade in atividades %}
             <tr>
-              <td>{{ atividade.titulo }}</td>
+              <td>
+                <i class="bi bi-card-text text-primary me-1" aria-hidden="true"></i>
+                {{ atividade.titulo }}
+              </td>
               <td>{{ atividade.descricao|default:"" }}</td>
               <td>
                 {% if atividade.get_area_display %}

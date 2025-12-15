@@ -68,10 +68,13 @@
              data-meta-title="{{ meta.display_titulo|default:meta.titulo }}">
           <div class="card-body d-flex flex-column">
 
-            <div class="d-flex align-items-start mb-2 pb-2 border-bottom border-secondary-subtle">
-              <i class="bi bi-bullseye text-primary fs-4 me-2"></i>
-              <div class="flex-grow-1">
-                <h5 class="card-title mb-0">{{ meta.display_titulo|default:meta.titulo }}</h5>
+                <div class="d-flex align-items-start mb-2 pb-2 border-bottom border-secondary-subtle">
+                  <i class="bi bi-bullseye text-primary fs-4 me-2"></i>
+                <div class="flex-grow-1">
+                  <h5 class="card-title mb-0">
+                    <i class="bi bi-card-text text-primary me-1" aria-hidden="true"></i>
+                    {{ meta.display_titulo|default:meta.titulo }}
+                  </h5>
 
                 {% if meta.descricao %}
                   <p class="card-text text-muted small mb-2">{{ meta.descricao }}</p>
