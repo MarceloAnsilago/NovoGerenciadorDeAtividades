@@ -97,6 +97,7 @@
             {% for d in descansos %}
               <tr data-descanso-months="{{ d.month_keys|join:',' }}">
                 <td class="fw-medium">
+                  <i class="bi bi-person-circle text-primary me-2"></i>
                   <a href="{% url 'descanso:descansos_servidor' d.servidor_id %}" class="text-decoration-none">
                     {{ d.servidor.nome }}
                   </a>

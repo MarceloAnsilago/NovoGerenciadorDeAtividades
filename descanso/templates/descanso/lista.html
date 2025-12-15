@@ -33,6 +33,7 @@
             {% for s in servidores %}
               <tr>
                 <td class="fw-medium">
+                  <i class="bi bi-person-circle text-primary me-2"></i>
                   {{ s.nome }}
                   {% if s.tem_descanso_registrado %}
                     <span class="badge bg-info text-dark ms-2" title="Possui descansos cadastrados">
