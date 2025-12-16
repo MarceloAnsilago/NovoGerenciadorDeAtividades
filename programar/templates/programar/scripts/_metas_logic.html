@@ -46,6 +46,11 @@
     const metasGrid = document.getElementById("metasGrid");
     if (!metasGrid) return;
 
+    const STATUS_LABELS = {
+      andamento: "Em andamento",
+      concluida: "Concluída",
+      encerrada: "Encerrada",
+    };
     metasGrid.innerHTML = `
       <div class="placeholder-glow">
         <span class="placeholder col-12 mb-2"></span>
@@ -76,6 +81,9 @@
         const d = m.data_limite ? new Date(m.data_limite) : null;
         const monthKey = d ? (d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")) : "nodate";
         const yearKey = d ? String(d.getFullYear()) : "nodate";
+        const statusKey = String(m.status || "andamento").toLowerCase();
+        const normalizedStatus = STATUS_LABELS[statusKey] ? statusKey : "andamento";
+        const statusLabel = m.status_label || STATUS_LABELS[normalizedStatus] || STATUS_LABELS.andamento;
         const dataLimiteStr = d ? d.toLocaleDateString("pt-BR") : "";
         return `
           <button type="button"
@@ -84,10 +92,14 @@
                   data-programadas="${programadas}"
                   data-alocado="${alocado}"
                   data-month="${monthKey}"
-                  data-year="${yearKey}">
+                  data-year="${yearKey}"
+                  data-status="${normalizedStatus}">
             <div class="meta-head">
               <span class="icon"><i class="bi bi-flag"></i></span>
               <h6 class="meta-title">${m.nome}</h6>
+              <span class="meta-status-pill status-${normalizedStatus}" aria-label="Status: ${statusLabel}">
+                ${statusLabel}
+              </span>
             </div>
             <div class="meta-sep"></div>
             ${d ? `

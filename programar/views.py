@@ -43,6 +43,18 @@ def _norm(s:str) -> str:
 def _is_expediente(nome_meta: str) -> bool:
     return _norm(nome_meta) in {"expediente administrativo", "expediente adm", "expediente"}
 
+def _meta_status_info(meta: Any) -> tuple[str, str]:
+    if not meta:
+        return "andamento", "Em andamento"
+    try:
+        if getattr(meta, "encerrada", False):
+            return "encerrada", "Encerrada"
+        if getattr(meta, "concluida", False):
+            return "concluida", "Concluída"
+    except Exception:
+        pass
+    return "andamento", "Em andamento"
+
 def calendario_view(request):
     meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
     veiculos_json = "[]"
@@ -1389,6 +1401,7 @@ def metas_disponiveis(request):
             atividade_nome = None
             if atividade:
                 atividade_nome = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
+            status_key, status_label = _meta_status_info(meta)
             bucket[mid] = {
                 "id": mid,
                 "nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem título)"),
@@ -1397,6 +1410,8 @@ def metas_disponiveis(request):
                 "alocado_unidade": 0,
                 "executado_unidade": 0,
                 "meta_total": int(getattr(meta, "quantidade_alvo", 0) or 0),
+                "status": status_key,
+                "status_label": status_label,
             }
         bucket[mid]["alocado_unidade"] += int(getattr(al, "quantidade_alocada", 0) or 0)
         try:
@@ -1695,4 +1710,3 @@ def concluir_item_form(request, item_id: int):
         "source": source_context,
     }
     return render(request, "minhas_metas/concluir_item.html", contexto)
-
