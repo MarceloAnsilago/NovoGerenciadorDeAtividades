@@ -41,6 +41,19 @@ def _parse_iso(value: str | None) -> date | None:
         return None
 
 
+def _meta_status_info(meta):
+    if not meta:
+        return "andamento", "Em andamento"
+    try:
+        if getattr(meta, "encerrada", False):
+            return "encerrada", "Encerrada"
+        if getattr(meta, "concluida", False):
+            return "concluida", "Concluída"
+    except Exception:
+        pass
+    return "andamento", "Em andamento"
+
+
 @login_required
 def minhas_metas_view(request):
     unidade = get_unidade_atual(request)
@@ -98,6 +111,9 @@ def minhas_metas_view(request):
         meta_obj = getattr(aloc, "meta", None)
         if meta_obj and getattr(meta_obj, "id", None):
             setattr(meta_obj, "programadas_total", programadas_por_meta.get(int(meta_obj.id), 0))
+            status_key, status_label = _meta_status_info(meta_obj)
+            setattr(meta_obj, "status_key", status_key)
+            setattr(meta_obj, "status_label", status_label)
 
     # anos disponíveis (baseados na data_limite)
     years_set: set[int] = set()

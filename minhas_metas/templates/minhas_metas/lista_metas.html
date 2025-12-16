@@ -17,6 +17,33 @@
     border-color: var(--bs-primary) !important;
     box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
   }
+  .meta-status-pill{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    font-size:.75rem;
+    font-weight:600;
+    padding:.35rem .8rem;
+    border-radius:999px;
+    border:1px solid transparent;
+    line-height:1;
+    white-space:nowrap;
+  }
+  .meta-status-pill.status-andamento{
+    background:#fff4e5;
+    color:#92400e;
+    border-color:#ffdcb3;
+  }
+  .meta-status-pill.status-concluida{
+    background:#e8f5ef;
+    color:#0f5132;
+    border-color:#bcd8ca;
+  }
+  .meta-status-pill.status-encerrada{
+    background:#f8f9fa;
+    color:#343a40;
+    border-color:#ced4da;
+  }
 </style>
 
 <div class="container py-4">
@@ -57,24 +84,31 @@
   </div>
 
   {# ====== 1) GRID DE METAS (EM CIMA) ====== #}
-  <div class="row g-3" id="metaCardsGrid">
+    <div class="row g-3" id="metaCardsGrid">
     {% for aloc in alocacoes %}
       {% with meta=aloc.meta %}
     <div class="col-12 col-md-6 col-lg-4" data-month-key="{{ meta.month_key|default:'nodate' }}">
         <div class="card h-100 shadow-sm meta-click-card{% if meta_filter_id == meta.id %} meta-card-selected{% endif %}"
-             role="button"
-             tabindex="0"
-             data-meta-id="{{ meta.id }}"
-             data-meta-title="{{ meta.display_titulo|default:meta.titulo }}">
+             data-status="{{ meta.status_key|default:'andamento' }}"
+              role="button"
+              tabindex="0"
+              data-meta-id="{{ meta.id }}"
+              data-meta-title="{{ meta.display_titulo|default:meta.titulo }}">
           <div class="card-body d-flex flex-column">
 
                 <div class="d-flex align-items-start mb-2 pb-2 border-bottom border-secondary-subtle">
                   <i class="bi bi-bullseye text-primary fs-4 me-2"></i>
                 <div class="flex-grow-1">
-                  <h5 class="card-title mb-0">
-                    <i class="bi bi-card-text text-primary me-1" aria-hidden="true"></i>
-                    {{ meta.display_titulo|default:meta.titulo }}
-                  </h5>
+                  <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+                    <h5 class="card-title mb-0 d-flex align-items-center gap-2">
+                      <i class="bi bi-card-text text-primary me-1" aria-hidden="true"></i>
+                      {{ meta.display_titulo|default:meta.titulo }}
+                    </h5>
+                    <span class="meta-status-pill status-{{ meta.status_key|default:'andamento' }}"
+                          aria-label="Status: {{ meta.status_label|default:'Em andamento' }}">
+                      {{ meta.status_label|default:"Em andamento" }}
+                    </span>
+                  </div>
 
                 {% if meta.descricao %}
                   <p class="card-text text-muted small mb-2">{{ meta.descricao }}</p>
