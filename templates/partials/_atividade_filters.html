@@ -4,8 +4,10 @@
     <label for="id_filtro_area" class="form-label">Área</label>
     <select id="id_filtro_area" name="area" class="form-select form-select-sm">
       <option value="">Todas</option>
-      {% for value,label in areas %}
-        <option value="{{ value }}" {% if area_selected == value %}selected{% endif %}>{{ label }}</option>
+      {% for area_obj in areas %}
+        <option value="{{ area_obj.code }}" {% if area_selected == area_obj.code %}selected{% endif %}>
+          {{ area_obj.nome }}
+        </option>
       {% endfor %}
     </select>
   </div>

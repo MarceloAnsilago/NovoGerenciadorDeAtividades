@@ -114,11 +114,11 @@
       <!-- Filtros -->
       <form method="get" class="row g-2 mb-3">
         <div class="col-md-4">
-          <label class="form-label mb-0">Area</label>
+          <label class="form-label mb-0">Área</label>
           <select name="area" class="form-select">
             <option value="">Todas</option>
-            {% for value, label in areas %}
-              <option value="{{ value }}" {% if value == area_selected %}selected{% endif %}>{{ label }}</option>
+            {% for area_obj in areas %}
+              <option value="{{ area_obj.code }}" {% if area_obj.code == area_selected %}selected{% endif %}>{{ area_obj.nome }}</option>
             {% endfor %}
           </select>
         </div>
@@ -154,8 +154,8 @@
               </td>
               <td>{{ atividade.descricao|default:"" }}</td>
               <td>
-                {% if atividade.get_area_display %}
-                  <span class="badge bg-secondary">{{ atividade.get_area_display }}</span>
+                {% if atividade.area %}
+                  <span class="badge bg-secondary">{{ atividade.area.nome }}</span>
                 {% endif %}
               </td>
               <td class="text-end">

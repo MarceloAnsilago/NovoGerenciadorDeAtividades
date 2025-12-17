@@ -8,7 +8,7 @@ from django.db.models import Count, Sum, Q, IntegerField, Value
 from django.db.models.functions import Coalesce, TruncMonth, TruncWeek
 from django.utils import timezone
 
-from atividades.models import Atividade
+from atividades.models import Area, Atividade
 from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from plantao.models import SemanaServidor
 from programar.models import ProgramacaoItem, ProgramacaoItemServidor
@@ -134,7 +134,7 @@ def get_atividades_por_area(user, *, unidade_ids=None) -> dict:
     - Escopo por unidade é aplicado via Programacao.unidade.
     - Itens cuja meta não possua atividade são classificados como OUTROS.
     """
-    area_labels = dict(Atividade.Area.choices)
+    area_labels = {area.code: area.nome for area in Area.objects.all()}
 
     base_qs = _filter_by_unidades(
         ProgramacaoItem.objects.select_related("meta__atividade", "programacao").filter(
@@ -153,7 +153,7 @@ def get_atividades_por_area(user, *, unidade_ids=None) -> dict:
 
     qs = (
         base_qs
-        .values("meta__atividade__area")
+        .values("meta__atividade__area__code")
         .annotate(total=Count("id", distinct=True))
         .order_by("-total")
     )
@@ -164,8 +164,9 @@ def get_atividades_por_area(user, *, unidade_ids=None) -> dict:
     palette = ["#0d6efd", "#198754", "#ffc107", "#dc3545", "#6f42c1", "#20c997", "#0dcaf0"]
 
     for item in qs:
-        area_code = item.get("meta__atividade__area") or Atividade.Area.OUTROS
-        labels.append(area_labels.get(area_code, area_code))
+        area_code = item.get("meta__atividade__area__code") or Area.CODE_OUTROS
+        display_label = area_labels.get(area_code) or area_code.replace("_", " ").title()
+        labels.append(display_label)
         data.append(item["total"])
         codes.append(area_code)
 

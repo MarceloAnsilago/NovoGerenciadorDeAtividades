@@ -6,9 +6,17 @@ from django.contrib import messages
 from django.db import IntegrityError
 from django.db.models import Q
 from django.core.paginator import Paginator
-from .forms import AtividadeForm
-from .models import Atividade
+from django.utils.http import url_has_allowed_host_and_scheme
+from .forms import AreaForm, AtividadeForm
+from .models import Area, Atividade
 from core.utils import _get_unidade_atual
+
+
+def _get_safe_next(request):
+    next_candidate = request.POST.get("next") or request.GET.get("next")
+    if next_candidate and url_has_allowed_host_and_scheme(next_candidate, allowed_hosts={request.get_host()}):
+        return next_candidate
+    return ""
 
 
 @login_required
@@ -30,12 +38,12 @@ def lista(request):
     q = (request.GET.get("q") or "").strip()
 
     # Filtro de área (inclusivo p/ Animal/Vegetal)
-    if area == Atividade.Area.ANIMAL:
-        qs = qs.filter(Q(area=Atividade.Area.ANIMAL) | Q(area=Atividade.Area.ANIMAL_VEGETAL))
-    elif area == Atividade.Area.VEGETAL:
-        qs = qs.filter(Q(area=Atividade.Area.VEGETAL) | Q(area=Atividade.Area.ANIMAL_VEGETAL))
+    if area == Area.CODE_ANIMAL:
+        qs = qs.filter(Q(area__code=Area.CODE_ANIMAL) | Q(area__code=Area.CODE_ANIMAL_VEGETAL))
+    elif area == Area.CODE_VEGETAL:
+        qs = qs.filter(Q(area__code=Area.CODE_VEGETAL) | Q(area__code=Area.CODE_ANIMAL_VEGETAL))
     elif area:
-        qs = qs.filter(area=area)
+        qs = qs.filter(area__code=area)
 
     # Filtro de status
     if status == "ATIVAS":
@@ -78,7 +86,7 @@ def lista(request):
         "atividades": page_obj.object_list,
         "page_obj": page_obj,
         "unidade": unidade,
-        "areas": Atividade.Area.choices,
+        "areas": Area.objects.filter(ativo=True).order_by("nome"),
         "area_selected": area,
         "status_selected": status,
         "q": q,
@@ -130,3 +138,49 @@ def toggle_ativo(request, pk: int):
     obj.save(update_fields=["ativo"])
     messages.success(request, f"Atividade {'ativada' if obj.ativo else 'inativada'} com sucesso.")
     return redirect(request.POST.get("next") or "atividades:lista")
+
+
+@login_required
+def areas_lista(request):
+    next_url = _get_safe_next(request)
+    form = AreaForm(request.POST or None)
+    areas = Area.objects.all().order_by("nome")
+
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Área cadastrada com sucesso.")
+            if next_url:
+                return redirect(next_url)
+            return redirect("atividades:areas_lista")
+        messages.error(request, "Corrija os erros abaixo.")
+
+    context = {
+        "form": form,
+        "areas": areas,
+        "next_url": next_url,
+    }
+    return render(request, "atividades/areas/lista.html", context)
+
+
+@login_required
+def area_editar(request, pk: int):
+    area = get_object_or_404(Area, pk=pk)
+    next_url = _get_safe_next(request)
+    if request.method == "POST":
+        form = AreaForm(request.POST, instance=area)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Área atualizada com sucesso.")
+            if next_url:
+                return redirect(next_url)
+            return redirect("atividades:areas_lista")
+        messages.error(request, "Corrija os erros abaixo.")
+    else:
+        form = AreaForm(instance=area)
+
+    return render(request, "atividades/areas/editar.html", {
+        "form": form,
+        "object": area,
+        "next_url": next_url,
+    })

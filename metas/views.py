@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from core.utils import get_unidade_atual
 from core.models import No
-from atividades.models import Atividade
+from atividades.models import Area, Atividade
 
 from .models import Meta, MetaAlocacao, ProgressoMeta
 from programar.models import ProgramacaoItem
@@ -95,20 +95,18 @@ def _prepare_metas_context(request, *, emit_messages=False):
 
     # Filtro de área (permite navegar do dashboard)
     if area_code:
-        if area_code == Atividade.Area.ANIMAL:
+        if area_code == Area.CODE_ANIMAL:
             alocacoes = alocacoes.filter(
-                Q(meta__atividade__area=Atividade.Area.ANIMAL)
-                | Q(meta__atividade__area=Atividade.Area.ANIMAL_VEGETAL)
+                Q(meta__atividade__area__code=Area.CODE_ANIMAL)
+                | Q(meta__atividade__area__code=Area.CODE_ANIMAL_VEGETAL)
             )
-        elif area_code == Atividade.Area.VEGETAL:
+        elif area_code == Area.CODE_VEGETAL:
             alocacoes = alocacoes.filter(
-                Q(meta__atividade__area=Atividade.Area.VEGETAL)
-                | Q(meta__atividade__area=Atividade.Area.ANIMAL_VEGETAL)
+                Q(meta__atividade__area__code=Area.CODE_VEGETAL)
+                | Q(meta__atividade__area__code=Area.CODE_ANIMAL_VEGETAL)
             )
-        elif area_code == Atividade.Area.OUTROS:
-            alocacoes = alocacoes.filter(meta__atividade__isnull=True)
         else:
-            alocacoes = alocacoes.filter(meta__atividade__area=area_code)
+            alocacoes = alocacoes.filter(meta__atividade__area__code=area_code)
 
     # Filtro de status (ativas/encerradas)
     if status == "ativas":
@@ -210,12 +208,16 @@ def atividades_lista_view(request):
     q = (request.GET.get("q") or "").strip()
 
     # Filtro de área
-    if area == Atividade.Area.ANIMAL:
-        atividades = atividades.filter(Q(area=Atividade.Area.ANIMAL) | Q(area=Atividade.Area.ANIMAL_VEGETAL))
-    elif area == Atividade.Area.VEGETAL:
-        atividades = atividades.filter(Q(area=Atividade.Area.VEGETAL) | Q(area=Atividade.Area.ANIMAL_VEGETAL))
+    if area == Area.CODE_ANIMAL:
+        atividades = atividades.filter(
+            Q(area__code=Area.CODE_ANIMAL) | Q(area__code=Area.CODE_ANIMAL_VEGETAL)
+        )
+    elif area == Area.CODE_VEGETAL:
+        atividades = atividades.filter(
+            Q(area__code=Area.CODE_VEGETAL) | Q(area__code=Area.CODE_ANIMAL_VEGETAL)
+        )
     elif area:
-        atividades = atividades.filter(area=area)
+        atividades = atividades.filter(area__code=area)
 
     # Busca por título ou descrição
     if q:
@@ -236,17 +238,17 @@ def atividades_lista_view(request):
             "unidade_nome": getattr(unidade, "nome", "Nao selecionada"),
             "atividades": page_obj.object_list,
             "page_obj": page_obj,
-        "areas": Atividade.Area.choices,
-        "area_selected": area,
-        "q": q,
-        "alocacoes": metas_context.get("alocacoes", []),
-        "has_unidade": metas_context.get("has_unidade", True),
-        "atividade_filtrada": metas_context.get("atividade_filtrada"),
-        "meta_month_filters": metas_context.get("meta_month_filters", []),
-        "years": metas_context.get("years", []),
-        "ano_selected": metas_context.get("ano_selected"),
-        "meta_month_default": metas_context.get("meta_month_default", ""),
-    },
+            "areas": Area.objects.filter(ativo=True).order_by("nome"),
+            "area_selected": area,
+            "q": q,
+            "alocacoes": metas_context.get("alocacoes", []),
+            "has_unidade": metas_context.get("has_unidade", True),
+            "atividade_filtrada": metas_context.get("atividade_filtrada"),
+            "meta_month_filters": metas_context.get("meta_month_filters", []),
+            "years": metas_context.get("years", []),
+            "ano_selected": metas_context.get("ano_selected"),
+            "meta_month_default": metas_context.get("meta_month_default", ""),
+        },
     )
 
 @login_required

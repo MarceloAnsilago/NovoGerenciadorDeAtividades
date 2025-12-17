@@ -41,18 +41,30 @@ class MetaForm(forms.ModelForm):
 
         # valida quantidade x programações existentes
         if instance and getattr(instance, "pk", None) and new_qty is not None:
+            programadas_total = 0
             try:
                 from programar.models import ProgramacaoItem  # import local para evitar custo global
                 programadas_total = ProgramacaoItem.objects.filter(meta_id=instance.id).count()
             except Exception:
                 programadas_total = 0
 
-            if programadas_total and new_qty < programadas_total:
+            alocacoes_exist = instance.alocacoes.exists()
+            alocacoes_count = instance.alocacoes.count() if alocacoes_exist else 0
+
+            old_qty = getattr(instance, "quantidade_alvo", 0) or 0
+            is_decrease = new_qty < old_qty
+            if is_decrease and (alocacoes_exist or programadas_total):
+                parts = []
+                if alocacoes_exist:
+                    parts.append(f"{alocacoes_count} meta(s) alocada(s)")
+                if programadas_total:
+                    parts.append(f"{programadas_total} atividade(s) programada(s)")
+                joined = " e ".join(parts) if len(parts) > 1 else parts[0]
                 self.add_error(
                     "quantidade_alvo",
                     (
-                        f"Existem {programadas_total} atividade(s) desta meta já programadas. "
-                        "Remova-as da programação antes de reduzir a quantidade alvo."
+                        f"Não é possível reduzir a meta porque já existem {joined}. "
+                        "Remova essas referências antes de diminuir a quantidade alvo."
                     ),
                 )
 

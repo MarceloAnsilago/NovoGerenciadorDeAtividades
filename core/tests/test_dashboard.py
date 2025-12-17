@@ -10,7 +10,7 @@ from core.services.dashboard_queries import (
 )
 from metas.models import Meta, MetaAlocacao
 from servidores.models import Servidor
-from atividades.models import Atividade
+from atividades.models import Area, Atividade
 
 
 class DashboardViewTest(TestCase):
@@ -37,6 +37,11 @@ class DashboardMetasPorUnidadeTest(TestCase):
         UserProfile.objects.create(user=self.user, unidade=self.root)
         self.child = No.objects.create(nome="Equipe A", tipo="setor", parent=self.root)
         self.other = No.objects.create(nome="Equipe B", tipo="setor", parent=self.root)
+
+        for code, label in Area.DEFAULT_AREAS:
+            Area.objects.get_or_create(code=code, defaults={"nome": label})
+        self.animal_area = Area.objects.get(code=Area.CODE_ANIMAL)
+        self.vegetal_area = Area.objects.get(code=Area.CODE_VEGETAL)
 
         self.meta_ativa = Meta.objects.create(
             unidade_criadora=self.root,
@@ -94,13 +99,13 @@ class DashboardMetasPorUnidadeTest(TestCase):
     def test_atividades_por_area_respects_scope(self):
         Atividade.objects.create(
             titulo="Atividade A",
-            area=Atividade.Area.ANIMAL,
+            area=self.animal_area,
             unidade_origem=self.child,
             criado_por=self.user,
         )
         Atividade.objects.create(
             titulo="Atividade B",
-            area=Atividade.Area.VEGETAL,
+            area=self.vegetal_area,
             unidade_origem=self.other,
             criado_por=self.user,
         )
