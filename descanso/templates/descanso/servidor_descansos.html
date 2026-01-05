@@ -1,5 +1,41 @@
 {# templates/descanso/servidor_descansos.html #}
 {% extends "core/base.html" %}
+
+{% block extra_head %}
+  {{ block.super }}
+  <style>
+    #descansoStatusTabs .nav-link {
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 0.35rem 0.9rem;
+      color: #0d6efd;
+      background-color: #eef2ff;
+      transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    #descansoStatusTabs .nav-link:hover {
+      background-color: #dfe7ff;
+    }
+
+    #descansoStatusTabs .nav-link.active {
+      background-color: #0d6efd;
+      border-color: #0a58ca;
+      color: #ffffff;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+    }
+
+    #descansoStatusTabs .nav-link .badge {
+      opacity: 0.9;
+      transition: opacity 0.2s ease;
+    }
+
+    #descansoStatusTabs .nav-link:hover .badge,
+    #descansoStatusTabs .nav-link.active .badge {
+      opacity: 1;
+    }
+  </style>
+{% endblock %}
+
 {% block title %}Descansos - {{ servidor.nome }}{% endblock %}
 
 {% block content %}
@@ -31,7 +67,7 @@
       </div>
     </div>
     <div class="card-body">
-      <ul class="nav nav-pills small flex-wrap gap-2 mb-3">
+      <ul class="nav nav-pills small flex-wrap gap-2 mb-3" id="descansoStatusTabs">
         <li class="nav-item">
           <a class="nav-link{% if status == 'ativos' %} active{% endif %}" href="?status=ativos">
             Ativos <span class="badge bg-light text-dark ms-1">{{ counts.ativos }}</span>

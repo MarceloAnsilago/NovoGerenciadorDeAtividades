@@ -823,9 +823,9 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             blocks.append({"kind": "impedidos", "dados": impedidos})
 
         if dt.weekday() >= 5:
-            tem_bloco_extra = any(b["kind"] != "expediente" for b in blocks)
-            if not tem_bloco_extra:
-                # Final de semana fica fora quando ha apenas expediente administrativo
+            has_atividade = any(b["kind"] == "atividade" for b in blocks)
+            if not has_atividade:
+                # ignora sábados/domingos sem atividades programadas
                 continue
 
         total = len(blocks)
