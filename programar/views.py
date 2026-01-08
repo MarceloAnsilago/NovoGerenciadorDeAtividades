@@ -1292,6 +1292,7 @@ def events_feed(request):
     prog_ids = [p["id"] for p in programacoes]
     counts: Dict[int, Dict[str, int]] = {pid: {"total": 0, "concluidas": 0} for pid in prog_ids}
     metas_por_programacao: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
+    atividades_por_programacao: Dict[int, list[Dict[str, Any]]] = {pid: [] for pid in prog_ids}
 
     if prog_ids:
         itens_qs = ProgramacaoItem.objects.filter(programacao_id__in=prog_ids)
@@ -1316,6 +1317,7 @@ def events_feed(request):
                     "concluidas": int(row.get("concluidas") or 0),
                 }
         seen_por_prog: Dict[int, set[str]] = {pid: set() for pid in prog_ids}
+        seen_ativ_por_prog: Dict[int, set[tuple[str, bool]]] = {pid: set() for pid in prog_ids}
         itens_com_meta = itens_qs.select_related("meta", "meta__atividade").order_by("programacao_id", "meta__titulo")
         for item in itens_com_meta:
             pid = item.programacao_id
@@ -1336,10 +1338,19 @@ def events_feed(request):
             titulo = str(titulo).strip()
             if not titulo:
                 continue
-            if titulo in seen_por_prog[pid]:
+            if titulo not in seen_por_prog[pid]:
+                seen_por_prog[pid].add(titulo)
+                metas_por_programacao[pid].append(titulo)
+
+            concluido_item = bool(getattr(item, "concluido", False))
+            key = (titulo, concluido_item)
+            if key in seen_ativ_por_prog[pid]:
                 continue
-            seen_por_prog[pid].add(titulo)
-            metas_por_programacao[pid].append(titulo)
+            seen_ativ_por_prog[pid].add(key)
+            atividades_por_programacao[pid].append({
+                "titulo": titulo,
+                "concluido": concluido_item,
+            })
 
     data = []
     for prog in programacoes:
@@ -1367,6 +1378,7 @@ def events_feed(request):
                 "total_programadas": total,
                 "total_concluidas": concluidas,
                 "nomes_atividades": nome_atividades,
+                "atividades": atividades_por_programacao.get(pid, []),
             },
         })
     return JsonResponse(data, safe=False)

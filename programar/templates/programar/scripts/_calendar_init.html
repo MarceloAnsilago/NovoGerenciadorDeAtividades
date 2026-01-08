@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', function(){
       .programar-event-status{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:700;padding:.3rem .55rem;border-radius:.6rem;line-height:1.2;border:1px solid #c8d9f0;background:#edf3ff;color:#0b4f9c;}
       .programar-event-status i{font-size:.95rem;}
       .programar-event-status .programar-event-count{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums;color:#0b4f9c;}
+      .programar-event-counts{margin-left:auto;display:inline-flex;align-items:center;gap:.35rem;font-variant-numeric:tabular-nums;}
+      .programar-event-count-badge{display:inline-flex;align-items:center;gap:.25rem;padding:.1rem .4rem;border-radius:.45rem;font-size:.72rem;font-weight:700;border:1px solid transparent;}
+      .programar-event-count-badge.is-done{background:#e8f2ff;border-color:#bcd8ff;color:#0b4f9c;}
+      .programar-event-count-badge.is-pending{background:#fdecef;border-color:#f5c2c7;color:#842029;}
       .programar-event-status.is-done{background:#e8f2ff;border-color:#bcd8ff;color:#0b4f9c;}
       .programar-event-status.is-done .programar-event-count{color:#0b4f9c;}
       .programar-event-status.is-partial{background:#f1f7eb;border-color:#d5e8b8;color:#3d5c1f;}
@@ -20,7 +24,10 @@ document.addEventListener('DOMContentLoaded', function(){
       .programar-event-status.is-pending{background:#fdecef;border-color:#f5c2c7;color:#842029;}
       .programar-event-status.is-pending .programar-event-count{color:#842029;}
       .programar-event-lines{display:flex;flex-direction:column;gap:.2rem;font-size:.78rem;line-height:1.15;word-break:break-word;color:#4b5563;}
-      .programar-event-line{white-space:normal;}
+      .programar-event-line{display:flex;align-items:flex-start;gap:.35rem;white-space:normal;}
+      .programar-event-line-icon{margin-top:.05rem;font-size:.85rem;}
+      .programar-event-line-icon.is-done{color:#0f5132;}
+      .programar-event-line-icon.is-pending{color:#842029;}
       .prog-event-card{border:1px solid #d8e6fb;background:#f7f9fd;border-radius:.65rem;box-shadow:0 1px 4px rgba(15,23,42,.05);}
       .prog-event-card.is-done{background:#eef6ff;border-color:#c6defc;}
       .prog-event-card.is-partial{background:#f7faf2;border-color:#dfecc9;}
@@ -40,14 +47,16 @@ document.addEventListener('DOMContentLoaded', function(){
   function computeStatus(props){
     const total = Number(props?.total_programadas || 0);
     const concluidas = Number(props?.total_concluidas || 0);
-    const done = total > 0 && concluidas >= total;
-    const partial = !done && concluidas > 0;
-    return {
-      key: done ? 'done' : (partial ? 'partial' : 'pending'),
-      total,
-      concluidas,
-    };
-  }
+      const done = total > 0 && concluidas >= total;
+      const partial = !done && concluidas > 0;
+      const pendentes = Math.max(total - concluidas, 0);
+      return {
+        key: done ? 'done' : (partial ? 'partial' : 'pending'),
+        total,
+        concluidas,
+        pendentes,
+      };
+    }
 
   const calendar = new FullCalendar.Calendar(el, {
     locale: 'pt-br',
@@ -63,32 +72,49 @@ document.addEventListener('DOMContentLoaded', function(){
       const status = computeStatus(props);
       const nomes = props.nomes_atividades;
       const textos = Array.isArray(nomes) ? nomes : [];
+      const atividades = Array.isArray(props.atividades) ? props.atividades : [];
+      const hasActivityStatus = atividades.some((it) => it && typeof it === "object" && "titulo" in it);
 
       const statusCfg = {
-        done: { icon: 'bi-check-circle-fill', label: 'Concluida' },
-        partial: { icon: 'bi-dash-circle-fill', label: 'Em andamento' },
-        pending: { icon: 'bi-x-circle-fill', label: 'Pendente' },
-      }[status.key] || { icon: 'bi-x-circle-fill', label: 'Pendente' };
+        done: { label: 'Concluida' },
+        partial: { label: 'Em andamento' },
+        pending: { label: 'Pendente' },
+      }[status.key] || { label: 'Pendente' };
 
       const wrapper = document.createElement('div');
       wrapper.className = 'programar-event';
 
       const statusEl = document.createElement('div');
       statusEl.className = `programar-event-status is-${status.key}`;
+      const countsHtml = (status.key === "partial")
+        ? ""
+        : `
+          <span class="programar-event-count-badge is-${status.key === "done" ? "done" : "pending"}">${status.total}</span>
+        `;
+
       statusEl.innerHTML = `
-        <i class="bi ${statusCfg.icon}"></i>
         <span>${statusCfg.label}</span>
-        <span class="programar-event-count">${status.concluidas}/${status.total}</span>
+        ${countsHtml}
       `;
       wrapper.appendChild(statusEl);
 
       const container = document.createElement('div');
       container.className = 'programar-event-lines';
-      const linhas = textos.length ? textos : [info.event.title || 'Atividades'];
+      const linhas = hasActivityStatus ? atividades : (textos.length ? textos : [info.event.title || 'Atividades']);
       linhas.forEach((line) => {
         const lineEl = document.createElement('div');
         lineEl.className = 'programar-event-line';
-        lineEl.textContent = line;
+        if (hasActivityStatus && line && typeof line === "object") {
+          const done = Boolean(line.concluido);
+          const icon = document.createElement('i');
+          icon.className = `bi ${done ? "bi-check-circle-fill" : "bi-x-circle-fill"} programar-event-line-icon ${done ? "is-done" : "is-pending"}`;
+          lineEl.appendChild(icon);
+          const textEl = document.createElement('span');
+          textEl.textContent = line.titulo || 'Atividade';
+          lineEl.appendChild(textEl);
+        } else {
+          lineEl.textContent = line;
+        }
         container.appendChild(lineEl);
       });
       wrapper.appendChild(container);
