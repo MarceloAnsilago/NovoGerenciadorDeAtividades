@@ -6,6 +6,8 @@
 
   const endpoints = window.DashboardEndpoints || {};
   const charts = {};
+  const startInput = document.getElementById("dashboardStartMonth");
+  const endInput = document.getElementById("dashboardEndMonth");
 
   async function fetchJson(url) {
     if (!url) {
@@ -69,7 +71,7 @@
           container.style.paddingRight = "8px";
         }
       } catch (e) {
-        console.warn("Falha ao ajustar altura do gráfico de servidores:", e);
+        console.warn("Falha ao ajustar altura do grafico de servidores:", e);
       }
     }
 
@@ -96,17 +98,66 @@
     charts[canvasId] = new Chart(canvas, config);
   }
 
-  async function init() {
-    if (typeof Chart === "undefined") {
-      console.warn("Chart.js não encontrado.");
+  function getRangeValues() {
+    const start = startInput && startInput.value ? startInput.value.trim() : "";
+    const end = endInput && endInput.value ? endInput.value.trim() : "";
+    return { start, end };
+  }
+
+  function buildEndpoint(url) {
+    if (!url) {
+      return url;
+    }
+    const { start, end } = getRangeValues();
+    const endpoint = new URL(url, window.location.origin);
+    if (start) {
+      endpoint.searchParams.set("inicio", start);
+    } else {
+      endpoint.searchParams.delete("inicio");
+    }
+    if (end) {
+      endpoint.searchParams.set("fim", end);
+    } else {
+      endpoint.searchParams.delete("fim");
+    }
+    return endpoint.toString();
+  }
+
+  function syncUrlParams() {
+    const { start, end } = getRangeValues();
+    const current = new URL(window.location.href);
+    if (start) {
+      current.searchParams.set("inicio", start);
+    } else {
+      current.searchParams.delete("inicio");
+    }
+    if (end) {
+      current.searchParams.set("fim", end);
+    } else {
+      current.searchParams.delete("fim");
+    }
+    window.history.replaceState({}, "", current);
+  }
+
+  function normalizeRange() {
+    if (!startInput || !endInput) {
       return;
     }
+    const { start, end } = getRangeValues();
+    if (!start || !end) {
+      return;
+    }
+    if (start > end) {
+      endInput.value = start;
+    }
+  }
 
-    updateKpis(await fetchJson(endpoints.kpis));
+  async function refreshDashboard() {
+    updateKpis(await fetchJson(buildEndpoint(endpoints.kpis)));
 
     renderChart(
       "chartMetasUnidade",
-      await fetchJson(endpoints.metasPorUnidade),
+      await fetchJson(buildEndpoint(endpoints.metasPorUnidade)),
       {
         type: "bar",
         options: {
@@ -125,7 +176,7 @@
       }
     );
 
-    const atividadesAreaPayload = await fetchJson(endpoints.atividadesPorArea);
+    const atividadesAreaPayload = await fetchJson(buildEndpoint(endpoints.atividadesPorArea));
     renderChart(
       "chartAtividadesArea",
       atividadesAreaPayload,
@@ -152,7 +203,7 @@
 
     renderChart(
       "chartProgressoMensal",
-      await fetchJson(endpoints.progressoMensal),
+      await fetchJson(buildEndpoint(endpoints.progressoMensal)),
       {
         type: "line",
         options: {
@@ -170,7 +221,7 @@
       }
     );
 
-    const progStatusPayload = await fetchJson(endpoints.programacoesStatus);
+    const progStatusPayload = await fetchJson(buildEndpoint(endpoints.programacoesStatus));
     renderChart(
       "chartProgramacoesStatus",
       progStatusPayload,
@@ -218,7 +269,7 @@
 
     renderChart(
       "chartUsoVeiculos",
-      await fetchJson(endpoints.usoVeiculos),
+      await fetchJson(buildEndpoint(endpoints.usoVeiculos)),
       {
         type: "bar",
         options: {
@@ -238,7 +289,7 @@
       }
     );
 
-    const topServPayload = await fetchJson(endpoints.topServidores);
+    const topServPayload = await fetchJson(buildEndpoint(endpoints.topServidores));
     const hasStack = (topServPayload?.datasets || []).length > 1;
     const topHints = topServPayload?.hints || [];
     renderChart(
@@ -284,7 +335,7 @@
 
     renderChart(
       "chartPlantaoSemanal",
-      await fetchJson(endpoints.plantaoHeatmap),
+      await fetchJson(buildEndpoint(endpoints.plantaoHeatmap)),
       {
         type: "bar",
         options: {
@@ -302,6 +353,40 @@
         },
       }
     );
+  }
+
+  async function init() {
+    if (typeof Chart === "undefined") {
+      console.warn("Chart.js nao encontrado.");
+      return;
+    }
+
+    if (startInput && root.dataset.start) {
+      startInput.value = root.dataset.start;
+    }
+    if (endInput && root.dataset.end) {
+      endInput.value = root.dataset.end;
+    }
+
+    if (startInput) {
+      startInput.addEventListener("change", () => {
+        normalizeRange();
+        syncUrlParams();
+        refreshDashboard();
+      });
+    }
+
+    if (endInput) {
+      endInput.addEventListener("change", () => {
+        normalizeRange();
+        syncUrlParams();
+        refreshDashboard();
+      });
+    }
+
+    normalizeRange();
+    syncUrlParams();
+    await refreshDashboard();
   }
 
   document.addEventListener("DOMContentLoaded", init);

@@ -1,4 +1,6 @@
 from collections import defaultdict
+import calendar
+from datetime import date
 
 # core/views.py
 
@@ -12,6 +14,7 @@ from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib.auth.models import Group
+from django.utils import timezone
 from django.core.exceptions import PermissionDenied
 from django.views.generic import TemplateView
 from django.urls import reverse
@@ -23,6 +26,7 @@ from .models import No as Unidade
 from .utils import gerar_senha_provisoria, get_unidade_scope_ids, get_unidade_atual
 from .services.dashboard_queries import (
     get_dashboard_kpis,
+    get_dashboard_activity_filters,
     get_metas_por_unidade,
     get_atividades_por_area,
     get_progresso_mensal,
@@ -247,6 +251,68 @@ def _force_cleanup_user_dependencies(user):
 @login_required
 def home(request):
     return render(request, "core/home.html")
+
+
+def _parse_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_month_value(value):
+    if not value:
+        return None
+    parts = str(value).split("-")
+    if len(parts) != 2:
+        return None
+    year = _parse_int(parts[0])
+    month = _parse_int(parts[1])
+    if not year or not month or month < 1 or month > 12:
+        return None
+    return year, month
+
+
+def _extract_month_bounds(months_by_year: dict) -> tuple[str | None, str | None]:
+    pairs = []
+    for year_key, months in months_by_year.items():
+        year = _parse_int(year_key)
+        if not year:
+            continue
+        for month in months or []:
+            month_int = _parse_int(month)
+            if not month_int:
+                continue
+            pairs.append((year, month_int))
+
+    if not pairs:
+        return None, None
+
+    pairs.sort()
+    min_year, min_month = pairs[0]
+    max_year, max_month = pairs[-1]
+    return f"{min_year:04d}-{min_month:02d}", f"{max_year:04d}-{max_month:02d}"
+
+
+def _dashboard_period_range(start_value, end_value):
+    start = _parse_month_value(start_value)
+    end = _parse_month_value(end_value)
+    if not start and not end:
+        return None, None
+    if not start:
+        start = end
+    if not end:
+        end = start
+
+    start_year, start_month = start
+    end_year, end_month = end
+    if (start_year, start_month) > (end_year, end_month):
+        start_year, start_month, end_year, end_month = end_year, end_month, start_year, start_month
+
+    start_date = date(start_year, start_month, 1)
+    end_last_day = calendar.monthrange(end_year, end_month)[1]
+    end_date = date(end_year, end_month, end_last_day)
+    return start_date, end_date
 
 
 # ============ ÁRVORE (jsTree) ============
@@ -681,6 +747,16 @@ class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 @login_required
 def dashboard_view(request):
+    unidade_scope = get_unidade_scope_ids(request)
+    filters = get_dashboard_activity_filters(request.user, unidade_ids=unidade_scope)
+    years = filters.get("years") or []
+    months_by_year = filters.get("months_by_year") or {}
+    min_month_value, max_month_value = _extract_month_bounds(months_by_year)
+    start_param = request.GET.get("inicio") or request.GET.get("start")
+    end_param = request.GET.get("fim") or request.GET.get("end")
+    start_value = start_param if _parse_month_value(start_param) else min_month_value
+    end_value = end_param if _parse_month_value(end_param) else max_month_value
+
     unidade = get_unidade_atual(request)
     hierarchy_summary = None
 
@@ -735,6 +811,10 @@ def dashboard_view(request):
 
     context = {
         "hierarchy_summary": hierarchy_summary,
+        "dashboard_month_min": min_month_value,
+        "dashboard_month_max": max_month_value,
+        "dashboard_month_start": start_value,
+        "dashboard_month_end": end_value,
     }
     return render(request, "core/dashboard.html", context)
 
@@ -759,7 +839,15 @@ def dashboard_metas_por_unidade(request):
 @require_GET
 def dashboard_atividades_por_area(request):
     unidade_scope = get_unidade_scope_ids(request)
-    data = get_atividades_por_area(request.user, unidade_ids=unidade_scope)
+    start_value = request.GET.get("inicio") or request.GET.get("start")
+    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_date, end_date = _dashboard_period_range(start_value, end_value)
+    data = get_atividades_por_area(
+        request.user,
+        unidade_ids=unidade_scope,
+        start_date=start_date,
+        end_date=end_date,
+    )
     return JsonResponse(data)
 
 
@@ -767,7 +855,15 @@ def dashboard_atividades_por_area(request):
 @require_GET
 def dashboard_progresso_mensal(request):
     unidade_scope = get_unidade_scope_ids(request)
-    data = get_progresso_mensal(request.user, unidade_ids=unidade_scope)
+    start_value = request.GET.get("inicio") or request.GET.get("start")
+    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_date, end_date = _dashboard_period_range(start_value, end_value)
+    data = get_progresso_mensal(
+        request.user,
+        unidade_ids=unidade_scope,
+        start_date=start_date,
+        end_date=end_date,
+    )
     return JsonResponse(data)
 
 
@@ -775,7 +871,15 @@ def dashboard_progresso_mensal(request):
 @require_GET
 def dashboard_programacoes_status_mensal(request):
     unidade_scope = get_unidade_scope_ids(request)
-    data = get_programacoes_status_mensal(request.user, unidade_ids=unidade_scope)
+    start_value = request.GET.get("inicio") or request.GET.get("start")
+    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_date, end_date = _dashboard_period_range(start_value, end_value)
+    data = get_programacoes_status_mensal(
+        request.user,
+        unidade_ids=unidade_scope,
+        start_date=start_date,
+        end_date=end_date,
+    )
     return JsonResponse(data)
 
 
@@ -783,7 +887,15 @@ def dashboard_programacoes_status_mensal(request):
 @require_GET
 def dashboard_plantao_heatmap(request):
     unidade_scope = get_unidade_scope_ids(request)
-    data = get_plantao_heatmap(request.user, unidade_ids=unidade_scope)
+    start_value = request.GET.get("inicio") or request.GET.get("start")
+    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_date, end_date = _dashboard_period_range(start_value, end_value)
+    data = get_plantao_heatmap(
+        request.user,
+        unidade_ids=unidade_scope,
+        start_date=start_date,
+        end_date=end_date,
+    )
     return JsonResponse(data)
 
 
@@ -791,7 +903,15 @@ def dashboard_plantao_heatmap(request):
 @require_GET
 def dashboard_uso_veiculos(request):
     unidade_scope = get_unidade_scope_ids(request)
-    data = get_uso_veiculos(request.user, unidade_ids=unidade_scope)
+    start_value = request.GET.get("inicio") or request.GET.get("start")
+    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_date, end_date = _dashboard_period_range(start_value, end_value)
+    data = get_uso_veiculos(
+        request.user,
+        unidade_ids=unidade_scope,
+        start_date=start_date,
+        end_date=end_date,
+    )
     return JsonResponse(data)
 
 
@@ -804,5 +924,14 @@ def dashboard_top_servidores(request):
         limit = 50
     limit = max(1, min(limit, 200))
     unidade_scope = get_unidade_scope_ids(request)
-    data = get_top_servidores(request.user, unidade_ids=unidade_scope, limit=limit)
+    start_value = request.GET.get("inicio") or request.GET.get("start")
+    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_date, end_date = _dashboard_period_range(start_value, end_value)
+    data = get_top_servidores(
+        request.user,
+        unidade_ids=unidade_scope,
+        limit=limit,
+        start_date=start_date,
+        end_date=end_date,
+    )
     return JsonResponse(data)

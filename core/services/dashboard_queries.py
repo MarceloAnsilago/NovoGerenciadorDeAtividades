@@ -5,7 +5,7 @@ from typing import List
 
 from django.conf import settings
 from django.db.models import Count, Sum, Q, IntegerField, Value
-from django.db.models.functions import Coalesce, TruncMonth, TruncWeek
+from django.db.models.functions import Coalesce, TruncMonth, TruncWeek, ExtractYear, ExtractMonth
 from django.utils import timezone
 
 from atividades.models import Area, Atividade
@@ -54,6 +54,99 @@ def _week_sequence(weeks: int = 12) -> List[date]:
     for i in range(weeks - 1, -1, -1):
         sequence.append(start_of_week - timedelta(days=i * 7))
     return sequence
+
+
+def _month_sequence_for_range(start_date: date, end_date: date) -> List[date]:
+    if start_date > end_date:
+        return []
+    start = start_date.replace(day=1)
+    end = end_date.replace(day=1)
+    months = []
+    year = start.year
+    month = start.month
+    while (year, month) <= (end.year, end.month):
+        months.append(date(year, month, 1))
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+    return months
+
+
+def _week_sequence_for_range(start_date: date, end_date: date) -> List[date]:
+    if start_date > end_date:
+        return []
+    start_of_week = start_date - timedelta(days=start_date.weekday())
+    end_of_week = end_date - timedelta(days=end_date.weekday())
+    weeks = []
+    current = start_of_week
+    while current <= end_of_week:
+        weeks.append(current)
+        current += timedelta(days=7)
+    return weeks
+
+
+def _apply_date_range(queryset, field: str, start_date: date | None, end_date: date | None):
+    if not start_date or not end_date:
+        return queryset
+    return queryset.filter(**{f"{field}__range": (start_date, end_date)})
+
+
+def _apply_datetime_date_range(queryset, field: str, start_date: date | None, end_date: date | None):
+    if not start_date or not end_date:
+        return queryset
+    return queryset.filter(**{f"{field}__date__range": (start_date, end_date)})
+
+
+def _base_programacao_items(unidade_ids=None):
+    base_qs = _filter_by_unidades(
+        ProgramacaoItem.objects.select_related("programacao", "meta"),
+        unidade_ids,
+        "programacao__unidade_id",
+    )
+
+    if unidade_ids is not None:
+        if unidade_ids:
+            base_qs = base_qs.filter(meta__alocacoes__unidade_id__in=unidade_ids)
+        else:
+            base_qs = base_qs.none()
+    return base_qs
+
+
+def get_dashboard_activity_filters(user, *, unidade_ids=None) -> dict:
+    qs = (
+        _filter_by_unidades(
+            ProgramacaoItem.objects.select_related("programacao"),
+            unidade_ids,
+            "programacao__unidade_id",
+        )
+        .exclude(programacao__data__isnull=True)
+        .annotate(ano=ExtractYear("programacao__data"), mes=ExtractMonth("programacao__data"))
+        .values("ano", "mes")
+        .distinct()
+        .order_by("-ano", "-mes")
+    )
+
+    months_by_year: dict[str, list[int]] = {}
+    for row in qs:
+        ano = row.get("ano")
+        mes = row.get("mes")
+        if not ano or not mes:
+            continue
+        key = str(ano)
+        months_by_year.setdefault(key, [])
+        if mes not in months_by_year[key]:
+            months_by_year[key].append(mes)
+
+    for key in months_by_year:
+        months_by_year[key].sort()
+
+    years = sorted((int(y) for y in months_by_year.keys()), reverse=True)
+
+    return {
+        "years": years,
+        "months_by_year": months_by_year,
+    }
 
 
 def get_dashboard_kpis(user, unidade_ids=None) -> dict:
@@ -126,7 +219,13 @@ def get_metas_por_unidade(user, *, unidade_ids=None) -> dict:
     }
 
 
-def get_atividades_por_area(user, *, unidade_ids=None) -> dict:
+def get_atividades_por_area(
+    user,
+    *,
+    unidade_ids=None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
     """
     Distribui por área as ATIVIDADES PROGRAMADAS (ProgramacaoItem),
     baseando-se na área da Atividade vinculada à Meta do item.
@@ -136,20 +235,10 @@ def get_atividades_por_area(user, *, unidade_ids=None) -> dict:
     """
     area_labels = {area.code: area.nome for area in Area.objects.all()}
 
-    base_qs = _filter_by_unidades(
-        ProgramacaoItem.objects.select_related("meta__atividade", "programacao").filter(
-            meta__encerrada=False
-        ),
-        unidade_ids,
-        "programacao__unidade_id",
+    base_qs = _base_programacao_items(unidade_ids).select_related("meta__atividade", "programacao").filter(
+        meta__encerrada=False
     )
-
-    # Garante que a meta do item esta alocada para a(s) unidade(s) do escopo
-    if unidade_ids is not None:
-        if unidade_ids:
-            base_qs = base_qs.filter(meta__alocacoes__unidade_id__in=unidade_ids)
-        else:
-            base_qs = base_qs.none()
+    base_qs = _apply_date_range(base_qs, "programacao__data", start_date, end_date)
 
     qs = (
         base_qs
@@ -185,9 +274,18 @@ def get_atividades_por_area(user, *, unidade_ids=None) -> dict:
     }
 
 
-def get_progresso_mensal(user, *, unidade_ids=None) -> dict:
-    months = _month_sequence()
-    start_date = months[0]
+def get_progresso_mensal(
+    user,
+    *,
+    unidade_ids=None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
+    if start_date and end_date:
+        months = _month_sequence_for_range(start_date, end_date)
+    else:
+        months = _month_sequence()
+        start_date = months[0]
 
     qs = (
         _filter_by_unidades(ProgressoMeta.objects.all(), unidade_ids, "alocacao__unidade_id")
@@ -197,8 +295,10 @@ def get_progresso_mensal(user, *, unidade_ids=None) -> dict:
         .annotate(total=Coalesce(Sum("quantidade"), Value(0), output_field=IntegerField()))
         .order_by("mes")
     )
+    if start_date and end_date:
+        qs = qs.filter(data__range=(start_date, end_date))
 
-    mapped = {item["mes"].date(): item["total"] for item in qs if item["mes"] is not None}
+    mapped = {item["mes"]: item["total"] for item in qs if item["mes"] is not None}
 
     labels = []
     data = []
@@ -221,28 +321,31 @@ def get_progresso_mensal(user, *, unidade_ids=None) -> dict:
     }
 
 
-def get_programacoes_status_mensal(user, *, unidade_ids=None) -> dict:
-    months = _month_sequence()
-    start_date = months[0]
+def get_programacoes_status_mensal(
+    user,
+    *,
+    unidade_ids=None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
+    if start_date and end_date:
+        months = _month_sequence_for_range(start_date, end_date)
+    else:
+        months = _month_sequence()
+        start_date = months[0]
     tz = timezone.get_current_timezone()
 
-    base_qs = _filter_by_unidades(
-        ProgramacaoItem.objects.select_related("programacao", "meta"),
-        unidade_ids,
-        "programacao__unidade_id",
-    ).filter(
-        criado_em__gte=timezone.make_aware(
-            datetime.combine(start_date, time.min),
-            tz,
-        )
-    )
+    base_qs = _base_programacao_items(unidade_ids).select_related("programacao", "meta")
 
-    # Garante que as programações consideradas correspondem a metas alocadas
-    if unidade_ids is not None:
-        if unidade_ids:
-            base_qs = base_qs.filter(meta__alocacoes__unidade_id__in=unidade_ids)
-        else:
-            base_qs = base_qs.none()
+    if start_date and end_date:
+        base_qs = _apply_datetime_date_range(base_qs, "criado_em", start_date, end_date)
+    else:
+        base_qs = base_qs.filter(
+            criado_em__gte=timezone.make_aware(
+                datetime.combine(start_date, time.min),
+                tz,
+            )
+        )
 
     qs = (
         base_qs
@@ -318,9 +421,18 @@ def get_programacoes_status_mensal(user, *, unidade_ids=None) -> dict:
     }
 
 
-def get_plantao_heatmap(user, *, unidade_ids=None) -> dict:
-    weeks = _week_sequence()
-    start_date = weeks[0]
+def get_plantao_heatmap(
+    user,
+    *,
+    unidade_ids=None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
+    if start_date and end_date:
+        weeks = _week_sequence_for_range(start_date, end_date)
+    else:
+        weeks = _week_sequence()
+        start_date = weeks[0]
 
     qs = (
         _filter_by_unidades(
@@ -334,9 +446,11 @@ def get_plantao_heatmap(user, *, unidade_ids=None) -> dict:
         .annotate(total=Count("id"))
         .order_by("semana_inicio")
     )
+    if start_date and end_date:
+        qs = qs.filter(semana__inicio__range=(start_date, end_date))
 
     week_map = {
-        item["semana_inicio"].date(): item["total"]
+        item["semana_inicio"]: item["total"]
         for item in qs
         if item["semana_inicio"] is not None
     }
@@ -359,13 +473,20 @@ def get_plantao_heatmap(user, *, unidade_ids=None) -> dict:
     }
 
 
-def get_uso_veiculos(user, *, unidade_ids=None) -> dict:
+def get_uso_veiculos(
+    user,
+    *,
+    unidade_ids=None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
     qs = (
         _filter_by_unidades(
             ProgramacaoItem.objects.select_related("veiculo").filter(veiculo__isnull=False),
             unidade_ids,
             "programacao__unidade_id",
         )
+        .filter(**({"programacao__data__range": (start_date, end_date)} if start_date and end_date else {}))
         .values("veiculo__nome")
         .annotate(total=Count("id"))
         .order_by("-total", "veiculo__nome")[:10]
@@ -389,7 +510,14 @@ def get_uso_veiculos(user, *, unidade_ids=None) -> dict:
     }
 
 
-def get_top_servidores(user, *, unidade_ids=None, limit: int = 10) -> dict:
+def get_top_servidores(
+    user,
+    *,
+    unidade_ids=None,
+    limit: int = 10,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
     meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
     try:
         meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
@@ -405,6 +533,8 @@ def get_top_servidores(user, *, unidade_ids=None, limit: int = 10) -> dict:
         unidade_ids,
         "item__programacao__unidade_id",
     )
+    if start_date and end_date:
+        base_qs = _apply_date_range(base_qs, "item__programacao__data", start_date, end_date)
 
     if meta_expediente_id:
         qs = (
