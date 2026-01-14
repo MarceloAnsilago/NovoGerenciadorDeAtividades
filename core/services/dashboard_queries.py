@@ -487,15 +487,15 @@ def get_uso_veiculos(
             "programacao__unidade_id",
         )
         .filter(**({"programacao__data__range": (start_date, end_date)} if start_date and end_date else {}))
-        .values("veiculo__nome")
+        .values("veiculo__placa")
         .annotate(total=Count("id"))
-        .order_by("-total", "veiculo__nome")[:10]
+        .order_by("-total", "veiculo__placa")[:10]
     )
 
     labels = []
     data = []
     for item in qs:
-        labels.append(item["veiculo__nome"])
+        labels.append(item["veiculo__placa"])
         data.append(item["total"])
 
     return {
