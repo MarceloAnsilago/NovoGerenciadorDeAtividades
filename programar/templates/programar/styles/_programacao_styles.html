@@ -51,6 +51,10 @@
     background:#e9f7ef; color:#0f5132; border:1px solid #a3cfbb; font-weight:600;
   }
 
+  /* garante dropdown da navbar acima do calendario */
+  body[data-app="programar"] .navbar{ z-index:2001; }
+  body[data-app="programar"] .navbar .dropdown-menu{ z-index:2002; }
+
   /* ===== Caixinha para marcação (impressão) ===== */
   .print-cbx{
     display:inline-block; width:12px; height:12px;

@@ -24,6 +24,25 @@
   {% include "programar/scripts/_modal_logic.html" %}
   {% include "programar/scripts/_calendar_init.html" %}
   <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const toggles = document.querySelectorAll('[data-bs-toggle="dropdown"]');
+      toggles.forEach((el) => {
+        try { bootstrap.Dropdown.getOrCreateInstance(el); } catch (_) {}
+      });
+    });
+  </script>
+  <script>
+    document.addEventListener('click', (ev) => {
+      const toggle = ev.target.closest?.('.navbar [data-bs-toggle="dropdown"]');
+      if (!toggle) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      try {
+        bootstrap.Dropdown.getOrCreateInstance(toggle).toggle();
+      } catch (_) {}
+    }, true);
+  </script>
+  <script>
     (function(){
       function fixTitulo(){
         try{
