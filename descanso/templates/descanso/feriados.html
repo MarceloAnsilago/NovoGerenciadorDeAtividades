@@ -36,16 +36,41 @@
   <div class="card shadow-sm">
     <div class="card-header bg-light d-flex align-items-center justify-content-between flex-wrap gap-2">
       <strong><i class="bi bi-calendar-event me-1"></i> Calendario de feriados</strong>
-      <span class="text-muted small">Template inicial</span>
+      <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#descanso-feriados-modal">
+        <i class="bi bi-plus-lg me-1"></i> Novo cadastro de feriados
+      </button>
     </div>
     <div class="card-body">
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#descanso-feriados-modal">
-          <i class="bi bi-plus-lg me-1"></i> Novo cadastro de feriados
-        </button>
-        <div id="descanso-feriados-info" class="text-muted small d-none"></div>
+      <div class="mb-3">
+        <div class="text-muted small mb-2">Cadastros de feriados</div>
+        <div class="row g-2" id="descanso-feriados-cadastros">
+          {% for cadastro in cadastros %}
+            <div class="col-12 col-md-6">
+              <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex align-items-center justify-content-between gap-2">
+                  <div>
+                    <div class="fw-semibold">{{ cadastro.descricao }}</div>
+                    <div class="text-muted small">Clique para abrir o calendario deste cadastro.</div>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary btn-sm descanso-feriados-open"
+                    data-cadastro-id="{{ cadastro.id }}"
+                    data-cadastro-descricao="{{ cadastro.descricao }}">
+                    Abrir
+                  </button>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="col-12">
+              <div class="text-muted small descanso-feriados-empty">Nenhum cadastro encontrado.</div>
+            </div>
+          {% endfor %}
+        </div>
       </div>
-      <div id="descanso-feriados-calendar" class="d-none"></div>
+      <div id="descanso-feriados-info" class="text-muted small d-none"></div>
+      <div id="descanso-feriados-calendar" class="d-none mt-2"></div>
     </div>
   </div>
 </div>
@@ -76,6 +101,39 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="descanso-feriados-item-modal" tabindex="-1" aria-labelledby="descansoFeriadoItemLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="descansoFeriadoItemLabel">Cadastrar feriado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="descanso-feriado-data" class="form-label">Data</label>
+          <input type="text" class="form-control" id="descanso-feriado-data" readonly>
+        </div>
+        <div class="mb-1">
+          <label for="descanso-feriado-descricao" class="form-label">Descricao do feriado</label>
+          <input
+            type="text"
+            class="form-control"
+            id="descanso-feriado-descricao"
+            placeholder="Ex.: Confraternizacao universal"
+            maxlength="120"
+            autocomplete="off"
+          >
+        </div>
+        <div class="form-text">Informe o nome do feriado para este dia.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="descanso-feriado-salvar">Salvar feriado</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -89,8 +147,28 @@
       const modalEl = document.getElementById("descanso-feriados-modal");
       const salvarBtn = document.getElementById("descanso-feriados-salvar");
       const descricaoInput = document.getElementById("descanso-feriados-descricao");
+      const itemModalEl = document.getElementById("descanso-feriados-item-modal");
+      const itemSalvarBtn = document.getElementById("descanso-feriado-salvar");
+      const itemDataInput = document.getElementById("descanso-feriado-data");
+      const itemDescricaoInput = document.getElementById("descanso-feriado-descricao");
       if (!el || !window.FullCalendar) return;
 
+      const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(";").shift();
+        return "";
+      };
+
+      const urls = {
+        feed: "{% url 'descanso:feriados_feed' %}",
+        novoCadastro: "{% url 'descanso:feriados_cadastro_novo' %}",
+        registrar: "{% url 'descanso:feriados_registrar' %}",
+        excluir: "{% url 'descanso:feriados_excluir' %}",
+      };
+
+      let cadastroAtual = null;
+      let dataSelecionada = null;
       const calendar = new FullCalendar.Calendar(el, {
         locale: "pt-br",
         initialView: "dayGridMonth",
@@ -106,15 +184,57 @@
           right: "dayGridMonth,timeGridWeek,timeGridDay"
         },
         height: "auto",
+        dateClick(info) {
+          if (!cadastroAtual) {
+            alert("Selecione um cadastro de feriados primeiro.");
+            return;
+          }
+          dataSelecionada = info.dateStr;
+          if (itemDataInput) {
+            const dataBr = new Date(info.dateStr + "T00:00:00").toLocaleDateString("pt-BR");
+            itemDataInput.value = dataBr;
+          }
+          if (itemDescricaoInput) itemDescricaoInput.value = "";
+          const modal = new bootstrap.Modal(itemModalEl);
+          modal.show();
+        },
+        eventClick(info) {
+          if (!cadastroAtual) return;
+          if (!confirm("Excluir este feriado?")) return;
+          fetch(urls.excluir, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCookie("csrftoken"),
+            },
+            body: JSON.stringify({ feriado_id: info.event.id }),
+          })
+            .then((resp) => resp.json())
+            .then((json) => {
+              if (!json.ok) {
+                alert(json.error || "Nao foi possivel excluir o feriado.");
+                return;
+              }
+              info.event.remove();
+            })
+            .catch(() => alert("Erro ao excluir o feriado."));
+        },
         events: []
       });
 
-      const openCalendar = (descricao) => {
-        const label = descricao?.trim();
+      const setCadastro = (id, descricao) => {
+        if (!id) return;
+        cadastroAtual = { id: String(id), descricao: descricao || "" };
+        const label = cadastroAtual.descricao?.trim();
         if (!label) return;
         info.textContent = `Cadastro atual: ${label}`;
         info.classList.remove("d-none");
         el.classList.remove("d-none");
+        calendar.removeAllEventSources();
+        calendar.addEventSource({
+          url: urls.feed,
+          extraParams: { cadastro_id: cadastroAtual.id }
+        });
         calendar.render();
       };
 
@@ -126,13 +246,99 @@
           return;
         }
         descricaoInput?.classList.remove("is-invalid");
-        openCalendar(label);
-        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-        modal.hide();
+        fetch(urls.novoCadastro, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken"),
+          },
+          body: JSON.stringify({ descricao: label }),
+        })
+          .then((resp) => resp.json())
+          .then((json) => {
+            if (!json.ok) {
+              alert(json.error || "Nao foi possivel criar o cadastro.");
+              return;
+            }
+            const cadastro = json.cadastro;
+            const list = document.getElementById("descanso-feriados-cadastros");
+            if (list) {
+              const emptyMsg = list.querySelector(".descanso-feriados-empty");
+              if (emptyMsg) emptyMsg.remove();
+              const col = document.createElement("div");
+              col.className = "col-12 col-md-6";
+              col.innerHTML = `
+                <div class="card border-0 shadow-sm">
+                  <div class="card-body d-flex align-items-center justify-content-between gap-2">
+                    <div>
+                      <div class="fw-semibold"></div>
+                      <div class="text-muted small">Clique para abrir o calendario deste cadastro.</div>
+                    </div>
+                    <button type="button" class="btn btn-outline-primary btn-sm descanso-feriados-open">Abrir</button>
+                  </div>
+                </div>
+              `;
+              col.querySelector(".fw-semibold").textContent = cadastro.descricao;
+              const btn = col.querySelector(".descanso-feriados-open");
+              btn.dataset.cadastroId = cadastro.id;
+              btn.dataset.cadastroDescricao = cadastro.descricao;
+              list.appendChild(col);
+            }
+            setCadastro(cadastro.id, cadastro.descricao);
+            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modal.hide();
+            descricaoInput.value = "";
+          })
+          .catch(() => alert("Erro ao criar o cadastro."));
       });
 
       descricaoInput?.addEventListener("input", () => {
         descricaoInput.classList.remove("is-invalid");
+      });
+
+      document.addEventListener("click", (ev) => {
+        const btn = ev.target?.closest?.(".descanso-feriados-open");
+        if (!btn) return;
+        const id = btn.dataset.cadastroId;
+        const label = btn.dataset.cadastroDescricao || "";
+        setCadastro(id, label);
+      });
+
+      itemSalvarBtn?.addEventListener("click", () => {
+        const descricao = (itemDescricaoInput?.value || "").trim();
+        if (!descricao) {
+          itemDescricaoInput?.classList.add("is-invalid");
+          itemDescricaoInput?.focus();
+          return;
+        }
+        if (!cadastroAtual || !dataSelecionada) return;
+        fetch(urls.registrar, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken"),
+          },
+          body: JSON.stringify({
+            cadastro_id: cadastroAtual.id,
+            data: dataSelecionada,
+            descricao: descricao,
+          }),
+        })
+          .then((resp) => resp.json())
+          .then((json) => {
+            if (!json.ok) {
+              alert(json.error || "Nao foi possivel cadastrar o feriado.");
+              return;
+            }
+            calendar.refetchEvents();
+            const modal = bootstrap.Modal.getInstance(itemModalEl) || new bootstrap.Modal(itemModalEl);
+            modal.hide();
+          })
+          .catch(() => alert("Erro ao cadastrar o feriado."));
+      });
+
+      itemDescricaoInput?.addEventListener("input", () => {
+        itemDescricaoInput.classList.remove("is-invalid");
       });
     });
   </script>

@@ -16,7 +16,7 @@ from django.views.decorators.http import require_GET
 from django.contrib.auth.decorators import login_required
 from core.utils import get_unidade_atual_id
 from servidores.models import Servidor
-from descanso.models import Descanso
+from descanso.models import Descanso, Feriado
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 from django.views.decorators.http import require_GET, require_POST
@@ -734,6 +734,18 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
     if not ds or not de:
         return "<div class='text-muted'>Intervalo inválido.</div>"
 
+    unidade_id = get_unidade_atual_id(request)
+    feriados_map = {}
+    if unidade_id:
+        feriados_qs = (
+            Feriado.objects.select_related("cadastro")
+            .filter(cadastro__unidade_id=unidade_id, data__gte=ds, data__lte=de)
+            .order_by("data", "id")
+        )
+        for f in feriados_qs:
+            feriados_map.setdefault(f.data, [])
+            feriados_map[f.data].append(f.descricao or f.cadastro.descricao)
+
     def _srv_list_html(nomes: list[str], *, with_boxes: bool = True, inline: bool = False) -> str:
         if not nomes:
             return "<span class='text-muted'>—</span>"
@@ -808,8 +820,12 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     exp_merge.append(nome)
             expediente = exp_merge
 
-        # Monta os blocks garantindo expediente primeiro
+        feriados_do_dia = feriados_map.get(dt) or []
+
+        # Monta os blocks garantindo feriados/expediente primeiro
         blocks: list[dict] = []
+        if feriados_do_dia:
+            blocks.append({"kind": "feriado", "descricoes": feriados_do_dia})
         if expediente:
             blocks.append({"kind": "expediente", "servidores": expediente})
         for it in itens_atividades:
@@ -823,7 +839,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             blocks.append({"kind": "impedidos", "dados": impedidos})
 
         if dt.weekday() >= 5:
-            has_atividade = any(b["kind"] == "atividade" for b in blocks)
+            has_atividade = any(b["kind"] in {"atividade", "feriado"} for b in blocks)
             if not has_atividade:
                 # ignora sábados/domingos sem atividades programadas
                 continue
@@ -855,7 +871,24 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 # TD do dia também com classe day-end para borda atravessar rowSpan
                 dia_td = f"<td class='dia-cell day-end' rowspan='{total}'>{html.escape(dia_label)}</td>"
 
-            if b["kind"] == "expediente":
+            if b["kind"] == "feriado":
+                desc_lines = "".join(
+                    f"<div class='feriado-desc'>{html.escape(desc)}</div>"
+                    for desc in b.get("descricoes", [])
+                )
+                if not desc_lines:
+                    desc_lines = "<span class='text-muted'>-</span>"
+                day_rows.append(
+                    open_tr
+                    + dia_td
+                    + "<td class='atividade-cell'><em>Feriado</em></td>"
+                    + f"<td>{desc_lines}</td>"
+                    + "<td class='veiculo-cell text-nowrap'>-</td>"
+                    + "<td class='realizada-cell'>-</td>"
+                    + "</tr>"
+                )
+
+            elif b["kind"] == "expediente":
                 day_rows.append(
                     open_tr
                     + dia_td
@@ -915,6 +948,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".report-toolbar .btn{ min-width:110px; }"
         ".report-toolbar .btn i{ margin-right:.35rem; }"
         "/* ====== TELA ====== */"
+        ".programacao-semana-table .feriado-desc{ color:#842029; font-weight:600; }"
         ".programacao-semana-table tbody td.veiculo-cell{"
         "  text-align:center !important; vertical-align:middle !important;"
         "}"
@@ -1374,6 +1408,7 @@ def events_feed(request):
             "title": title,
             "start": prog["data"].isoformat(),
             "allDay": True,
+            "isHoliday": 0,
             "extendedProps": {
                 "total_programadas": total,
                 "total_concluidas": concluidas,

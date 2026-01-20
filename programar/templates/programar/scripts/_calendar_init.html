@@ -1,8 +1,19 @@
 <script>
 document.addEventListener('DOMContentLoaded', function(){
   const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
+  NS.urls = NS.urls || {};
   const el = document.getElementById('programar-calendar');
   if (!el) return;
+
+  const holidayDates = new Set();
+  const updateHolidayCells = () => {
+    const cells = el.querySelectorAll('[data-date]');
+    cells.forEach((cell) => {
+      const date = cell.getAttribute('data-date');
+      if (!date) return;
+      cell.classList.toggle('fc-day-feriado', holidayDates.has(date));
+    });
+  };
 
   (function ensureCalendarEventStyles() {
     if (document.getElementById('programar-calendar-event-styles')) return;
@@ -33,6 +44,10 @@ document.addEventListener('DOMContentLoaded', function(){
       .prog-event-card.is-partial{background:#f7faf2;border-color:#dfecc9;}
       .prog-event-card.is-pending{background:#fff4f5;border-color:#f5c2c7;}
       .prog-event-card .fc-event-main{padding:8px 9px;}
+      .prog-event-feriado{border:1px solid #f5c2c7;background:#fff5f5;border-radius:.65rem;box-shadow:0 1px 4px rgba(15,23,42,.05);}
+      .programar-event-feriado{display:flex;flex-direction:column;gap:.35rem;color:#842029;}
+      .programar-event-feriado .feriado-badge{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;font-weight:700;padding:.28rem .55rem;border-radius:.55rem;border:1px solid #f5c2c7;background:#fdecef;color:#842029;}
+      .programar-event-feriado .feriado-desc{font-size:.78rem;line-height:1.2;color:#6b1b24;}
     `;
     document.head.appendChild(style);
   })();
@@ -58,6 +73,10 @@ document.addEventListener('DOMContentLoaded', function(){
       };
     }
 
+  const eventSources = [];
+  if (NS.urls.eventsFeed) eventSources.push({ url: NS.urls.eventsFeed });
+  if (NS.urls.feriadosFeed) eventSources.push({ url: NS.urls.feriadosFeed });
+
   const calendar = new FullCalendar.Calendar(el, {
     locale: 'pt-br',
     timeZone: 'local',
@@ -65,10 +84,38 @@ document.addEventListener('DOMContentLoaded', function(){
     height: 'auto',
     headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
     buttonText: { today: 'Hoje' },
+    eventOrder: '-isHoliday,start',
+    eventOrderStrict: true,
 
-    events: NS.urls.eventsFeed,
+    eventSources: eventSources,
+    eventSourceFailure(error) {
+      console.error('[programar] falha ao carregar eventos:', error);
+    },
+    eventsSet(events) {
+      holidayDates.clear();
+      events.forEach((ev) => {
+        if (ev?.extendedProps?.kind === 'feriado' && ev?.start) {
+          holidayDates.add(ev.start.toISOString().slice(0, 10));
+        }
+      });
+      updateHolidayCells();
+    },
     eventContent(info) {
       const props = info.event.extendedProps || {};
+      if (props.kind === "feriado") {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'programar-event-feriado';
+        const badge = document.createElement('div');
+        badge.className = 'feriado-badge';
+        badge.innerHTML = '<i class="bi bi-calendar-heart"></i> Feriado';
+        wrapper.appendChild(badge);
+        const desc = document.createElement('div');
+        desc.className = 'feriado-desc';
+        const descricoes = Array.isArray(props.descricoes) ? props.descricoes : null;
+        desc.textContent = (props.descricao || (descricoes ? descricoes.join("; ") : "") || info.event.title || "Feriado");
+        wrapper.appendChild(desc);
+        return { domNodes: [wrapper] };
+      }
       const status = computeStatus(props);
       const nomes = props.nomes_atividades;
       const textos = Array.isArray(nomes) ? nomes : [];
@@ -122,10 +169,14 @@ document.addEventListener('DOMContentLoaded', function(){
       return { domNodes: [wrapper] };
     },
     eventClassNames(arg){
+      if (arg.event.extendedProps?.kind === "feriado") {
+        return ["prog-event-feriado"];
+      }
       const status = computeStatus(arg.event.extendedProps || {});
       return ['prog-event-card', `is-${status.key}`];
     },
     eventClick(info) {
+      if (info.event.extendedProps?.kind === "feriado") return;
       if (typeof NS.openProgramarModal === 'function') {
         const data = info.event.start;
         if (data instanceof Date) {

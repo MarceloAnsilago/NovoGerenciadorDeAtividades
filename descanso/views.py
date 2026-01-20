@@ -2,6 +2,7 @@
 from calendar import monthrange
 from collections import Counter
 from datetime import date
+import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -10,9 +11,12 @@ from django.db.models import Exists, OuterRef, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.csrf import csrf_protect
 
 from servidores.models import Servidor
-from .models import Descanso
+from .models import Descanso, Feriado, FeriadoCadastro
 from .forms import DescansoForm
 from core.utils import get_unidade_atual_id
 from programar.models import ProgramacaoItemServidor
@@ -139,7 +143,194 @@ def lista_servidores(request):
 
 @login_required
 def feriados(request):
-    return render(request, "descanso/feriados.html")
+    unidade_id = get_unidade_atual_id(request)
+    cadastros = []
+    if unidade_id:
+        cadastros = list(
+            FeriadoCadastro.objects.filter(unidade_id=unidade_id).order_by("-criado_em", "-id")
+        )
+    return render(request, "descanso/feriados.html", {"cadastros": cadastros})
+
+
+def _parse_iso_date(raw: str):
+    try:
+        return date.fromisoformat((raw or "").strip()[:10])
+    except Exception:
+        return None
+
+
+@login_required
+@require_GET
+def feriados_cadastros(request):
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"cadastros": []})
+    cadastros = (
+        FeriadoCadastro.objects.filter(unidade_id=unidade_id)
+        .order_by("-criado_em", "-id")
+        .values("id", "descricao")
+    )
+    return JsonResponse({"cadastros": list(cadastros)})
+
+
+@login_required
+@require_GET
+def feriados_feed(request):
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse([], safe=False)
+
+    cadastro_id = request.GET.get("cadastro_id")
+    start = _parse_iso_date(request.GET.get("start") or "")
+    end = _parse_iso_date(request.GET.get("end") or "")
+
+    qs = Feriado.objects.select_related("cadastro").filter(cadastro__unidade_id=unidade_id)
+    if cadastro_id:
+        qs = qs.filter(cadastro_id=cadastro_id)
+    if start:
+        qs = qs.filter(data__gte=start)
+    if end:
+        qs = qs.filter(data__lte=end)
+
+    if cadastro_id:
+        data = [
+            {
+                "id": f.id,
+                "title": f.descricao or "Feriado",
+                "start": f.data.isoformat(),
+                "allDay": True,
+                "isHoliday": 1,
+                "extendedProps": {
+                    "kind": "feriado",
+                    "descricao": f.descricao,
+                    "cadastro": f.cadastro.descricao,
+                },
+            }
+            for f in qs
+        ]
+        return JsonResponse(data, safe=False)
+
+    by_date = {}
+    for f in qs:
+        key = f.data
+        by_date.setdefault(key, [])
+        label = f.descricao or "Feriado"
+        if label not in by_date[key]:
+            by_date[key].append(label)
+
+    data = []
+    for day, descricoes in sorted(by_date.items(), key=lambda x: x[0]):
+        label = "; ".join(descricoes)
+        title = f"Feriado: {label}"
+        data.append(
+            {
+                "id": f"feriado-{day.isoformat()}",
+                "title": title,
+                "start": day.isoformat(),
+                "allDay": True,
+                "isHoliday": 1,
+                "extendedProps": {
+                    "kind": "feriado",
+                    "descricoes": descricoes,
+                },
+            }
+        )
+    return JsonResponse(data, safe=False)
+
+
+@login_required
+@require_POST
+@csrf_protect
+def feriados_cadastro_novo(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        payload = request.POST
+
+    descricao = (payload.get("descricao") or "").strip()
+    if not descricao:
+        return JsonResponse({"ok": False, "error": "Descricao obrigatoria."}, status=400)
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade nao definida."}, status=400)
+
+    cadastro = FeriadoCadastro.objects.create(
+        unidade_id=unidade_id,
+        descricao=descricao,
+        criado_por=request.user if request.user.is_authenticated else None,
+    )
+    return JsonResponse({"ok": True, "cadastro": {"id": cadastro.id, "descricao": cadastro.descricao}})
+
+
+@login_required
+@require_POST
+@csrf_protect
+def feriados_registrar(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        payload = request.POST
+
+    cadastro_id = payload.get("cadastro_id")
+    data_str = payload.get("data")
+    descricao = (payload.get("descricao") or "").strip()
+    if not cadastro_id or not data_str or not descricao:
+        return JsonResponse({"ok": False, "error": "Cadastro, data e descricao sao obrigatorios."}, status=400)
+
+    try:
+        cadastro_id = int(cadastro_id)
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Cadastro invalido."}, status=400)
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade nao definida."}, status=400)
+
+    cadastro = get_object_or_404(FeriadoCadastro, pk=cadastro_id, unidade_id=unidade_id)
+    data_ref = _parse_iso_date(data_str)
+    if not data_ref:
+        return JsonResponse({"ok": False, "error": "Data invalida."}, status=400)
+
+    feriado, created = Feriado.objects.get_or_create(
+        cadastro=cadastro,
+        data=data_ref,
+        defaults={
+            "criado_por": request.user if request.user.is_authenticated else None,
+            "descricao": descricao,
+        },
+    )
+    if not created and feriado.descricao != descricao:
+        Feriado.objects.filter(pk=feriado.pk).update(descricao=descricao)
+        feriado.descricao = descricao
+    return JsonResponse({"ok": True, "created": created, "feriado_id": feriado.id})
+
+
+@login_required
+@require_POST
+@csrf_protect
+def feriados_excluir(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        payload = request.POST
+
+    feriado_id = payload.get("feriado_id")
+    if not feriado_id:
+        return JsonResponse({"ok": False, "error": "Feriado nao informado."}, status=400)
+
+    try:
+        feriado_id = int(feriado_id)
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Feriado invalido."}, status=400)
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade nao definida."}, status=400)
+
+    feriado = get_object_or_404(Feriado, pk=feriado_id, cadastro__unidade_id=unidade_id)
+    feriado.delete()
+    return JsonResponse({"ok": True})
 
 
 @login_required

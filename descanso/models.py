@@ -5,6 +5,7 @@ from django.utils import timezone
 
 # Ajuste o import abaixo para o seu app de servidores
 from servidores.models import Servidor
+from core.models import No as Unidade
 
 
 class Descanso(models.Model):
@@ -55,6 +56,46 @@ class Descanso(models.Model):
     def ativo_agora(self) -> bool:
         hoje = timezone.localdate()
         return self.data_inicio <= hoje <= self.data_fim
+
+
+class FeriadoCadastro(models.Model):
+    unidade = models.ForeignKey(Unidade, on_delete=models.CASCADE, related_name="cadastros_feriados")
+    descricao = models.CharField(max_length=120)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="feriados_cadastros_criados"
+    )
+
+    class Meta:
+        ordering = ["-criado_em", "-id"]
+        indexes = [
+            models.Index(fields=["unidade", "descricao"]),
+        ]
+
+    def __str__(self):
+        return f"{self.descricao} ({self.unidade})"
+
+
+class Feriado(models.Model):
+    cadastro = models.ForeignKey(FeriadoCadastro, on_delete=models.CASCADE, related_name="feriados")
+    data = models.DateField()
+    descricao = models.CharField(max_length=120, blank=True, default="")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="feriados_criados"
+    )
+
+    class Meta:
+        ordering = ["data", "id"]
+        indexes = [
+            models.Index(fields=["cadastro", "data"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=["cadastro", "data"], name="uniq_feriado_cadastro_data")
+        ]
+
+    def __str__(self):
+        return f"{self.data} - {self.descricao or self.cadastro.descricao}"
 
 
 
