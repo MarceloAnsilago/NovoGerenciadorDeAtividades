@@ -70,5 +70,20 @@
       </div>
     </div>
   </div>
+
+  <div class="card shadow-sm mt-4">
+    <div class="card-header bg-light d-flex align-items-start justify-content-between flex-wrap gap-2">
+      <div class="d-flex align-items-start gap-2">
+        <i class="bi bi-calendar-event text-primary fs-4"></i>
+        <div>
+          <strong>Feriados</strong>
+          <div class="text-muted small">Abra o calendario para planejar os feriados.</div>
+        </div>
+      </div>
+      <a href="{% url 'descanso:feriados' %}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-box-arrow-up-right me-1"></i> Abrir calendario
+      </a>
+    </div>
+  </div>
 </div>
 {% endblock %}

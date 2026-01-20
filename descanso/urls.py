@@ -6,6 +6,7 @@ app_name = "descanso"
 
 urlpatterns = [
     path("", views.lista_servidores, name="lista_servidores"),
+    path("feriados/", views.feriados, name="feriados"),
     path("novo/", views.criar_descanso, name="criar_descanso"),
     path("todos/", views.descansos_unidade, name="descansos_unidade"),
     path("servidor/<int:servidor_id>/", views.descansos_servidor, name="descansos_servidor"),

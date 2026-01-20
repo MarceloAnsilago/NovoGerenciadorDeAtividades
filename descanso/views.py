@@ -138,6 +138,11 @@ def lista_servidores(request):
 
 
 @login_required
+def feriados(request):
+    return render(request, "descanso/feriados.html")
+
+
+@login_required
 def criar_descanso(request):
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:

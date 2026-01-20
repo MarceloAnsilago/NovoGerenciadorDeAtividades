@@ -1,0 +1,139 @@
+{# templates/descanso/feriados.html #}
+{% extends "core/base.html" %}
+
+{% block title %}Feriados - Descanso{% endblock %}
+
+{% block extra_head %}
+  {{ block.super }}
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+  <style>
+    #descanso-feriados-calendar {
+      background: #ffffff;
+      border: 1px solid #dee2e6;
+      border-radius: 0.5rem;
+      padding: 0.5rem;
+    }
+
+    #descanso-feriados-calendar .fc-toolbar-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+    <div>
+      <h1 class="h4 mb-1">Feriados</h1>
+      <p class="text-muted small mb-0">Calendario para registrar e visualizar feriados da unidade.</p>
+    </div>
+    <a href="{% url 'descanso:lista_servidores' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-light d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <strong><i class="bi bi-calendar-event me-1"></i> Calendario de feriados</strong>
+      <span class="text-muted small">Template inicial</span>
+    </div>
+    <div class="card-body">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#descanso-feriados-modal">
+          <i class="bi bi-plus-lg me-1"></i> Novo cadastro de feriados
+        </button>
+        <div id="descanso-feriados-info" class="text-muted small d-none"></div>
+      </div>
+      <div id="descanso-feriados-calendar" class="d-none"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="descanso-feriados-modal" tabindex="-1" aria-labelledby="descansoFeriadosModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="descansoFeriadosModalLabel">Cadastro de feriados</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <label for="descanso-feriados-descricao" class="form-label">Descricao</label>
+        <input
+          type="text"
+          class="form-control"
+          id="descanso-feriados-descricao"
+          placeholder="Ex.: feriados do decreto 50"
+          maxlength="120"
+          autocomplete="off"
+        >
+        <div class="form-text">Use esta descricao para identificar o conjunto de feriados.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="descanso-feriados-salvar">Abrir calendario</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales-all.global.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const el = document.getElementById("descanso-feriados-calendar");
+      const info = document.getElementById("descanso-feriados-info");
+      const modalEl = document.getElementById("descanso-feriados-modal");
+      const salvarBtn = document.getElementById("descanso-feriados-salvar");
+      const descricaoInput = document.getElementById("descanso-feriados-descricao");
+      if (!el || !window.FullCalendar) return;
+
+      const calendar = new FullCalendar.Calendar(el, {
+        locale: "pt-br",
+        initialView: "dayGridMonth",
+        buttonText: {
+          today: "Hoje",
+          month: "Mes",
+          week: "Semana",
+          day: "Dia"
+        },
+        headerToolbar: {
+          left: "prev,next today",
+          center: "title",
+          right: "dayGridMonth,timeGridWeek,timeGridDay"
+        },
+        height: "auto",
+        events: []
+      });
+
+      const openCalendar = (descricao) => {
+        const label = descricao?.trim();
+        if (!label) return;
+        info.textContent = `Cadastro atual: ${label}`;
+        info.classList.remove("d-none");
+        el.classList.remove("d-none");
+        calendar.render();
+      };
+
+      salvarBtn?.addEventListener("click", () => {
+        const label = descricaoInput?.value || "";
+        if (!label.trim()) {
+          descricaoInput?.classList.add("is-invalid");
+          descricaoInput?.focus();
+          return;
+        }
+        descricaoInput?.classList.remove("is-invalid");
+        openCalendar(label);
+        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.hide();
+      });
+
+      descricaoInput?.addEventListener("input", () => {
+        descricaoInput.classList.remove("is-invalid");
+      });
+    });
+  </script>
+{% endblock %}
