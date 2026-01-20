@@ -641,7 +641,7 @@ def _fetch_expediente_admin(
     if not unidade_id:
         return [], []
 
-    livres, impedidos = _servidores_status_para_data(unidade_id, dia)
+    livres, impedidos, _feriados = _servidores_status_para_data(unidade_id, dia)
 
     livres_map: dict[str, str] = {}
     for s in livres:

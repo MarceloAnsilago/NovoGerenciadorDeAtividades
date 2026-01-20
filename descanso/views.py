@@ -213,15 +213,21 @@ def feriados_feed(request):
     by_date = {}
     for f in qs:
         key = f.data
-        by_date.setdefault(key, [])
+        entry = by_date.setdefault(key, {"descricoes": [], "cadastros": []})
         label = f.descricao or "Feriado"
-        if label not in by_date[key]:
-            by_date[key].append(label)
+        if label not in entry["descricoes"]:
+            entry["descricoes"].append(label)
+        cadastro_label = f.cadastro.descricao
+        if cadastro_label not in entry["cadastros"]:
+            entry["cadastros"].append(cadastro_label)
 
     data = []
-    for day, descricoes in sorted(by_date.items(), key=lambda x: x[0]):
+    for day, entry in sorted(by_date.items(), key=lambda x: x[0]):
+        descricoes = entry["descricoes"]
+        cadastros = entry["cadastros"]
         label = "; ".join(descricoes)
         title = f"Feriado: {label}"
+        cadastro_unico = cadastros[0] if len(cadastros) == 1 else ""
         data.append(
             {
                 "id": f"feriado-{day.isoformat()}",
@@ -232,6 +238,8 @@ def feriados_feed(request):
                 "extendedProps": {
                     "kind": "feriado",
                     "descricoes": descricoes,
+                    "cadastros": cadastros,
+                    "cadastro": cadastro_unico,
                 },
             }
         )

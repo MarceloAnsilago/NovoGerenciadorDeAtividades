@@ -176,7 +176,21 @@ document.addEventListener('DOMContentLoaded', function(){
       return ['prog-event-card', `is-${status.key}`];
     },
     eventClick(info) {
-      if (info.event.extendedProps?.kind === "feriado") return;
+      const props = info.event.extendedProps || {};
+      if (props.kind === "feriado") {
+        const baseUrl = NS?.urls?.feriadosPage;
+        if (!baseUrl) return;
+        const start = info.event.start;
+        const iso = (start instanceof Date) ? start.toISOString().slice(0, 10) : (info.event.startStr || "").slice(0, 10);
+        const month = iso ? iso.slice(0, 7) : "";
+        const cadastro = (props.cadastro || "").trim()
+          || (Array.isArray(props.cadastros) && props.cadastros.length === 1 ? props.cadastros[0] : "");
+        const url = new URL(baseUrl, window.location.origin);
+        if (cadastro) url.searchParams.set("cadastro", cadastro);
+        if (month) url.searchParams.set("mes", month);
+        window.location.href = url.toString();
+        return;
+      }
       if (typeof NS.openProgramarModal === 'function') {
         const data = info.event.start;
         if (data instanceof Date) {

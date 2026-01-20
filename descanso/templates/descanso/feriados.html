@@ -153,6 +153,17 @@
       const itemDescricaoInput = document.getElementById("descanso-feriado-descricao");
       if (!el || !window.FullCalendar) return;
 
+      const params = new URLSearchParams(window.location.search || "");
+      const initialCadastro = (params.get("cadastro") || "").trim();
+      const initialMonth = (params.get("mes") || params.get("month") || "").trim();
+      const initialDate = (params.get("data") || "").trim();
+      let pendingDate = null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(initialDate)) {
+        pendingDate = initialDate;
+      } else if (/^\d{4}-\d{2}$/.test(initialMonth)) {
+        pendingDate = `${initialMonth}-01`;
+      }
+
       const getCookie = (name) => {
         const value = `; ${document.cookie}`;
         const parts = value.split(`; ${name}=`);
@@ -236,6 +247,10 @@
           extraParams: { cadastro_id: cadastroAtual.id }
         });
         calendar.render();
+        if (pendingDate) {
+          calendar.gotoDate(pendingDate);
+          pendingDate = null;
+        }
       };
 
       salvarBtn?.addEventListener("click", () => {
@@ -340,6 +355,17 @@
       itemDescricaoInput?.addEventListener("input", () => {
         itemDescricaoInput.classList.remove("is-invalid");
       });
+
+      if (initialCadastro) {
+        const buttons = Array.from(document.querySelectorAll(".descanso-feriados-open"));
+        const target = buttons.find((btn) => {
+          const label = (btn.dataset.cadastroDescricao || "").trim().toLowerCase();
+          return label && label === initialCadastro.toLowerCase();
+        });
+        if (target) {
+          setCadastro(target.dataset.cadastroId, target.dataset.cadastroDescricao || "");
+        }
+      }
     });
   </script>
 {% endblock %}
