@@ -126,14 +126,14 @@ def _impedidos_por_descanso(unidade_id: int | None, data_ref):
 def _servidores_status_para_data(
     unidade_id: int | None,
     data_ref: date,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Calcula os servidores livres e impedidos para a unidade/data informadas.
     Livres: todos os servidores da unidade que nao estao marcados como impedidos.
     Impedidos: registros com id/nome/motivo consolidados (ex.: descanso).
     """
     if not unidade_id:
-        return [], []
+        return [], [], []
 
     impedidos_descanso, impedidos_ids = _impedidos_por_descanso(unidade_id, data_ref)
 
@@ -145,12 +145,25 @@ def _servidores_status_para_data(
             "motivo": item.get("motivo"),
         })
 
+    feriados = (
+        Feriado.objects.select_related("cadastro")
+        .filter(cadastro__unidade_id=unidade_id, data=data_ref)
+        .order_by("id")
+    )
+    feriados_final = [
+        {
+            "descricao": f.descricao or "Feriado",
+            "cadastro": f.cadastro.descricao,
+        }
+        for f in feriados
+    ]
+
     servidores_qs = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).order_by("nome")
     if impedidos_ids:
         servidores_qs = servidores_qs.exclude(id__in=impedidos_ids)
 
     livres = [{"id": s.id, "nome": s.nome} for s in servidores_qs]
-    return livres, impedidos_final
+    return livres, impedidos_final, feriados_final
 
 
 @require_GET
@@ -165,8 +178,8 @@ def servidores_para_data(request):
 
     unidade_id = get_unidade_atual_id(request)
 
-    livres, impedidos = _servidores_status_para_data(unidade_id, data_ref)
-    return JsonResponse({"livres": livres, "impedidos": impedidos})
+    livres, impedidos, feriados = _servidores_status_para_data(unidade_id, data_ref)
+    return JsonResponse({"livres": livres, "impedidos": impedidos, "feriados": feriados})
 def _parse_date(s: str) -> date | None:
     try:
         y, m, d = map(int, s.split("-"))

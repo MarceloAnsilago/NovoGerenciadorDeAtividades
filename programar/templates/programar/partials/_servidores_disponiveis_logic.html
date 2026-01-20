@@ -156,6 +156,7 @@
    
       let livres = Array.isArray(json.livres) ? json.livres : [];
       const impedidos = Array.isArray(json.impedidos) ? json.impedidos : [];
+      const feriados = Array.isArray(json.feriados) ? json.feriados : [];
       // garante que impedidos não apareçam no pool
       const impedidosIds = new Set(
         impedidos.map(i => String(i.id ?? i.sid ?? '')).filter(Boolean)
@@ -184,12 +185,28 @@
       (function renderImpedidos(){
         const tbody = document.querySelector('#tabelaImpedidos tbody');
         const badge = document.getElementById('countImpedidos');
+        const feriadoBox = document.getElementById('programar-feriadosAviso');
+        const feriadoList = document.getElementById('programar-feriadosLista');
         if (!tbody) return;
 
         const esc = (s)=>String(s??'')
           .replaceAll('&','&amp;').replaceAll('<','&lt;')
           .replaceAll('>','&gt;').replaceAll('"','&quot;')
           .replaceAll("'",'&#039;');
+
+        if (feriadoBox && feriadoList) {
+          if (!feriados.length) {
+            feriadoBox.classList.add('d-none');
+            feriadoList.textContent = '';
+          } else {
+            const labels = feriados.map(f => {
+              const cadastro = f.cadastro ? ` (${f.cadastro})` : '';
+              return `${f.descricao || 'Feriado'}${cadastro}`;
+            });
+            feriadoList.textContent = labels.join('; ');
+            feriadoBox.classList.remove('d-none');
+          }
+        }
 
         if (!impedidos.length) {
           tbody.innerHTML = `<tr><td colspan="2" class="text-muted">Nenhum servidor impedido.</td></tr>`;
