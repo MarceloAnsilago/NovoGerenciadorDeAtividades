@@ -135,6 +135,27 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="descanso-feriados-delete-modal" tabindex="-1" aria-labelledby="descansoFeriadoDeleteLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="descansoFeriadoDeleteLabel">Excluir feriado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger mb-2">
+          Esta acao nao pode ser revertida.
+        </div>
+        <div id="descanso-feriado-delete-info" class="text-muted small"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="descanso-feriado-excluir-confirmar">Excluir feriado</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -149,6 +170,9 @@
       const salvarBtn = document.getElementById("descanso-feriados-salvar");
       const descricaoInput = document.getElementById("descanso-feriados-descricao");
       const itemModalEl = document.getElementById("descanso-feriados-item-modal");
+      const deleteModalEl = document.getElementById("descanso-feriados-delete-modal");
+      const deleteInfoEl = document.getElementById("descanso-feriado-delete-info");
+      const deleteConfirmBtn = document.getElementById("descanso-feriado-excluir-confirmar");
       const itemSalvarBtn = document.getElementById("descanso-feriado-salvar");
       const itemDataInput = document.getElementById("descanso-feriado-data");
       const itemDescricaoInput = document.getElementById("descanso-feriado-descricao");
@@ -182,6 +206,8 @@
 
       let cadastroAtual = null;
       let dataSelecionada = null;
+      let feriadoParaExcluir = null;
+      let feriadoEventoParaExcluir = null;
 
       const openFeriadoModal = (iso, descricao) => {
         dataSelecionada = iso;
@@ -220,6 +246,25 @@
           wrapper.appendChild(title);
           wrapper.appendChild(close);
           return { domNodes: [wrapper] };
+        },
+        eventDidMount(info) {
+          const close = info.el.querySelector(".descanso-feriado-x");
+          if (!close) return;
+          close.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            feriadoParaExcluir = info.event.id || null;
+            feriadoEventoParaExcluir = info.event || null;
+            const iso = (info.event.start instanceof Date)
+              ? info.event.start.toISOString().slice(0, 10)
+              : (info.event.startStr || "").slice(0, 10);
+            const desc = info.event.extendedProps?.descricao || info.event.title || "Feriado";
+            if (deleteInfoEl) {
+              deleteInfoEl.textContent = iso ? `${iso} - ${desc}` : desc;
+            }
+            const modal = new bootstrap.Modal(deleteModalEl);
+            modal.show();
+          });
         },
         dateClick(info) {
           if (!cadastroAtual) {
@@ -330,6 +375,35 @@
 
       itemDescricaoInput?.addEventListener("input", () => {
         itemDescricaoInput.classList.remove("is-invalid");
+      });
+
+      deleteConfirmBtn?.addEventListener("click", () => {
+        if (!feriadoParaExcluir) return;
+        fetch(urls.excluir, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken"),
+          },
+          body: JSON.stringify({ feriado_id: feriadoParaExcluir }),
+        })
+          .then((resp) => resp.json())
+          .then((json) => {
+            if (!json.ok) {
+              alert(json.error || "Nao foi possivel excluir o feriado.");
+              return;
+            }
+            if (feriadoEventoParaExcluir) {
+              feriadoEventoParaExcluir.remove();
+            } else {
+              calendar.refetchEvents();
+            }
+            feriadoParaExcluir = null;
+            feriadoEventoParaExcluir = null;
+            const modal = bootstrap.Modal.getInstance(deleteModalEl) || new bootstrap.Modal(deleteModalEl);
+            modal.hide();
+          })
+          .catch(() => alert("Erro ao excluir o feriado."));
       });
 
       if (initialCadastro) {
