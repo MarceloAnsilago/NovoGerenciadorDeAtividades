@@ -130,7 +130,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="descanso-feriado-salvar">Salvar feriado</button>
+        <button type="button" class="btn btn-primary" id="descanso-feriado-salvar">Salvar/Alterar feriado</button>
       </div>
     </div>
   </div>
@@ -182,6 +182,18 @@
 
       let cadastroAtual = null;
       let dataSelecionada = null;
+
+      const openFeriadoModal = (iso, descricao) => {
+        dataSelecionada = iso;
+        if (itemDataInput) {
+          const dataBr = new Date(iso + "T00:00:00").toLocaleDateString("pt-BR");
+          itemDataInput.value = dataBr;
+        }
+        if (itemDescricaoInput) itemDescricaoInput.value = descricao || "";
+        if (itemSalvarBtn) itemSalvarBtn.textContent = "Salvar/Alterar feriado";
+        const modal = new bootstrap.Modal(itemModalEl);
+        modal.show();
+      };
       const calendar = new FullCalendar.Calendar(el, {
         locale: "pt-br",
         initialView: "dayGridMonth",
@@ -214,35 +226,16 @@
             alert("Selecione um cadastro de feriados primeiro.");
             return;
           }
-          dataSelecionada = info.dateStr;
-          if (itemDataInput) {
-            const dataBr = new Date(info.dateStr + "T00:00:00").toLocaleDateString("pt-BR");
-            itemDataInput.value = dataBr;
-          }
-          if (itemDescricaoInput) itemDescricaoInput.value = "";
-          const modal = new bootstrap.Modal(itemModalEl);
-          modal.show();
+          openFeriadoModal(info.dateStr, "");
         },
         eventClick(info) {
           if (!cadastroAtual) return;
-          if (!confirm("Excluir este feriado?")) return;
-          fetch(urls.excluir, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-CSRFToken": getCookie("csrftoken"),
-            },
-            body: JSON.stringify({ feriado_id: info.event.id }),
-          })
-            .then((resp) => resp.json())
-            .then((json) => {
-              if (!json.ok) {
-                alert(json.error || "Nao foi possivel excluir o feriado.");
-                return;
-              }
-              info.event.remove();
-            })
-            .catch(() => alert("Erro ao excluir o feriado."));
+          const iso = (info.event.start instanceof Date)
+            ? info.event.start.toISOString().slice(0, 10)
+            : (info.event.startStr || "").slice(0, 10);
+          const descricao = info.event.extendedProps?.descricao || info.event.title || "";
+          if (!iso) return;
+          openFeriadoModal(iso, descricao);
         },
         events: []
       });
