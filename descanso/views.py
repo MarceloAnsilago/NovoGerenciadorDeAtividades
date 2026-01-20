@@ -358,6 +358,37 @@ def feriados_excluir(request):
 
 
 @login_required
+def feriados_cadastro_excluir(request, cadastro_id: int):
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        messages.error(request, "Unidade nao definida.")
+        return redirect(reverse("descanso:lista_servidores"))
+
+    cadastro = get_object_or_404(FeriadoCadastro, pk=cadastro_id, unidade_id=unidade_id)
+    feriados_count = cadastro.feriados.count()
+    back_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("descanso:lista_servidores")
+
+    if request.method == "POST":
+        descricao = cadastro.descricao
+        cadastro.delete()
+        messages.success(
+            request,
+            f"Cadastro '{descricao}' excluido com sucesso. {feriados_count} feriado(s) removido(s).",
+        )
+        return redirect(reverse("descanso:lista_servidores"))
+
+    return render(
+        request,
+        "descanso/feriados_cadastro_excluir.html",
+        {
+            "cadastro": cadastro,
+            "feriados_count": feriados_count,
+            "back_url": back_url,
+        },
+    )
+
+
+@login_required
 def criar_descanso(request):
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:

@@ -1,0 +1,32 @@
+{% extends "core/base.html" %}
+
+{% block title %}Excluir cadastro de feriados{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  {% include "partials/_page_header.html" with title="Excluir cadastro de feriados" subtitle=cadastro.descricao back_url=back_url icon="bi-calendar-x" %}
+
+  <div class="card shadow-sm border-danger">
+    <div class="card-body">
+      <div class="alert alert-danger">
+        <strong>Atencao:</strong> esta acao nao pode ser revertida.
+      </div>
+
+      <p class="mb-2">
+        Voce esta prestes a excluir o cadastro <strong>{{ cadastro.descricao }}</strong>.
+      </p>
+      <p class="mb-3">
+        Todos os feriados vinculados a este cadastro ({{ feriados_count }}) serao removidos.
+      </p>
+
+      <form method="post" class="d-flex flex-wrap gap-2">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">
+          <i class="bi bi-trash me-1"></i> Excluir definitivamente
+        </button>
+        <a href="{{ back_url }}" class="btn btn-outline-secondary">Cancelar</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

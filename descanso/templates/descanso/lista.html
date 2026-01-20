@@ -98,11 +98,18 @@
                         <div class="fw-semibold">{{ cadastro.descricao }}</div>
                         <div class="text-muted small">Clique para abrir o calendario deste cadastro.</div>
                       </div>
-                      <a
-                        class="btn btn-outline-primary btn-sm"
-                        href="{% url 'descanso:feriados' %}?cadastro={{ cadastro.id }}&mes={{ mes_hoje }}">
-                        Abrir
-                      </a>
+                      <div class="d-flex gap-2">
+                        <a
+                          class="btn btn-outline-primary btn-sm"
+                          href="{% url 'descanso:feriados' %}?cadastro={{ cadastro.id }}&mes={{ mes_hoje }}">
+                          Abrir
+                        </a>
+                        <a
+                          class="btn btn-outline-danger btn-sm"
+                          href="{% url 'descanso:feriados_cadastro_excluir' cadastro.id %}">
+                          Excluir
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>

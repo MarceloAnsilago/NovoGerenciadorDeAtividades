@@ -10,6 +10,7 @@ urlpatterns = [
     path("feriados/feed/", views.feriados_feed, name="feriados_feed"),
     path("feriados/cadastros/", views.feriados_cadastros, name="feriados_cadastros"),
     path("feriados/cadastro/novo/", views.feriados_cadastro_novo, name="feriados_cadastro_novo"),
+    path("feriados/cadastro/excluir/<int:cadastro_id>/", views.feriados_cadastro_excluir, name="feriados_cadastro_excluir"),
     path("feriados/registrar/", views.feriados_registrar, name="feriados_registrar"),
     path("feriados/excluir/", views.feriados_excluir, name="feriados_excluir"),
     path("novo/", views.criar_descanso, name="criar_descanso"),
