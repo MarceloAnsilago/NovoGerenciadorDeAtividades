@@ -134,10 +134,26 @@ def lista_servidores(request):
         tem_descanso_registrado=Exists(descanso_existe_qs),
     )
 
+    cadastros_por_ano = []
+    if unidade_id:
+        cadastros = list(
+            FeriadoCadastro.objects.filter(unidade_id=unidade_id).order_by("-criado_em", "-id")
+        )
+        bucket = {}
+        for cadastro in cadastros:
+            ano = getattr(cadastro.criado_em, "year", None) or hoje.year
+            bucket.setdefault(ano, []).append(cadastro)
+        for ano in sorted(bucket.keys(), reverse=True):
+            cadastros_por_ano.append({"ano": ano, "cadastros": bucket[ano]})
+
     return render(
         request,
         "descanso/lista.html",
-        {"servidores": servidores},
+        {
+            "servidores": servidores,
+            "cadastros_por_ano": cadastros_por_ano,
+            "mes_hoje": hoje.strftime("%Y-%m"),
+        },
     )
 
 

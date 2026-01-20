@@ -41,33 +41,8 @@
       </button>
     </div>
     <div class="card-body">
-      <div class="mb-3">
-        <div class="text-muted small mb-2">Cadastros de feriados</div>
-        <div class="row g-2" id="descanso-feriados-cadastros">
-          {% for cadastro in cadastros %}
-            <div class="col-12 col-md-6">
-              <div class="card border-0 shadow-sm">
-                <div class="card-body d-flex align-items-center justify-content-between gap-2">
-                  <div>
-                    <div class="fw-semibold">{{ cadastro.descricao }}</div>
-                    <div class="text-muted small">Clique para abrir o calendario deste cadastro.</div>
-                  </div>
-                  <button
-                    type="button"
-                    class="btn btn-outline-primary btn-sm descanso-feriados-open"
-                    data-cadastro-id="{{ cadastro.id }}"
-                    data-cadastro-descricao="{{ cadastro.descricao }}">
-                    Abrir
-                  </button>
-                </div>
-              </div>
-            </div>
-          {% empty %}
-            <div class="col-12">
-              <div class="text-muted small descanso-feriados-empty">Nenhum cadastro encontrado.</div>
-            </div>
-          {% endfor %}
-        </div>
+      <div class="text-muted small mb-3">
+        Selecione um cadastro na tela de descansos ou crie um novo cadastro para abrir o calendario.
       </div>
       <div id="descanso-feriados-info" class="text-muted small d-none"></div>
       <div id="descanso-feriados-calendar" class="d-none mt-2"></div>
@@ -173,6 +148,7 @@
 
       const urls = {
         feed: "{% url 'descanso:feriados_feed' %}",
+        cadastros: "{% url 'descanso:feriados_cadastros' %}",
         novoCadastro: "{% url 'descanso:feriados_cadastro_novo' %}",
         registrar: "{% url 'descanso:feriados_registrar' %}",
         excluir: "{% url 'descanso:feriados_excluir' %}",
@@ -276,29 +252,6 @@
               return;
             }
             const cadastro = json.cadastro;
-            const list = document.getElementById("descanso-feriados-cadastros");
-            if (list) {
-              const emptyMsg = list.querySelector(".descanso-feriados-empty");
-              if (emptyMsg) emptyMsg.remove();
-              const col = document.createElement("div");
-              col.className = "col-12 col-md-6";
-              col.innerHTML = `
-                <div class="card border-0 shadow-sm">
-                  <div class="card-body d-flex align-items-center justify-content-between gap-2">
-                    <div>
-                      <div class="fw-semibold"></div>
-                      <div class="text-muted small">Clique para abrir o calendario deste cadastro.</div>
-                    </div>
-                    <button type="button" class="btn btn-outline-primary btn-sm descanso-feriados-open">Abrir</button>
-                  </div>
-                </div>
-              `;
-              col.querySelector(".fw-semibold").textContent = cadastro.descricao;
-              const btn = col.querySelector(".descanso-feriados-open");
-              btn.dataset.cadastroId = cadastro.id;
-              btn.dataset.cadastroDescricao = cadastro.descricao;
-              list.appendChild(col);
-            }
             setCadastro(cadastro.id, cadastro.descricao);
             const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
             modal.hide();
@@ -309,14 +262,6 @@
 
       descricaoInput?.addEventListener("input", () => {
         descricaoInput.classList.remove("is-invalid");
-      });
-
-      document.addEventListener("click", (ev) => {
-        const btn = ev.target?.closest?.(".descanso-feriados-open");
-        if (!btn) return;
-        const id = btn.dataset.cadastroId;
-        const label = btn.dataset.cadastroDescricao || "";
-        setCadastro(id, label);
       });
 
       itemSalvarBtn?.addEventListener("click", () => {
@@ -357,14 +302,21 @@
       });
 
       if (initialCadastro) {
-        const buttons = Array.from(document.querySelectorAll(".descanso-feriados-open"));
-        const target = buttons.find((btn) => {
-          const label = (btn.dataset.cadastroDescricao || "").trim().toLowerCase();
-          return label && label === initialCadastro.toLowerCase();
-        });
-        if (target) {
-          setCadastro(target.dataset.cadastroId, target.dataset.cadastroDescricao || "");
-        }
+        fetch(urls.cadastros, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+          .then((resp) => resp.json())
+          .then((json) => {
+            const cadastros = Array.isArray(json.cadastros) ? json.cadastros : [];
+            const isId = /^\d+$/.test(initialCadastro);
+            const target = cadastros.find((cad) => {
+              if (!cad) return false;
+              if (isId) return String(cad.id) === initialCadastro;
+              return String(cad.descricao || "").trim().toLowerCase() === initialCadastro.toLowerCase();
+            });
+            if (target) {
+              setCadastro(target.id, target.descricao || "");
+            }
+          })
+          .catch(() => {});
       }
     });
   </script>
