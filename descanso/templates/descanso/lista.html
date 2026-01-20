@@ -105,6 +105,11 @@
                           Abrir
                         </a>
                         <a
+                          class="btn btn-outline-secondary btn-sm"
+                          href="{% url 'descanso:feriados_relatorio_mapa' %}?ano={{ ano_hoje }}&cadastro={{ cadastro.id }}">
+                          Imprimir
+                        </a>
+                        <a
                           class="btn btn-outline-danger btn-sm"
                           href="{% url 'descanso:feriados_cadastro_excluir' cadastro.id %}">
                           Excluir

@@ -153,6 +153,7 @@ def lista_servidores(request):
             "servidores": servidores,
             "cadastros_por_ano": cadastros_por_ano,
             "mes_hoje": hoje.strftime("%Y-%m"),
+            "ano_hoje": hoje.year,
         },
     )
 
@@ -390,6 +391,95 @@ def feriados_cadastro_excluir(request, cadastro_id: int):
             "cadastro": cadastro,
             "feriados_count": feriados_count,
             "back_url": back_url,
+        },
+    )
+
+
+@login_required
+def feriados_relatorio_mapa(request):
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        messages.error(request, "Selecione uma unidade para visualizar os feriados.")
+        return redirect(reverse("descanso:lista_servidores"))
+
+    try:
+        ano = int(request.GET.get("ano") or timezone.localdate().year)
+    except (TypeError, ValueError):
+        ano = timezone.localdate().year
+
+    cadastro = None
+    cadastro_id = request.GET.get("cadastro")
+    if cadastro_id:
+        try:
+            cadastro_id = int(cadastro_id)
+        except (TypeError, ValueError):
+            cadastro_id = None
+        if cadastro_id:
+            cadastro = get_object_or_404(FeriadoCadastro, pk=cadastro_id, unidade_id=unidade_id)
+
+    qs = (
+        Feriado.objects.select_related("cadastro")
+        .filter(cadastro__unidade_id=unidade_id, data__year=ano)
+        .order_by("data", "id")
+    )
+    if cadastro:
+        qs = qs.filter(cadastro=cadastro)
+
+    feriados = list(qs)
+    month_map = {}
+    for f in feriados:
+        month_map.setdefault(f.data.month, [])
+        month_map[f.data.month].append(f)
+
+    meses_label = [
+        (1, "Janeiro"), (2, "Fevereiro"), (3, "Marco"), (4, "Abril"),
+        (5, "Maio"), (6, "Junho"), (7, "Julho"), (8, "Agosto"),
+        (9, "Setembro"), (10, "Outubro"), (11, "Novembro"), (12, "Dezembro"),
+    ]
+
+    meses_data = []
+    for mes, nome in meses_label:
+        feriados_mes = month_map.get(mes) or []
+        if not feriados_mes:
+            continue
+        dias_marcados = {f.data.day for f in feriados_mes if f.data}
+        ndias = monthrange(ano, mes)[1]
+        dias = [{"num": d, "marked": d in dias_marcados} for d in range(1, ndias + 1)]
+        legenda = []
+        for f in feriados_mes:
+            data_label = f.data.strftime("%d/%m/%Y")
+            descricao = f.descricao or "Feriado"
+            cadastro_label = f.cadastro.descricao if f.cadastro else ""
+            legenda.append({
+                "data": data_label,
+                "descricao": descricao,
+                "cadastro": cadastro_label,
+            })
+        meses_data.append({"mes_num": mes, "mes_nome": nome, "dias": dias, "legenda": legenda})
+
+    anos_set = set(
+        Feriado.objects.filter(cadastro__unidade_id=unidade_id)
+        .values_list("data__year", flat=True)
+    )
+    if cadastro:
+        anos_set = set(
+            Feriado.objects.filter(cadastro=cadastro)
+            .values_list("data__year", flat=True)
+        )
+    anos_set.discard(None)
+    anos_opcoes = sorted(anos_set) if anos_set else [ano]
+    if ano not in anos_opcoes:
+        anos_opcoes.append(ano)
+        anos_opcoes.sort()
+
+    return render(
+        request,
+        "descanso/feriados_mapa.html",
+        {
+            "ano": ano,
+            "anos_opcoes": anos_opcoes,
+            "meses_data": meses_data,
+            "cadastro": cadastro,
         },
     )
 
