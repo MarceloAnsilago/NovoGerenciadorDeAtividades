@@ -220,6 +220,7 @@ def feriados_feed(request):
                     "kind": "feriado",
                     "descricao": f.descricao,
                     "cadastro": f.cadastro.descricao,
+                    "cadastro_id": f.cadastro_id,
                 },
             }
             for f in qs
@@ -236,6 +237,9 @@ def feriados_feed(request):
         cadastro_label = f.cadastro.descricao
         if cadastro_label not in entry["cadastros"]:
             entry["cadastros"].append(cadastro_label)
+        entry.setdefault("cadastro_ids", [])
+        if f.cadastro_id not in entry["cadastro_ids"]:
+            entry["cadastro_ids"].append(f.cadastro_id)
 
     data = []
     for day, entry in sorted(by_date.items(), key=lambda x: x[0]):
@@ -244,6 +248,7 @@ def feriados_feed(request):
         label = "; ".join(descricoes)
         title = f"Feriado: {label}"
         cadastro_unico = cadastros[0] if len(cadastros) == 1 else ""
+        cadastro_id_unico = entry["cadastro_ids"][0] if len(entry["cadastro_ids"]) == 1 else ""
         data.append(
             {
                 "id": f"feriado-{day.isoformat()}",
@@ -256,6 +261,7 @@ def feriados_feed(request):
                     "descricoes": descricoes,
                     "cadastros": cadastros,
                     "cadastro": cadastro_unico,
+                    "cadastro_id": cadastro_id_unico,
                 },
             }
         )

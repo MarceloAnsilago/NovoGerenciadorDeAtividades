@@ -18,6 +18,32 @@
       font-size: 1.1rem;
       font-weight: 600;
     }
+
+    #descanso-feriados-calendar .fc-event {
+      cursor: pointer;
+    }
+
+    #descanso-feriados-calendar .descanso-feriado-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      width: 100%;
+    }
+
+    #descanso-feriados-calendar .descanso-feriado-x {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: auto;
+      width: 1.2rem;
+      height: 1.2rem;
+      border-radius: 0.2rem;
+      font-weight: 700;
+      font-size: 0.8rem;
+      line-height: 1;
+      background: #dc3545;
+      color: #ffffff;
+    }
   </style>
 {% endblock %}
 
@@ -171,6 +197,18 @@
           right: "dayGridMonth,timeGridWeek,timeGridDay"
         },
         height: "auto",
+        eventContent(info) {
+          const wrapper = document.createElement("span");
+          wrapper.className = "descanso-feriado-pill";
+          const title = document.createElement("span");
+          title.textContent = info.event.title || "Feriado";
+          const close = document.createElement("span");
+          close.className = "descanso-feriado-x";
+          close.textContent = "x";
+          wrapper.appendChild(title);
+          wrapper.appendChild(close);
+          return { domNodes: [wrapper] };
+        },
         dateClick(info) {
           if (!cadastroAtual) {
             alert("Selecione um cadastro de feriados primeiro.");

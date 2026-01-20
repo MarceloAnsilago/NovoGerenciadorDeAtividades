@@ -77,6 +77,22 @@ document.addEventListener('DOMContentLoaded', function(){
   if (NS.urls.eventsFeed) eventSources.push({ url: NS.urls.eventsFeed });
   if (NS.urls.feriadosFeed) eventSources.push({ url: NS.urls.feriadosFeed });
 
+  function buildFeriadoRedirectUrl(event) {
+    const baseUrl = NS?.urls?.feriadosPage || "/descanso/feriados/";
+    if (!baseUrl || !event) return "";
+    const start = event.start;
+    const iso = (start instanceof Date) ? start.toISOString().slice(0, 10) : (event.startStr || "").slice(0, 10);
+    const month = iso ? iso.slice(0, 7) : "";
+    const props = event.extendedProps || {};
+    const cadastroId = props.cadastro_id ? String(props.cadastro_id).trim() : "";
+    const cadastro = cadastroId || (props.cadastro || "").trim()
+      || (Array.isArray(props.cadastros) && props.cadastros.length === 1 ? props.cadastros[0] : "");
+    const url = new URL(baseUrl, window.location.origin);
+    if (cadastro) url.searchParams.set("cadastro", cadastro);
+    if (month) url.searchParams.set("mes", month);
+    return url.toString();
+  }
+
   const calendar = new FullCalendar.Calendar(el, {
     locale: 'pt-br',
     timeZone: 'local',
@@ -175,20 +191,22 @@ document.addEventListener('DOMContentLoaded', function(){
       const status = computeStatus(arg.event.extendedProps || {});
       return ['prog-event-card', `is-${status.key}`];
     },
+    eventDidMount(info) {
+      if (info.event.extendedProps?.kind !== "feriado") return;
+      const url = buildFeriadoRedirectUrl(info.event);
+      if (!url) return;
+      info.el.style.cursor = "pointer";
+      info.el.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        window.location.href = url;
+      });
+    },
     eventClick(info) {
       const props = info.event.extendedProps || {};
       if (props.kind === "feriado") {
-        const baseUrl = NS?.urls?.feriadosPage;
-        if (!baseUrl) return;
-        const start = info.event.start;
-        const iso = (start instanceof Date) ? start.toISOString().slice(0, 10) : (info.event.startStr || "").slice(0, 10);
-        const month = iso ? iso.slice(0, 7) : "";
-        const cadastro = (props.cadastro || "").trim()
-          || (Array.isArray(props.cadastros) && props.cadastros.length === 1 ? props.cadastros[0] : "");
-        const url = new URL(baseUrl, window.location.origin);
-        if (cadastro) url.searchParams.set("cadastro", cadastro);
-        if (month) url.searchParams.set("mes", month);
-        window.location.href = url.toString();
+        const url = buildFeriadoRedirectUrl(info.event);
+        if (url) window.location.href = url;
         return;
       }
       if (typeof NS.openProgramarModal === 'function') {
