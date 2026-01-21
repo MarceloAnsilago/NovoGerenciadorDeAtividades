@@ -54,6 +54,9 @@
   /* garante dropdown da navbar acima do calendario */
   body[data-app="programar"] .navbar{ z-index:2001; }
   body[data-app="programar"] .navbar .dropdown-menu{ z-index:2002; }
+  /* modal sempre acima da navbar */
+  body[data-app="programar"] #programar-modalAtividade{ z-index:3000; }
+  body[data-app="programar"] .modal-backdrop.show{ z-index:2990; }
 
   /* ===== Caixinha para marcação (impressão) ===== */
   .print-cbx{
