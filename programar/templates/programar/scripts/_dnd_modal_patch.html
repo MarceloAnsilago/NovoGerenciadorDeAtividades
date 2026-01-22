@@ -111,10 +111,20 @@
   }
 
   // ---------- fallback addToMeta (usa o seu se existir) ----------
-  function fallbackAddToMeta(sid, metaId) {
+  function fallbackAddToMeta(sid, metaId, target) {
     const name = findServerNameById(sid);
-    const card = document.querySelector(`#metaCardsContainer [data-meta-id="${metaId}"]`) || NS.ensureMetaCard(metaId, "");
-    const dz = ensureDropzone(card);
+    let dz = null;
+    if (target) {
+      if (target.classList?.contains("meta-dropzone")) {
+        dz = target;
+      } else {
+        dz = ensureDropzone(target);
+      }
+    }
+    if (!dz) {
+      const card = document.querySelector(`#metaCardsContainer [data-meta-id="${metaId}"]`) || NS.ensureMetaCard(metaId, "");
+      dz = ensureDropzone(card);
+    }
     if (!dz) return;
 
     const exists = dz.querySelector(`.servidor-chip[data-id="${sid}"]`);
@@ -141,11 +151,38 @@
     updateCounts();
   }
 
-  function addToMeta(sid, metaId) {
+  function addToMeta(sid, metaId, target) {
     if (typeof NS.addToMeta === "function" && NS.addToMeta !== addToMeta) {
-      return NS.addToMeta(sid, metaId); // usa a sua, se existir
+      if (NS.addToMeta.length >= 3) return NS.addToMeta(sid, metaId, target);
+      if (!target) return NS.addToMeta(sid, metaId); // usa a sua, se existir
     }
-    return fallbackAddToMeta(sid, metaId);
+    return fallbackAddToMeta(sid, metaId, target);
+  }
+
+  function getDropzoneFromEvent(e) {
+    const path = (e.composedPath && e.composedPath()) || [];
+    let dz = null;
+    for (const n of path) {
+      if (n && n.classList?.contains("meta-dropzone")) { dz = n; break; }
+      if (n && n.dataset?.metaId) {
+        dz = n.querySelector?.(".meta-dropzone") || ensureDropzone(n);
+        if (dz) break;
+      }
+    }
+    if (!dz) {
+      const direct = e.target?.closest?.(".meta-dropzone");
+      if (direct) dz = direct;
+    }
+    if (!dz) {
+      const card = e.target?.closest?.("[data-meta-id]");
+      if (card) dz = card.querySelector(".meta-dropzone") || ensureDropzone(card);
+    }
+    if (!dz && typeof e.clientX === "number") {
+      const elAtPoint = document.elementFromPoint(e.clientX, e.clientY);
+      const card = elAtPoint?.closest?.("[data-meta-id]");
+      if (card) dz = card.querySelector(".meta-dropzone") || ensureDropzone(card);
+    }
+    return dz;
   }
 
   // ---------- DnD (delegação) ----------
@@ -175,7 +212,7 @@
   document.addEventListener("dragend", () => { DRAG.id = null; }, true);
 
   document.addEventListener("dragover", (e) => {
-    const dz = e.target.closest(".meta-dropzone");
+    const dz = getDropzoneFromEvent(e);
     if (!dz) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
@@ -183,12 +220,12 @@
   }, true);
 
   document.addEventListener("dragleave", (e) => {
-    const dz = e.target.closest(".meta-dropzone");
+    const dz = getDropzoneFromEvent(e);
     if (dz) dz.classList.remove("drop-hover");
   }, true);
 
   document.addEventListener("drop", (e) => {
-    const dz = e.target.closest(".meta-dropzone");
+    const dz = getDropzoneFromEvent(e);
     if (!dz) return;
     e.preventDefault();
     dz.classList.remove("drop-hover");
@@ -197,7 +234,7 @@
     let sid = (e.dataTransfer && (e.dataTransfer.getData("application/x-sid") || e.dataTransfer.getData("text/plain"))) || DRAG.id;
     if (!metaId || !sid) return;
 
-    addToMeta(sid, metaId);
+    addToMeta(sid, metaId, dz);
   }, true);
 
   // habilita drop no expediente (opcional)

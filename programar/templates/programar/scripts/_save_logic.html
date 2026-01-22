@@ -195,6 +195,8 @@
       document.dispatchEvent(new CustomEvent('programar:saved', {
         detail: { data: dateStr, programacao_id: json.programacao_id, itens_criados: json.itens_criados || [] }
       }));
+      if (typeof NS.refreshCalendarEvents === 'function') NS.refreshCalendarEvents();
+      else if (NS.calendar && typeof NS.calendar.refetchEvents === 'function') NS.calendar.refetchEvents();
 
     } catch (err){
       console.error('[programar] salvar erro:', err);

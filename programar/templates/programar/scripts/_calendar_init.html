@@ -173,7 +173,9 @@ document.addEventListener('DOMContentLoaded', function(){
           icon.className = `bi ${done ? "bi-check-circle-fill" : "bi-x-circle-fill"} programar-event-line-icon ${done ? "is-done" : "is-pending"}`;
           lineEl.appendChild(icon);
           const textEl = document.createElement('span');
-          textEl.textContent = line.titulo || 'Atividade';
+          const qty = Number(line.quantidade || 0);
+          const suffix = qty > 1 ? ` (${qty})` : "";
+          textEl.textContent = (line.titulo || 'Atividade') + suffix;
           lineEl.appendChild(textEl);
         } else {
           lineEl.textContent = line;

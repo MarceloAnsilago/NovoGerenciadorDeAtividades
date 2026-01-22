@@ -248,13 +248,6 @@ def salvar_programacao(request):
         # itens já existentes
         existentes_qs = ProgramacaoItem.objects.filter(programacao=prog).select_related("programacao")
         existentes: Dict[int, ProgramacaoItem] = {pi.id: pi for pi in existentes_qs}
-        existentes_por_meta: dict[int, list[ProgramacaoItem]] = defaultdict(list)
-        for pi in existentes_qs:
-            try:
-                meta_key = int(pi.meta_id)
-            except (TypeError, ValueError):
-                continue
-            existentes_por_meta[meta_key].append(pi)
 
         ids_payload: set[int] = set()
         total_vinculos = 0
@@ -291,6 +284,10 @@ def salvar_programacao(request):
                 vistos_servidores.add(sid_int)
                 servidores_ids.append(sid_int)
 
+            # Ignora item vazio: sem servidores, sem veiculo e sem observacao.
+            if not servidores_ids and veiculo_id is None and not obs:
+                continue
+
             raw_item_id = it.get("id")
             item_id: int | None = None
             pi: ProgramacaoItem | None = None
@@ -302,17 +299,6 @@ def salvar_programacao(request):
                     item_id = None
                 if item_id and item_id in existentes:
                     pi = existentes[item_id]
-
-            if not pi:
-                candidatos = existentes_por_meta.get(meta_id, [])
-                for idx, candidato in enumerate(candidatos):
-                    cid = candidato.id
-                    if cid in ids_payload:
-                        continue
-                    pi = candidato
-                    item_id = cid
-                    candidatos.pop(idx)
-                    break
 
             if pi:
                 ProgramacaoItem.objects.filter(pk=pi.pk).update(
@@ -344,50 +330,6 @@ def salvar_programacao(request):
                 ]
                 ProgramacaoItemServidor.objects.bulk_create(bulk)
                 total_vinculos += len(bulk)
-
-        # sanitiza duplicados por meta na programação (mantém apenas um registro)
-        duplicados = (
-            ProgramacaoItem.objects
-            .filter(programacao=prog)
-            .values("meta_id")
-            .annotate(total=Count("id"))
-            .filter(total__gt=1)
-        )
-        for row in duplicados:
-            meta_dup = row.get("meta_id")
-            if meta_dup is None:
-                continue
-            itens_meta = list(
-                ProgramacaoItem.objects
-                .filter(programacao=prog, meta_id=meta_dup)
-                .order_by("id")
-            )
-            if not itens_meta:
-                continue
-
-            keeper = None
-            for pi in itens_meta:
-                if pi.id in ids_payload:
-                    keeper = pi
-                    break
-            if keeper is None:
-                keeper = itens_meta[0]
-                ids_payload.add(keeper.id)
-
-            extras = [pi for pi in itens_meta if pi.id != keeper.id]
-            if not extras:
-                continue
-
-            extra_ids = [pi.id for pi in extras]
-            ProgramacaoItemServidor.objects.filter(item_id__in=extra_ids).delete()
-            ProgramacaoItem.objects.filter(id__in=extra_ids).delete()
-
-            for extra in extras:
-                existentes.pop(extra.id, None)
-            if meta_dup in existentes_por_meta:
-                existentes_por_meta[meta_dup] = [
-                    pi for pi in existentes_por_meta[meta_dup] if pi.id == keeper.id
-                ]
 
         # delete-orphans: remove itens que não vieram no payload
         orfaos = [pi_id for pi_id in existentes.keys() if pi_id not in ids_payload]
@@ -1363,8 +1305,10 @@ def events_feed(request):
                     "total": int(row.get("total") or 0),
                     "concluidas": int(row.get("concluidas") or 0),
                 }
-        seen_por_prog: Dict[int, set[str]] = {pid: set() for pid in prog_ids}
-        seen_ativ_por_prog: Dict[int, set[tuple[str, bool]]] = {pid: set() for pid in prog_ids}
+        title_counts: Dict[int, Dict[str, int]] = {pid: {} for pid in prog_ids}
+        title_order: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
+        activity_counts: Dict[int, Dict[tuple[str, bool], int]] = {pid: {} for pid in prog_ids}
+        activity_order: Dict[int, list[tuple[str, bool]]] = {pid: [] for pid in prog_ids}
         itens_com_meta = itens_qs.select_related("meta", "meta__atividade").order_by("programacao_id", "meta__titulo")
         for item in itens_com_meta:
             pid = item.programacao_id
@@ -1385,19 +1329,31 @@ def events_feed(request):
             titulo = str(titulo).strip()
             if not titulo:
                 continue
-            if titulo not in seen_por_prog[pid]:
-                seen_por_prog[pid].add(titulo)
-                metas_por_programacao[pid].append(titulo)
+            if titulo not in title_counts[pid]:
+                title_counts[pid][titulo] = 0
+                title_order[pid].append(titulo)
+            title_counts[pid][titulo] += 1
 
             concluido_item = bool(getattr(item, "concluido", False))
             key = (titulo, concluido_item)
-            if key in seen_ativ_por_prog[pid]:
-                continue
-            seen_ativ_por_prog[pid].add(key)
-            atividades_por_programacao[pid].append({
-                "titulo": titulo,
-                "concluido": concluido_item,
-            })
+            if key not in activity_counts[pid]:
+                activity_counts[pid][key] = 0
+                activity_order[pid].append(key)
+            activity_counts[pid][key] += 1
+
+        for pid in prog_ids:
+            for titulo in title_order[pid]:
+                count = title_counts[pid].get(titulo, 0)
+                label = f"{titulo} ({count})" if count > 1 else titulo
+                metas_por_programacao[pid].append(label)
+            for key in activity_order[pid]:
+                titulo, concluido_item = key
+                count = activity_counts[pid].get(key, 0)
+                atividades_por_programacao[pid].append({
+                    "titulo": titulo,
+                    "concluido": concluido_item,
+                    "quantidade": count,
+                })
 
     data = []
     for prog in programacoes:
