@@ -50,6 +50,8 @@
       z-index: 1030;
       color: white;
       transition: width 0.3s ease;
+      display: flex;
+      flex-direction: column;
     }
 
     .sidebar.collapsed {
@@ -102,6 +104,8 @@
     .sidebar .nav-link i { font-size: 1.2rem; }
     .sidebar.collapsed .nav-link i { font-size: 1.4rem; margin: 0; }
     .sidebar.collapsed .nav-link span { display: none; }
+    .sidebar .sidebar-nav { flex: 1; }
+    .sidebar-footer { padding: 0.5rem 0.5rem 1rem; }
 
     /* Tooltip ao passar o mouse */
     .sidebar.collapsed .nav-link::after {
@@ -258,7 +262,7 @@
     <span class="fw-semibold">Menu</span>
   </div>
 
-  <ul class="nav flex-column px-2 text-start text-md-start">
+  <ul class="nav flex-column px-2 text-start text-md-start sidebar-nav">
     <li class="nav-item">
       <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
         href="{% url 'core:dashboard' %}" data-bs-title="Dashboard">
@@ -346,6 +350,16 @@
       </li>
     {% endif %}
   </ul>
+
+  <div class="sidebar-footer px-2">
+    <a class="nav-link"
+      href="https://folhadefrequenciareeducandos-hzrguzcj9wtpr8uktewcls.streamlit.app/"
+      target="_blank"
+      rel="noopener noreferrer"
+      data-bs-title="Apps uteis">
+      <i class="bi bi-box-arrow-up-right"></i> <span>Apps uteis</span>
+    </a>
+  </div>
 </aside>
 
   <!-- CONTEÚDO -->
