@@ -53,7 +53,7 @@
               <td>
                 <div class="days-grid">
                   {% for dia in mes.dias %}
-                    <span class="day-square {% if dia.marked %}day-marked{% elif dia.weekend %}day-weekend{% else %}day-empty{% endif %}" title="Dia {{ dia.num }}{% if dia.marked %} com feriado{% elif dia.weekend %} (fim de semana){% endif %}">
+                    <span class="day-square {% if dia.marked %}day-marked{% elif dia.weekend %}day-weekend{% else %}day-empty{% endif %}" title="{{ dia.weekday }}{% if dia.marked %} (feriado){% elif dia.weekend %} (fim de semana){% endif %}">
                       {{ dia.num }}
                     </span>
                   {% endfor %}
