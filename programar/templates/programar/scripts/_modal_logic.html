@@ -212,6 +212,7 @@
 <script>
 (function () {
   const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+  if (NS._prefillOverride) return;
 
   // espera condicional (polling curtinho)
   function waitFor(testFn, timeout = 5000, step = 50) {

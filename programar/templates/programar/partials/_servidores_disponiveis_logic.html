@@ -12,6 +12,7 @@
     expedienteSelector: '#expedienteAdmin, .js-expediente-admin',
     expedienteBadgeSelector: '#countExpedienteAdmin',
     excludeAllocated: false,
+    expedienteExcludeAllocated: true,
     cardSelectorInMetas: '.servidor-chip, .srv-chip, .chip-servidor, [data-servidor-id], .servidor-card',
     cardIdAttr:  'data-id',
     itemIdAttr:  'data-id',
@@ -71,9 +72,7 @@
     return el;
   }
 
-  function getAllocatedIds(opts){
-    if (!opts.excludeAllocated) return new Set();
-
+  function collectAllocatedIds(opts){
     // Escopo restrito: SOMENTE dentro dos cards de metas
     const metasScope = document.getElementById('metaCardsContainer');
     if (!metasScope) return new Set();
@@ -165,9 +164,12 @@
         livres = livres.filter(s => !impedidosIds.has(String(s.id)));
       }
 
+      // snapshot para recalcular expediente sem novo fetch
+      NS._lastLivres = Array.isArray(livres) ? livres.slice() : [];
+
       // Remove da pool quem já está alocado nos cards (se habilitado)
       if (opts.excludeAllocated) {
-        const alocados = getAllocatedIds(opts);
+        const alocados = collectAllocatedIds(opts);
         if (alocados.size) {
           livres = livres.filter(s => !alocados.has(String(s.id)));
         }
@@ -231,13 +233,18 @@
         );
         const progLoadedFlag = document.body.dataset.progLoaded === '1';
 
-        const shouldAutofill = !!opts.autofillExpediente && !hasChipsInCards && !progLoadedFlag;
+        const shouldAutofill = !!opts.autofillExpediente;
         console.debug('[programar] autofillExpediente?', shouldAutofill, {
           requested: opts.autofillExpediente, hasChipsInCards: !!hasChipsInCards, progLoadedFlag
         });
 
         if (shouldAutofill) {
-          renderExpedienteFromLivres(livres, opts);
+          let expLivres = livres;
+          if (opts.expedienteExcludeAllocated) {
+            const alocados = collectAllocatedIds(opts);
+            if (alocados.size) expLivres = livres.filter(s => !alocados.has(String(s.id)));
+          }
+          renderExpedienteFromLivres(expLivres, opts);
         } else {
           setBadgeFor(expEl, expEl.children.length, opts.expedienteBadgeSelector);
         }
@@ -310,6 +317,20 @@
     const wantAuto = (document.body.dataset.progLoaded === '1') ? false : true;
     await loadServidoresDisponiveis(iso, { autofillExpediente: wantAuto });
   });
+
+  function refreshExpedienteFromLastLivres(options = {}){
+    const opts = { ...DEFAULTS, ...options };
+    const expEl = getContainer(opts.expedienteSelector);
+    if (!expEl) return;
+    let expLivres = Array.isArray(NS._lastLivres) ? NS._lastLivres.slice() : [];
+    if (opts.expedienteExcludeAllocated) {
+      const alocados = collectAllocatedIds(opts);
+      if (alocados.size) expLivres = expLivres.filter(s => !alocados.has(String(s.id)));
+    }
+    renderExpedienteFromLivres(expLivres, opts);
+    updateBadges(opts);
+  }
+  NS.refreshExpedienteFromLivres = refreshExpedienteFromLastLivres;
 
   // ================== API pública ==================
   NS.loadServidores = NS.loadServidoresDisponiveis = loadServidoresDisponiveis;
