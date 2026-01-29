@@ -765,23 +765,29 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         # Dedup por META
         itens_atividades = _dedup_atividades(itens_atividades)
 
-        # Mescla expediente calculado + do legado (sem duplicar nomes)
-        if expediente_extra:
-            seen = set()
-            exp_merge = []
-            for nome in list(expediente) + expediente_extra:
-                if nome not in seen:
-                    seen.add(nome)
-                    exp_merge.append(nome)
-            expediente = exp_merge
-
         feriados_do_dia = feriados_map.get(dt) or []
+        is_feriado = bool(feriados_do_dia)
+
+        if is_feriado:
+            # Em feriados, nao exibir expediente administrativo no relatorio.
+            expediente = []
+            expediente_extra = []
+        else:
+            # Mescla expediente calculado + do legado (sem duplicar nomes)
+            if expediente_extra:
+                seen = set()
+                exp_merge = []
+                for nome in list(expediente) + expediente_extra:
+                    if nome not in seen:
+                        seen.add(nome)
+                        exp_merge.append(nome)
+                expediente = exp_merge
 
         # Monta os blocks garantindo feriados/expediente primeiro
         blocks: list[dict] = []
         if feriados_do_dia:
             blocks.append({"kind": "feriado", "descricoes": feriados_do_dia})
-        if expediente:
+        if expediente and not is_feriado:
             blocks.append({"kind": "expediente", "servidores": expediente})
         for it in itens_atividades:
             blocks.append({
