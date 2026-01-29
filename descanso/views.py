@@ -444,7 +444,14 @@ def feriados_relatorio_mapa(request):
             continue
         dias_marcados = {f.data.day for f in feriados_mes if f.data}
         ndias = monthrange(ano, mes)[1]
-        dias = [{"num": d, "marked": d in dias_marcados} for d in range(1, ndias + 1)]
+        dias = []
+        for d in range(1, ndias + 1):
+            dia_data = date(ano, mes, d)
+            dias.append({
+                "num": d,
+                "marked": d in dias_marcados,
+                "weekend": dia_data.weekday() >= 5,
+            })
         legenda = []
         for f in feriados_mes:
             data_label = f.data.strftime("%d/%m/%Y")
