@@ -415,7 +415,15 @@ def feriados_relatorio_mapa(request):
         except (TypeError, ValueError):
             cadastro_id = None
         if cadastro_id:
-            cadastro = get_object_or_404(FeriadoCadastro, pk=cadastro_id, unidade_id=unidade_id)
+            cadastro = FeriadoCadastro.objects.filter(
+                pk=cadastro_id,
+                unidade_id=unidade_id,
+            ).first()
+            if not cadastro:
+                messages.warning(
+                    request,
+                    "Cadastro de feriado informado nao foi encontrado nesta unidade.",
+                )
 
     qs = (
         Feriado.objects.select_related("cadastro")
