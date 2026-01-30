@@ -469,11 +469,13 @@ def _fetch_plantonistas_via_orm(request, start: str, end: str) -> List[Dict[str,
 
 def _render_plantonistas_html(servidores: List[Dict[str, Any]], start: str, end: str) -> str:
     esc = lambda s: html.escape(str(s or ""))
+    start_br = _format_iso_to_br(start)
+    end_br = _format_iso_to_br(end)
     header = (
         '<h6 class="fw-semibold mb-2">'
         '<span class="badge bg-light border me-2">'
         '<i class="bi bi-person-badge text-primary"></i></span>'
-        f'Plantonista(s) da semana <small class="text-muted">({esc(start)} → {esc(end)})</small>'
+        f'Plantonista da semana <small class="text-muted">({esc(start_br)} → {esc(end_br)})</small>'
         "</h6>"
     )
     if not servidores:
@@ -1089,7 +1091,7 @@ def relatorios_parcial(request):
         <div class="container mt-3 report-container px-0">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="mb-0">
-              <i class="bi bi-list-check me-2"></i> Relatório de atividades
+              <i class="bi bi-list-check me-2"></i> Programação de atividades
             </h2>
             <div id="relatorio-toolbar" class="report-toolbar no-print">
               <div class="btn-group btn-group-sm">
