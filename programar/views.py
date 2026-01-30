@@ -471,6 +471,14 @@ def _render_plantonistas_html(servidores: List[Dict[str, Any]], start: str, end:
     esc = lambda s: html.escape(str(s or ""))
     start_br = _format_iso_to_br(start)
     end_br = _format_iso_to_br(end)
+    def _phone_display(raw: str) -> str:
+        val = (raw or "").strip()
+        if not val:
+            return ""
+        # Evita duplicar parênteses se já vierem no cadastro.
+        if "(" in val or ")" in val:
+            return val
+        return f"({val})"
     header = (
         '<h6 class="fw-semibold mb-2">'
         '<span class="badge bg-light border me-2">'
@@ -485,7 +493,8 @@ def _render_plantonistas_html(servidores: List[Dict[str, Any]], start: str, end:
     for s in servidores:
         nome = esc(s.get("nome") or s.get("servidor") or "")
         tel = s.get("telefone")
-        tel_html = f' <span class="text-muted">— ({esc(tel)})</span>' if tel else ""
+        tel_disp = _phone_display(str(tel or ""))
+        tel_html = f' <span class="text-muted">— {esc(tel_disp)}</span>' if tel_disp else ""
         items.append(f"<li>{nome}{tel_html}</li>")
 
     return header + f'<ul class="mb-0">{"".join(items)}</ul>'
