@@ -23,6 +23,49 @@
     font-weight:600;
   }
 
+  /* ===== Resumo de impedidos no topo ===== */
+  #programar-impedidosMesCard{
+    min-width:240px;
+    max-width:360px;
+    background:#fbfcfe;
+    border:1px solid #eef2f6;
+  }
+  #programar-impedidosMesCard .programar-impedidos-mes-title{
+    font-size:.7rem;
+    letter-spacing:.06em;
+    color:#6c757d;
+  }
+  #programar-impedidosMesCard .programar-impedidos-mes-label{
+    font-size:.72rem;
+    margin-top:.15rem;
+  }
+  #programar-impedidosMesCard .programar-impedidos-mes-list{
+    list-style:none;
+    padding-left:0;
+    margin:.35rem 0 0;
+    display:flex;
+    flex-wrap:wrap;
+    gap:.2rem .6rem;
+    font-size:.78rem;
+    max-height:120px;
+    overflow-y:auto;
+  }
+  #programar-impedidosMesCard .programar-impedidos-mes-list li{
+    white-space:nowrap;
+  }
+  #programar-impedidosMesCard .programar-impedidos-mes-range{
+    font-variant-numeric:tabular-nums;
+    color:#6c757d;
+    margin-right:.35rem;
+  }
+  #programar-impedidosMesCard .programar-impedidos-mes-empty{
+    font-size:.78rem;
+    margin-top:.35rem;
+  }
+  @media (max-width: 768px){
+    #programar-impedidosMesCard{ width:100%; }
+  }
+
   /* ===== Barra de controles ===== */
   .programar-controls{
     background:var(--prog-card-bg);

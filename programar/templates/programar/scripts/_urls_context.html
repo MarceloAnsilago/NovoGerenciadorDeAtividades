@@ -8,6 +8,7 @@
     feriadosPage:   "{% url 'descanso:feriados' %}",
     metas:          "{% url 'programar:metas_disponiveis' %}",
     servidores:     "{% url 'programar:servidores_para_data' %}",
+    impedidosMes:   "{% url 'programar:servidores_impedidos_mes' %}",
     salvar:         "{% url 'programar:salvar_programacao' %}",
     programacaoDia: "{% url 'programar:programacao_do_dia' %}",
     excluir:        "{% url 'programar:excluir_programacao' %}",
@@ -168,5 +169,123 @@
   // 5) expõe helpers
   window.PROGRAMAR.carregarServidoresImpedidos = carregarServidoresImpedidos;
   window.PROGRAMAR.atualizarImpedidosPelaUI = atualizarPelaUI;
+})();
+</script>
+
+<script>
+(function () {
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
+  const listEl = () => document.getElementById('programar-impedidos-mes-list');
+  const countEl = () => document.getElementById('programar-impedidos-mes-count');
+  const emptyEl = () => document.getElementById('programar-impedidos-mes-empty');
+  const labelEl = () => document.getElementById('programar-impedidos-mes-label');
+
+  function escapeHtml(s) {
+    return String(s ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function formatMesLabel(ym) {
+    if (!/^\d{4}-\d{2}$/.test(String(ym || ''))) return '';
+    const parts = String(ym).split('-');
+    const year = Number(parts[0]);
+    const month = Number(parts[1]) - 1;
+    const d = new Date(year, month, 1);
+    if (Number.isNaN(d.getTime())) return ym;
+    try {
+      return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    } catch (_err) {
+      return ym;
+    }
+  }
+
+  function currentMesFallback() {
+    const ref = NS?.calendar?.view?.currentStart;
+    const d = (ref instanceof Date) ? ref : new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
+  let _ultimoMes = null;
+
+  async function carregarImpedidosMes(mes) {
+    const list = listEl();
+    if (!list) return;
+    if (!/^\d{4}-\d{2}$/.test(String(mes || ''))) return;
+    if (_ultimoMes === mes && list.dataset.rendered === '1') return;
+
+    const urlBase = NS?.urls?.impedidosMes;
+    if (!urlBase) return;
+
+    _ultimoMes = mes;
+    list.dataset.rendered = '0';
+    list.innerHTML = '';
+    if (countEl()) countEl().textContent = '0';
+    if (emptyEl()) {
+      emptyEl().textContent = 'Carregando...';
+      emptyEl().classList.remove('d-none');
+    }
+    if (labelEl()) labelEl().textContent = formatMesLabel(mes);
+
+    try {
+      const url = new URL(urlBase, window.location.origin);
+      url.searchParams.set('mes', mes);
+      const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const json = await resp.json();
+
+      const impedidos = Array.isArray(json.impedidos) ? json.impedidos : [];
+      if (!impedidos.length) {
+        if (emptyEl()) {
+          emptyEl().textContent = 'Nenhum servidor impedido.';
+          emptyEl().classList.remove('d-none');
+        }
+        list.dataset.rendered = '1';
+        return;
+      }
+
+      const items = impedidos.map((item) => {
+        const nome = item?.nome ?? item?.name ?? item?.servidor ?? '';
+        const periodos = Array.isArray(item?.periodos) ? item.periodos : [];
+        const titulo = periodos.length ? ` title="${escapeHtml(periodos.join('; '))}"` : '';
+        const ranges = periodos.map((p) => {
+          const raw = String(p || '');
+          const m = raw.match(/\((\d{2}\/\d{2}-\d{2}\/\d{2})\)/);
+          return m ? m[1] : raw;
+        }).filter(Boolean);
+        const prefix = ranges.length
+          ? `<span class="programar-impedidos-mes-range">${escapeHtml(ranges.join(', '))}</span>`
+          : '';
+        return `<li${titulo}>${prefix}<span class="programar-impedidos-mes-name">${escapeHtml(nome)}</span></li>`;
+      });
+      list.innerHTML = items.join('');
+      list.dataset.rendered = '1';
+      if (countEl()) countEl().textContent = String(impedidos.length);
+      if (emptyEl()) emptyEl().classList.add('d-none');
+    } catch (err) {
+      console.error('Falha ao carregar impedidos do mes:', err);
+      if (emptyEl()) {
+        emptyEl().textContent = 'Erro ao carregar.';
+        emptyEl().classList.remove('d-none');
+      }
+    }
+  }
+
+  document.addEventListener('programar:mesSelecionado', (e) => {
+    const mes = e?.detail?.mes;
+    if (mes) carregarImpedidosMes(mes);
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!listEl()) return;
+    carregarImpedidosMes(currentMesFallback());
+  });
+
+  NS.carregarImpedidosMes = carregarImpedidosMes;
 })();
 </script>

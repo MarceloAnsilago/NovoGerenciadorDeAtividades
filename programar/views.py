@@ -5,6 +5,7 @@ import html
 import json
 import logging
 from collections import defaultdict
+from calendar import monthrange
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List
 from django.conf import settings
@@ -180,10 +181,72 @@ def servidores_para_data(request):
 
     livres, impedidos, feriados = _servidores_status_para_data(unidade_id, data_ref)
     return JsonResponse({"livres": livres, "impedidos": impedidos, "feriados": feriados})
+
+
+@login_required
+@require_GET
+def servidores_impedidos_mes(request):
+    mes = (request.GET.get("mes") or "").strip()
+    periodo = _month_range_from_ym(mes)
+    if not periodo:
+        return JsonResponse({"mes": mes, "impedidos": []})
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"mes": mes, "impedidos": []})
+
+    inicio, fim = periodo
+    qs = (
+        Descanso.objects
+        .select_related("servidor")
+        .filter(
+            servidor__unidade_id=unidade_id,
+            servidor__ativo=True,
+            data_inicio__lte=fim,
+            data_fim__gte=inicio,
+        )
+        .order_by("servidor__nome", "-data_inicio", "-id")
+    )
+
+    impedidos_map: Dict[int, dict] = {}
+    for d in qs:
+        sid = d.servidor_id
+        item = impedidos_map.get(sid)
+        if not item:
+            item = {"id": sid, "nome": d.servidor.nome, "periodos": []}
+            impedidos_map[sid] = item
+
+        tipo_label = getattr(d, "get_tipo_display", lambda: "Descanso")()
+        ini = max(d.data_inicio, inicio)
+        fim_ref = min(d.data_fim, fim)
+        periodo_label = f"{ini:%d/%m}-{fim_ref:%d/%m}"
+        motivo = f"{tipo_label} ({periodo_label})"
+        obs = getattr(d, "observacoes", "")
+        if obs:
+            motivo = f"{motivo} - {obs}"
+        if motivo not in item["periodos"]:
+            item["periodos"].append(motivo)
+
+    impedidos = list(impedidos_map.values())
+    impedidos.sort(key=lambda x: str(x.get("nome") or "").lower())
+    return JsonResponse({"mes": mes, "impedidos": impedidos})
+
 def _parse_date(s: str) -> date | None:
     try:
         y, m, d = map(int, s.split("-"))
         return date(y, m, d)
+    except Exception:
+        return None
+
+def _month_range_from_ym(ym: str) -> tuple[date, date] | None:
+    try:
+        year_str, month_str = (ym or "").split("-")
+        year = int(year_str)
+        month = int(month_str)
+        if month < 1 or month > 12:
+            return None
+        last_day = monthrange(year, month)[1]
+        return date(year, month, 1), date(year, month, last_day)
     except Exception:
         return None
 

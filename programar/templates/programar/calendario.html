@@ -1,5 +1,24 @@
 {% extends "programar/base.html" %}
 
+{% block page_header %}
+  <div class="container my-4 programar-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+    <div>
+      <h1 class="mb-0">Programação</h1>
+    </div>
+    <div id="programar-impedidosMesCard" class="card border-0 shadow-sm">
+      <div class="card-body p-2">
+        <div class="d-flex align-items-center justify-content-between gap-2">
+          <span class="fw-semibold text-uppercase programar-impedidos-mes-title">Servidores impedidos</span>
+          <span id="programar-impedidos-mes-count" class="badge bg-secondary">0</span>
+        </div>
+        <div id="programar-impedidos-mes-label" class="programar-impedidos-mes-label text-muted"></div>
+        <ul id="programar-impedidos-mes-list" class="programar-impedidos-mes-list"></ul>
+        <div id="programar-impedidos-mes-empty" class="programar-impedidos-mes-empty text-muted">Carregando...</div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
 {% block page_body %}
 
   {# GRID do calendário #}

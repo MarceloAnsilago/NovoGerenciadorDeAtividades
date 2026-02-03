@@ -229,6 +229,15 @@ document.addEventListener('DOMContentLoaded', function(){
       if (cont && !cont.__filled) {
         cont.innerHTML = '<div class="alert alert-light border mb-0">Selecione uma semana.</div>';
       }
+      try {
+        const currentStart = arg?.view?.currentStart || arg?.start;
+        if (currentStart instanceof Date) {
+          const year = currentStart.getFullYear();
+          const month = String(currentStart.getMonth() + 1).padStart(2, '0');
+          const mes = `${year}-${month}`;
+          document.dispatchEvent(new CustomEvent('programar:mesSelecionado', { detail: { mes } }));
+        }
+      } catch (_err) {}
     },
 
     dateClick(info){

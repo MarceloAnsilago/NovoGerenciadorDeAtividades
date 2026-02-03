@@ -10,6 +10,7 @@ urlpatterns = [
     path("api/events/", views.events_feed, name="events_feed"),
     path("api/metas/", views.metas_disponiveis, name="metas_disponiveis"),
     path("api/servidores/", views.servidores_para_data, name="servidores_para_data"),
+    path("api/impedidos-mes/", views.servidores_impedidos_mes, name="servidores_impedidos_mes"),
     path("api/salvar/", views.salvar_programacao, name="salvar_programacao"),
     path("api/programacao-dia/", views.programacao_do_dia_orm, name="programacao_do_dia"),
     path("api/excluir/", views.excluir_programacao_secure, name="excluir_programacao"),
