@@ -11,6 +11,30 @@
       <p class="text-muted small mb-3">
         Selecione a data inicial e final do periodo que deseja cadastrar o plantao.
       </p>
+      {% if conflito_abort %}
+        <div class="alert alert-danger mb-3">
+          <strong><i class="bi bi-exclamation-triangle-fill"></i> Conflito de plantao</strong>
+          <p class="mb-2 mt-2">
+            Ja existe(m) plantao(oes) que conflitam com o periodo selecionado
+            (<strong>{{ data_inicial|date:"d/m/Y" }} a {{ data_final|date:"d/m/Y" }}</strong>).
+          </p>
+
+          {% if plantoes_conflitantes %}
+            <div class="mb-2">
+              <strong>Periodos conflitantes:</strong>
+              <ul class="mb-0">
+                {% for p in plantoes_conflitantes %}
+                  <li>{{ p.inicio|date:"d/m/Y" }} a {{ p.fim|date:"d/m/Y" }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+
+          <p class="mb-0">
+            Altere o periodo antes de tentar salvar ou use a secao de plantoes salvos abaixo.
+          </p>
+        </div>
+      {% endif %}
       <form method="get" action="{% url 'plantao:lista_plantao' %}" class="row g-3 align-items-end">
         <div class="col-md-4">
           <label for="data_inicial" class="form-label">Data inicial</label>
@@ -162,35 +186,6 @@
       <i class="bi bi-printer-fill me-1"></i> Imprimir
     </button>
   </div>
-
-  {% if conflito_abort %}
-    <div class="card shadow-sm mb-4 border-danger">
-      <div class="card-header bg-light">
-        <strong class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Conflito de plantao</strong>
-      </div>
-      <div class="card-body">
-        <p class="mb-2">
-          Ja existe(m) plantao(oes) que conflitam com o periodo selecionado
-          (<strong>{{ data_inicial|date:"d/m/Y" }} a {{ data_final|date:"d/m/Y" }}</strong>).
-        </p>
-
-        {% if plantoes_conflitantes %}
-          <div class="mb-2">
-            <strong>Periodos conflitantes:</strong>
-            <ul class="mb-0">
-              {% for p in plantoes_conflitantes %}
-                <li>{{ p.inicio|date:"d/m/Y" }} a {{ p.fim|date:"d/m/Y" }}</li>
-              {% endfor %}
-            </ul>
-          </div>
-        {% endif %}
-
-        <p class="text-muted mb-0">
-          Altere o periodo antes de tentar salvar ou use a secao de plantoes salvos acima.
-        </p>
-      </div>
-    </div>
-  {% endif %}
 
   {% if not conflito_abort and data_inicial and data_final %}
       <div class="card shadow-sm">
