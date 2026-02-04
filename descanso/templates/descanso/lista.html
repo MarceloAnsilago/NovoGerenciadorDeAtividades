@@ -82,7 +82,23 @@
     <div class="card-body">
       {% if month_filters %}
         <div id="descansosMonthTabsWrapper">
-          <div class="d-flex flex-wrap align-items-end justify-content-between gap-3">
+          <form method="get" class="d-flex align-items-end gap-2 flex-wrap justify-content-end mb-3" id="descansosYearForm">
+            <div class="d-flex flex-column">
+              <label class="form-label small text-muted mb-1">Ano</label>
+              <select name="ano" class="form-select form-select-sm">
+                {% for ano_opcao in anos_opcoes %}
+                  <option value="{{ ano_opcao }}" {% if ano_opcao == ano %}selected{% endif %}>
+                    {{ ano_opcao }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <button class="btn btn-sm btn-outline-primary" type="submit">
+              <i class="bi bi-arrow-repeat me-1"></i> Atualizar
+            </button>
+          </form>
+
+          <div class="d-flex flex-wrap align-items-end gap-3">
             <ul class="nav nav-tabs small flex-wrap gap-2" id="descansosMonthTabs" role="tablist">
               <li class="nav-item" role="presentation">
                 <button class="nav-link{% if not month_default %} active{% endif %}" type="button" role="tab" data-month-filter="">
@@ -101,23 +117,8 @@
                     <span class="badge bg-primary text-white ms-1 rounded-pill">{{ filter.count }}</span>
                   </button>
                 </li>
-              {% endfor %}
-            </ul>
-            <form method="get" class="d-flex align-items-end gap-2 flex-wrap" id="descansosYearForm">
-              <div class="d-flex flex-column">
-                <label class="form-label small text-muted mb-1">Ano</label>
-                <select name="ano" class="form-select form-select-sm">
-                  {% for ano_opcao in anos_opcoes %}
-                    <option value="{{ ano_opcao }}" {% if ano_opcao == ano %}selected{% endif %}>
-                      {{ ano_opcao }}
-                    </option>
-                  {% endfor %}
-                </select>
-              </div>
-              <button class="btn btn-sm btn-outline-primary" type="submit">
-                <i class="bi bi-arrow-repeat me-1"></i> Atualizar
-              </button>
-            </form>
+                {% endfor %}
+              </ul>
           </div>
         </div>
       {% endif %}
