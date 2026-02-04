@@ -8,6 +8,7 @@ from core.utils import get_unidade_atual_id
 class DescansoForm(forms.ModelForm):
     def __init__(self, *args, request=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._configure_date_fields()
         unidade_id = get_unidade_atual_id(request) if request else None
 
         qs = Servidor.objects.select_related("unidade").filter(ativo=True)
@@ -26,10 +27,20 @@ class DescansoForm(forms.ModelForm):
         widgets = {
             "servidor": forms.Select(attrs={"class": "form-select"}),
             "tipo": forms.Select(attrs={"class": "form-select"}),
-            "data_inicio": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "data_fim": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "data_inicio": forms.DateInput(
+                format="%Y-%m-%d",
+                attrs={"type": "date", "class": "form-control"},
+            ),
+            "data_fim": forms.DateInput(
+                format="%Y-%m-%d",
+                attrs={"type": "date", "class": "form-control"},
+            ),
             "observacoes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
+
+    def _configure_date_fields(self):
+        self.fields["data_inicio"].input_formats = ["%Y-%m-%d", "%d/%m/%Y"]
+        self.fields["data_fim"].input_formats = ["%Y-%m-%d", "%d/%m/%Y"]
 
     def clean_servidor(self):
         servidor = self.cleaned_data.get("servidor")
