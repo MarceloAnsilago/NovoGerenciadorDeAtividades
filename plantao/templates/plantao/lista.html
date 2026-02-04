@@ -2,19 +2,10 @@
 
 {% block content %}
 <div class="container py-3">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="m-0"><i class="bi bi-calendar3"></i> Plantões</h2>
-
-    <!-- botão para ver plantões salvos -->
-    <a href="{% url 'plantao:ver_plantoes' %}"
-      class="btn btn-outline-primary"
-      role="button"
-      title="Ver plantões salvos">
-      <i class="bi bi-folder2-open me-1"></i> Ver plantões salvos
-    </a>
+  <div class="mb-3">
+    <h2 class="m-0"><i class="bi bi-calendar3"></i> Plantoes</h2>
   </div>
 
-  <!-- Filtro -->
   <div class="card shadow-sm mb-4">
     <div class="card-body">
       <form method="get" action="{% url 'plantao:lista_plantao' %}" class="row g-3 align-items-end">
@@ -33,23 +24,139 @@
     </div>
   </div>
 
+  <div class="card shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong><i class="bi bi-list-ul"></i> Plantoes salvos</strong>
+      <a href="{% url 'plantao:lista_plantao' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
+      </a>
+    </div>
 
+    <div class="card-body p-0">
+      <div class="px-3 py-2 border-bottom">
+        <form method="get" action="{% url 'plantao:lista_plantao' %}" class="d-flex align-items-end gap-2 flex-wrap">
+          {% if data_inicial %}<input type="hidden" name="data_inicial" value="{{ data_inicial }}">{% endif %}
+          {% if data_final %}<input type="hidden" name="data_final" value="{{ data_final }}">{% endif %}
 
-  {# Se houve conflito e a view retornou conflito_abort=True, não renderizar nada além do aviso #}
+          <div>
+            <label for="ano" class="form-label small mb-0">Ano</label>
+            <select id="ano" name="ano" class="form-select form-select-sm">
+              <option value="">(Todos)</option>
+              {% for y in years %}
+                <option value="{{ y }}" {% if ano_selected and ano_selected == y %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <button type="submit" class="btn btn-sm btn-secondary">Filtrar</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="plantoes-tabs-container" class="px-3 pt-3">
+        {% if months_data %}
+          <ul class="nav nav-tabs flex-wrap gap-1" id="plantoes-month-tabs" role="tablist">
+            {% for month in months_data %}
+              <li class="nav-item" role="presentation">
+                <button
+                  class="nav-link {% if month_active %}{% if month_active == month.num %}active{% endif %}{% else %}{% if forloop.first %}active{% endif %}{% endif %}"
+                  id="tab-{{ month.num }}"
+                  data-bs-toggle="tab"
+                  data-bs-target="#pane-{{ month.num }}"
+                  type="button"
+                  role="tab"
+                  aria-controls="pane-{{ month.num }}"
+                  aria-selected="{% if month_active %}{% if month_active == month.num %}true{% else %}false{% endif %}{% else %}{% if forloop.first %}true{% else %}false{% endif %}{% endif %}">
+                  {{ month.label }}
+                  <span class="badge {% if month.count %}bg-primary{% else %}bg-secondary{% endif %} ms-1">{{ month.count }}</span>
+                </button>
+              </li>
+            {% endfor %}
+          </ul>
+
+          <div class="tab-content border-start border-end border-bottom p-3" id="plantoes-month-content">
+            {% for month in months_data %}
+              <div class="tab-pane fade {% if month_active %}{% if month_active == month.num %}show active{% endif %}{% else %}{% if forloop.first %}show active{% endif %}{% endif %}" id="pane-{{ month.num }}" role="tabpanel" aria-labelledby="tab-{{ month.num }}">
+                <div class="table-responsive">
+                  <table class="table mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Nome</th>
+                        <th>Inicio</th>
+                        <th>Fim</th>
+                        <th>Criado por</th>
+                        <th>Criado em</th>
+                        <th class="text-end">Acoes</th>
+                      </tr>
+                    </thead>
+                    <tbody class="plantoes-tbody">
+                      {% for p in month.plantoes %}
+                        <tr data-plantao-row="1" data-pk="{{ p.pk }}" data-month="{{ month.num }}">
+                          <td>
+                            {% if p.nome %}
+                              {{ p.nome }}
+                            {% else %}
+                              {{ p.inicio|date:"d/m/Y" }} a {{ p.fim|date:"d/m/Y" }}
+                            {% endif %}
+                          </td>
+                          <td>{{ p.inicio|date:"d/m/Y" }}</td>
+                          <td>{{ p.fim|date:"d/m/Y" }}</td>
+                          <td>
+                            {% if p.criado_por %}
+                              {{ p.criado_por.get_full_name|default:p.criado_por.username }}
+                            {% else %}
+                              -
+                            {% endif %}
+                          </td>
+                          <td>{{ p.criado_em|date:"d/m/Y H:i" }}</td>
+                          <td class="text-end">
+                            <div class="btn-group">
+                              <button class="btn btn-sm btn-outline-primary btn-open" data-pk="{{ p.pk }}" type="button">
+                                <i class="bi bi-folder2-open"></i> Abrir
+                              </button>
+                              <button class="btn btn-sm btn-outline-danger btn-delete" data-pk="{{ p.pk }}" type="button">
+                                <i class="bi bi-trash"></i> Excluir
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted px-3 pb-3 pt-1 mb-0">Nenhum plantao salvo para o filtro atual.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div id="plantao-detalhe-container" class="mb-3"></div>
+
+  <div class="mb-4">
+    <button id="btn-imprimir-plantao" class="btn btn-outline-secondary no-print" style="display:none;">
+      <i class="bi bi-printer-fill me-1"></i> Imprimir
+    </button>
+  </div>
+
   {% if conflito_abort %}
     <div class="card shadow-sm mb-4 border-danger">
       <div class="card-header bg-light">
-        <strong class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Conflito de plantão</strong>
+        <strong class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Conflito de plantao</strong>
       </div>
       <div class="card-body">
         <p class="mb-2">
-          Já existe(m) plantão(ões) que conflitam com o período selecionado
+          Ja existe(m) plantao(oes) que conflitam com o periodo selecionado
           (<strong>{{ data_inicial|date:"d/m/Y" }} a {{ data_final|date:"d/m/Y" }}</strong>).
         </p>
 
         {% if plantoes_conflitantes %}
           <div class="mb-2">
-            <strong>Períodos conflitantes:</strong>
+            <strong>Periodos conflitantes:</strong>
             <ul class="mb-0">
               {% for p in plantoes_conflitantes %}
                 <li>{{ p.inicio|date:"d/m/Y" }} a {{ p.fim|date:"d/m/Y" }}</li>
@@ -59,22 +166,19 @@
         {% endif %}
 
         <p class="text-muted mb-0">
-          Altere o período ou visualize os plantões existentes antes de tentar salvar.
+          Altere o periodo antes de tentar salvar ou use a secao de plantoes salvos acima.
         </p>
       </div>
     </div>
-
-    {# Não executar o restante da UI (descansos / montagem / scripts) #}
   {% else %}
-    <!-- Descansos -->
     <div class="card shadow-sm mb-4">
-      <div class="card-header bg-light"><strong><i class="bi bi-calendar-range"></i> Descansos no período</strong></div>
+      <div class="card-header bg-light"><strong><i class="bi bi-calendar-range"></i> Descansos no periodo</strong></div>
       <div class="card-body">
         {% if data_inicial and data_final %}
           {% if servidores_com_descanso %}
             {% include "partials/_descanso_por_servidor_table.html" with servidores_com_descanso=servidores_com_descanso only %}
           {% else %}
-            <p class="text-muted mb-0">Nenhum servidor em descanso no período informado.</p>
+            <p class="text-muted mb-0">Nenhum servidor em descanso no periodo informado.</p>
           {% endif %}
         {% else %}
           <p class="text-muted mb-0">Selecione a data inicial e final e clique em <strong>Filtrar</strong>.</p>
@@ -82,53 +186,207 @@
       </div>
     </div>
 
-    <!-- Montar escala: por grupos -->
     {% if data_inicial and data_final %}
-    <div class="card shadow-sm">
-      <div class="card-header bg-light d-flex justify-content-between align-items-center">
-        <strong><i class="bi bi-people"></i> Montar escala do plantão (por grupos)</strong>
-        <div class="small text-muted"><i class="bi bi-person-fill-slash"></i> Excluídos (descanso integral): {{ bloqueados|length }}</div>
+      <div class="card shadow-sm">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+          <strong><i class="bi bi-people"></i> Montar escala do plantao (por grupos)</strong>
+          <div class="small text-muted"><i class="bi bi-person-fill-slash"></i> Excluidos (descanso integral): {{ bloqueados|length }}</div>
+        </div>
+        <div class="card-body">
+          <form id="form-escala" method="post" action="{% url 'plantao:lista_plantao' %}">
+            {% csrf_token %}
+            <input type="hidden" name="data_inicial" value="{{ data_inicial }}">
+            <input type="hidden" name="data_final" value="{{ data_final }}">
+
+            <div class="alert alert-info py-2 small">
+              <strong>Dica:</strong> para adicionar um servidor ao grupo da semana, selecione-o na coluna <em>Disponiveis</em> e depois clique em <strong>Adicionar -&gt;</strong> no cartao do grupo correspondente.
+            </div>
+
+            {% include "partials/escala_grupos.html" %}
+
+            <div class="mt-3">
+              <button type="submit" id="btn-salvar" class="btn btn-primary">
+                <i class="bi bi-save"></i> Salvar
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-      <div class="card-body">
-        <form id="form-escala" method="post" action="{% url 'plantao:lista_plantao' %}">
-          {% csrf_token %}
-          <input type="hidden" name="data_inicial" value="{{ data_inicial }}">
-          <input type="hidden" name="data_final" value="{{ data_final }}">
 
-          <div class="alert alert-info py-2 small">
-            <strong>Dica:</strong> para adicionar um servidor ao grupo da semana, selecione-o na coluna <em>Disponíveis</em> e depois clique em <strong>"Adicionar →"</strong> no cartão do grupo correspondente.
-          </div>
-
-          {% include "partials/escala_grupos.html" %}
-
-          <!-- botão Salvar dentro do form -->
-          <div class="mt-3">
-            <button type="submit" id="btn-salvar" class="btn btn-primary">
-              <i class="bi bi-save"></i> Salvar
-            </button>
-          </div>
-
-        </form>
-      </div>
-    </div>
-
-    {% include "partials/escala_tabela.html" with grupos=grupos only %}
+      {% include "partials/escala_tabela.html" with grupos=grupos only %}
     {% endif %}
   {% endif %}
-
 </div>
 
-{# só incluir os scripts de comportamento se não houver abort por conflito #}
+<span id="plantao-fragment-url-base" data-url="{% url 'plantao:plantao_detalhe_fragment' pk=0 %}" style="display:none;"></span>
+
+<script>
+(function () {
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const c = cookies[i].trim();
+        if (c.startsWith(name + '=')) {
+          cookieValue = decodeURIComponent(c.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  const csrftoken = getCookie('csrftoken');
+  let currentPlantaoPk = null;
+
+  document.addEventListener('click', async (ev) => {
+    const detalheContainer = document.getElementById('plantao-detalhe-container');
+    const btnPrint = document.getElementById('btn-imprimir-plantao');
+    const baseUrlEl = document.getElementById('plantao-fragment-url-base');
+    const baseFragmentUrl = baseUrlEl ? baseUrlEl.getAttribute('data-url') : null;
+
+    const getPlantaoRows = (pk = null) => {
+      const selector = pk ? `[data-plantao-row="1"][data-pk="${pk}"]` : '[data-plantao-row="1"]';
+      return Array.from(document.querySelectorAll(selector));
+    };
+    const clearRowHighlights = () => getPlantaoRows().forEach((r) => r.classList.remove('table-active'));
+    const highlightRows = (pk) => getPlantaoRows(pk).forEach((r) => r.classList.add('table-active'));
+    const removeRows = (pk) => getPlantaoRows(pk).forEach((r) => r.remove());
+
+    const btnOpen = ev.target.closest('.btn-open');
+    if (btnOpen) {
+      ev.preventDefault();
+      const pk = btnOpen.getAttribute('data-pk');
+      if (!pk) return;
+
+      const url = baseFragmentUrl ? baseFragmentUrl.replace('/0/', `/${pk}/`) : `/plantao/${pk}/detalhe-fragment/`;
+      const originalHtml = btnOpen.innerHTML;
+      btnOpen.disabled = true;
+      btnOpen.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Carregando...';
+
+      try {
+        const resp = await fetch(url, { credentials: 'same-origin' });
+        if (!resp.ok) {
+          if (detalheContainer) detalheContainer.innerHTML = `<div class="alert alert-danger">Erro ao carregar escala (HTTP ${resp.status}).</div>`;
+          if (btnPrint) btnPrint.style.display = 'none';
+          currentPlantaoPk = null;
+          clearRowHighlights();
+        } else {
+          const html = await resp.text();
+          if (detalheContainer) detalheContainer.innerHTML = html || '<div class="alert alert-warning">Fragmento vazio.</div>';
+          detalheContainer?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          currentPlantaoPk = pk;
+          if (btnPrint) btnPrint.style.display = 'inline-block';
+          clearRowHighlights();
+          highlightRows(pk);
+        }
+      } catch (err) {
+        if (detalheContainer) detalheContainer.innerHTML = '<div class="alert alert-danger">Erro inesperado ao carregar escala.</div>';
+        if (btnPrint) btnPrint.style.display = 'none';
+        currentPlantaoPk = null;
+        clearRowHighlights();
+      } finally {
+        btnOpen.disabled = false;
+        btnOpen.innerHTML = originalHtml;
+      }
+      return;
+    }
+
+    const btnDel = ev.target.closest('.btn-delete');
+    if (btnDel) {
+      ev.preventDefault();
+      const pk = btnDel.getAttribute('data-pk');
+      if (!pk) return;
+      if (!confirm('Confirma exclusao deste plantao? Esta acao nao podera ser desfeita.')) return;
+
+      if (!btnDel.dataset.origHtml) btnDel.dataset.origHtml = btnDel.innerHTML;
+      const origHtml = btnDel.dataset.origHtml;
+      const url = `{% url 'plantao:plantao_excluir' pk=0 %}`.replace('/0/', `/${pk}/`);
+
+      try {
+        btnDel.disabled = true;
+        btnDel.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Excluindo...';
+
+        const resp = await fetch(url, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'X-CSRFToken': csrftoken,
+            'Accept': 'application/json',
+          },
+        });
+
+        const text = await resp.text();
+        let data = null;
+        try { data = text ? JSON.parse(text) : null; } catch (e) { data = null; }
+
+        if (resp.ok && data && data.ok) {
+          removeRows(pk);
+          if (String(currentPlantaoPk) === String(pk)) {
+            if (detalheContainer) detalheContainer.innerHTML = '';
+            currentPlantaoPk = null;
+            if (btnPrint) btnPrint.style.display = 'none';
+          }
+        } else {
+          const serverMsg = data && data.erro ? data.erro : null;
+          const message = serverMsg || `Erro ao excluir (HTTP ${resp.status}).`;
+          alert(message);
+        }
+      } catch (err) {
+        alert('Erro de comunicacao ao tentar excluir.');
+      } finally {
+        btnDel.disabled = false;
+        btnDel.innerHTML = origHtml;
+      }
+      return;
+    }
+  });
+
+  const btnPrint = document.getElementById('btn-imprimir-plantao');
+  btnPrint?.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    if (!currentPlantaoPk) {
+      alert('Nenhum plantao carregado para imprimir.');
+      return;
+    }
+
+    const printCss = `
+      @media print {
+        body * { visibility: hidden !important; }
+        #plantao-detalhe-container, #plantao-detalhe-container * { visibility: visible !important; }
+        #plantao-detalhe-container { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }
+        .no-print { display: none !important; }
+        @page { margin: 12mm; }
+      }
+    `;
+    const styleEl = document.createElement('style');
+    styleEl.id = 'print-only-style';
+    styleEl.appendChild(document.createTextNode(printCss));
+    document.head.appendChild(styleEl);
+
+    setTimeout(() => {
+      try {
+        window.print();
+      } finally {
+        setTimeout(() => {
+          document.getElementById('print-only-style')?.remove();
+        }, 300);
+      }
+    }, 150);
+  });
+})();
+</script>
+
 {% if not conflito_abort %}
 <script>
-let currentGroupId = null; // grupo alvo do botão “Adicionar →” geral
+let currentGroupId = null;
 
-/* --------- utils --------- */
 function updateGroupCounters(){
   document.querySelectorAll('.grupo-select').forEach(sel=>{
     const count = sel.options.length;
-    const idx   = sel.id.replace('grupo-','');
-    const lbl   = document.getElementById('counter-grupo-'+idx);
+    const idx = sel.id.replace('grupo-','');
+    const lbl = document.getElementById('counter-grupo-'+idx);
     if (lbl) lbl.textContent = `${count}`;
     sel.classList.remove('is-valid', 'is-invalid');
   });
@@ -148,44 +406,38 @@ function incAvailCount(id, delta){
   setAvailLabel(opt);
 }
 
-/* --------- escala (tabela) --------- */
 function escapeHtml(s){ return s ? s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;") : ""; }
 function refreshEscalaRowByGroupId(groupId){
-  const idx   = groupId.replace('grupo-','');
-  const sel   = document.getElementById(groupId);
+  const idx = groupId.replace('grupo-','');
+  const sel = document.getElementById(groupId);
   const nomes = document.getElementById('escala-nome-'+idx);
   const fones = document.getElementById('escala-fone-'+idx);
   if (!nomes || !fones) return;
 
   const opts = sel ? [...sel.options] : [];
   if (opts.length === 0){
-    nomes.innerHTML = '<span class="text-muted">—</span>';
-    fones.innerHTML = '<span class="text-muted">—</span>';
+    nomes.innerHTML = '<span class="text-muted">-</span>';
+    fones.innerHTML = '<span class="text-muted">-</span>';
     return;
   }
 
   const nomesLis = opts.map(o => `<li>${escapeHtml(o.text)}</li>`).join('');
-  const fonesLis = opts.map(o => `<li>${escapeHtml(o.getAttribute('data-phone') || '—')}</li>`).join('');
+  const fonesLis = opts.map(o => `<li>${escapeHtml(o.getAttribute('data-phone') || '-')}</li>`).join('');
 
   nomes.innerHTML = `<ul class="list-unstyled mb-0">${nomesLis}</ul>`;
   fones.innerHTML = `<ul class="list-unstyled mb-0">${fonesLis}</ul>`;
 }
 
-/* --------- ações --------- */
 async function verificarDescanso(servidorId, inicio, fim) {
   const url = `/plantao/verificar-descanso/?servidor_id=${servidorId}&inicio=${inicio}&fim=${fim}`;
-  const resp = await fetch(url, { credentials: 'same-origin' }); // garante cookies de sessão
-  if (!resp.ok) {
-    console.error('verificar-descanso HTTP error', resp.status);
-    try { const t = await resp.text(); console.debug(t); } catch(e){}
-    return false; // em caso de erro da API, permite (ou mude para true para bloquear por segurança)
-  }
+  const resp = await fetch(url, { credentials: 'same-origin' });
+  if (!resp.ok) return false;
   const data = await resp.json();
   if (data.bloqueado) {
     const msg = data.impedimentos.map(i => {
       const tipo = i.tipo || '';
-      const obs  = i.observacoes ? ` — ${i.observacoes}` : '';
-      return `• ${tipo}${obs} (${i.data_inicio} a ${i.data_fim})`;
+      const obs  = i.observacoes ? ` - ${i.observacoes}` : '';
+      return `* ${tipo}${obs} (${i.data_inicio} a ${i.data_fim})`;
     }).join('\n');
     alert(`Servidor impedido nesta semana:\n${msg}`);
     return true;
@@ -195,47 +447,41 @@ async function verificarDescanso(servidorId, inicio, fim) {
 
 async function addToGroup(groupId){
   const avail = document.getElementById('sel-disponiveis');
-  const target= document.getElementById(groupId);
-  const excl  = document.getElementById('sel-excluidos');
+  const target = document.getElementById(groupId);
+  const excl = document.getElementById('sel-excluidos');
   if (!avail || !target) return;
 
   const selected = [...avail.options].filter(o=>o.selected);
   if (selected.length === 0) return;
 
-  const idx = groupId.replace("grupo-", "");
+  const idx = groupId.replace('grupo-', '');
   const elSemana = document.getElementById(`grupo-${idx}-periodo`);
-  const [inicio, fim] = elSemana?.value?.split(" a ") || [];
+  const [inicio, fim] = elSemana?.value?.split(' a ') || [];
 
-  const duplicates = []; // names que já existiam no target
+  const duplicates = [];
 
   for (const o of selected){
-    // não adicionar se estiver nos excluídos
     if ([...excl.options].some(e=>e.value===o.value)) continue;
-
-    // não adicionar se já existir no target (previne duplicata)
     if ([...(target.options||[])].some(e=>e.value===o.value)) {
-      const name = o.getAttribute('data-name') || o.text;
-      duplicates.push(name);
+      duplicates.push(o.getAttribute('data-name') || o.text);
       continue;
     }
 
-    // checa descanso por semana
     const impedido = await verificarDescanso(o.value, inicio, fim);
     if (impedido) continue;
 
     const phone = o.getAttribute('data-phone') || '';
-    const name  = o.getAttribute('data-name') || o.text;
+    const name = o.getAttribute('data-name') || o.text;
     const clone = new Option(name, o.value, false, true);
     clone.setAttribute('data-phone', phone);
     clone.setAttribute('data-name', name);
     target.add(clone);
 
-    // só incrementar contagem quando realmente adicionou
     incAvailCount(o.value, +1);
   }
 
   if (duplicates.length > 0) {
-    alert("Os seguintes servidores já estão neste grupo \n\n" + duplicates.join("\n"));
+    alert('Os seguintes servidores ja estao neste grupo:\n\n' + duplicates.join('\n'));
   }
 
   updateGroupCounters();
@@ -249,6 +495,7 @@ function addToGroupSelected(){
   if (!target) return;
   addToGroup(target.id);
 }
+
 function removeFromGroup(groupId){
   const sel = document.getElementById(groupId);
   const removing = [...sel.options].filter(o=>o.selected);
@@ -259,6 +506,7 @@ function removeFromGroup(groupId){
   updateGroupCounters();
   refreshEscalaRowByGroupId(groupId);
 }
+
 function moveOption(id, dir){
   const sel = document.getElementById(id); if(!sel) return;
   if (dir<0){
@@ -278,22 +526,27 @@ function moveOption(id, dir){
   }
   refreshEscalaRowByGroupId(id);
 }
+
 function excludeSelected(){
-  const avail=document.getElementById('sel-disponiveis');
-  const exc  =document.getElementById('sel-excluidos');
-  const sel  =[...avail.options].filter(o=>o.selected);
+  const avail = document.getElementById('sel-disponiveis');
+  const exc = document.getElementById('sel-excluidos');
+  const sel = [...avail.options].filter(o=>o.selected);
   for (const o of sel){
     const c = parseInt(o.getAttribute('data-count')||'0',10);
-    if (c>0){ alert(`${o.getAttribute('data-name')||o.text} já está em grupos. Remova dos grupos antes de excluir.`); continue; }
+    if (c>0){
+      alert(`${o.getAttribute('data-name')||o.text} ja esta em grupos. Remova dos grupos antes de excluir.`);
+      continue;
+    }
     const opt = new Option(o.getAttribute('data-name')||o.text, o.value, false, false);
     exc.add(opt);
     avail.remove(o.index);
   }
 }
+
 function restoreExcluded(){
-  const avail=document.getElementById('sel-disponiveis');
-  const exc  =document.getElementById('sel-excluidos');
-  const sel  =[...exc.options].filter(o=>o.selected);
+  const avail = document.getElementById('sel-disponiveis');
+  const exc = document.getElementById('sel-excluidos');
+  const sel = [...exc.options].filter(o=>o.selected);
   for (const o of sel){
     const opt = new Option(o.text, o.value, false, false);
     opt.setAttribute('data-name', o.text);
@@ -304,53 +557,42 @@ function restoreExcluded(){
   }
 }
 
-/* --------- util: desenha todas as linhas da tabela de escala --------- */
 function refreshAllEscalaRows() {
   document.querySelectorAll('.grupo-select').forEach(s => {
     refreshEscalaRowByGroupId(s.id);
   });
 }
 
-/* --------- init e submit handler seguro --------- */
 document.addEventListener('DOMContentLoaded', ()=> {
   [...document.getElementById('sel-disponiveis')?.options||[]].forEach(setAvailLabel);
   updateGroupCounters();
-  if (typeof refreshAllEscalaRows === 'function') refreshAllEscalaRows();
+  refreshAllEscalaRows();
 
-  // registra foco/click para o “grupo alvo” do botão geral
   document.querySelectorAll('.grupo-select').forEach(sel=>{
     sel.addEventListener('focus', ()=>{ currentGroupId = sel.id; });
     sel.addEventListener('click', ()=>{ currentGroupId = sel.id; });
   });
 
-  // reconta ao alterar limite de qualquer grupo (se houver qtd-grupo inputs)
   document.querySelectorAll('.qtd-grupo').forEach(inp=>{
     inp.addEventListener('input', updateGroupCounters);
   });
 
-  // submit handler: marca options e previne double-submit
   const form = document.getElementById('form-escala');
   const btnSalvar = document.getElementById('btn-salvar');
 
   if (form) {
-    form.addEventListener('submit', (ev) => {
-      // marca todos os options para o backend receber a lista completa
+    form.addEventListener('submit', () => {
       document.querySelectorAll('.grupo-select').forEach(sel => {
         [...sel.options].forEach(o => o.selected = true);
       });
       const exc = document.getElementById('sel-excluidos');
       if (exc) [...exc.options].forEach(o => o.selected = true);
 
-      // desabilita botão para evitar double submit e mostra spinner
       if (btnSalvar) {
         btnSalvar.disabled = true;
         btnSalvar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...';
       }
-
-      // deixamos o submit normal prosseguir (se preferir AJAX, posso mudar)
     });
-  } else {
-    console.warn('form-escala não encontrado — o submit pode não funcionar.');
   }
 });
 </script>

@@ -71,9 +71,135 @@ def _weeks_sat_to_fri(dt_ini, dt_fim):
         cur += timedelta(days=7)
     return weeks
 
+
+def _build_plantoes_salvos_context(request):
+    month_names_pt = (
+        "Janeiro", "Fevereiro", "Marco", "Abril",
+        "Maio", "Junho", "Julho", "Agosto",
+        "Setembro", "Outubro", "Novembro", "Dezembro",
+    )
+
+    plantoes_base = Plantao.objects.order_by("-inicio")
+
+    try:
+        field_names = [f.name for f in Plantao._meta.fields]
+    except Exception:
+        field_names = []
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id and not request.user.is_staff:
+        plantoes_base = Plantao.objects.none()
+    elif ("unidade" in field_names or "unidade_id" in field_names) and unidade_id:
+        plantoes_base = plantoes_base.filter(unidade_id=unidade_id)
+
+    years_set = set()
+    try:
+        for dt_ref in plantoes_base.dates("inicio", "year"):
+            years_set.add(dt_ref.year)
+        for dt_ref in plantoes_base.dates("fim", "year"):
+            years_set.add(dt_ref.year)
+    except Exception:
+        for dt_ref in plantoes_base.values_list("inicio", flat=True):
+            if dt_ref:
+                years_set.add(dt_ref.year)
+        for dt_ref in plantoes_base.values_list("fim", flat=True):
+            if dt_ref:
+                years_set.add(dt_ref.year)
+
+    years = sorted(years_set, reverse=True)
+
+    ano_raw = request.GET.get("ano") or ""
+    ano_selected = None
+    plantoes = plantoes_base
+    if ano_raw:
+        try:
+            ano_selected = int(ano_raw)
+            plantoes = plantoes_base.filter(
+                inicio__year__lte=ano_selected,
+                fim__year__gte=ano_selected,
+            ).order_by("-inicio")
+        except (ValueError, TypeError):
+            ano_selected = None
+
+    today = timezone.localdate() if callable(getattr(timezone, "localdate", None)) else datetime.today().date()
+    if ano_selected is None and years:
+        ano_selected = today.year if today.year in years else years[0]
+        plantoes = plantoes_base.filter(
+            inicio__year__lte=ano_selected,
+            fim__year__gte=ano_selected,
+        ).order_by("-inicio")
+
+    plantoes_list = list(plantoes)
+
+    month_map = {month: [] for month in range(1, 13)}
+    for plantao in plantoes_list:
+        inicio = getattr(plantao, "inicio", None)
+        fim = getattr(plantao, "fim", None)
+        if not (inicio and fim):
+            continue
+
+        if ano_selected:
+            interval_start = date(ano_selected, 1, 1)
+            interval_end = date(ano_selected, 12, 31)
+            if fim < interval_start or inicio > interval_end:
+                continue
+            inicio = max(inicio, interval_start)
+            fim = min(fim, interval_end)
+
+        cursor = date(inicio.year, inicio.month, 1)
+        while cursor <= fim:
+            month_map[cursor.month].append(plantao)
+            if cursor.month == 12:
+                cursor = date(cursor.year + 1, 1, 1)
+            else:
+                cursor = date(cursor.year, cursor.month + 1, 1)
+
+    months_data = []
+    months_with_items = []
+    for month_num, label in enumerate(month_names_pt, start=1):
+        items = month_map.get(month_num, [])
+        if not items:
+            continue
+        months_with_items.append(month_num)
+        months_data.append(
+            {
+                "num": month_num,
+                "label": label,
+                "plantoes": items,
+                "count": len(items),
+            }
+        )
+
+    month_param_raw = request.GET.get("month") or ""
+    try:
+        month_param = int(month_param_raw)
+    except (ValueError, TypeError):
+        month_param = None
+
+    month_active = None
+    if months_with_items:
+        if month_param and month_param in months_with_items:
+            month_active = month_param
+        else:
+            month_active = today.month if today.month in months_with_items else months_with_items[0]
+        if month_active < 1 or month_active > 12:
+            month_active = months_with_items[0]
+
+    return {
+        "plantoes": plantoes_list,
+        "months_data": months_data,
+        "month_active": month_active,
+        "years": years,
+        "ano_selected": ano_selected,
+    }
+
 @login_required
 def lista_plantao(request):
     unidade_id = get_unidade_atual_id(request)
+    plantoes_salvos_ctx = _build_plantoes_salvos_context(request)
+
+    def with_plantoes_salvos(ctx):
+        return {**ctx, **plantoes_salvos_ctx}
 
     data_inicial = (request.POST.get("data_inicial") or request.GET.get("data_inicial") or "")
     data_final   = (request.POST.get("data_final")   or request.GET.get("data_final")   or "")
@@ -92,10 +218,10 @@ def lista_plantao(request):
 
      # validações iniciais / render vazio
     if not unidade_id and not request.user.is_staff:
-       return render(request, "plantao/lista.html", empty_context)
+       return render(request, "plantao/lista.html", with_plantoes_salvos(empty_context))
 
     if not (data_inicial and data_final):
-        return render(request, "plantao/lista.html", empty_context)
+        return render(request, "plantao/lista.html", with_plantoes_salvos(empty_context))
 
     # parse das datas
     try:
@@ -103,11 +229,15 @@ def lista_plantao(request):
         dt_fim = datetime.strptime(data_final, "%Y-%m-%d").date()
     except ValueError:
         messages.error(request, "Datas inválidas. Use o seletor de data no formato YYYY-MM-DD.")
-        return render(request, "plantao/lista.html", {**empty_context, "data_inicial": "", "data_final": ""})
+        return render(
+            request,
+            "plantao/lista.html",
+            with_plantoes_salvos({**empty_context, "data_inicial": "", "data_final": ""}),
+        )
 
     if dt_fim < dt_ini:
         messages.error(request, "Data final não pode ser anterior à data inicial.")
-        return render(request, "plantao/lista.html", empty_context)
+        return render(request, "plantao/lista.html", with_plantoes_salvos(empty_context))
 
     # --- ler optional ignore_plantao (usado após salvar para não reportar o plantão recém-criado) ---
     ignore_raw = request.GET.get("ignore_plantao") or request.POST.get("ignore_plantao")
@@ -154,17 +284,23 @@ def lista_plantao(request):
         )
         messages.error(request, msg)
 
-        return render(request, "plantao/lista.html", {
-            "data_inicial": data_inicial,
-            "data_final": data_final,
-            "servidores_com_descanso": {},
-            "servidores_options": [],
-            "excluidos_options": [],
-            "bloqueados": [],
-            "grupos": [],
-            "conflito_abort": True,
-            "plantoes_conflitantes": plantoes_conflitantes,
-        })
+        return render(
+            request,
+            "plantao/lista.html",
+            with_plantoes_salvos(
+                {
+                    "data_inicial": data_inicial,
+                    "data_final": data_final,
+                    "servidores_com_descanso": {},
+                    "servidores_options": [],
+                    "excluidos_options": [],
+                    "bloqueados": [],
+                    "grupos": [],
+                    "conflito_abort": True,
+                    "plantoes_conflitantes": plantoes_conflitantes,
+                }
+            ),
+        )
 
     # -------------------------------------------
     # dados para UI: descansos, disponíveis, weeks
@@ -277,12 +413,21 @@ def lista_plantao(request):
                     setattr(obj, "celular", "")
             grupos_data.append({"index": i, "periodo": (ini, fim), "servidores": ordered})
 
-        return render(request, "plantao/lista.html", {
-            "data_inicial": data_inicial, "data_final": data_final,
-            "servidores_com_descanso": servidores_com_descanso,
-            "servidores_options": disp_options, "excluidos_options": exc_options,
-            "bloqueados": bloqueados, "grupos": grupos_data,
-        })
+        return render(
+            request,
+            "plantao/lista.html",
+            with_plantoes_salvos(
+                {
+                    "data_inicial": data_inicial,
+                    "data_final": data_final,
+                    "servidores_com_descanso": servidores_com_descanso,
+                    "servidores_options": disp_options,
+                    "excluidos_options": exc_options,
+                    "bloqueados": bloqueados,
+                    "grupos": grupos_data,
+                }
+            ),
+        )
 
     # -------------------------
     # Se for POST e chegou aqui -> salva
@@ -304,12 +449,21 @@ def lista_plantao(request):
                         setattr(obj, "celular", "")
                 grupos_data.append({"index": i, "periodo": (ini, fim), "servidores": ordered})
 
-            return render(request, "plantao/lista.html", {
-                "data_inicial": data_inicial, "data_final": data_final,
-                "servidores_com_descanso": servidores_com_descanso,
-                "servidores_options": disp_options, "excluidos_options": exc_options,
-                "bloqueados": bloqueados, "grupos": grupos_data,
-            })
+            return render(
+                request,
+                "plantao/lista.html",
+                with_plantoes_salvos(
+                    {
+                        "data_inicial": data_inicial,
+                        "data_final": data_final,
+                        "servidores_com_descanso": servidores_com_descanso,
+                        "servidores_options": disp_options,
+                        "excluidos_options": exc_options,
+                        "bloqueados": bloqueados,
+                        "grupos": grupos_data,
+                    }
+                ),
+            )
 
         # procede com gravação
         try:
@@ -365,13 +519,22 @@ def lista_plantao(request):
                 setattr(obj, "celular", "")
         grupos_data.append({"index": i, "periodo": (ini, fim), "servidores": ordered})
 
-    return render(request, "plantao/lista.html", {
-        "data_inicial": data_inicial, "data_final": data_final,
-        "servidores_com_descanso": servidores_com_descanso,
-        "servidores_options": disp_options, "excluidos_options": exc_options,
-        "bloqueados": bloqueados, "grupos": grupos_data,
-        "conflito_abort": False,
-    })
+    return render(
+        request,
+        "plantao/lista.html",
+        with_plantoes_salvos(
+            {
+                "data_inicial": data_inicial,
+                "data_final": data_final,
+                "servidores_com_descanso": servidores_com_descanso,
+                "servidores_options": disp_options,
+                "excluidos_options": exc_options,
+                "bloqueados": bloqueados,
+                "grupos": grupos_data,
+                "conflito_abort": False,
+            }
+        ),
+    )
 
 @login_required
 def servidores_em_descanso(request):
@@ -452,137 +615,11 @@ def verificar_descanso(request):
 
 @login_required
 def ver_plantoes(request):
-    """
-    Página que lista plantões salvos. Suporta filtro por ano (GET ?ano=YYYY)
-    e respeita a unidade atual (exceto para staff).
-    """
-    MONTH_NAMES_PT = (
-        "Janeiro", "Fevereiro", "Março", "Abril",
-        "Maio", "Junho", "Julho", "Agosto",
-        "Setembro", "Outubro", "Novembro", "Dezembro",
-    )
-    # base queryset (ordenada)
-    plantoes_base = Plantao.objects.order_by("-inicio")
-
-    # aplica filtro de unidade se Plantao tem campo unidade e há unidade no contexto
-    try:
-        field_names = [f.name for f in Plantao._meta.fields]
-    except Exception:
-        field_names = []
-
-    unidade_id = get_unidade_atual_id(request)
-    if ("unidade" in field_names or "unidade_id" in field_names) and unidade_id:
-        plantoes_base = plantoes_base.filter(unidade_id=unidade_id)
-
-    # --- construir lista de anos disponíveis (com base nos campos inicio/fim) ---
-    years_set = set()
-    # usa .dates para obter anos distintos. Se .dates não estiver disponível, cai para values_list
-    try:
-        for d in plantoes_base.dates("inicio", "year"):
-            years_set.add(d.year)
-        for d in plantoes_base.dates("fim", "year"):
-            years_set.add(d.year)
-    except Exception:
-        # fallback: values_list sobre início/fim (menos elegante, mas funciona)
-        ys = plantoes_base.values_list("inicio", flat=True)
-        for dt in ys:
-            if dt:
-                years_set.add(dt.year)
-        ys2 = plantoes_base.values_list("fim", flat=True)
-        for dt in ys2:
-            if dt:
-                years_set.add(dt.year)
-
-    years = sorted(years_set, reverse=True)
-
-    # --- ler filtro de ano vindo do GET ---
-    ano_raw = request.GET.get("ano") or ""
-    ano_selected = None
-    plantoes = plantoes_base
-    if ano_raw:
-        try:
-            ano_selected = int(ano_raw)
-            # seleciona plantões cujo período abrange o ano:
-            # inicio.year <= ano_selected <= fim.year
-            # implementado como dois filtros combinados (AND)
-            plantoes = plantoes_base.filter(inicio__year__lte=ano_selected, fim__year__gte=ano_selected).order_by("-inicio")
-        except (ValueError, TypeError):
-            ano_selected = None
-            # se valor inválido, ignoramos e mostramos tudo
-    # se nenhum ano foi escolhido (ou inválido), usa automaticamente o ano atual (se existir); senão o maior ano disponível como padrão
-    today_local = getattr(timezone, "localdate", None)
-    today = today_local() if callable(today_local) else datetime.today().date()
-    if ano_selected is None and years:
-        ano_selected = today.year if today.year in years else years[0]
-        plantoes = plantoes_base.filter(inicio__year__lte=ano_selected, fim__year__gte=ano_selected).order_by("-inicio")
-
-    plantoes_list = list(plantoes)
-
-    # agrupamento por mês (abas)
-    month_map = {m: [] for m in range(1, 13)}
-    for p in plantoes_list:
-        ini = getattr(p, "inicio", None)
-        fim = getattr(p, "fim", None)
-        if not (ini and fim):
-            continue
-
-        # se filtrou por ano, restringe o intervalo ao ano selecionado
-        if ano_selected:
-            interval_start = date(ano_selected, 1, 1)
-            interval_end = date(ano_selected, 12, 31)
-            if fim < interval_start or ini > interval_end:
-                continue
-            ini = max(ini, interval_start)
-            fim = min(fim, interval_end)
-
-        cursor = date(ini.year, ini.month, 1)
-        while cursor <= fim:
-            month_map[cursor.month].append(p)
-            # avança para o 1º dia do próximo mês
-            if cursor.month == 12:
-                cursor = date(cursor.year + 1, 1, 1)
-            else:
-                cursor = date(cursor.year, cursor.month + 1, 1)
-
-    months_data = []
-    months_with_items = []
-    for idx, label in enumerate(MONTH_NAMES_PT, start=1):
-        items = month_map.get(idx, [])
-        if not items:
-            continue  # exibe somente abas com plantão
-        months_with_items.append(idx)
-        months_data.append({
-            "num": idx,
-            "label": label,
-            "plantoes": items,
-            "count": len(items),
-        })
-
-    today_month_func = getattr(timezone, "localdate", None)
-    today_month = today_month_func().month if callable(today_month_func) else datetime.today().month
-    month_param_raw = request.GET.get("month") or ""
-    try:
-        month_param = int(month_param_raw)
-    except (ValueError, TypeError):
-        month_param = None
-
-    month_active = None
-    if months_with_items:
-        if month_param and month_param in months_with_items:
-            month_active = month_param
-        else:
-            month_active = today_month if today_month in months_with_items else months_with_items[0]
-        if month_active < 1 or month_active > 12:
-            month_active = months_with_items[0]
-
-    context = {
-        "plantoes": plantoes_list,
-        "months_data": months_data,
-        "month_active": month_active,
-        "years": years,
-        "ano_selected": ano_selected,
-    }
-    return render(request, "plantao/ver_plantoes.html", context)
+    query = request.GET.urlencode()
+    target = reverse("plantao:lista_plantao")
+    if query:
+        target = f"{target}?{query}"
+    return redirect(target)
 
 logger = logging.getLogger(__name__)
 # a view tolerante
@@ -826,3 +863,4 @@ def servidores_por_intervalo(request):
             })
 
     return JsonResponse({"ok": True, "semanas": semanas_out})
+
