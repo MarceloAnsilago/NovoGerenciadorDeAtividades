@@ -108,9 +108,72 @@ def _get_descanso_month_keys(descanso, year):
             mes_atual += 1
     return keys
 
+
+def _build_descansos_unidade_context(unidade_id, hoje, ano, month_param=""):
+    inicio_ano = date(ano, 1, 1)
+    fim_ano = date(ano, 12, 31)
+
+    qs = (
+        Descanso.objects
+        .select_related("servidor", "servidor__unidade")
+        .filter(servidor__unidade_id=unidade_id)
+        .filter(data_inicio__lte=fim_ano, data_fim__gte=inicio_ano)
+        .order_by("-data_inicio", "-id")
+    )
+    descansos = list(qs)
+
+    has_nodate = False
+    for descanso in descansos:
+        keys = _get_descanso_month_keys(descanso, ano)
+        descanso.month_keys = keys
+        if "nodate" in keys:
+            has_nodate = True
+
+    month_filters = _build_descanso_month_filters(ano, include_nodate=has_nodate)
+    month_counts = Counter()
+    for descanso in descansos:
+        for key in descanso.month_keys:
+            month_counts[key] += 1
+    for month_filter in month_filters:
+        month_filter["count"] = month_counts.get(month_filter["key"], 0)
+
+    month_keys = [month_filter["key"] for month_filter in month_filters]
+    month_default = ""
+    month_param = (month_param or "").strip()
+    if month_param and month_param in month_keys:
+        month_default = month_param
+    elif month_keys:
+        today_key = f"{hoje.year}-{hoje.month:02d}"
+        if ano == hoje.year and today_key in month_keys:
+            month_default = today_key
+        else:
+            month_default = month_keys[0]
+
+    anos_disponiveis = set()
+    q_anos = Descanso.objects.filter(servidor__unidade_id=unidade_id).values_list(
+        "data_inicio__year", "data_fim__year"
+    )
+    for inicio_ano_val, fim_ano_val in q_anos:
+        if inicio_ano_val:
+            anos_disponiveis.add(inicio_ano_val)
+        if fim_ano_val:
+            anos_disponiveis.add(fim_ano_val)
+    anos_disponiveis.add(ano)
+
+    return {
+        "descansos": descansos,
+        "month_filters": month_filters,
+        "month_default": month_default,
+        "ano": ano,
+        "anos_opcoes": sorted(anos_disponiveis),
+        "total_descansos": len(descansos),
+    }
+
 @login_required
 def lista_servidores(request):
     hoje = timezone.localdate()
+    ano = _get_requested_year(request)
+    month_param = request.GET.get("month", "")
     unidade_id = get_unidade_atual_id(request)
 
     servidores = Servidor.objects.select_related("unidade").filter(ativo=True)
@@ -135,16 +198,30 @@ def lista_servidores(request):
     )
 
     cadastros_por_ano = []
+    descanso_ctx = {
+        "descansos": [],
+        "month_filters": [],
+        "month_default": "",
+        "ano": ano,
+        "anos_opcoes": [ano],
+        "total_descansos": 0,
+    }
     if unidade_id:
+        descanso_ctx = _build_descansos_unidade_context(
+            unidade_id=unidade_id,
+            hoje=hoje,
+            ano=ano,
+            month_param=month_param,
+        )
         cadastros = list(
             FeriadoCadastro.objects.filter(unidade_id=unidade_id).order_by("-criado_em", "-id")
         )
         bucket = {}
         for cadastro in cadastros:
-            ano = getattr(cadastro.criado_em, "year", None) or hoje.year
-            bucket.setdefault(ano, []).append(cadastro)
-        for ano in sorted(bucket.keys(), reverse=True):
-            cadastros_por_ano.append({"ano": ano, "cadastros": bucket[ano]})
+            ano_cadastro = getattr(cadastro.criado_em, "year", None) or hoje.year
+            bucket.setdefault(ano_cadastro, []).append(cadastro)
+        for ano_cadastro in sorted(bucket.keys(), reverse=True):
+            cadastros_por_ano.append({"ano": ano_cadastro, "cadastros": bucket[ano_cadastro]})
 
     return render(
         request,
@@ -154,6 +231,7 @@ def lista_servidores(request):
             "cadastros_por_ano": cadastros_por_ano,
             "mes_hoje": hoje.strftime("%Y-%m"),
             "ano_hoje": hoje.year,
+            **descanso_ctx,
         },
     )
 
@@ -556,77 +634,11 @@ def criar_descanso(request):
 
 @login_required
 def descansos_unidade(request):
-    """Lista de descansos da UNIDADE atual, com filtros."""
-    hoje = timezone.localdate()
-    ano = _get_requested_year(request)
-    inicio_ano = date(ano, 1, 1)
-    fim_ano = date(ano, 12, 31)
-    unidade_id = get_unidade_atual_id(request)
-    if not unidade_id:
-        messages.error(request, "Selecione uma unidade para visualizar os descansos.")
-        return redirect(reverse("descanso:lista_servidores"))
-
-    qs = (Descanso.objects
-          .select_related("servidor", "servidor__unidade")
-          .filter(servidor__unidade_id=unidade_id))
-    qs = qs.filter(data_inicio__lte=fim_ano, data_fim__gte=inicio_ano)
-
-    qs = qs.order_by("-data_inicio", "-id")
-    descansos = list(qs)
-
-    has_nodate = False
-    for descanso in descansos:
-        keys = _get_descanso_month_keys(descanso, ano)
-        descanso.month_keys = keys
-        if "nodate" in keys:
-            has_nodate = True
-
-    month_filters = _build_descanso_month_filters(ano, include_nodate=has_nodate)
-    month_counts = Counter()
-    for descanso in descansos:
-        for key in descanso.month_keys:
-            month_counts[key] += 1
-    for mf in month_filters:
-        mf["count"] = month_counts.get(mf["key"], 0)
-    month_keys = [mf["key"] for mf in month_filters]
-    month_param = (request.GET.get("month") or "").strip()
-    month_default = ""
-    if month_param and month_param in month_keys:
-        month_default = month_param
-    elif month_keys:
-        today_key = f"{hoje.year}-{hoje.month:02d}"
-        if ano == hoje.year and today_key in month_keys:
-            month_default = today_key
-        else:
-            month_default = month_keys[0]
-
-    anos_disponiveis = set()
-    q_anos = Descanso.objects.filter(servidor__unidade_id=unidade_id).values_list(
-        "data_inicio__year", "data_fim__year"
-    )
-    for inicio_ano_val, fim_ano_val in q_anos:
-        if inicio_ano_val:
-            anos_disponiveis.add(inicio_ano_val)
-        if fim_ano_val:
-            anos_disponiveis.add(fim_ano_val)
-    if not anos_disponiveis:
-        anos_disponiveis.add(ano)
-    else:
-        anos_disponiveis.add(ano)
-    anos_opcoes = sorted(anos_disponiveis)
-
-    return render(
-        request,
-        "descanso/descansos_unidade.html",
-        {
-            "descansos": descansos,
-            "month_filters": month_filters,
-            "month_default": month_default,
-            "ano": ano,
-            "anos_opcoes": anos_opcoes,
-            "total_descansos": len(descansos),
-        },
-    )
+    query = request.GET.urlencode()
+    target = reverse("descanso:lista_servidores")
+    if query:
+        target = f"{target}?{query}"
+    return redirect(target)
 
 
 @login_required

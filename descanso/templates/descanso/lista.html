@@ -2,20 +2,15 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Descanso — Servidores{% endblock %}
+{% block title %}Descanso - Servidores{% endblock %}
 
 {% block content %}
+{% now 'Y-m-d' as hoje %}
 <div class="container-fluid py-3">
   <h1 class="h3 mb-4">
     <i class="bi bi-moon-stars me-2"></i>
-    Descanso — Servidores
+    Descanso - Servidores
   </h1>
-
-  <div class="d-flex justify-content-end mb-2">
-    <a href="{% url 'descanso:descansos_unidade' %}" class="btn btn-outline-dark btn-sm">
-      <i class="bi bi-collection me-1"></i> Ver todos os descansos (unidade)
-    </a>
-  </div>
 
   <div class="card shadow-sm">
     <div class="card-body p-0">
@@ -26,7 +21,7 @@
               <th><i class="bi bi-person-badge me-1"></i> Servidor</th>
               <th><i class="bi bi-building me-1"></i> Unidade</th>
               <th class="text-center"><i class="bi bi-activity me-1"></i> Status</th>
-              <th class="text-end"><i class="bi bi-tools me-1"></i> Ações</th>
+              <th class="text-end"><i class="bi bi-tools me-1"></i> Acoes</th>
             </tr>
           </thead>
           <tbody>
@@ -63,6 +58,112 @@
                 <td colspan="4" class="text-center text-muted py-4">
                   Nenhum servidor encontrado.
                 </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-4">
+    <div class="card-header bg-light d-flex align-items-start justify-content-between flex-wrap gap-3">
+      <div class="d-flex align-items-start gap-2">
+        <i class="bi bi-calendar-week text-primary fs-4"></i>
+        <div>
+          <strong>Descansos cadastrados</strong>
+          <div class="text-muted small">Use as abas para filtrar por mes e selecione o ano.</div>
+        </div>
+      </div>
+      <a href="{% url 'descanso:relatorio_mapa' %}?ano={{ ano }}" class="btn btn-outline-dark btn-sm">
+        <i class="bi bi-calendar3"></i> Mapa de ferias/descanso
+      </a>
+    </div>
+    <div class="card-body">
+      {% if month_filters %}
+        <div id="descansosMonthTabsWrapper">
+          <div class="d-flex flex-wrap align-items-end justify-content-between gap-3">
+            <ul class="nav nav-tabs small flex-wrap gap-2" id="descansosMonthTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link{% if not month_default %} active{% endif %}" type="button" role="tab" data-month-filter="">
+                  Todos
+                  <span class="badge bg-primary text-white ms-1 rounded-pill">{{ total_descansos }}</span>
+                </button>
+              </li>
+              {% for filter in month_filters %}
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link{% if filter.key == month_default %} active{% endif %}"
+                    type="button"
+                    role="tab"
+                    data-month-filter="{{ filter.key }}">
+                    {{ filter.label }}
+                    <span class="badge bg-primary text-white ms-1 rounded-pill">{{ filter.count }}</span>
+                  </button>
+                </li>
+              {% endfor %}
+            </ul>
+            <form method="get" class="d-flex align-items-end gap-2 flex-wrap" id="descansosYearForm">
+              <div class="d-flex flex-column">
+                <label class="form-label small text-muted mb-1">Ano</label>
+                <select name="ano" class="form-select form-select-sm">
+                  {% for ano_opcao in anos_opcoes %}
+                    <option value="{{ ano_opcao }}" {% if ano_opcao == ano %}selected{% endif %}>
+                      {{ ano_opcao }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button class="btn btn-sm btn-outline-primary" type="submit">
+                <i class="bi bi-arrow-repeat me-1"></i> Atualizar
+              </button>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="table-responsive mt-3">
+        <table id="descansosTable" class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Servidor</th>
+              <th>Tipo</th>
+              <th>Periodo</th>
+              <th class="text-center">Situacao</th>
+              <th>Observacoes</th>
+              <th class="text-end">Acoes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in descansos %}
+              <tr data-descanso-months="{{ d.month_keys|join:',' }}">
+                <td class="fw-medium">
+                  <i class="bi bi-person-circle text-primary me-2"></i>
+                  <a href="{% url 'descanso:descansos_servidor' d.servidor_id %}" class="text-decoration-none">
+                    {{ d.servidor.nome }}
+                  </a>
+                </td>
+                <td>{{ d.get_tipo_display }}</td>
+                <td>{{ d.data_inicio }} &ndash; {{ d.data_fim }}</td>
+                <td class="text-center">
+                  {% if d.data_inicio|stringformat:"s" <= hoje and d.data_fim|stringformat:"s" >= hoje %}
+                    <span class="badge bg-warning text-dark">Em andamento</span>
+                  {% elif d.data_inicio|stringformat:"s" > hoje %}
+                    <span class="badge bg-info text-dark">Programado</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Encerrado</span>
+                  {% endif %}
+                </td>
+                <td class="text-muted small">{{ d.observacoes|default:"&mdash;" }}</td>
+                <td class="text-end">
+                  {% url 'descanso:editar_descanso' d.id as edit_base %}
+                  {% url 'descanso:excluir_descanso' d.id as delete_base %}
+                  {% include "partials/_botoes_acoes.html" %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">Nenhum descanso encontrado.</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -128,4 +229,52 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function () {
+  const tabs = Array.from(document.querySelectorAll("#descansosMonthTabs button[data-month-filter]"));
+  const tbody = document.querySelector("#descansosTable tbody");
+  if (!tabs.length || !tbody) return;
+
+  let selectedKey = "{{ month_default|default:''|lower }}";
+
+  const applyFilter = () => {
+    const key = (selectedKey || "").toLowerCase();
+    tbody.querySelectorAll("tr").forEach((row) => {
+      const rowKeys = (row.getAttribute("data-descanso-months") || "")
+        .split(",")
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean);
+      const show = !key || rowKeys.includes(key);
+      row.classList.toggle("d-none", !show);
+    });
+  };
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      selectedKey = (tab.getAttribute("data-month-filter") || "").toLowerCase();
+      tabs.forEach((inner) => {
+        const innerKey = (inner.getAttribute("data-month-filter") || "").toLowerCase();
+        inner.classList.toggle("active", innerKey === selectedKey);
+      });
+      applyFilter();
+    });
+  });
+
+  tabs.forEach((tab) => {
+    const key = (tab.getAttribute("data-month-filter") || "").toLowerCase();
+    tab.classList.toggle("active", key === selectedKey);
+  });
+
+  applyFilter();
+})();
+const yearForm = document.querySelector("#descansosYearForm");
+const yearSelect = yearForm?.querySelector("select[name='ano']");
+if (yearForm && yearSelect) {
+  yearSelect.addEventListener("change", () => yearForm.submit());
+}
+</script>
 {% endblock %}
