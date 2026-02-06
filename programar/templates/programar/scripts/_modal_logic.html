@@ -178,6 +178,7 @@
       const json = await resp.json().catch(()=> ({}));
       if (!resp.ok || json.ok === false) throw new Error(json.error || `Falha ao salvar (HTTP ${resp.status}).`);
 
+      NS._obsDirty = false;
       if (modalEl && window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).hide();
       NS.toast('Programação salva com sucesso!', { variant:'success' });
 

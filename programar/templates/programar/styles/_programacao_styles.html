@@ -99,6 +99,7 @@
   body[data-app="programar"] .navbar .dropdown-menu{ z-index:2002; }
   /* modal sempre acima da navbar */
   body[data-app="programar"] #programar-modalAtividade{ z-index:3000; }
+  body[data-app="programar"] #programar-modalObservacao{ z-index:3010; }
   body[data-app="programar"] .modal-backdrop.show{ z-index:2990; }
 
   /* ===== Caixinha para marcação (impressão) ===== */
@@ -154,6 +155,11 @@
   /* centralizar conteúdo textual da coluna Atividade */
   .programacao-semana-table td.atividade-cell{
     text-align:center;
+  }
+  .programacao-semana-table .atividade-obs{
+    font-style:italic;
+    font-size:.82em;
+    color:#6c757d;
   }
 
   /* lista compacta de servidores (sem S/N) — permite quebrar linha naturalmente */
@@ -519,6 +525,32 @@
 
     /* bloco dos veículos fixo abaixo da dropzone */
     #programar-modalAtividade .meta-vehicles-block{ margin-top:.25rem; }
+    #programar-modalAtividade .meta-obs-actions{
+      display:flex;
+      justify-content:flex-end;
+      margin-top:.25rem;
+    }
+    #programar-modalAtividade .meta-obs-btn{
+      position:relative;
+      border-radius:.5rem;
+      line-height:1;
+    }
+    #programar-modalAtividade .meta-obs-btn .meta-obs-dot{
+      position:absolute;
+      top:4px;
+      right:4px;
+      width:7px;
+      height:7px;
+      border-radius:50%;
+      background:#0d6efd;
+      display:none;
+    }
+    #programar-modalAtividade .meta-obs-btn.has-obs{
+      border-color:#a5c3ff;
+      background:#eef4ff;
+      color:#0d6efd;
+    }
+    #programar-modalAtividade .meta-obs-btn.has-obs .meta-obs-dot{ display:block; }
 
     /* opcional: a linha (coluna de metas) garante altura total dos cards */
     #programar-modalAtividade #metaCardsContainer > .servidor-cardbox{ height:100%; }

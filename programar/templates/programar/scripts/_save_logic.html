@@ -184,6 +184,7 @@
         throw new Error(msg);
       }
 
+      NS._obsDirty = false;
       // impede auto-preencher expediente em cargas futuras
       document.body.dataset.progLoaded = '1';
 
@@ -301,6 +302,18 @@
 
   document.addEventListener('programar:prefilled', refreshExcluirBtn);
   document.addEventListener('programar:diaSelecionado', refreshExcluirBtn);
+
+  document.addEventListener('hide.bs.modal', (ev) => {
+    if (!ev.target || ev.target.id !== 'programar-modalAtividade') return;
+    if (!NS._obsDirty) return;
+    const ok = window.confirm('Ha observacoes nao salvas. Deseja salvar antes de fechar?');
+    if (!ok) { NS._obsDirty = false; return; }
+    ev.preventDefault();
+    const btn = document.getElementById('programar-btnSalvar');
+    if (btn && !btn.disabled) {
+      btn.click();
+    }
+  });
 
   // ---------- Bind imediato (se o include for após o footer) ----------
   (function tryImmediateBind(){

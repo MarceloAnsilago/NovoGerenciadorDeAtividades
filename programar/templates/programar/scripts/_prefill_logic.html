@@ -169,6 +169,7 @@
       // nada salvo  apenas atualiza contadores e sai (loader poder semear expediente)
       (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
       try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
+      NS._obsDirty = false;
       document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: dateStr, count: 0 }}));
       return;
     }
@@ -219,6 +220,7 @@
 
     const ta = card.querySelector('textarea[name="observacao"]');
     if (ta) ta.value = it.observacao || '';
+    window.PROGRAMAR?.syncObsIndicator?.(card);
 
     const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
     if (sel && it.veiculo_id != null) {
@@ -233,6 +235,7 @@
 
     try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
     (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
+    NS._obsDirty = false;
     document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: dateStr, count: itens.length }}));
     if (DEBUG) console.debug('[prefill] aplicado', itens.length, 'itens');
   };

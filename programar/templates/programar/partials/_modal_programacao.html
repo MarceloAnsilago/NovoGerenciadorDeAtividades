@@ -49,6 +49,27 @@
   </div>
 </div>
 
+<div class="modal fade" id="programar-modalObservacao" tabindex="-1" aria-labelledby="programar-modalObservacaoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="programar-modalObservacaoLabel">Observacao</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-muted small mb-2">Atividade: <strong id="programar-obs-meta">-</strong></div>
+        <textarea id="programar-obs-text" class="form-control" rows="4" placeholder="Digite a observacao aqui..."></textarea>
+        <div class="form-text">Para excluir, apague o texto e clique em Salvar ou Limpar.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" id="programar-obs-cancel" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-danger" id="programar-obs-clear">Limpar</button>
+        <button type="button" class="btn btn-primary" id="programar-obs-save">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
   const refresh = () => {

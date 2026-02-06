@@ -639,6 +639,7 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
             "servidores": serv_nomes.get(it.id, []),
             "servidor_ids": serv_ids.get(it.id, []),
             "veiculo": veiculo_label,
+            "observacao": (getattr(it, "observacao", "") or "").strip(),
         })
 
     return out
@@ -869,6 +870,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 "meta": it["meta"],
                 "servidores": it["servidores"],
                 "veiculo": it["veiculo"],
+                "observacao": it.get("observacao") or "",
             })
         if impedidos:
             blocks.append({"kind": "impedidos", "dados": impedidos})
@@ -943,12 +945,18 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                             "iso": iso,
                             "atividade": b["meta"],
                             "veiculo": b["veiculo"],
+                            "observacao": b.get("observacao") or "",
                         })
 
+                obs_txt = (b.get("observacao") or "").strip()
+                obs_html = (
+                    f" <span class='atividade-obs'>({html.escape(obs_txt)})</span>"
+                    if obs_txt else ""
+                )
                 day_rows.append(
                     open_tr
                     + dia_td
-                    + f"<td class='atividade-cell'>{html.escape(b['meta'])}</td>"
+                    + f"<td class='atividade-cell'>{html.escape(b['meta'])}{obs_html}</td>"
                     + f"<td>{_srv_list_html(b['servidores'], with_boxes=True, inline=False)}</td>"
                     + f"<td class='veiculo-cell text-nowrap'>{html.escape(b['veiculo'])}</td>"
                     + f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
@@ -993,6 +1001,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "}"
         ".programacao-semana-table th:first-child, .programacao-semana-table td.dia-cell{ min-width:110px; }"
         ".programacao-semana-table td, .programacao-semana-table th{ vertical-align: top; }"
+        ".programacao-semana-table .atividade-obs{ font-style:italic; font-size:.82em; color:#6c757d; }"
 
         "/* Relatório 'Justificativa' */"
         ".rel-atividades .card-ativ{ page-break-inside: avoid; }"
@@ -1082,12 +1091,14 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         for it in itens_sorted:
             dia = html.escape(it["dia_label"])
             atividade = html.escape(it.get("atividade") or "")
+            obs_txt = (it.get("observacao") or "").strip()
+            obs_html = f" <span class='atividade-obs'>({html.escape(obs_txt)})</span>" if obs_txt else ""
 
             # 1ª linha: dia + atividade
             linhas.append(
                 "<tr>"
                 "<td class='lbl'>Dia</td>"
-                f"<td>{dia}" + (f": {atividade}" if atividade else "") + "</td>"
+                f"<td>{dia}" + (f": {atividade}" if atividade else "") + obs_html + "</td>"
                 "</tr>"
             )
             # 2ª linha: apenas “Justificativa” com linha

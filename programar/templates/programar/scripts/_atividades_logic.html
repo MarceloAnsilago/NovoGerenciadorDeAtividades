@@ -84,6 +84,54 @@
     select.dataset.veiculosPopulado = "1";
   }
 
+  const OBS_IDS = {
+    modal: "programar-modalObservacao",
+    input: "programar-obs-text",
+    save: "programar-obs-save",
+    clear: "programar-obs-clear",
+    cancel: "programar-obs-cancel",
+    meta: "programar-obs-meta",
+  };
+
+  function getObsValue(card) {
+    return (card?.querySelector('textarea[name="observacao"]')?.value || "").trim();
+  }
+
+  function syncObsIndicator(card) {
+    if (!card) return;
+    const btn = card.querySelector(".meta-obs-btn");
+    const ta = card.querySelector('textarea[name="observacao"]');
+    if (!btn || !ta) return;
+    const hasObs = !!ta.value.trim();
+    btn.classList.toggle("has-obs", hasObs);
+    btn.title = hasObs ? "Editar observacao" : "Adicionar observacao";
+    btn.setAttribute("aria-pressed", hasObs ? "true" : "false");
+  }
+  NS.syncObsIndicator = syncObsIndicator;
+
+  function applyObsToCard(card, text) {
+    if (!card) return;
+    const ta = card.querySelector('textarea[name="observacao"]');
+    if (ta) ta.value = text || "";
+    NS._obsDirty = true;
+    syncObsIndicator(card);
+  }
+
+  function openObsModal(card) {
+    if (!card) return;
+    const modalEl = document.getElementById(OBS_IDS.modal);
+    if (!modalEl) return;
+    NS._obsCard = card;
+    const input = document.getElementById(OBS_IDS.input);
+    if (input) input.value = getObsValue(card);
+    const metaLabel = document.getElementById(OBS_IDS.meta);
+    if (metaLabel) {
+      metaLabel.textContent = (card.querySelector(".meta-title-text")?.textContent || "Atividade").trim();
+    }
+    if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+
   NS.ensureMetaCard = function (metaId, metaTitle, options = {}) {
     const cont = metaCardsContainer();
     if (!cont) return null;
@@ -94,6 +142,7 @@
       const existing = cont.querySelector(`[data-meta-id="${metaId}"]`);
       if (existing) {
         tryAddVeiculosOptions(existing.querySelector("select.card-veiculos"));
+        syncObsIndicator(existing);
         if (shouldAutoScroll()) {
           existing.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
         }
@@ -134,12 +183,20 @@
             <option value="" data-placeholder="1">Nenhum veiculo</option>
           </select>
         </div>
+        <div class="meta-obs-actions">
+          <button type="button" class="btn btn-outline-secondary btn-sm meta-obs-btn" title="Adicionar observacao" aria-label="Observacao">
+            <i class="bi bi-chat-left-text"></i>
+            <span class="meta-obs-dot" aria-hidden="true"></span>
+          </button>
+        </div>
+        <textarea class="meta-obs-input d-none" name="observacao" rows="2"></textarea>
       </div>
     `;
     card.dataset.concluido = "false";
 
     cont.appendChild(card);
     tryAddVeiculosOptions(card.querySelector("select.card-veiculos"));
+    syncObsIndicator(card);
 
     card.querySelectorAll(".alert").forEach((n) => n.remove());
 
@@ -166,5 +223,62 @@
     updateCounts();
     return card;
   };
+
+  // --------- Observacao: delegacao ----------
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target.closest?.(".meta-obs-btn");
+    if (!btn) return;
+    ev.preventDefault();
+    const card = btn.closest("[data-meta-id]");
+    openObsModal(card);
+  });
+
+  document.addEventListener("click", (ev) => {
+    const saveBtn = ev.target.closest?.("#" + OBS_IDS.save);
+    if (!saveBtn) return;
+    ev.preventDefault();
+    const card = NS._obsCard;
+    const input = document.getElementById(OBS_IDS.input);
+    const text = (input?.value || "").trim();
+    applyObsToCard(card, text);
+    const modalEl = document.getElementById(OBS_IDS.modal);
+    if (modalEl && window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+  });
+
+  document.addEventListener("click", (ev) => {
+    const clearBtn = ev.target.closest?.("#" + OBS_IDS.clear);
+    if (!clearBtn) return;
+    ev.preventDefault();
+    const card = NS._obsCard;
+    applyObsToCard(card, "");
+    const input = document.getElementById(OBS_IDS.input);
+    if (input) input.value = "";
+    const modalEl = document.getElementById(OBS_IDS.modal);
+    if (modalEl && window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+  });
+
+  document.addEventListener("click", (ev) => {
+    const cancelBtn = ev.target.closest?.("#" + OBS_IDS.cancel);
+    if (!cancelBtn) return;
+    NS._obsCancel = true;
+  });
+
+  document.addEventListener("show.bs.modal", (ev) => {
+    if (ev.target?.id === OBS_IDS.modal) {
+      NS._obsCancel = false;
+    }
+  });
+
+  document.addEventListener("hide.bs.modal", (ev) => {
+    if (ev.target?.id !== OBS_IDS.modal) return;
+    if (NS._obsCancel) {
+      NS._obsCancel = false;
+      return;
+    }
+    const card = NS._obsCard;
+    const input = document.getElementById(OBS_IDS.input);
+    const text = (input?.value || "").trim();
+    applyObsToCard(card, text);
+  });
 })();
 </script>
