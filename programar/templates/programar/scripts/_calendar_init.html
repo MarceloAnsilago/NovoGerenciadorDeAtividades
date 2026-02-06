@@ -59,6 +59,14 @@ document.addEventListener('DOMContentLoaded', function(){
   ].map(id => document.getElementById(id));
   printBtns.forEach(b => { if (b) b.disabled = true; });
 
+  function formatModalLabel(dateObj) {
+    if (!(dateObj instanceof Date)) return '';
+    const dateBR = dateObj.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+    let weekday = dateObj.toLocaleDateString('pt-BR', { timeZone: 'UTC', weekday: 'long' });
+    if (weekday) weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+    return weekday ? `${weekday}, ${dateBR}` : dateBR;
+  }
+
   function computeStatus(props){
     const total = Number(props?.total_programadas || 0);
     const concluidas = Number(props?.total_concluidas || 0);
@@ -214,8 +222,8 @@ document.addEventListener('DOMContentLoaded', function(){
       if (typeof NS.openProgramarModal === 'function') {
         const data = info.event.start;
         if (data instanceof Date) {
-          const dataBR = data.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-          NS.openProgramarModal(data.toISOString().slice(0, 10), dataBR);
+          const label = formatModalLabel(data);
+          NS.openProgramarModal(data.toISOString().slice(0, 10), label);
         }
       }
     },
@@ -242,8 +250,8 @@ document.addEventListener('DOMContentLoaded', function(){
 
     dateClick(info){
       if (typeof NS.openProgramarModal === 'function') {
-        const dataBR = info.date.toLocaleDateString('pt-BR', { timeZone:'UTC' });
-        NS.openProgramarModal(info.dateStr, dataBR);
+        const label = formatModalLabel(info.date);
+        NS.openProgramarModal(info.dateStr, label);
       }
     }
   });
