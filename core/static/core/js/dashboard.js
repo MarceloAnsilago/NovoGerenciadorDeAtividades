@@ -8,6 +8,7 @@
   const charts = {};
   const startInput = document.getElementById("dashboardStartMonth");
   const endInput = document.getElementById("dashboardEndMonth");
+  const currentMonthBtn = document.getElementById("dashboardCurrentMonthBtn");
 
   async function fetchJson(url) {
     if (!url) {
@@ -150,6 +151,41 @@
     if (start > end) {
       endInput.value = start;
     }
+  }
+
+  function clampMonthValue(value, input) {
+    if (!value || !input) {
+      return value;
+    }
+    const min = input.min ? input.min.trim() : "";
+    const max = input.max ? input.max.trim() : "";
+    let result = value;
+    if (min && result < min) {
+      result = min;
+    }
+    if (max && result > max) {
+      result = max;
+    }
+    return result;
+  }
+
+  function getCurrentMonthValue() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  }
+
+  async function applyCurrentMonth() {
+    if (!startInput || !endInput) {
+      return;
+    }
+    const currentMonth = getCurrentMonthValue();
+    startInput.value = clampMonthValue(currentMonth, startInput);
+    endInput.value = clampMonthValue(currentMonth, endInput);
+    normalizeRange();
+    syncUrlParams();
+    await refreshDashboard();
   }
 
   async function refreshDashboard() {
@@ -381,6 +417,12 @@
         normalizeRange();
         syncUrlParams();
         refreshDashboard();
+      });
+    }
+
+    if (currentMonthBtn) {
+      currentMonthBtn.addEventListener("click", () => {
+        applyCurrentMonth();
       });
     }
 

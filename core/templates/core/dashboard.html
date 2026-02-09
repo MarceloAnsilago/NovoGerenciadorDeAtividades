@@ -33,6 +33,7 @@
         {% if dashboard_month_max %}max="{{ dashboard_month_max }}"{% endif %}
         style="width: 10rem;"
       >
+      <button id="dashboardCurrentMonthBtn" type="button" class="btn btn-outline-secondary btn-sm">Mês atual</button>
     </div>
   </div>
 
@@ -250,5 +251,5 @@
       topServidores: "{% url 'core:dashboard_top_servidores' %}",
     };
   </script>
-  <script src="{% static 'core/js/dashboard.js' %}?v=20260113-2" defer></script>
+  <script src="{% static 'core/js/dashboard.js' %}?v=20260209-1" defer></script>
 {% endblock %}
