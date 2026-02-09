@@ -465,7 +465,7 @@ def get_plantao_heatmap(
     labels = []
     data = []
     for start in weeks:
-        labels.append(start.strftime("Sem %W/%Y"))
+        labels.append(start.strftime("Semana %W/%Y"))
         data.append(week_map.get(start, 0))
 
     return {
