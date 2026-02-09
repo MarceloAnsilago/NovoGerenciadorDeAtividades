@@ -24,9 +24,13 @@
     });
   }
 
-  function metaTitleFromGrid(metaId) {
-    const n = document.querySelector(`#metasGrid [data-id="${metaId}"] .meta-title`);
-    return (n && n.textContent.trim()) || `Meta ${metaId}`;
+  function metaInfoFromGrid(metaId) {
+    const card = document.querySelector(`#metasGrid [data-id="${metaId}"]`);
+    const n = card?.querySelector(".meta-title");
+    return {
+      title: (n && n.textContent.trim()) || `Meta ${metaId}`,
+      descricao: (card?.dataset?.metaDescricao || "").trim(),
+    };
   }
 
   // pega o chip no catlogo
@@ -198,14 +202,17 @@
     }
 
     // Demais metas
-    const title = metaTitleFromGrid(it.meta_id);
+    const metaInfo = metaInfoFromGrid(it.meta_id);
+    const title = metaInfo.title;
     let card = null;
     if (it.id) {
       card = document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"][data-item-id="${it.id}"]`);
     }
     if (!card) {
       const existingCount = document.querySelectorAll(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`).length;
-      const opts = existingCount > 0 ? { forceNew: true } : {};
+      const opts = existingCount > 0
+        ? { forceNew: true, metaDescricao: metaInfo.descricao }
+        : { metaDescricao: metaInfo.descricao };
       card = NS.ensureMetaCard?.(String(it.meta_id), title, opts) || document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`);
     }
     if (!card) continue;

@@ -10,6 +10,14 @@
   function shouldAutoScroll(){
     try { return Boolean(window.PROGRAMAR?.autoScrollModal); } catch(_) { return false; }
   }
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
 
   function updateCounts() { NS.updateCounts?.(); }
 
@@ -137,10 +145,18 @@
     if (!cont) return null;
 
     const forceNew = Boolean(options && options.forceNew);
+    const metaDescription = String(options?.metaDescricao || "").trim();
+    const safeMetaTitle = escapeHtml(metaTitle || "");
+    const safeMetaDescription = escapeHtml(metaDescription);
 
     if (!forceNew) {
       const existing = cont.querySelector(`[data-meta-id="${metaId}"]`);
       if (existing) {
+        const descEl = existing.querySelector(".meta-description");
+        if (descEl && metaDescription) {
+          descEl.textContent = metaDescription;
+          descEl.classList.remove("d-none");
+        }
         tryAddVeiculosOptions(existing.querySelector("select.card-veiculos"));
         syncObsIndicator(existing);
         if (shouldAutoScroll()) {
@@ -159,7 +175,7 @@
     card.innerHTML = `
       <div class="card-header bg-light border-bottom py-2">
         <div class="d-flex align-items-center justify-content-between">
-          <b class="meta-title-text">${metaTitle}</b>
+          <b class="meta-title-text">${safeMetaTitle}</b>
           <div class="d-flex align-items-center gap-2 meta-actions">
             <span class="badge bg-primary count-meta">0</span>
             <a class="btn btn-outline-success btn-sm py-0 px-1 meta-concluir d-none"
@@ -175,6 +191,7 @@
         </div>
       </div>
       <div class="card-body meta-body">
+        <p class="meta-description small text-muted mb-2${metaDescription ? "" : " d-none"}">${safeMetaDescription}</p>
         <!-- area de alocacao dos servidores -->
         <div class="servidores-grid meta-dropzone dropzone mb-3"></div>
         <div class="mb-2 meta-vehicles-block">

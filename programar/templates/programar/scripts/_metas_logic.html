@@ -12,6 +12,15 @@
     return raw.replace(/["\\]/g, "\\$&");
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function highlightExistingCard(metaId) {
     const container = document.getElementById("metaCardsContainer");
     if (!container) return;
@@ -78,35 +87,44 @@
       metasGrid.innerHTML = data.metas.map((m) => {
         const programadas = Number(m.programadas_total || 0);
         const alocado = Number(m.alocado_unidade || 0);
+        const executado = Number(m.executado_unidade || 0);
         const d = m.data_limite ? new Date(m.data_limite) : null;
         const monthKey = d ? (d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")) : "nodate";
         const yearKey = d ? String(d.getFullYear()) : "nodate";
         const statusKey = String(m.status || "andamento").toLowerCase();
         const normalizedStatus = STATUS_LABELS[statusKey] ? statusKey : "andamento";
         const statusLabel = m.status_label || STATUS_LABELS[normalizedStatus] || STATUS_LABELS.andamento;
+        const statusLabelEscaped = escapeHtml(statusLabel);
+        const metaNomeEscaped = escapeHtml(m.nome || "");
+        const descricao = String(m.descricao || "").trim();
+        const descricaoEscaped = escapeHtml(descricao);
         const dataLimiteStr = d ? d.toLocaleDateString("pt-BR") : "";
+        const dataLimiteEscaped = escapeHtml(dataLimiteStr);
+        const percentualExecutado = alocado ? Math.min(100, Math.round((executado / alocado) * 100)) : 0;
         return `
           <button type="button"
                   class="meta-card"
                   data-id="${m.id}"
                   data-programadas="${programadas}"
                   data-alocado="${alocado}"
+                  data-meta-descricao="${descricaoEscaped}"
                   data-month="${monthKey}"
                   data-year="${yearKey}"
                   data-status="${normalizedStatus}">
             <div class="meta-head">
               <span class="icon"><i class="bi bi-flag"></i></span>
-              <h6 class="meta-title">${m.nome}</h6>
-              <span class="meta-status-pill status-${normalizedStatus}" aria-label="Status: ${statusLabel}">
-                ${statusLabel}
+              <h6 class="meta-title">${metaNomeEscaped}</h6>
+              <span class="meta-status-pill status-${normalizedStatus}" aria-label="Status: ${statusLabelEscaped}">
+                ${statusLabelEscaped}
               </span>
             </div>
             <div class="meta-sep"></div>
+            ${descricao ? `<p class="meta-desc mb-0">${descricaoEscaped}</p>` : ""}
             ${d ? `
               <div class="meta-date">
                 <i class="bi bi-calendar-event"></i>
                 <span>Data limite:</span>
-                <strong>${dataLimiteStr}</strong>
+                <strong>${dataLimiteEscaped}</strong>
               </div>
             ` : ""}
             <div class="meta-small mt-2">Em programação: <b>${programadas}</b></div>
@@ -114,9 +132,9 @@
             <div class="meta-progress mt-1">
               <div class="d-flex justify-content-between summary mb-1">
                 <span>Executado (unidade)</span>
-                <span><b>${m.executado_unidade || 0}</b> / ${m.alocado_unidade || 0}</span>
+                <span><b>${executado}</b> / ${alocado}</span>
               </div>
-              <div class="progress"><div class="progress-bar bg-primary" style="width:${(m.alocado_unidade ? Math.min(100, Math.round((m.executado_unidade/m.alocado_unidade)*100)) : 0)}%"></div></div>
+              <div class="progress"><div class="progress-bar bg-primary" style="width:${percentualExecutado}%"></div></div>
             </div>
           </button>
         `;
@@ -277,7 +295,8 @@
           if (!confirmLimite(totalAtual, alocado)) return;
 
           const metaTitulo = card.querySelector(".meta-title")?.textContent?.trim() || "";
-          const options = {};
+          const metaDescricao = (card.dataset.metaDescricao || "").trim();
+          const options = { metaDescricao };
           if (existingCards > 0) {
             if (!confirmDuplicado(existingCards)) {
               highlightExistingCard(metaId);

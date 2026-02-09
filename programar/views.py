@@ -1512,6 +1512,7 @@ def metas_disponiveis(request):
             bucket[mid] = {
                 "id": mid,
                 "nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem título)"),
+                "descricao": (getattr(meta, "descricao", "") or "").strip(),
                 "atividade_nome": atividade_nome,
                 "data_limite": getattr(meta, "data_limite", None),
                 "alocado_unidade": 0,
