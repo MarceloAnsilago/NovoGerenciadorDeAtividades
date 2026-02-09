@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, timedelta
 from typing import List
 
 from django.conf import settings
@@ -90,12 +90,6 @@ def _apply_date_range(queryset, field: str, start_date: date | None, end_date: d
     if not start_date or not end_date:
         return queryset
     return queryset.filter(**{f"{field}__range": (start_date, end_date)})
-
-
-def _apply_datetime_date_range(queryset, field: str, start_date: date | None, end_date: date | None):
-    if not start_date or not end_date:
-        return queryset
-    return queryset.filter(**{f"{field}__date__range": (start_date, end_date)})
 
 
 def _base_programacao_items(unidade_ids=None):
@@ -333,23 +327,25 @@ def get_programacoes_status_mensal(
     else:
         months = _month_sequence()
         start_date = months[0]
-    tz = timezone.get_current_timezone()
+
+    def _month_key(value):
+        if value is None:
+            return None
+        to_date = getattr(value, "date", None)
+        if callable(to_date):
+            return to_date()
+        return value
 
     base_qs = _base_programacao_items(unidade_ids).select_related("programacao", "meta")
 
     if start_date and end_date:
-        base_qs = _apply_datetime_date_range(base_qs, "criado_em", start_date, end_date)
+        base_qs = _apply_date_range(base_qs, "programacao__data", start_date, end_date)
     else:
-        base_qs = base_qs.filter(
-            criado_em__gte=timezone.make_aware(
-                datetime.combine(start_date, time.min),
-                tz,
-            )
-        )
+        base_qs = base_qs.filter(programacao__data__gte=start_date)
 
     qs = (
         base_qs
-        .annotate(mes=TruncMonth("criado_em", tzinfo=tz))
+        .annotate(mes=TruncMonth("programacao__data"))
         .values("mes")
         .annotate(
             concluidas=Count("id", filter=Q(concluido=True)),
@@ -358,8 +354,14 @@ def get_programacoes_status_mensal(
         .order_by("mes")
     )
 
-    concluidas_map = {item["mes"].date(): item["concluidas"] for item in qs if item["mes"] is not None}
-    pendentes_map = {item["mes"].date(): item["pendentes"] for item in qs if item["mes"] is not None}
+    concluidas_map = {}
+    pendentes_map = {}
+    for item in qs:
+        mes_key = _month_key(item.get("mes"))
+        if mes_key is None:
+            continue
+        concluidas_map[mes_key] = item.get("concluidas", 0)
+        pendentes_map[mes_key] = item.get("pendentes", 0)
 
     labels = []
     concluidas_data = []
@@ -375,16 +377,16 @@ def get_programacoes_status_mensal(
     hints_pendentes_map = {}
     detalhe_qs = (
         base_qs
-        .annotate(mes=TruncMonth("criado_em", tzinfo=tz))
+        .annotate(mes=TruncMonth("programacao__data"))
         .values("mes", "concluido", "meta__atividade__titulo")
         .annotate(total=Count("id"))
         .order_by("mes", "-total")
     )
     for row in detalhe_qs:
         mes = row.get("mes")
-        if mes is None:
+        mes_key = _month_key(mes)
+        if mes_key is None:
             continue
-        mes_key = mes.date() if hasattr(mes, "date") else mes
         titulo = row.get("meta__atividade__titulo") or "Outros"
         if row.get("concluido"):
             cur = hints_concluidas_map.get(mes_key) or []
