@@ -73,6 +73,11 @@ def _month_sequence_for_range(start_date: date, end_date: date) -> List[date]:
     return months
 
 
+def _format_month_label_pt(month_date: date) -> str:
+    month_names = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+    return f"{month_names[month_date.month - 1]}/{month_date.year}"
+
+
 def _week_sequence_for_range(start_date: date, end_date: date) -> List[date]:
     if start_date > end_date:
         return []
@@ -297,7 +302,7 @@ def get_progresso_mensal(
     labels = []
     data = []
     for month_start in months:
-        labels.append(month_start.strftime("%b/%Y"))
+        labels.append(_format_month_label_pt(month_start))
         data.append(mapped.get(month_start, 0))
 
     return {
@@ -368,7 +373,7 @@ def get_programacoes_status_mensal(
     pendentes_data = []
 
     for month_start in months:
-        labels.append(month_start.strftime("%b/%Y"))
+        labels.append(_format_month_label_pt(month_start))
         concluidas_data.append(concluidas_map.get(month_start, 0))
         pendentes_data.append(pendentes_map.get(month_start, 0))
 
