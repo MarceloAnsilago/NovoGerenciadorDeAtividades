@@ -2,7 +2,7 @@
 {% with label=label|default:"Atividades selecionadas" %}
 <div class="programar-separator" role="separator" aria-label="{{ label }}">
   <div class="line" aria-hidden="true"></div>
-  <div class="text">{{ label }}</div>
+  <div class="text" {% if text_id %}id="{{ text_id }}"{% endif %}>{{ label }}</div>
   <div class="line" aria-hidden="true"></div>
 </div>
 {% endwith %}

@@ -55,6 +55,7 @@
     date: 'programar-dataAtividade',
     cards: 'metaCardsContainer',
     title: 'programar-modalAtividadeLabel',
+    selectedActivitiesSeparator: 'programar-separator-atividades-label',
   };
 
   function getCookie(name){
@@ -87,6 +88,39 @@
     const out = { meta_id: metaId, observacao: obs, veiculo_id, servidores_ids };
     if (itemId) out.id = itemId;                       // 👈 inclui id só se houver
     return out;
+  }
+
+  function buildSelectedActivitiesLabel(dateStr, labelText){
+    let dateBR = '';
+    let weekday = '';
+
+    const rawDate = String(dateStr || '').trim();
+    const match = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      const dt = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00Z`);
+      if (!Number.isNaN(dt.getTime())) {
+        dateBR = dt.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+        weekday = dt.toLocaleDateString('pt-BR', { timeZone: 'UTC', weekday: 'long' });
+      }
+    }
+
+    if ((!dateBR || !weekday) && labelText) {
+      const parts = String(labelText).split(',');
+      if (parts.length >= 2) {
+        if (!weekday) weekday = parts[0].trim();
+        if (!dateBR) dateBR = parts.slice(1).join(',').trim();
+      }
+    }
+
+    if (weekday) weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+
+    if (dateBR && weekday) {
+      return `Atividades selecionadas para o dia ${dateBR}, ${weekday}`;
+    }
+    if (dateBR) {
+      return `Atividades selecionadas para o dia ${dateBR}`;
+    }
+    return 'Atividades selecionadas';
   }
 
   function refreshSalvar(){
@@ -125,6 +159,11 @@
 
     const lbl = get(IDS.title);
     if (lbl) lbl.textContent = labelText ? `Programar atividades — ${labelText}` : 'Programar atividades';
+
+    const selectedActivitiesSeparator = get(IDS.selectedActivitiesSeparator);
+    if (selectedActivitiesSeparator) {
+      selectedActivitiesSeparator.textContent = buildSelectedActivitiesLabel(dateStr, labelText);
+    }
 
     if (btn) btn.disabled = true;
     window.PROGRAMAR.loadMetas?.(dateStr);
