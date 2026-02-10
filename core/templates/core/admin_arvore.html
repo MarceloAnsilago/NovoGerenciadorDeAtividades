@@ -10,15 +10,13 @@
     <div class="alert alert-info">
       Nenhuma unidade cadastrada ainda.
       <button class="btn btn-primary btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#modalCriarRaiz">
-        ➕ Inserir Primeiro Nível
+        Inserir Primeiro Nivel
       </button>
     </div>
   {% endif %}
 
-  <!-- Container da Árvore (jsTree vai preencher isso) -->
   <div id="jstree"></div>
 
-  <!-- Modal para criação de primeiro nível -->
   <div class="modal fade" id="modalCriarRaiz" tabindex="-1" aria-labelledby="modalCriarRaizLabel" aria-hidden="true">
     <div class="modal-dialog">
       <div class="modal-content">
@@ -33,13 +31,33 @@
               <label for="id_nome_raiz" class="form-label">Nome da Unidade</label>
               <input type="text" name="nome" class="form-control" id="id_nome_raiz" required>
             </div>
-            <input type="hidden" name="parent" value="">  <!-- nenhum parent = raiz -->
+            <input type="hidden" name="parent" value="">
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
             <button type="submit" class="btn btn-primary">Salvar</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="modalExcluirNo" tabindex="-1" aria-labelledby="modalExcluirNoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalExcluirNoLabel">Revisar exclusao de unidade</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body" id="modalExcluirNoBody">
+          <p class="text-muted mb-0">Carregando dependencias...</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="btnConfirmExcluirNo">
+            <i class="bi bi-trash"></i> Aplicar e excluir
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -56,7 +74,7 @@
       });
 
       if (response.ok) {
-        location.reload(); // recarrega para exibir o novo nó
+        location.reload();
       } else {
         alert("Erro ao criar unidade raiz.");
       }
@@ -65,63 +83,398 @@
 {% endblock %}
 
 {% block extra_js %}
-  <!-- jQuery (caso não esteja no base.html) -->
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/jstree.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/themes/default/style.min.css" rel="stylesheet" />
 
-  <!-- jsTree -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/jstree.min.js"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/themes/default/style.min.css" rel="stylesheet" />
+<script>
+  const URLS = {
+    list: "{% url 'core:nos_list' %}",
+    create: "{% url 'core:nos_criar' %}",
+    renameTemplate: "{% url 'core:nos_renomear' 999999 %}",
+    moveTemplate: "{% url 'core:nos_mover' 999999 %}",
+    deleteTemplate: "{% url 'core:nos_deletar' 999999 %}",
+    depsTemplate: "{% url 'core:nos_dependencias' 999999 %}",
+  };
 
-  <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      $('#jstree').jstree({
-        'core': {
-          'data': {
-            'url': '/nos/',  // ✅ CORRIGIDO
-            'dataType': 'json'
-          },
-          'check_callback': true,
-          'themes': {
-            'variant': 'large'
-          }
-        },
-        'plugins': ['contextmenu', 'dnd', 'types', 'wholerow'],
-        'contextmenu': {
-          'items': function (node) {
-            let items = $.jstree.defaults.contextmenu.items();
-            items.create.label = "Criar filho";
-            items.rename.label = "Renomear";
-            items.remove.label = "Deletar";
-            return items;
-          }
+  function withId(template, id) {
+    return template.replace("999999", String(id));
+  }
+
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+      const cookies = document.cookie.split(";");
+      for (let cookie of cookies) {
+        cookie = cookie.trim();
+        if (cookie.startsWith(name + "=")) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
         }
+      }
+    }
+    return cookieValue;
+  }
+
+  function fetchJson(url, options = {}) {
+    const headers = {
+      Accept: "application/json",
+      ...(options.headers || {}),
+    };
+    const method = (options.method || "GET").toUpperCase();
+    if (method !== "GET" && method !== "HEAD" && !headers["X-CSRFToken"]) {
+      headers["X-CSRFToken"] = getCookie("csrftoken");
+    }
+    const opts = {
+      credentials: "same-origin",
+      ...options,
+      headers,
+    };
+    return fetch(url, opts).then(async (response) => {
+      const contentType = response.headers.get("content-type") || "";
+      let data;
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = { status: "error", message: text };
+      }
+      return { ok: response.ok, status: response.status, data };
+    });
+  }
+
+  function escapeHtml(value) {
+    if (value === null || value === undefined) return "";
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  const modalExcluirNoEl = document.getElementById("modalExcluirNo");
+  const modalExcluirNoBody = document.getElementById("modalExcluirNoBody");
+  const modalExcluirNoLabel = document.getElementById("modalExcluirNoLabel");
+  const btnConfirmExcluirNo = document.getElementById("btnConfirmExcluirNo");
+  let modalExcluirNoInstance = null;
+
+  let excluirNoContext = null;
+
+  function getCurrentScopeRows() {
+    if (!excluirNoContext || !excluirNoContext.preview) return [];
+    const scopes = excluirNoContext.preview.scopes || {};
+    if (excluirNoContext.deleteDescendants) {
+      return (scopes.subtree && scopes.subtree.rows) || [];
+    }
+    return (scopes.direct && scopes.direct.rows) || [];
+  }
+
+  function renderExcluirNoModal(extraMessage = "") {
+    if (!excluirNoContext || !modalExcluirNoBody) return;
+
+    const preview = excluirNoContext.preview;
+    const node = preview.node || {};
+    const parent = preview.parent || null;
+    const rows = getCurrentScopeRows();
+    const blockers = rows.filter((row) => row.action === "protect" || row.action === "restrict");
+    const cascades = rows.filter((row) => row.action === "cascade");
+    const passive = rows.filter((row) => !["protect", "restrict", "cascade"].includes(row.action));
+
+    const cascadeKeySet = new Set(cascades.map((row) => row.key));
+    excluirNoContext.deleteKeys.forEach((key) => {
+      if (!cascadeKeySet.has(key)) excluirNoContext.deleteKeys.delete(key);
+    });
+
+    const notSelectedCascade = cascades.filter((row) => !excluirNoContext.deleteKeys.has(row.key));
+    const parentLabel = parent ? `${escapeHtml(parent.nome)} (id ${parent.id})` : "Sem unidade pai";
+
+    let canSubmit = true;
+    const blockersNoParent = blockers.length > 0 && !parent;
+    const preserveNoParent = notSelectedCascade.length > 0 && !parent;
+    const blockersWithoutReassign = blockers.length > 0 && !excluirNoContext.reassignBlockers;
+
+    if (blockersNoParent || preserveNoParent || blockersWithoutReassign) {
+      canSubmit = false;
+    }
+
+    let html = `
+      <p class="mb-2">
+        Voce esta revisando a exclusao da unidade <strong>${escapeHtml(node.nome || "selecionada")}</strong> (id ${escapeHtml(node.id)}).
+      </p>
+      <p class="text-muted small mb-3">
+        Unidade pai para reatribuicao: <strong>${parentLabel}</strong>
+      </p>
+    `;
+
+    if (extraMessage) {
+      html += `<div class="alert alert-warning">${escapeHtml(extraMessage)}</div>`;
+    }
+
+    if ((preview.descendants_count || 0) > 0) {
+      const checked = excluirNoContext.deleteDescendants ? "checked" : "";
+      html += `
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="deleteDescendantsCheckbox" ${checked}>
+          <label class="form-check-label fw-semibold" for="deleteDescendantsCheckbox">
+            Excluir subunidades descendentes (${preview.descendants_count} no(s))
+          </label>
+          <div class="small text-muted">
+            Desmarcado: os filhos diretos serao promovidos para o nivel da unidade pai.
+          </div>
+        </div>
+      `;
+    }
+
+    if (blockers.length) {
+      const checked = excluirNoContext.reassignBlockers ? "checked" : "";
+      const disabled = parent ? "" : "disabled";
+      html += `
+        <div class="alert alert-danger">
+          <h6 class="mb-2">Bloqueios encontrados</h6>
+          <ul class="mb-2">
+            ${blockers.map((item) => `<li><strong>${escapeHtml(item.model)}</strong>: ${item.count} registro(s)</li>`).join("")}
+          </ul>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="reassignBlockersCheckbox" ${checked} ${disabled}>
+            <label class="form-check-label" for="reassignBlockersCheckbox">
+              Reatribuir bloqueios para a unidade pai antes de excluir
+            </label>
+          </div>
+          <div class="small mt-2 text-danger">Sem reatribuicao, a exclusao sera bloqueada.</div>
+        </div>
+      `;
+    }
+
+    if (cascades.length) {
+      html += `
+        <div class="alert alert-warning">
+          <h6 class="mb-2">Itens em cascata (escolha o que excluir)</h6>
+          <div class="small mb-2">Marcado: exclui os registros. Desmarcado: tenta preservar movendo para a unidade pai.</div>
+          <div class="vstack gap-2">
+            ${cascades.map((item) => {
+              const checked = excluirNoContext.deleteKeys.has(item.key) ? "checked" : "";
+              const inputId = `deleteKey_${item.key.replace(/[^a-z0-9]+/gi, "_")}`;
+              return `
+                <div class="form-check">
+                  <input class="form-check-input cascade-delete-checkbox" type="checkbox" id="${inputId}" data-key="${escapeHtml(item.key)}" ${checked}>
+                  <label class="form-check-label" for="${inputId}">
+                    Excluir <strong>${escapeHtml(item.model)}</strong> (${item.count} registro(s))
+                  </label>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    if (passive.length) {
+      html += `
+        <div class="alert alert-secondary">
+          <h6 class="mb-2">Outras relacoes encontradas</h6>
+          <ul class="mb-0">
+            ${passive.map((item) => `<li><strong>${escapeHtml(item.model)}</strong>: ${item.count} registro(s) - ${escapeHtml(item.action_label || item.action)}</li>`).join("")}
+          </ul>
+        </div>
+      `;
+    }
+
+    if (!rows.length) {
+      html += `<div class="alert alert-success">Nenhuma dependencia de dados encontrada para o escopo selecionado.</div>`;
+    }
+
+    if (blockersNoParent) {
+      html += `<div class="alert alert-danger mb-0">Esta unidade nao possui pai para reatribuir bloqueios. Ajuste manualmente antes de excluir.</div>`;
+    } else if (preserveNoParent) {
+      html += `<div class="alert alert-danger mb-0">Sem unidade pai, todos os itens em cascata precisam ser marcados para exclusao.</div>`;
+    } else if (blockersWithoutReassign) {
+      html += `<div class="alert alert-danger mb-0">Marque a reatribuicao de bloqueios ou cancele.</div>`;
+    }
+
+    modalExcluirNoBody.innerHTML = html;
+
+    if (btnConfirmExcluirNo) {
+      btnConfirmExcluirNo.disabled = !canSubmit;
+      btnConfirmExcluirNo.classList.toggle("disabled", !canSubmit);
+      btnConfirmExcluirNo.innerHTML = canSubmit
+        ? '<i class="bi bi-trash"></i> Aplicar e excluir'
+        : '<i class="bi bi-exclamation-triangle"></i> Exclusao bloqueada';
+    }
+  }
+
+  function openExcluirNoModal(node) {
+    excluirNoContext = {
+      nodeId: node.id,
+      nodeName: node.text,
+      preview: null,
+      deleteDescendants: false,
+      deleteKeys: new Set(),
+      reassignBlockers: true,
+    };
+
+    if (modalExcluirNoLabel) {
+      modalExcluirNoLabel.textContent = `Revisar exclusao: ${node.text}`;
+    }
+    if (modalExcluirNoBody) {
+      modalExcluirNoBody.innerHTML = '<p class="text-muted mb-0">Carregando dependencias...</p>';
+    }
+    if (btnConfirmExcluirNo) {
+      btnConfirmExcluirNo.disabled = true;
+      btnConfirmExcluirNo.classList.add("disabled");
+      btnConfirmExcluirNo.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Analisando';
+    }
+
+    if (modalExcluirNoInstance) {
+      modalExcluirNoInstance.show();
+    }
+
+    fetchJson(withId(URLS.depsTemplate, node.id))
+      .then(({ ok, data }) => {
+        if (!ok || data.status !== "ok" || !data.preview) {
+          throw new Error(data.message || "Falha ao carregar dependencias da unidade.");
+        }
+        excluirNoContext.preview = data.preview;
+        renderExcluirNoModal();
       })
-      .on('create_node.jstree', function (e, data) {
-        $.post('/nos/criar/', {  // ✅ CORRIGIDO
-          nome: data.node.text,
-          parent: data.node.parent !== "#" ? data.node.parent : "",
-          csrfmiddlewaretoken: '{{ csrf_token }}'
-        }, function (res) {
-          $('#jstree').jstree(true).set_id(data.node, res.id);
-        });
-      })
-      .on('rename_node.jstree', function (e, data) {
-        $.post(`/nos/renomear/${data.node.id}/`, {  // ✅ CORRIGIDO
-          nome: data.text,
-          csrfmiddlewaretoken: '{{ csrf_token }}'
-        });
-      })
-      .on('move_node.jstree', function (e, data) {
-        $.post(`/nos/mover/${data.node.id}/`, {  // ✅ CORRIGIDO
-          parent: data.parent !== "#" ? data.parent : "",
-          csrfmiddlewaretoken: '{{ csrf_token }}'
-        });
-      })
-      .on('delete_node.jstree', function (e, data) {
-        $.post(`/nos/deletar/${data.node.id}/`, {  // ✅ CORRIGIDO
-          csrfmiddlewaretoken: '{{ csrf_token }}'
-        });
+      .catch((err) => {
+        const msg = err && err.message ? err.message : "Falha ao carregar dependencias da unidade.";
+        if (modalExcluirNoBody) {
+          modalExcluirNoBody.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(msg)}</div>`;
+        }
+        if (btnConfirmExcluirNo) {
+          btnConfirmExcluirNo.disabled = true;
+          btnConfirmExcluirNo.classList.add("disabled");
+          btnConfirmExcluirNo.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Erro';
+        }
+      });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    modalExcluirNoInstance = modalExcluirNoEl ? new bootstrap.Modal(modalExcluirNoEl) : null;
+
+    if (modalExcluirNoEl) {
+      modalExcluirNoEl.addEventListener("hidden.bs.modal", () => {
+        excluirNoContext = null;
+        if (modalExcluirNoLabel) modalExcluirNoLabel.textContent = "Revisar exclusao de unidade";
+        if (modalExcluirNoBody) modalExcluirNoBody.innerHTML = '<p class="text-muted mb-0">Carregando dependencias...</p>';
+      });
+    }
+
+    if (modalExcluirNoBody) {
+      modalExcluirNoBody.addEventListener("change", (event) => {
+        if (!excluirNoContext || !excluirNoContext.preview) return;
+
+        if (event.target.id === "deleteDescendantsCheckbox") {
+          excluirNoContext.deleteDescendants = event.target.checked;
+          renderExcluirNoModal();
+          return;
+        }
+
+        if (event.target.id === "reassignBlockersCheckbox") {
+          excluirNoContext.reassignBlockers = event.target.checked;
+          renderExcluirNoModal();
+          return;
+        }
+
+        if (event.target.classList.contains("cascade-delete-checkbox")) {
+          const key = event.target.getAttribute("data-key");
+          if (!key) return;
+          if (event.target.checked) excluirNoContext.deleteKeys.add(key);
+          else excluirNoContext.deleteKeys.delete(key);
+          renderExcluirNoModal();
+        }
+      });
+    }
+
+    if (btnConfirmExcluirNo) {
+      btnConfirmExcluirNo.addEventListener("click", () => {
+        if (!excluirNoContext || !excluirNoContext.preview) return;
+
+        const payload = {
+          confirm: true,
+          delete_descendants: excluirNoContext.deleteDescendants,
+          reassign_blockers: excluirNoContext.reassignBlockers,
+          delete_keys: Array.from(excluirNoContext.deleteKeys),
+        };
+
+        btnConfirmExcluirNo.disabled = true;
+        btnConfirmExcluirNo.classList.add("disabled");
+        btnConfirmExcluirNo.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Excluindo';
+
+        fetchJson(withId(URLS.deleteTemplate, excluirNoContext.nodeId), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then(({ ok, data }) => {
+            if (!ok || data.status !== "ok") {
+              const msg = data.message || "Nao foi possivel excluir a unidade.";
+              if (data.preview) {
+                excluirNoContext.preview = data.preview;
+              }
+              renderExcluirNoModal(msg);
+              return;
+            }
+
+            if (modalExcluirNoInstance) {
+              modalExcluirNoInstance.hide();
+            }
+            $('#jstree').jstree(true).refresh();
+          })
+          .catch((err) => {
+            const msg = err && err.message ? err.message : "Erro ao excluir unidade.";
+            renderExcluirNoModal(msg);
+          });
+      });
+    }
+
+    $('#jstree').jstree({
+      core: {
+        data: {
+          url: URLS.list,
+          dataType: 'json'
+        },
+        check_callback: true,
+        themes: {
+          variant: 'large'
+        }
+      },
+      plugins: ['contextmenu', 'dnd', 'types', 'wholerow'],
+      contextmenu: {
+        items: function (node) {
+          let items = $.jstree.defaults.contextmenu.items();
+          items.create.label = "Criar filho";
+          items.rename.label = "Renomear";
+          items.remove.label = "Deletar (seguro)";
+          items.remove.action = function () {
+            openExcluirNoModal(node);
+          };
+          return items;
+        }
+      }
+    })
+    .on('create_node.jstree', function (e, data) {
+      $.post(URLS.create, {
+        nome: data.node.text,
+        parent: data.node.parent !== "#" ? data.node.parent : "",
+        csrfmiddlewaretoken: '{{ csrf_token }}'
+      }, function (res) {
+        $('#jstree').jstree(true).set_id(data.node, res.id);
+      });
+    })
+    .on('rename_node.jstree', function (e, data) {
+      $.post(withId(URLS.renameTemplate, data.node.id), {
+        nome: data.text,
+        csrfmiddlewaretoken: '{{ csrf_token }}'
+      });
+    })
+    .on('move_node.jstree', function (e, data) {
+      $.post(withId(URLS.moveTemplate, data.node.id), {
+        parent: data.parent !== "#" ? data.parent : "",
+        csrfmiddlewaretoken: '{{ csrf_token }}'
       });
     });
-  </script>
+  });
+</script>
 {% endblock %}

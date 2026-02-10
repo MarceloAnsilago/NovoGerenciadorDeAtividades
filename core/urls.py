@@ -61,6 +61,7 @@ urlpatterns = [
     path("nos/criar/", views.nos_criar, name="nos_criar"),
     path("nos/renomear/<int:pk>/", views.nos_renomear, name="nos_renomear"),
     path("nos/mover/<int:pk>/", views.nos_mover, name="nos_mover"),
+    path("nos/<int:pk>/dependencias/", views.nos_dependencias, name="nos_dependencias"),
     path("nos/deletar/<int:pk>/", views.nos_deletar, name="nos_deletar"),
 
     # Primeiro acesso

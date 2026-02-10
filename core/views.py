@@ -1,9 +1,11 @@
 from collections import defaultdict
+import json
 import calendar
 from datetime import date
 
 # core/views.py
 
+from django.apps import apps
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponseBadRequest
@@ -78,6 +80,14 @@ DEPENDENCY_HINTS = {
     "descanso.descanso": "Vá em Descanso ► Servidores para remover ou reatribuir o registro.",
     "plantao.plantao": "Confira Plantão ► Lista para ajustar o responsável pelo plantão.",
 }
+
+
+def _parse_bool(value):
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _map_on_delete_action(on_delete):
@@ -246,6 +256,126 @@ def _force_cleanup_user_dependencies(user):
     return report
 
 
+def _collect_descendant_ids(root_id: int) -> list[int]:
+    visited = {root_id}
+    descendants = []
+    frontier = [root_id]
+
+    while frontier:
+        child_ids = list(Unidade.objects.filter(parent_id__in=frontier).values_list("id", flat=True))
+        frontier = [cid for cid in child_ids if cid not in visited]
+        if not frontier:
+            break
+        visited.update(frontier)
+        descendants.extend(frontier)
+
+    return descendants
+
+
+def _iter_unidade_fk_fields():
+    for model in apps.get_models():
+        for field in model._meta.get_fields():
+            if not getattr(field, "is_relation", False):
+                continue
+            if not getattr(field, "many_to_one", False):
+                continue
+            if getattr(field, "auto_created", False):
+                continue
+
+            remote_field = getattr(field, "remote_field", None)
+            remote_model = getattr(remote_field, "model", None)
+            if remote_model is not Unidade:
+                continue
+
+            if model is Unidade and field.name == "parent":
+                # relação de árvore é tratada separadamente (subunidades)
+                continue
+
+            yield model, field
+
+
+def _build_unidade_dependency_rows(unidade_ids: list[int]) -> list[dict]:
+    if not unidade_ids:
+        return []
+
+    rows = []
+    for model, field in _iter_unidade_fk_fields():
+        qs = model.objects.filter(**{f"{field.name}_id__in": unidade_ids})
+        count = qs.count()
+        if not count:
+            continue
+
+        action_code, action_label = _map_on_delete_action(field.remote_field.on_delete)
+        model_label_lower = model._meta.label_lower
+        rows.append(
+            {
+                "key": f"{model_label_lower}:{field.name}",
+                "model_label": model_label_lower,
+                "model": str(model._meta.verbose_name_plural),
+                "model_singular": str(model._meta.verbose_name),
+                "field": field.name,
+                "count": count,
+                "action": action_code,
+                "action_label": str(action_label),
+                "hint": DEPENDENCY_HINTS.get(model_label_lower),
+            }
+        )
+
+    rows.sort(
+        key=lambda item: (
+            ACTION_PRIORITY.get(item["action"], 99),
+            item["model"],
+        )
+    )
+    return rows
+
+
+def _dependency_action_totals(rows: list[dict]) -> dict:
+    totals = defaultdict(int)
+    for item in rows:
+        totals[item["action"]] += item.get("count", 0)
+    return dict(totals)
+
+
+def _build_no_delete_preview(no: Unidade) -> dict:
+    descendants_ids = _collect_descendant_ids(no.id)
+    direct_children_count = Unidade.objects.filter(parent_id=no.id).count()
+
+    direct_rows = _build_unidade_dependency_rows([no.id])
+    descendants_rows = _build_unidade_dependency_rows(descendants_ids)
+    subtree_rows = _build_unidade_dependency_rows([no.id] + descendants_ids)
+
+    return {
+        "node": {
+            "id": no.id,
+            "nome": no.nome,
+            "parent_id": no.parent_id,
+        },
+        "parent": (
+            {"id": no.parent_id, "nome": no.parent.nome}
+            if no.parent_id and no.parent
+            else None
+        ),
+        "direct_children_count": direct_children_count,
+        "descendants_count": len(descendants_ids),
+        "has_parent": bool(no.parent_id),
+        "scopes": {
+            "direct": {
+                "rows": direct_rows,
+                "totals": _dependency_action_totals(direct_rows),
+            },
+            "descendants": {
+                "rows": descendants_rows,
+                "totals": _dependency_action_totals(descendants_rows),
+            },
+            "subtree": {
+                "rows": subtree_rows,
+                "totals": _dependency_action_totals(subtree_rows),
+            },
+        },
+    }
+
+
 # ============ DASHBOARD ============
 
 @login_required
@@ -366,13 +496,175 @@ def nos_mover(request, pk):
     return JsonResponse({'status': 'ok'})
 
 
+@require_GET
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def nos_dependencias(request, pk):
+    no = get_object_or_404(Unidade.objects.select_related("parent"), pk=pk)
+    preview = _build_no_delete_preview(no)
+    return JsonResponse({"status": "ok", "preview": preview})
+
+
 @require_POST
 @login_required
 @user_passes_test(lambda u: u.is_staff)
 def nos_deletar(request, pk):
-    no = get_object_or_404(Unidade, pk=pk)
-    no.delete()
-    return JsonResponse({'status': 'ok'})
+    no = get_object_or_404(Unidade.objects.select_related("parent"), pk=pk)
+
+    payload = {}
+    content_type = request.META.get("CONTENT_TYPE", "")
+    if "application/json" in content_type.lower():
+        try:
+            payload = json.loads((request.body or b"{}").decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            payload = {}
+    if not payload:
+        payload = request.POST
+
+    confirm = _parse_bool(payload.get("confirm"))
+    delete_descendants = _parse_bool(payload.get("delete_descendants"))
+    reassign_blockers = _parse_bool(payload.get("reassign_blockers"))
+
+    raw_delete_keys = payload.get("delete_keys", [])
+    if isinstance(raw_delete_keys, str):
+        delete_keys = {key.strip() for key in raw_delete_keys.split(",") if key.strip()}
+    elif isinstance(raw_delete_keys, list):
+        delete_keys = {str(key).strip() for key in raw_delete_keys if str(key).strip()}
+    else:
+        delete_keys = set()
+
+    preview = _build_no_delete_preview(no)
+    if not confirm:
+        return JsonResponse(
+            {
+                "status": "confirm_required",
+                "message": "Confirme a exclusao para continuar.",
+                "preview": preview,
+            },
+            status=400,
+        )
+
+    descendants_ids = _collect_descendant_ids(no.id)
+    affected_unit_ids = [no.id] + (descendants_ids if delete_descendants else [])
+    scope_rows = _build_unidade_dependency_rows(affected_unit_ids)
+
+    blockers = [row for row in scope_rows if row["action"] in {"protect", "restrict"}]
+    cascades = [row for row in scope_rows if row["action"] == "cascade"]
+    cascade_to_preserve = [row for row in cascades if row["key"] not in delete_keys]
+
+    parent = no.parent
+
+    if blockers and not reassign_blockers:
+        return JsonResponse(
+            {
+                "status": "blocked",
+                "message": "Existem vinculos bloqueadores. Marque a opcao de reatribuir bloqueios ou cancele.",
+                "preview": preview,
+                "scope_rows": scope_rows,
+            },
+            status=400,
+        )
+
+    if blockers and parent is None:
+        return JsonResponse(
+            {
+                "status": "blocked",
+                "message": "Nao e possivel excluir unidade raiz com vinculos bloqueadores sem unidade pai para reatribuir.",
+                "preview": preview,
+                "scope_rows": scope_rows,
+            },
+            status=400,
+        )
+
+    if cascade_to_preserve and parent is None:
+        return JsonResponse(
+            {
+                "status": "blocked",
+                "message": (
+                    "Nao ha unidade pai para preservar os vinculos marcados como manter. "
+                    "Marque-os para excluir ou cancele."
+                ),
+                "preview": preview,
+                "scope_rows": scope_rows,
+            },
+            status=400,
+        )
+
+    field_map = {}
+    for model, field in _iter_unidade_fk_fields():
+        key = f"{model._meta.label_lower}:{field.name}"
+        field_map[key] = (model, field)
+
+    report = {
+        "moved": [],
+        "deleted": [],
+        "moved_children": 0,
+    }
+
+    try:
+        with transaction.atomic():
+            for row in scope_rows:
+                key = row["key"]
+                mapping = field_map.get(key)
+                if mapping is None:
+                    continue
+                model, field = mapping
+                qs = model.objects.filter(**{f"{field.name}_id__in": affected_unit_ids})
+                count = qs.count()
+                if not count:
+                    continue
+
+                action = row["action"]
+                if action in {"protect", "restrict"}:
+                    if reassign_blockers:
+                        updated = qs.update(**{field.name: parent})
+                        if updated:
+                            report["moved"].append({"model": row["model"], "count": updated})
+                    continue
+
+                if action == "cascade":
+                    if key in delete_keys:
+                        deleted_count, _ = qs.delete()
+                        if deleted_count:
+                            report["deleted"].append({"model": row["model"], "count": deleted_count})
+                    else:
+                        updated = qs.update(**{field.name: parent})
+                        if updated:
+                            report["moved"].append({"model": row["model"], "count": updated})
+                    continue
+
+            if not delete_descendants:
+                moved_children = Unidade.objects.filter(parent_id=no.id).update(parent=parent)
+                report["moved_children"] = moved_children
+
+            no.delete()
+    except ProtectedError as exc:
+        return JsonResponse(
+            {
+                "status": "blocked",
+                "message": "A exclusao foi bloqueada por registros protegidos.",
+                "error": str(exc),
+                "preview": _build_no_delete_preview(no),
+            },
+            status=400,
+        )
+    except Exception as exc:
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "Falha ao executar exclusao segura da unidade.",
+                "error": str(exc),
+            },
+            status=500,
+        )
+
+    return JsonResponse(
+        {
+            "status": "ok",
+            "message": "Unidade excluida com sucesso.",
+            "report": report,
+        }
+    )
 
 
 # ============ PERFIS ============
