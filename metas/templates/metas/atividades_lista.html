@@ -4,12 +4,12 @@
 {% block title %}Atividades da Unidade{% endblock %}
 
 {% block content %}
-<div class="container py-4">
+<div class="container py-4 d-flex flex-column">
   {% url 'core:dashboard' as dash_url %}
   {% include "partials/_page_header.html" with title="Atividades" subtitle="Unidade atual: "|add:unidade_nome back_url=dash_url icon="bi-list-task" %}
 
   {% if has_unidade %}
-  <div class="card shadow-sm mb-4">
+  <div class="card shadow-sm order-2">
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
       <div>
         <strong><i class="bi bi-bullseye me-1"></i> Metas Alocadas</strong>
@@ -105,7 +105,7 @@
   </div>
   {% endif %}
 
-  <div class="card shadow-sm">
+  <div class="card shadow-sm mb-4 order-1">
     <div class="card-header bg-light">
       <strong><i class="bi bi-list-task me-1"></i> Definir metas - Atividades Cadastradas</strong>
     </div>
