@@ -6,12 +6,16 @@ document.addEventListener('DOMContentLoaded', function(){
   if (!el) return;
 
   const holidayDates = new Set();
-  const updateHolidayCells = () => {
+  const overdueDates = new Set();
+  const updateDayCells = () => {
     const cells = el.querySelectorAll('[data-date]');
     cells.forEach((cell) => {
       const date = cell.getAttribute('data-date');
       if (!date) return;
-      cell.classList.toggle('fc-day-feriado', holidayDates.has(date));
+      const isHoliday = holidayDates.has(date);
+      const isOverdue = !isHoliday && overdueDates.has(date);
+      cell.classList.toggle('fc-day-feriado', isHoliday);
+      cell.classList.toggle('fc-day-atrasado', isOverdue);
     });
   };
 
@@ -28,12 +32,15 @@ document.addEventListener('DOMContentLoaded', function(){
       .programar-event-count-badge{display:inline-flex;align-items:center;gap:.25rem;padding:.1rem .4rem;border-radius:.45rem;font-size:.72rem;font-weight:700;border:1px solid transparent;}
       .programar-event-count-badge.is-done{background:#e8f2ff;border-color:#bcd8ff;color:#0b4f9c;}
       .programar-event-count-badge.is-pending{background:#fdecef;border-color:#f5c2c7;color:#842029;}
+      .programar-event-count-badge.is-overdue{background:#ffe1bf;border-color:#ffb977;color:#7a2f00;}
       .programar-event-status.is-done{background:#e8f2ff;border-color:#bcd8ff;color:#0b4f9c;}
       .programar-event-status.is-done .programar-event-count{color:#0b4f9c;}
       .programar-event-status.is-partial{background:#f1f7eb;border-color:#d5e8b8;color:#3d5c1f;}
       .programar-event-status.is-partial .programar-event-count{color:#3d5c1f;}
       .programar-event-status.is-pending{background:#fdecef;border-color:#f5c2c7;color:#842029;}
       .programar-event-status.is-pending .programar-event-count{color:#842029;}
+      .programar-event-status.is-overdue{background:#ffe1bf;border-color:#ffb977;color:#7a2f00;}
+      .programar-event-status.is-overdue .programar-event-count{color:#7a2f00;}
       .programar-event-lines{display:flex;flex-direction:column;gap:.2rem;font-size:.78rem;line-height:1.15;word-break:break-word;color:#4b5563;}
       .programar-event-line{display:flex;align-items:flex-start;gap:.35rem;white-space:normal;}
       .programar-event-line-icon{margin-top:.05rem;font-size:.85rem;}
@@ -43,6 +50,7 @@ document.addEventListener('DOMContentLoaded', function(){
       .prog-event-card.is-done{background:#eef6ff;border-color:#c6defc;}
       .prog-event-card.is-partial{background:#f7faf2;border-color:#dfecc9;}
       .prog-event-card.is-pending{background:#fff4f5;border-color:#f5c2c7;}
+      .prog-event-card.is-overdue{background:#ffedd6;border-color:#ffbf86;}
       .prog-event-card .fc-event-main{padding:8px 9px;}
       .prog-event-feriado{border:1px solid #f5c2c7;background:#fff5f5;border-radius:.65rem;box-shadow:0 1px 4px rgba(15,23,42,.05);}
       .programar-event-feriado{display:flex;flex-direction:column;gap:.35rem;color:#842029;min-width:0;}
@@ -67,19 +75,31 @@ document.addEventListener('DOMContentLoaded', function(){
     return weekday ? `${weekday}, ${dateBR}` : dateBR;
   }
 
-  function computeStatus(props){
+  function toIsoDate(value){
+    if (typeof value === "string") return value.slice(0, 10);
+    if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+    const yyyy = value.getFullYear();
+    const mm = String(value.getMonth() + 1).padStart(2, "0");
+    const dd = String(value.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function computeStatus(props, startRef){
     const total = Number(props?.total_programadas || 0);
     const concluidas = Number(props?.total_concluidas || 0);
-      const done = total > 0 && concluidas >= total;
-      const partial = !done && concluidas > 0;
-      const pendentes = Math.max(total - concluidas, 0);
-      return {
-        key: done ? 'done' : (partial ? 'partial' : 'pending'),
-        total,
-        concluidas,
-        pendentes,
-      };
-    }
+    const done = total > 0 && concluidas >= total;
+    const partial = !done && concluidas > 0;
+    const pendentes = Math.max(total - concluidas, 0);
+    const dayIso = toIsoDate(startRef);
+    const todayIso = toIsoDate(new Date());
+    const overdue = pendentes > 0 && !!dayIso && dayIso < todayIso;
+    return {
+      key: overdue ? "overdue" : (done ? "done" : (partial ? "partial" : "pending")),
+      total,
+      concluidas,
+      pendentes,
+    };
+  }
 
   const eventSources = [];
   if (NS.urls.eventsFeed) eventSources.push({ url: NS.urls.eventsFeed });
@@ -117,12 +137,18 @@ document.addEventListener('DOMContentLoaded', function(){
     },
     eventsSet(events) {
       holidayDates.clear();
+      overdueDates.clear();
       events.forEach((ev) => {
-        if (ev?.extendedProps?.kind === 'feriado' && ev?.start) {
-          holidayDates.add(ev.start.toISOString().slice(0, 10));
+        const eventDay = toIsoDate(ev?.startStr || ev?.start);
+        if (!eventDay) return;
+        if (ev?.extendedProps?.kind === 'feriado') {
+          holidayDates.add(eventDay);
+          return;
         }
+        const status = computeStatus(ev?.extendedProps || {}, eventDay);
+        if (status.key === "overdue") overdueDates.add(eventDay);
       });
-      updateHolidayCells();
+      updateDayCells();
     },
     eventContent(info) {
       const props = info.event.extendedProps || {};
@@ -140,7 +166,7 @@ document.addEventListener('DOMContentLoaded', function(){
         wrapper.appendChild(desc);
         return { domNodes: [wrapper] };
       }
-      const status = computeStatus(props);
+      const status = computeStatus(props, info.event.startStr || info.event.start);
       const nomes = props.nomes_atividades;
       const textos = Array.isArray(nomes) ? nomes : [];
       const atividades = Array.isArray(props.atividades) ? props.atividades : [];
@@ -150,6 +176,7 @@ document.addEventListener('DOMContentLoaded', function(){
         done: { label: 'Concluida' },
         partial: { label: 'Em andamento' },
         pending: { label: 'Pendente' },
+        overdue: { label: 'Atrasada' },
       }[status.key] || { label: 'Pendente' };
 
       const wrapper = document.createElement('div');
@@ -157,10 +184,12 @@ document.addEventListener('DOMContentLoaded', function(){
 
       const statusEl = document.createElement('div');
       statusEl.className = `programar-event-status is-${status.key}`;
+      const countClass = status.key === "done" ? "done" : (status.key === "overdue" ? "overdue" : "pending");
+      const countValue = status.key === "done" ? status.total : status.pendentes;
       const countsHtml = (status.key === "partial")
         ? ""
         : `
-          <span class="programar-event-count-badge is-${status.key === "done" ? "done" : "pending"}">${status.total}</span>
+          <span class="programar-event-count-badge is-${countClass}">${countValue}</span>
         `;
 
       statusEl.innerHTML = `
@@ -198,7 +227,7 @@ document.addEventListener('DOMContentLoaded', function(){
       if (arg.event.extendedProps?.kind === "feriado") {
         return ["prog-event-feriado"];
       }
-      const status = computeStatus(arg.event.extendedProps || {});
+      const status = computeStatus(arg.event.extendedProps || {}, arg.event.startStr || arg.event.start);
       return ['prog-event-card', `is-${status.key}`];
     },
     eventDidMount(info) {
