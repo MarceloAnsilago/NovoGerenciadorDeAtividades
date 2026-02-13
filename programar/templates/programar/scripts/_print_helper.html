@@ -51,6 +51,10 @@
 
   function printCurrentRelatorio(btn) {
     if (!btn || btn.dataset.printing === "1") return;
+    const mode = String(btn.dataset.mode || '').toLowerCase();
+    const pageSizeRule = mode === 'programacao-only'
+      ? 'size:A4 landscape;'
+      : (mode === 'just-only' ? 'size:A4 portrait;' : '');
 
     // Resolve range (from the button or from the select fallback)
     function getRangeFromSelect() {
@@ -114,7 +118,7 @@
   <style>
     body{margin:0;padding:8px;background:#fff;font-family:system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:11px;}
     #relatorioPrintArea{box-shadow:none!important;border:0!important;}
-    @page{margin:8mm;}
+    @page{${pageSizeRule}margin:8mm;}
     /* Esconde qualquer toolbar marcada como no-print */
     @media print{ .no-print{ display:none!important } }
     /* Evita página em branco antes das justificativas */
@@ -186,7 +190,9 @@
     try{
       const cont = document.getElementById('programar-relatoriosContainer');
       const start = cont?.dataset?.start; const end = cont?.dataset?.end;
+      const mode = cont?.dataset?.mode;
       if (start && end) { btn.dataset.start = start; btn.dataset.end = end; }
+      if (mode) { btn.dataset.mode = mode; }
     }catch(_e){}
     printCurrentRelatorio(btn);
   }, true);

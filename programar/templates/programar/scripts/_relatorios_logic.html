@@ -36,6 +36,7 @@
 
     setLoading(container);
     delete container.dataset.start; delete container.dataset.end;
+    delete container.dataset.mode;
 
     let url = `${NS.urls.relatorios}?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
     try{
@@ -60,10 +61,12 @@
       }
 
       try{
+        const mode = String(NS.reportMode || 'all').toLowerCase();
         ['programar-btnImprimirProgramacao','btnImprimirProgramacao','programar-btnImprimirJustificativas','btnImprimirJustificativas'].forEach(id=>{
           const b=document.getElementById(id); if (b){ b.dataset.start=startISO; b.dataset.end=endISO; b.disabled=false; }
         });
         container.dataset.start = startISO; container.dataset.end = endISO;
+        container.dataset.mode = mode;
       }catch(e){ if (DEBUG) console.warn('dataset fail', e); }
 
     }catch(err){

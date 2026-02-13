@@ -1254,7 +1254,7 @@ def print_relatorio_semana(request):
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
     body{{padding:8px; font-size:11px}}
-    @page{{ margin:8mm; }}
+    @page{{ size:A4 landscape; margin:8mm; }}
     .report-container{{ max-width:1100px; margin:0 auto; }}
     .report-toolbar{{ display:flex; align-items:center; gap:.35rem; }}
     .report-toolbar .btn{{ min-width:110px; }}
@@ -1315,7 +1315,7 @@ def print_relatorio_justificativas(request):
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
     body{{padding:8px; font-size:11px}}
-    @page{{ margin:8mm; }}
+    @page{{ size:A4 portrait; margin:8mm; }}
     .report-container{{ max-width:1100px; margin:0 auto; }}
     .report-toolbar{{ display:flex; align-items:center; gap:.35rem; }}
     .report-toolbar .btn{{ min-width:110px; }}
