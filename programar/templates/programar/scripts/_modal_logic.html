@@ -266,9 +266,10 @@
     });
   }
 
-  function metaTitleFromGrid(metaId) {
+  function metaTitleFromGrid(metaId, fallbackTitle) {
     const n = document.querySelector(`#metasGrid [data-id="${metaId}"] .meta-title`);
-    return (n && n.textContent.trim()) || `Meta ${metaId}`;
+    const fallback = String(fallbackTitle || "").trim();
+    return (n && n.textContent.trim()) || fallback || `Meta ${metaId}`;
   }
 
   function findChip(id) {
@@ -327,7 +328,7 @@
       }
 
       // Demais metas
-      const title = metaTitleFromGrid(it.meta_id);
+      const title = metaTitleFromGrid(it.meta_id, it.titulo);
       const card = NS.ensureMetaCard?.(String(it.meta_id), title);
       if (!card) continue;
       if (it.id) {

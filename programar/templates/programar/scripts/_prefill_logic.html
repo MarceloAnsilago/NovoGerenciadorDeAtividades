@@ -24,11 +24,12 @@
     });
   }
 
-  function metaInfoFromGrid(metaId) {
+  function metaInfoFromGrid(metaId, fallbackTitle) {
     const card = document.querySelector(`#metasGrid [data-id="${metaId}"]`);
     const n = card?.querySelector(".meta-title");
+    const fallback = String(fallbackTitle || "").trim();
     return {
-      title: (n && n.textContent.trim()) || `Meta ${metaId}`,
+      title: (n && n.textContent.trim()) || fallback || `Meta ${metaId}`,
       descricao: (card?.dataset?.metaDescricao || "").trim(),
     };
   }
@@ -202,7 +203,7 @@
     }
 
     // Demais metas
-    const metaInfo = metaInfoFromGrid(it.meta_id);
+    const metaInfo = metaInfoFromGrid(it.meta_id, it.titulo);
     const title = metaInfo.title;
     let card = null;
     if (it.id) {

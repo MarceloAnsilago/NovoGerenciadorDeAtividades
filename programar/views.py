@@ -1583,9 +1583,44 @@ def programacao_do_dia_orm(request):
     except Programacao.DoesNotExist:
         return JsonResponse({"ok": True, "itens": []})
 
-    itens_qs = ProgramacaoItem.objects.filter(programacao=prog).values(
-        "id", "meta_id", "observacao", "veiculo_id", "concluido"
+    itens_qs = list(
+        ProgramacaoItem.objects.filter(programacao=prog).values(
+            "id", "meta_id", "observacao", "veiculo_id", "concluido"
+        )
     )
+    meta_ids: set[int] = set()
+    for it in itens_qs:
+        raw_meta_id = it.get("meta_id")
+        try:
+            if raw_meta_id is not None:
+                meta_ids.add(int(raw_meta_id))
+        except Exception:
+            continue
+
+    meta_title_by_id: Dict[int, str] = {}
+    if meta_ids:
+        metas_qs = Meta.objects.filter(id__in=list(meta_ids)).select_related("atividade")
+        for meta in metas_qs:
+            titulo = (
+                getattr(meta, "display_titulo", None)
+                or getattr(meta, "titulo", None)
+                or ""
+            )
+            if not titulo:
+                atividade = getattr(meta, "atividade", None)
+                if atividade:
+                    titulo = (
+                        getattr(atividade, "titulo", None)
+                        or getattr(atividade, "nome", None)
+                        or ""
+                    )
+            titulo = str(titulo).strip() if titulo else ""
+            if titulo:
+                try:
+                    meta_title_by_id[int(meta.id)] = titulo
+                except Exception:
+                    continue
+
     item_ids = [it["id"] for it in itens_qs]
     serv_ids_by_item: Dict[int, List[int]] = {}
     serv_objs_by_item: Dict[int, List[Dict[str, Any]]] = {}
@@ -1613,6 +1648,12 @@ def programacao_do_dia_orm(request):
             "servidores_ids": serv_ids_by_item.get(iid, []),
             "servidores": serv_objs_by_item.get(iid, []),
         }
+        try:
+            if meta_id is not None:
+                mid = int(meta_id)
+                obj["titulo"] = meta_title_by_id.get(mid) or f"Meta #{mid}"
+        except Exception:
+            pass
         try:
             if settings.META_EXPEDIENTE_ID and int(meta_id) == int(settings.META_EXPEDIENTE_ID):
                 obj["titulo"] = "Expediente administrativo"
