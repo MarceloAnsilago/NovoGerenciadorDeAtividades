@@ -24,12 +24,30 @@
     });
   }
 
+  async function waitForMetasGridReady(timeout = 5000) {
+    const hasGrid = () => !!document.getElementById("metasGrid");
+    if (!hasGrid()) return;
+    try {
+      await waitFor(() => {
+        const grid = document.getElementById("metasGrid");
+        if (!grid) return true;
+        return !grid.querySelector(".placeholder-glow");
+      }, timeout, 60);
+    } catch (_) {}
+  }
+
   function metaInfoFromGrid(metaId, fallbackTitle) {
     const card = document.querySelector(`#metasGrid [data-id="${metaId}"]`);
     const n = card?.querySelector(".meta-title");
-    const fallback = String(fallbackTitle || "").trim();
+    const fallbackRaw = String(fallbackTitle || "").trim();
+    const normalizedFallback = fallbackRaw.toLowerCase().replace(/\s+/g, " ");
+    const normalizedMetaId = String(metaId || "").toLowerCase();
+    const fallbackIsOnlyNumericMeta =
+      normalizedFallback === `meta #${normalizedMetaId}` ||
+      normalizedFallback === `meta ${normalizedMetaId}`;
+    const fallback = fallbackIsOnlyNumericMeta ? "" : fallbackRaw;
     return {
-      title: (n && n.textContent.trim()) || fallback || `Meta ${metaId}`,
+      title: (n && n.textContent.trim()) || fallback || "Atividade",
       descricao: (card?.dataset?.metaDescricao || "").trim(),
     };
   }
@@ -178,6 +196,8 @@
       document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: dateStr, count: 0 }}));
       return;
     }
+
+    await waitForMetasGridReady();
 
     const expEl = document.getElementById('expedienteAdmin');
     const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
