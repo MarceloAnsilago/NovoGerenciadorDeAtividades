@@ -21,6 +21,16 @@
       .replace(/'/g, "&#39;");
   }
 
+  function monthKeyToNumber(key) {
+    const raw = String(key || "");
+    const match = raw.match(/^(\d{4})-(\d{2})$/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
+    return year * 100 + month;
+  }
+
   function highlightExistingCard(metaId) {
     const container = document.getElementById("metaCardsContainer");
     if (!container) return;
@@ -250,13 +260,21 @@
       const applyFilters = () => {
         const selectedYear = NS.metaYearSelected || "";
         const selectedMonth = NS.metaMonthSelected || "";
+        const selectedMonthNumber = monthKeyToNumber(selectedMonth);
         cards.forEach((card) => {
           const cy = card.getAttribute("data-year") || "nodate";
           const cm = card.getAttribute("data-month") || "nodate";
+          const cardMonthNumber = monthKeyToNumber(cm);
           let visible = true;
           // Metas sem data_limite (cy === "nodate") devem sempre aparecer.
           if (selectedYear && cy !== "nodate") visible = cy === selectedYear;
-          if (visible && selectedMonth && cm !== "nodate") visible = cm === selectedMonth;
+          if (visible && selectedMonth && cm !== "nodate") {
+            if (selectedMonthNumber !== null && cardMonthNumber !== null) {
+              visible = cardMonthNumber >= selectedMonthNumber;
+            } else {
+              visible = cm === selectedMonth;
+            }
+          }
           card.style.display = visible ? "" : "none";
         });
       };
