@@ -1482,7 +1482,12 @@ def events_feed(request):
 @login_required
 @require_GET
 def metas_disponiveis(request):
-    """Metas alocadas para a UNIDADE atual (com somas alocado/executado)."""
+    """
+    Metas disponiveis para a unidade atual no modal de programacao.
+    Inclui:
+    - metas alocadas para a unidade;
+    - metas criadas na unidade sem nenhuma alocacao ainda.
+    """
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
         return JsonResponse({"metas": []})
@@ -1498,8 +1503,9 @@ def metas_disponiveis(request):
     if atividade_id:
         qs = qs.filter(meta__atividade_id=atividade_id)
     if data_ref:
+        # Mantemos metas com data limite futura para popular as abas dos meses seguintes.
+        # O recorte por intervalo inicio/fim e aplicado no front pelos filtros de mes/ano.
         qs = qs.filter(
-            Q(meta__data_inicio__isnull=True) | Q(meta__data_inicio__lte=data_ref),
             Q(meta__data_limite__isnull=True) | Q(meta__data_limite__gte=data_ref),
         )
 
@@ -1535,6 +1541,45 @@ def metas_disponiveis(request):
             prog_sum = 0
         bucket[mid]["executado_unidade"] += int(prog_sum)
         bucket[mid].setdefault("programadas_total", 0)
+
+    metas_sem_alocacao_qs = (
+        Meta.objects
+        .select_related("atividade")
+        .filter(unidade_criadora_id=unidade_id, encerrada=False, alocacoes__isnull=True)
+        .order_by("data_limite", "titulo")
+    )
+    if atividade_id:
+        metas_sem_alocacao_qs = metas_sem_alocacao_qs.filter(atividade_id=atividade_id)
+    if data_ref:
+        metas_sem_alocacao_qs = metas_sem_alocacao_qs.filter(
+            Q(data_limite__isnull=True) | Q(data_limite__gte=data_ref),
+        )
+
+    for meta in metas_sem_alocacao_qs:
+        if not getattr(meta, "id", None):
+            continue
+        mid = int(meta.id)
+        if mid in bucket:
+            continue
+        atividade = getattr(meta, "atividade", None)
+        atividade_nome = None
+        if atividade:
+            atividade_nome = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
+        status_key, status_label = _meta_status_info(meta)
+        bucket[mid] = {
+            "id": mid,
+            "nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem tÃ­tulo)"),
+            "descricao": (getattr(meta, "descricao", "") or "").strip(),
+            "atividade_nome": atividade_nome,
+            "data_inicio": getattr(meta, "data_inicio", None),
+            "data_limite": getattr(meta, "data_limite", None),
+            "alocado_unidade": 0,
+            "executado_unidade": 0,
+            "meta_total": int(getattr(meta, "quantidade_alvo", 0) or 0),
+            "status": status_key,
+            "status_label": status_label,
+            "programadas_total": 0,
+        }
 
     meta_ids = list(bucket.keys())
     if meta_ids:
