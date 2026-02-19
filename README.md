@@ -23,13 +23,13 @@
 
 1. Instale o [`flyctl`](https://fly.io/docs/getting-started/installing-flyctl/) e inicialize a aplicação (skip o `.toml` se já existir):
    ```
-   flyctl launch --name gerenciador-de-atividades --region sa-east-1 --dockerfile Dockerfile
+   flyctl launch --name gerenciador-de-atividades-celosmg1 --region gru --dockerfile Dockerfile
    ```
 2. Configure os segredos com `fly secrets set`. No mínimo defina:
    ```
 fly secrets set DJANGO_SECRET_KEY="valor-secreto"
 fly secrets set DJANGO_DEBUG="False"
-fly secrets set DJANGO_ALLOWED_HOSTS="gerenciador-de-atividades.fly.dev"
+fly secrets set DJANGO_ALLOWED_HOSTS="gerenciador-de-atividades-celosmg1.fly.dev"
    fly secrets set SUPABASE_DB_HOST=...
    fly secrets set SUPABASE_DB_NAME=...
    fly secrets set SUPABASE_DB_USER=...
