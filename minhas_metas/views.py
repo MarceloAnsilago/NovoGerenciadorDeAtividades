@@ -170,8 +170,6 @@ def minhas_metas_view(request):
             month_keys[key] = label
         setattr(meta_obj, "month_key", key)
 
-    tem_filhos = unidade.filhos.exists()
-
     month_param = request.GET.get("month") or ""
     today_key = f"{today.year}-{today.month:02d}"
     month_default_key: str | None = None
@@ -293,7 +291,6 @@ def minhas_metas_view(request):
     contexto = {
         "unidade": unidade,
         "alocacoes": alocacoes,
-        "tem_filhos": tem_filhos,
         "andamento": andamento,
         "dt_start": dt_start,
         "dt_end": dt_end,

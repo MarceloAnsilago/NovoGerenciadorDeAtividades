@@ -205,17 +205,6 @@
               </div>
             </div>
 
-            <div class="mt-auto pt-2 d-flex justify-content-end">
-              {% if aloc.quantidade_alocada %}
-                {% if tem_filhos or request.user.is_superuser %}
-                  <a href="{% url 'metas:atribuir-meta' meta.id %}"
-                     class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-arrow-left-right"></i> Atribuir / Redistribuir
-                  </a>
-                {% endif %}
-              {% endif %}
-            </div>
-
           </div>
         </div>
       </div>
