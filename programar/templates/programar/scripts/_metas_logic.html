@@ -38,6 +38,19 @@
     return `${match[1]}-${match[2]}`;
   }
 
+  function parseIsoDateLocal(value) {
+    const raw = String(value || "").trim();
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    // Horario ao meio-dia evita deslocamentos por timezone/DST na exibicao local.
+    return new Date(year, month - 1, day, 12, 0, 0, 0);
+  }
+
   function previousMonthKey(key) {
     const raw = String(key || "");
     const match = raw.match(/^(\d{4})-(\d{2})$/);
@@ -157,8 +170,8 @@
         const programadas = Number(m.programadas_total || 0);
         const alocado = Number(m.alocado_unidade || 0);
         const executado = Number(m.executado_unidade || 0);
-        const dInicio = m.data_inicio ? new Date(m.data_inicio) : null;
-        const dLimite = m.data_limite ? new Date(m.data_limite) : null;
+        const dInicio = parseIsoDateLocal(m.data_inicio);
+        const dLimite = parseIsoDateLocal(m.data_limite);
         const startMonthKey = dInicio ? (dInicio.getFullYear() + "-" + String(dInicio.getMonth() + 1).padStart(2, "0")) : "nodate";
         const endMonthKey = dLimite ? (dLimite.getFullYear() + "-" + String(dLimite.getMonth() + 1).padStart(2, "0")) : "nodate";
         const startYearKey = dInicio ? String(dInicio.getFullYear()) : "nodate";

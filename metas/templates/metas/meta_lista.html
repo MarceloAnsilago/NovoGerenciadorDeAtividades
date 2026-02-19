@@ -66,6 +66,7 @@
             <thead>
               <tr>
                 <th>Atividade</th>
+                <th class="text-center">Data inicial</th>
                 <th class="text-center">Prazo</th>
                 <th class="text-center">Meta (alvo)</th>
                 <th class="text-center">Programadas</th>
@@ -85,6 +86,7 @@
                     {{ aloc.meta.display_titulo }}
                   {% endif %}
                 </td>
+                <td class="text-center">{{ aloc.meta.data_inicio|date:"d/m/Y"|default:"--" }}</td>
                 <td class="text-center">{{ aloc.meta.data_limite|date:"d/m/Y"|default:"--" }}</td>
                 <td class="text-center">{{ aloc.meta.quantidade_alvo|default:"0" }}</td>
                 <td class="text-center">{{ aloc.programadas_total|default:"0" }}</td>
