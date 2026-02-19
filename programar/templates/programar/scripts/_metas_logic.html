@@ -144,6 +144,9 @@
     try {
       const resp = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
       const data = await resp.json();
+      const earliestMonthByYear = (data && typeof data.earliest_month_by_year === "object" && data.earliest_month_by_year)
+        ? data.earliest_month_by_year
+        : {};
 
       if (!data.metas || !Array.isArray(data.metas) || data.metas.length === 0) {
         metasGrid.innerHTML = `<div class="alert alert-light border mb-0">Nenhuma meta disponível.</div>`;
@@ -331,10 +334,25 @@
 
         const firstMonth = months[0] || "";
         const prevMonth = previousMonthKey(firstMonth);
+        const prevMonthNumber = monthKeyToNumber(prevMonth);
+        let earliestRegisteredMonthNumber = null;
+        Object.values(earliestMonthByYear || {}).forEach((mk) => {
+          const n = monthKeyToNumber(String(mk || ""));
+          if (n === null) return;
+          if (earliestRegisteredMonthNumber === null || n < earliestRegisteredMonthNumber) {
+            earliestRegisteredMonthNumber = n;
+          }
+        });
+        const canLoadPrevious = Boolean(
+          prevMonth &&
+          prevMonthNumber !== null &&
+          earliestRegisteredMonthNumber !== null &&
+          prevMonthNumber >= earliestRegisteredMonthNumber
+        );
         const parts = ["<ul class='nav nav-tabs mb-2' id='metasTabs' role='tablist'>"];
         parts.push(
           `<li class='nav-item' role='presentation'>` +
-          `<button class='nav-link metas-load-prev' type='button' role='button' title='Carregar meses anteriores' aria-label='Carregar meses anteriores' data-prev-month='${prevMonth || ""}' ${prevMonth ? "" : "disabled"}>` +
+          `<button class='nav-link metas-load-prev' type='button' role='button' title='Carregar meses anteriores' aria-label='Carregar meses anteriores' data-prev-month='${canLoadPrevious ? prevMonth : ""}' ${canLoadPrevious ? "" : "disabled"}>` +
           `<i class="bi bi-chevron-left me-1"></i>Anterior` +
           `</button>` +
           `</li>`
@@ -363,13 +381,17 @@
           if (!prev || NS._metaTabsLoadingPrev) return;
           const keepMonth = NS.metaMonthSelected || "";
           const keepYear = NS.metaYearSelected || "";
+          const prevYear = prev.slice(0, 4);
+          const crossingYear = Boolean(keepYear && prevYear && prevYear !== keepYear);
+          const nextYear = crossingYear ? prevYear : keepYear;
+          const nextMonth = crossingYear ? prev : keepMonth;
           NS._metaTabsLoadingPrev = true;
           prevBtn.disabled = true;
           prevBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Anterior`;
           try {
             await NS.loadMetas(`${prev}-01`, {
-              preserveMonth: keepMonth,
-              preserveYear: keepYear,
+              preserveMonth: nextMonth,
+              preserveYear: nextYear,
             });
           } finally {
             NS._metaTabsLoadingPrev = false;

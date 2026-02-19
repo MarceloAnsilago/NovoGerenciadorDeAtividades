@@ -1581,6 +1581,21 @@ def metas_disponiveis(request):
             "programadas_total": 0,
         }
 
+    metas_cadastradas_qs = Meta.objects.filter(
+        Q(alocacoes__unidade_id=unidade_id) |
+        Q(unidade_criadora_id=unidade_id, alocacoes__isnull=True)
+    ).distinct()
+    if atividade_id:
+        metas_cadastradas_qs = metas_cadastradas_qs.filter(atividade_id=atividade_id)
+    earliest_month_by_year: Dict[str, str] = {}
+    for row in metas_cadastradas_qs.exclude(data_limite__isnull=True).values_list("data_limite", flat=True):
+        if not row:
+            continue
+        year_key = str(getattr(row, "year", ""))
+        month_key = f"{row.year}-{row.month:02d}"
+        if year_key and (year_key not in earliest_month_by_year or month_key < earliest_month_by_year[year_key]):
+            earliest_month_by_year[year_key] = month_key
+
     meta_ids = list(bucket.keys())
     if meta_ids:
         itens_stats = (
@@ -1602,7 +1617,7 @@ def metas_disponiveis(request):
             str(x.get("nome") or "").lower(),
         )
     )
-    return JsonResponse({"metas": metas})
+    return JsonResponse({"metas": metas, "earliest_month_by_year": earliest_month_by_year})
 
 
 @require_GET
