@@ -1568,7 +1568,7 @@ def metas_disponiveis(request):
         status_key, status_label = _meta_status_info(meta)
         bucket[mid] = {
             "id": mid,
-            "nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem tÃ­tulo)"),
+            "nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem titulo)"),
             "descricao": (getattr(meta, "descricao", "") or "").strip(),
             "atividade_nome": atividade_nome,
             "data_inicio": getattr(meta, "data_inicio", None),
@@ -1617,7 +1617,10 @@ def metas_disponiveis(request):
             str(x.get("nome") or "").lower(),
         )
     )
-    return JsonResponse({"metas": metas, "earliest_month_by_year": earliest_month_by_year})
+    return JsonResponse({
+        "metas": metas,
+        "earliest_month_by_year": earliest_month_by_year,
+    })
 
 
 @require_GET
