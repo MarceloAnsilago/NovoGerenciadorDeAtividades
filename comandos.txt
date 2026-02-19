@@ -5,7 +5,7 @@ python manage.py runserver
 python manage.py shell
 
 
-flyctl deploy -a gerenciador-de-atividades-celosmg1
+flyctl deploy -a gerenciador-de-atividades
 
 supabase 
 celosmg@hotmail.com
