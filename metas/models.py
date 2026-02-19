@@ -24,6 +24,7 @@ class Meta(models.Model):
     titulo = models.CharField(max_length=255)
     descricao = models.TextField(blank=True)
     quantidade_alvo = models.PositiveIntegerField(default=0)
+    data_inicio = models.DateField(null=True, blank=True)
     data_limite = models.DateField(null=True, blank=True)
     criado_por = models.ForeignKey(User, on_delete=models.PROTECT, related_name="metas_criadas_por")
     criado_em = models.DateTimeField(auto_now_add=True)
@@ -32,6 +33,7 @@ class Meta(models.Model):
     class Meta:
         ordering = ["-criado_em"]
         indexes = [
+            models.Index(fields=["data_inicio"]),
             models.Index(fields=["data_limite"]),
             models.Index(fields=["unidade_criadora"]),
         ]

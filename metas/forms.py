@@ -1,18 +1,26 @@
 # metas/forms.py
 from django import forms
+from django.utils import timezone
+
 from .models import Meta, MetaAlocacao
+
 
 class MetaForm(forms.ModelForm):
     class Meta:
         model = Meta
         # usamos os campos reais do model
-        fields = ["data_limite", "quantidade_alvo", "descricao"]
+        fields = ["data_inicio", "data_limite", "quantidade_alvo", "descricao"]
         labels = {
+            "data_inicio": "Data inicial",
             "quantidade_alvo": "Quantidade",
-            "descricao": "Observações",
+            "descricao": "Observacoes",
             "data_limite": "Data limite",
         }
         widgets = {
+            "data_inicio": forms.DateInput(
+                format="%Y-%m-%d",
+                attrs={"type": "date", "class": "form-control"},
+            ),
             "data_limite": forms.DateInput(
                 format="%Y-%m-%d",
                 attrs={"type": "date", "class": "form-control"},
@@ -23,27 +31,40 @@ class MetaForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # garante que o input type=date use o formato ISO (YYYY-MM-DD) para preencher o valor inicial
+        # garante que os inputs type=date usem formato ISO (YYYY-MM-DD)
+        self.fields["data_inicio"].input_formats = ["%Y-%m-%d", "%d/%m/%Y"]
         self.fields["data_limite"].input_formats = ["%Y-%m-%d", "%d/%m/%Y"]
+
+        instance = getattr(self, "instance", None)
+        # default apenas na criacao para nao sobrescrever metas antigas em edicao.
+        if not self.is_bound and not getattr(instance, "pk", None):
+            self.fields["data_inicio"].initial = timezone.localdate()
 
     def clean(self):
         """
-        Impede reduzir a quantidade abaixo do total de atividades já programadas
-        e bloqueia edição de metas encerradas.
+        Impede reduzir a quantidade abaixo do total de atividades ja programadas
+        e bloqueia edicao de metas encerradas.
         """
         cleaned = super().clean()
         instance = getattr(self, "instance", None)
+        data_inicio = cleaned.get("data_inicio")
+        data_limite = cleaned.get("data_limite")
         new_qty = cleaned.get("quantidade_alvo")
 
-        # bloqueia edições em metas encerradas
-        if instance and getattr(instance, "encerrada", False):
-            raise forms.ValidationError("Esta meta já foi encerrada e não pode ser editada.")
+        if data_inicio and data_limite and data_inicio > data_limite:
+            self.add_error("data_inicio", "A data inicial nao pode ser maior que a data limite.")
+            self.add_error("data_limite", "A data limite nao pode ser menor que a data inicial.")
 
-        # valida quantidade x programações existentes
+        # bloqueia edicoes em metas encerradas
+        if instance and getattr(instance, "encerrada", False):
+            raise forms.ValidationError("Esta meta ja foi encerrada e nao pode ser editada.")
+
+        # valida quantidade x programacoes existentes
         if instance and getattr(instance, "pk", None) and new_qty is not None:
             programadas_total = 0
             try:
                 from programar.models import ProgramacaoItem  # import local para evitar custo global
+
                 programadas_total = ProgramacaoItem.objects.filter(meta_id=instance.id).count()
             except Exception:
                 programadas_total = 0
@@ -63,12 +84,13 @@ class MetaForm(forms.ModelForm):
                 self.add_error(
                     "quantidade_alvo",
                     (
-                        f"Não é possível reduzir a meta porque já existem {joined}. "
-                        "Remova essas referências antes de diminuir a quantidade alvo."
+                        f"Nao e possivel reduzir a meta porque ja existem {joined}. "
+                        "Remova essas referencias antes de diminuir a quantidade alvo."
                     ),
                 )
 
         return cleaned
+
 
 class MetaAlocacaoForm(forms.ModelForm):
     class Meta:
@@ -76,7 +98,7 @@ class MetaAlocacaoForm(forms.ModelForm):
         fields = ["quantidade_alocada", "observacao"]
         labels = {
             "quantidade_alocada": "Quantidade a alocar",
-            "observacao": "Observação",
+            "observacao": "Observacao",
         }
         widgets = {
             "quantidade_alocada": forms.NumberInput(attrs={"class": "form-control"}),

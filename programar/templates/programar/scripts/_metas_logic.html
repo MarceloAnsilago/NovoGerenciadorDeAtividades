@@ -31,6 +31,36 @@
     return year * 100 + month;
   }
 
+  function monthKeyFromDateString(value) {
+    const raw = String(value || "").trim();
+    const match = raw.match(/^(\d{4})-(\d{2})/);
+    if (!match) return "";
+    return `${match[1]}-${match[2]}`;
+  }
+
+  function parseYearKey(value) {
+    const raw = String(value || "").trim();
+    if (!raw || raw === "nodate") return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function cardMatchesYear(card, selectedYear) {
+    if (!selectedYear) return true;
+    const startYear = parseYearKey(card.getAttribute("data-start-year"));
+    const endYear = parseYearKey(card.getAttribute("data-end-year"));
+
+    if (selectedYear === "nodate") {
+      return startYear === null && endYear === null;
+    }
+
+    const y = parseYearKey(selectedYear);
+    if (y === null) return true;
+    if (startYear !== null && y < startYear) return false;
+    if (endYear !== null && y > endYear) return false;
+    return true;
+  }
+
   function highlightExistingCard(metaId) {
     const container = document.getElementById("metaCardsContainer");
     if (!container) return;
@@ -64,6 +94,12 @@
   NS.loadMetas = async function (dateStr = null) {
     const metasGrid = document.getElementById("metasGrid");
     if (!metasGrid) return;
+    const monthFromDate = monthKeyFromDateString(dateStr);
+    NS.metaDateMonth = monthFromDate;
+    if (monthFromDate) {
+      NS.metaMonthSelected = monthFromDate;
+      NS.metaYearSelected = monthFromDate.slice(0, 4);
+    }
 
     const STATUS_LABELS = {
       andamento: "Em andamento",
@@ -98,9 +134,14 @@
         const programadas = Number(m.programadas_total || 0);
         const alocado = Number(m.alocado_unidade || 0);
         const executado = Number(m.executado_unidade || 0);
-        const d = m.data_limite ? new Date(m.data_limite) : null;
-        const monthKey = d ? (d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")) : "nodate";
-        const yearKey = d ? String(d.getFullYear()) : "nodate";
+        const dInicio = m.data_inicio ? new Date(m.data_inicio) : null;
+        const dLimite = m.data_limite ? new Date(m.data_limite) : null;
+        const startMonthKey = dInicio ? (dInicio.getFullYear() + "-" + String(dInicio.getMonth() + 1).padStart(2, "0")) : "nodate";
+        const endMonthKey = dLimite ? (dLimite.getFullYear() + "-" + String(dLimite.getMonth() + 1).padStart(2, "0")) : "nodate";
+        const startYearKey = dInicio ? String(dInicio.getFullYear()) : "nodate";
+        const endYearKey = dLimite ? String(dLimite.getFullYear()) : "nodate";
+        const monthKey = endMonthKey;
+        const yearKey = dLimite ? String(dLimite.getFullYear()) : (dInicio ? String(dInicio.getFullYear()) : "nodate");
         const statusKey = String(m.status || "andamento").toLowerCase();
         const normalizedStatus = STATUS_LABELS[statusKey] ? statusKey : "andamento";
         const statusLabel = m.status_label || STATUS_LABELS[normalizedStatus] || STATUS_LABELS.andamento;
@@ -108,7 +149,9 @@
         const metaNomeEscaped = escapeHtml(m.nome || "");
         const descricao = String(m.descricao || "").trim();
         const descricaoEscaped = escapeHtml(descricao);
-        const dataLimiteStr = d ? d.toLocaleDateString("pt-BR") : "";
+        const dataInicioStr = dInicio ? dInicio.toLocaleDateString("pt-BR") : "";
+        const dataInicioEscaped = escapeHtml(dataInicioStr);
+        const dataLimiteStr = dLimite ? dLimite.toLocaleDateString("pt-BR") : "";
         const dataLimiteEscaped = escapeHtml(dataLimiteStr);
         const percentualExecutado = alocado ? Math.min(100, Math.round((executado / alocado) * 100)) : 0;
         return `
@@ -118,6 +161,10 @@
                   data-programadas="${programadas}"
                   data-alocado="${alocado}"
                   data-meta-descricao="${descricaoEscaped}"
+                  data-start-month="${startMonthKey}"
+                  data-end-month="${endMonthKey}"
+                  data-start-year="${startYearKey}"
+                  data-end-year="${endYearKey}"
                   data-month="${monthKey}"
                   data-year="${yearKey}"
                   data-status="${normalizedStatus}">
@@ -130,7 +177,14 @@
             </div>
             <div class="meta-sep"></div>
             ${descricao ? `<p class="meta-desc mb-0">${descricaoEscaped}</p>` : ""}
-            ${d ? `
+            ${dInicio ? `
+              <div class="meta-date">
+                <i class="bi bi-calendar-check"></i>
+                <span>Data inicial:</span>
+                <strong>${dataInicioEscaped}</strong>
+              </div>
+            ` : ""}
+            ${dLimite ? `
               <div class="meta-date">
                 <i class="bi bi-calendar-event"></i>
                 <span>Data limite:</span>
@@ -159,18 +213,26 @@
         const years = [];
         let hasNoDate = false;
         cards.forEach((c) => {
-          const y = c.getAttribute("data-year") || "nodate";
-          if (y === "nodate") {
+          const startYear = parseYearKey(c.getAttribute("data-start-year"));
+          const endYear = parseYearKey(c.getAttribute("data-end-year"));
+          if (startYear === null && endYear === null) {
             hasNoDate = true;
             return;
           }
-          if (!years.includes(y)) years.push(y);
+          const firstYear = startYear ?? endYear;
+          const lastYear = endYear ?? startYear;
+          for (let y = firstYear; y <= lastYear; y += 1) {
+            const yKey = String(y);
+            if (!years.includes(yKey)) years.push(yKey);
+          }
         });
         years.sort((a, b) => Number(b) - Number(a));
 
         const currentStored = NS.metaYearSelected || null;
         const currentYear = String(new Date().getFullYear());
         let defaultYear = currentStored;
+        if (defaultYear === "nodate" && !hasNoDate) defaultYear = "";
+        if (defaultYear && defaultYear !== "nodate" && !years.includes(defaultYear)) defaultYear = "";
         if (!defaultYear) {
           if (years.includes(currentYear)) defaultYear = currentYear;
           else if (years.length > 0) defaultYear = years[0];
@@ -204,8 +266,7 @@
         const months = [];
         const labels = {};
         cards.forEach((c) => {
-          const cy = c.getAttribute("data-year") || "nodate";
-          if (selectedYear && cy !== selectedYear) return;
+          if (!cardMatchesYear(c, selectedYear)) return;
           const mk = c.getAttribute("data-month") || "nodate";
           if (mk === "nodate") return;
           if (!months.includes(mk)) {
@@ -220,6 +281,18 @@
             }
           }
         });
+        const requestedMonth = NS.metaDateMonth || "";
+        if (requestedMonth && !months.includes(requestedMonth)) {
+          months.unshift(requestedMonth);
+          try {
+            const [yy, mm] = requestedMonth.split("-").map(Number);
+            const dt = new Date(yy, mm - 1, 1);
+            const lbl = dt.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+            labels[requestedMonth] = lbl.charAt(0).toUpperCase() + lbl.slice(1);
+          } catch (_e) {
+            labels[requestedMonth] = requestedMonth;
+          }
+        }
 
         if (months.length === 0) {
           NS.metaMonthSelected = "";
@@ -262,18 +335,16 @@
         const selectedMonth = NS.metaMonthSelected || "";
         const selectedMonthNumber = monthKeyToNumber(selectedMonth);
         cards.forEach((card) => {
-          const cy = card.getAttribute("data-year") || "nodate";
           const cm = card.getAttribute("data-month") || "nodate";
-          const cardMonthNumber = monthKeyToNumber(cm);
+          const startMonth = card.getAttribute("data-start-month") || "nodate";
+          const endMonth = card.getAttribute("data-end-month") || cm;
+          const startMonthNumber = monthKeyToNumber(startMonth);
+          const endMonthNumber = monthKeyToNumber(endMonth);
           let visible = true;
-          // Metas sem data_limite (cy === "nodate") devem sempre aparecer.
-          if (selectedYear && cy !== "nodate") visible = cy === selectedYear;
-          if (visible && selectedMonth && cm !== "nodate") {
-            if (selectedMonthNumber !== null && cardMonthNumber !== null) {
-              visible = cardMonthNumber >= selectedMonthNumber;
-            } else {
-              visible = cm === selectedMonth;
-            }
+          if (selectedYear) visible = cardMatchesYear(card, selectedYear);
+          if (visible && selectedMonth && selectedMonthNumber !== null) {
+            if (startMonthNumber !== null && selectedMonthNumber < startMonthNumber) visible = false;
+            if (visible && endMonthNumber !== null && selectedMonthNumber > endMonthNumber) visible = false;
           }
           card.style.display = visible ? "" : "none";
         });

@@ -15,15 +15,21 @@
           Crie a alocação desta meta para a unidade <strong>{{ unidade.nome }}</strong>:
         </p>
         {% if request.user.is_superuser or meta.unidade_criadora_id == unidade.id %}
-          <form method="post"
-                action="{% url 'metas:excluir-meta' meta.id %}"
-                onsubmit="return confirm('Tem certeza que deseja excluir esta meta? Essa ação não pode ser desfeita.');">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-            <button type="submit" class="btn btn-outline-danger btn-sm">
-              <i class="bi bi-trash"></i> Excluir meta
-            </button>
-          </form>
+          <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'metas:editar' meta.id %}?next={{ request.get_full_path|urlencode }}"
+               class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-pencil-square"></i> Editar meta
+            </a>
+            <form method="post"
+                  action="{% url 'metas:excluir-meta' meta.id %}"
+                  onsubmit="return confirm('Tem certeza que deseja excluir esta meta? Essa a??o n?o pode ser desfeita.');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-trash"></i> Excluir meta
+              </button>
+            </form>
+          </div>
         {% endif %}
       </div>
 

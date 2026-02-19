@@ -100,6 +100,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='progressometa',
-            constraint=models.CheckConstraint(condition=models.Q(('quantidade__gt', 0)), name='progresso_quantidade_gt_0'),
+            constraint=models.CheckConstraint(check=models.Q(('quantidade__gt', 0)), name='progresso_quantidade_gt_0'),
         ),
     ]

@@ -44,11 +44,15 @@
             </div>
           </div>
 
-          <div class="col-md-6">
+          <div class="col-md-4">
+            <label class="form-label" for="{{ form.data_inicio.id_for_label }}">Data inicial (opcional)</label>
+            {{ form.data_inicio }}
+          </div>
+          <div class="col-md-4">
             <label class="form-label" for="{{ form.data_limite.id_for_label }}">Data limite</label>
             {{ form.data_limite }}
           </div>
-          <div class="col-md-6">
+          <div class="col-md-4">
             <label class="form-label" for="{{ form.quantidade_alvo.id_for_label }}">Quantidade alvo (diligencias)</label>
             {{ form.quantidade_alvo }}
           </div>

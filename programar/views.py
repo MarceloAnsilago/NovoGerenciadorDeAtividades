@@ -1488,6 +1488,7 @@ def metas_disponiveis(request):
         return JsonResponse({"metas": []})
 
     atividade_id = request.GET.get("atividade")
+    data_ref = _parse_date((request.GET.get("data") or "").strip())
     qs = (
         MetaAlocacao.objects
         .select_related("meta", "meta__atividade")
@@ -1496,6 +1497,11 @@ def metas_disponiveis(request):
     )
     if atividade_id:
         qs = qs.filter(meta__atividade_id=atividade_id)
+    if data_ref:
+        qs = qs.filter(
+            Q(meta__data_inicio__isnull=True) | Q(meta__data_inicio__lte=data_ref),
+            Q(meta__data_limite__isnull=True) | Q(meta__data_limite__gte=data_ref),
+        )
 
     bucket: Dict[int, Dict[str, Any]] = {}
     for al in qs:
@@ -1514,6 +1520,7 @@ def metas_disponiveis(request):
                 "nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem título)"),
                 "descricao": (getattr(meta, "descricao", "") or "").strip(),
                 "atividade_nome": atividade_nome,
+                "data_inicio": getattr(meta, "data_inicio", None),
                 "data_limite": getattr(meta, "data_limite", None),
                 "alocado_unidade": 0,
                 "executado_unidade": 0,

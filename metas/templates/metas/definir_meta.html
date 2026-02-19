@@ -42,6 +42,11 @@
 
         <div class="row g-3">
           <div class="col-md-6">
+            <label for="{{ form.data_inicio.id_for_label }}" class="form-label">Data inicial (opcional)</label>
+            {{ form.data_inicio }}
+          </div>
+
+          <div class="col-md-6">
             <label for="{{ form.data_limite.id_for_label }}" class="form-label">Data limite</label>
             {{ form.data_limite }}
           </div>
