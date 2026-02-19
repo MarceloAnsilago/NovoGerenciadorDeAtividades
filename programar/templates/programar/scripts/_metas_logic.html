@@ -38,6 +38,21 @@
     return `${match[1]}-${match[2]}`;
   }
 
+  function previousMonthKey(key) {
+    const raw = String(key || "");
+    const match = raw.match(/^(\d{4})-(\d{2})$/);
+    if (!match) return "";
+    let year = Number(match[1]);
+    let month = Number(match[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return "";
+    month -= 1;
+    if (month < 1) {
+      month = 12;
+      year -= 1;
+    }
+    return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+  }
+
   function parseYearKey(value) {
     const raw = String(value || "").trim();
     if (!raw || raw === "nodate") return null;
@@ -91,15 +106,20 @@
     return window.confirm(mensagem);
   }
 
-  NS.loadMetas = async function (dateStr = null) {
+  NS.loadMetas = async function (dateStr = null, opts = {}) {
     const metasGrid = document.getElementById("metasGrid");
     if (!metasGrid) return;
+    const options = opts && typeof opts === "object" ? opts : {};
+    const preserveMonth = String(options.preserveMonth || "").trim();
+    const preserveYear = String(options.preserveYear || "").trim();
     const monthFromDate = monthKeyFromDateString(dateStr);
     NS.metaDateMonth = monthFromDate;
     if (monthFromDate) {
       NS.metaMonthSelected = monthFromDate;
       NS.metaYearSelected = monthFromDate.slice(0, 4);
     }
+    if (preserveMonth) NS.metaMonthSelected = preserveMonth;
+    if (preserveYear) NS.metaYearSelected = preserveYear;
 
     const STATUS_LABELS = {
       andamento: "Em andamento",
@@ -309,7 +329,16 @@
           NS.metaMonthSelected = curMonth;
         }
 
+        const firstMonth = months[0] || "";
+        const prevMonth = previousMonthKey(firstMonth);
         const parts = ["<ul class='nav nav-tabs mb-2' id='metasTabs' role='tablist'>"];
+        parts.push(
+          `<li class='nav-item' role='presentation'>` +
+          `<button class='nav-link metas-load-prev' type='button' role='button' title='Carregar meses anteriores' aria-label='Carregar meses anteriores' data-prev-month='${prevMonth || ""}' ${prevMonth ? "" : "disabled"}>` +
+          `<i class="bi bi-chevron-left me-1"></i>Anterior` +
+          `</button>` +
+          `</li>`
+        );
         months.forEach((k) => {
           const active = k === curMonth;
           parts.push(`<li class='nav-item' role='presentation'><button class='nav-link ${active ? "active" : ""}' data-key='${k}' type='button' role='tab'>${labels[k] || k}</button></li>`);
@@ -320,13 +349,31 @@
         const applyMonthFilter = (key) => {
           NS.metaMonthSelected = key || "";
           applyFilters();
-          const tabs = metasGrid.previousElementSibling?.querySelectorAll?.(".nav-link") || [];
+          const tabs = metasGrid.previousElementSibling?.querySelectorAll?.(".nav-link[data-key]") || [];
           tabs.forEach((b) => { b.classList.toggle("active", b.getAttribute("data-key") === key); });
         };
 
         const tabContainer = metasGrid.previousElementSibling;
-        tabContainer?.querySelectorAll?.(".nav-link")?.forEach((btn) => {
+        tabContainer?.querySelectorAll?.(".nav-link[data-key]")?.forEach((btn) => {
           btn.addEventListener("click", () => applyMonthFilter(btn.getAttribute("data-key")));
+        });
+        const prevBtn = tabContainer?.querySelector?.(".metas-load-prev");
+        prevBtn?.addEventListener("click", async () => {
+          const prev = String(prevBtn.getAttribute("data-prev-month") || "").trim();
+          if (!prev || NS._metaTabsLoadingPrev) return;
+          const keepMonth = NS.metaMonthSelected || "";
+          const keepYear = NS.metaYearSelected || "";
+          NS._metaTabsLoadingPrev = true;
+          prevBtn.disabled = true;
+          prevBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Anterior`;
+          try {
+            await NS.loadMetas(`${prev}-01`, {
+              preserveMonth: keepMonth,
+              preserveYear: keepYear,
+            });
+          } finally {
+            NS._metaTabsLoadingPrev = false;
+          }
         });
       };
 
