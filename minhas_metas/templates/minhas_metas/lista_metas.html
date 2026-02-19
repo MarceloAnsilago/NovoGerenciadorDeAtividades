@@ -257,6 +257,7 @@
           <select name="status" class="form-select form-select-sm" style="max-width: 160px;">
             <option value="" {% if not status_filter %}selected{% endif %}>Todas</option>
             <option value="concluidas" {% if status_filter == 'concluidas' %}selected{% endif %}>Concluidas</option>
+            <option value="nao_executadas" {% if status_filter == 'nao_executadas' %}selected{% endif %}>Nao executadas</option>
             <option value="pendentes" {% if status_filter == 'pendentes' %}selected{% endif %}>Pendentes</option>
           </select>
           <button class="btn btn-sm btn-outline-secondary">

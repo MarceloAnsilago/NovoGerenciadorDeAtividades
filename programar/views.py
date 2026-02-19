@@ -1680,10 +1680,26 @@ def marcar_item_realizada(request, item_id: int):
     except ProgramacaoItem.DoesNotExist:
         return JsonResponse({"ok": False, "error": "Item não encontrado."}, status=404)
 
-    pi.concluido = realizada
-    pi.save(update_fields=["concluido"])
+    if realizada:
+        pi.concluido = True
+        pi.concluido_em = timezone.now()
+        pi.concluido_por_id = getattr(request.user, "id", None)
+    else:
+        # No toggle rapido, "desmarcar" volta para pendente.
+        pi.concluido = False
+        pi.concluido_em = None
+        pi.concluido_por_id = None
+    pi.save(update_fields=["concluido", "concluido_em", "concluido_por_id"])
 
     return JsonResponse({"ok": True, "item_id": pi.id, "realizada": pi.concluido})
+
+
+def _item_execucao_status(item: ProgramacaoItem) -> str:
+    if bool(getattr(item, "concluido", False)):
+        return "executada"
+    if getattr(item, "concluido_em", None):
+        return "nao_executada"
+    return "pendente"
 
 
 @login_required
@@ -1721,7 +1737,7 @@ def concluir_item_form(request, item_id: int):
         pendentes_qs = (
             ProgramacaoItem.objects
             .select_related("programacao", "veiculo")
-            .filter(meta_id=meta.id, concluido=False)
+            .filter(meta_id=meta.id, concluido=False, concluido_em__isnull=True)
             .exclude(pk=pi.id)
             .order_by("programacao__data", "id")
         )
@@ -1738,14 +1754,19 @@ def concluir_item_form(request, item_id: int):
         pendentes_tem_mais = pendentes_total > len(pendentes_preview)
 
     if request.method == "POST":
-        realizado_raw = (request.POST.get("realizado") or "").strip().lower()
-        concluido_flag = realizado_raw in {"1", "true", "on", "sim"}
+        status_execucao = (request.POST.get("status_execucao") or "").strip().lower()
+        if status_execucao not in {"executada", "nao_executada", "pendente"}:
+            # Compatibilidade com payload legado (checkbox "realizado").
+            realizado_raw = (request.POST.get("realizado") or "").strip().lower()
+            status_execucao = "executada" if realizado_raw in {"1", "true", "on", "sim"} else "pendente"
+
+        concluido_flag = status_execucao == "executada"
+        marcado_com_status = status_execucao in {"executada", "nao_executada"}
         obs_final = (request.POST.get("observacoes") or "").strip()
         confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
 
         if (not ignorar_pendentes) and concluido_flag and pendentes_total > 0 and not confirmar_pendentes:
             # exige confirmacao explícita antes de concluir com pendencias
-            pi.concluido = concluido_flag
             contexto = {
                 "item": pi,
                 "programacao": programacao,
@@ -1759,6 +1780,7 @@ def concluir_item_form(request, item_id: int):
                 "pendentes_tem_mais": pendentes_tem_mais,
                 "pendentes_confirmacao_obrigatoria": True,
                 "confirmar_pendentes_checked": confirmar_pendentes,
+                "status_execucao_current": status_execucao,
                 "source": source_context,
             }
             return render(request, "minhas_metas/concluir_item.html", contexto)
@@ -1784,7 +1806,7 @@ def concluir_item_form(request, item_id: int):
                     "Nao encontrei alocacao desta meta para a unidade. O progresso nao foi registrado.",
                 )
 
-        if concluido_flag:
+        if marcado_com_status:
             concluido_em = timezone.now()
             concluido_por_id = getattr(request.user, "id", None)
         else:
@@ -1815,6 +1837,7 @@ def concluir_item_form(request, item_id: int):
         "pendentes_tem_mais": pendentes_tem_mais,
         "pendentes_confirmacao_obrigatoria": False,
         "confirmar_pendentes_checked": False,
+        "status_execucao_current": _item_execucao_status(pi),
         "source": source_context,
     }
     return render(request, "minhas_metas/concluir_item.html", contexto)

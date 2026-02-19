@@ -54,6 +54,16 @@ def _meta_status_info(meta):
     return "andamento", "Em andamento"
 
 
+def _item_execucao_info(item):
+    concluido = bool(getattr(item, "concluido", False))
+    concluido_em = getattr(item, "concluido_em", None)
+    if concluido:
+        return "concluidas", "Executada"
+    if concluido_em:
+        return "nao_executadas", "Nao executada"
+    return "pendentes", "Pendente"
+
+
 @login_required
 def minhas_metas_view(request):
     unidade = get_unidade_atual(request)
@@ -75,7 +85,7 @@ def minhas_metas_view(request):
 
     status_param = request.GET.get("status")
     status_value = (status_param or "").lower()
-    if status_value not in {"concluidas", "pendentes"}:
+    if status_value not in {"concluidas", "pendentes", "nao_executadas"}:
         status_value = ""
 
     status_query_filter = status_value
@@ -212,8 +222,10 @@ def minhas_metas_view(request):
         itens_qs = itens_qs.filter(meta_id=meta_filter_id)
     if status_query_filter == "concluidas":
         itens_qs = itens_qs.filter(concluido=True)
+    elif status_query_filter == "nao_executadas":
+        itens_qs = itens_qs.filter(concluido=False, concluido_em__isnull=False)
     elif status_query_filter == "pendentes":
-        itens_qs = itens_qs.filter(concluido=False)
+        itens_qs = itens_qs.filter(concluido=False, concluido_em__isnull=True)
 
     item_ids = list(itens_qs.values_list("id", flat=True))
     servidores_por_item: dict[int, list[str]] = defaultdict(list)
@@ -238,6 +250,7 @@ def minhas_metas_view(request):
         if not meta or not programacao:
             continue
 
+        status_key, status_label = _item_execucao_info(item)
         andamento.append({
             "item_id": item.id,
             "data": getattr(programacao, "data", None),
@@ -247,6 +260,8 @@ def minhas_metas_view(request):
             "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
             "servidores": servidores_por_item.get(item.id, []),
             "concluido": bool(getattr(item, "concluido", False)),
+            "status_key": status_key,
+            "status_label": status_label,
         })
 
     selected_meta_title: str = ""

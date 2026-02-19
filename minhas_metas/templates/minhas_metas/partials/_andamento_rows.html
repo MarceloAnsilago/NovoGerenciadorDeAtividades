@@ -20,14 +20,25 @@
   <td class="text-nowrap">{{ it.veiculo|default:"&mdash;" }}</td>
   <td>
     <div class="d-flex align-items-center gap-2">
-      <span
-        class="badge {% if it.concluido %}bg-success-subtle text-success{% else %}bg-secondary-subtle text-secondary{% endif %}">
-        {% if it.concluido %}Executada{% else %}Pendente{% endif %}
+      <span class="badge
+        {% if it.status_key == 'concluidas' %}bg-success-subtle text-success
+        {% elif it.status_key == 'nao_executadas' %}bg-warning-subtle text-warning-emphasis
+        {% else %}bg-secondary-subtle text-secondary{% endif %}">
+        {{ it.status_label|default:"Pendente" }}
       </span>
 
-      <a class="btn btn-sm {% if it.concluido %}btn-success{% else %}btn-primary{% endif %}"
+      <a class="btn btn-sm
+        {% if it.status_key == 'concluidas' %}btn-success
+        {% elif it.status_key == 'nao_executadas' %}btn-warning
+        {% else %}btn-primary{% endif %}"
          href="{% url 'programar:concluir-item-form' it.item_id %}?next={{ request.get_full_path|urlencode }}&source=minhas-metas">
-        {% if it.concluido %}Concluida{% else %}Concluir{% endif %}
+        {% if it.status_key == 'concluidas' %}
+          Concluida
+        {% elif it.status_key == 'nao_executadas' %}
+          Nao executada
+        {% else %}
+          Concluir
+        {% endif %}
       </a>
     </div>
   </td>

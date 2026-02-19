@@ -57,20 +57,46 @@
             <input type="hidden" name="next" value="{{ next|default:'/minhas-metas/' }}">
             {% if source %}<input type="hidden" name="source" value="{{ source }}">{% endif %}
 
-            <div>
-              <label class="form-label d-block">Realizado?</label>
-              <div class="form-check form-switch">
-                <input type="checkbox"
-                       class="form-check-input"
-                       id="id_realizado"
-                       name="realizado"
-                       value="1"
-                       {% if item.concluido %}checked{% endif %}>
-                <label class="form-check-label" for="id_realizado">
-                  Marque quando a atividade foi executada.
-                </label>
+            {% with status_current=request.POST.status_execucao|default:status_execucao_current|default:'pendente' %}
+              <div>
+                <label class="form-label d-block">Status da execucao</label>
+                <div class="vstack gap-2">
+                  <div class="form-check">
+                    <input class="form-check-input"
+                           type="radio"
+                           name="status_execucao"
+                           id="id_status_pendente"
+                           value="pendente"
+                           {% if status_current == 'pendente' %}checked{% endif %}>
+                    <label class="form-check-label" for="id_status_pendente">
+                      Pendente
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input"
+                           type="radio"
+                           name="status_execucao"
+                           id="id_status_executada"
+                           value="executada"
+                           {% if status_current == 'executada' %}checked{% endif %}>
+                    <label class="form-check-label" for="id_status_executada">
+                      Executada
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input"
+                           type="radio"
+                           name="status_execucao"
+                           id="id_status_nao_executada"
+                           value="nao_executada"
+                           {% if status_current == 'nao_executada' %}checked{% endif %}>
+                    <label class="form-check-label" for="id_status_nao_executada">
+                      Nao executada
+                    </label>
+                  </div>
+                </div>
               </div>
-            </div>
+            {% endwith %}
 
             <div>
               <label class="form-label">Observacoes</label>
@@ -96,7 +122,7 @@
                   </ul>
                 {% endif %}
                 <p class="mt-2 mb-0 small">
-                  Para concluir mesmo assim, confirme a opcao abaixo.
+                  Para marcar este item como executada mesmo assim, confirme a opcao abaixo.
                   {% if pendentes_confirmacao_obrigatoria %}
                     <span class="text-danger fw-semibold">Selecione a confirmacao para prosseguir.</span>
                   {% endif %}
@@ -118,7 +144,7 @@
             <div class="d-flex justify-content-end gap-2">
               <a href="{{ next|default:'/minhas-metas/' }}" class="btn btn-light">Cancelar</a>
               <button class="btn btn-primary" type="submit">
-                <i class="bi bi-check2-circle me-1"></i> Salvar conclusão
+                <i class="bi bi-check2-circle me-1"></i> Salvar status
               </button>
             </div>
           </form>
@@ -126,8 +152,8 @@
       </div>
 
       <div class="small text-muted mt-2">
-        Ao salvar: marca o item como <em>concluido</em> quando estiver realizado
-        e mantem a observacao vinculada a programacao.
+        Ao salvar: voce pode manter <em>pendente</em>, marcar como <em>executada</em>
+        ou <em>nao executada</em>, mantendo a observacao vinculada ao item.
       </div>
     </div>
   </div>
