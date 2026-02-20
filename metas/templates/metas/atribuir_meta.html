@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container py-4">
   {% url 'metas:metas-unidade' as back_url %}
-  {% include "partials/_page_header.html" with title="Atribuir Meta" subtitle=meta.titulo back_url=back_url icon="bi-list-check" %}
+  {% include "partials/_page_header.html" with title="Atribuir Meta" subtitle=meta.display_titulo back_url=back_url icon="bi-list-check" %}
 
   <div class="card shadow-sm">
     <div class="card-body">

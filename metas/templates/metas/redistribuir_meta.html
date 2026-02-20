@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="container py-4">
-  {% include "partials/_page_header.html" with title="Redistribuir Meta" subtitle=meta.titulo back_url=back_url icon="bi-arrow-left-square" %}
+  {% include "partials/_page_header.html" with title="Redistribuir Meta" subtitle=meta.display_titulo back_url=back_url icon="bi-arrow-left-square" %}
   <div class="card shadow-sm">
     <div class="card-body">
       <p>Redistribuir a alocação de <strong>{{ parent_aloc.unidade.nome }}</strong>: <strong>{{ parent_aloc.quantidade_alocada }}</strong></p>

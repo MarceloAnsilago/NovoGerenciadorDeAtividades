@@ -45,24 +45,25 @@ class Meta(models.Model):
 
     @property
     def display_titulo(self):
+        atividade = getattr(self, "atividade", None)
+        if atividade:
+            atividade_titulo = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
+            if atividade_titulo and str(atividade_titulo).strip():
+                return str(atividade_titulo).strip()
         t = self.titulo
         if t and str(t).strip():
             return str(t).strip()
-        atividade = getattr(self, "atividade", None)
-        if atividade:
-            return getattr(atividade, "titulo", None) or getattr(atividade, "nome", None) or "(sem título)"
-        return "(sem título)"
+        return "(sem titulo)"
 
     def save(self, *args, **kwargs):
-        # normaliza título e tenta preencher a partir da atividade se estiver vazio
-        if self.titulo is not None:
+        # Meta vinculada a atividade sempre espelha o titulo oficial da atividade.
+        atividade = getattr(self, "atividade", None)
+        if atividade:
+            possible = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
+            if possible:
+                self.titulo = str(possible).strip()
+        elif self.titulo is not None:
             self.titulo = str(self.titulo).strip()
-        if not self.titulo:
-            atividade = getattr(self, "atividade", None)
-            if atividade:
-                possible = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
-                if possible:
-                    self.titulo = str(possible).strip()
         super().save(*args, **kwargs)
 
     @property

@@ -133,7 +133,7 @@
             <tbody>
               {% for m in metas_atividade %}
                 <tr>
-                  <td>{{ m.titulo }}</td>
+                  <td>{{ m.display_titulo }}</td>
                   <td>{{ m.unidade_criadora.nome }}</td>
                   <td>{% if m.data_limite %}{{ m.data_limite|date:"d/m/Y" }}{% else %}—{% endif %}</td>
                   <td>{{ m.quantidade_alvo }}</td>
