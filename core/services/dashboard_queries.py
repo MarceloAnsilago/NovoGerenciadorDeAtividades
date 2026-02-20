@@ -78,6 +78,20 @@ def _format_month_label_pt(month_date: date) -> str:
     return f"{month_names[month_date.month - 1]}/{month_date.year}"
 
 
+def _format_week_label_pt(week_start: date) -> str:
+    week_end = week_start + timedelta(days=6)
+    return f"{week_start.strftime('%d/%m')} a {week_end.strftime('%d/%m')}"
+
+
+def _normalize_to_date(value):
+    if value is None:
+        return None
+    to_date = getattr(value, "date", None)
+    if callable(to_date):
+        return to_date()
+    return value
+
+
 def _week_sequence_for_range(start_date: date, end_date: date) -> List[date]:
     if start_date > end_date:
         return []
@@ -281,6 +295,52 @@ def get_progresso_mensal(
     end_date: date | None = None,
 ) -> dict:
     if start_date and end_date:
+        today = timezone.localdate()
+        is_single_month = start_date.year == end_date.year and start_date.month == end_date.month
+        is_current_month = (
+            is_single_month
+            and start_date.year == today.year
+            and start_date.month == today.month
+        )
+
+        if is_current_month:
+            weeks = _week_sequence_for_range(start_date, end_date)
+            qs = (
+                _filter_by_unidades(ProgressoMeta.objects.all(), unidade_ids, "alocacao__unidade_id")
+                .filter(data__range=(start_date, end_date))
+                .annotate(semana_inicio=TruncWeek("data"))
+                .values("semana_inicio")
+                .annotate(total=Coalesce(Sum("quantidade"), Value(0), output_field=IntegerField()))
+                .order_by("semana_inicio")
+            )
+
+            week_map = {}
+            for item in qs:
+                week_start = _normalize_to_date(item.get("semana_inicio"))
+                if week_start is None:
+                    continue
+                week_map[week_start] = item.get("total", 0)
+
+            labels = []
+            data = []
+            for week_start in weeks:
+                labels.append(_format_week_label_pt(week_start))
+                data.append(week_map.get(week_start, 0))
+
+            return {
+                "labels": labels,
+                "datasets": [
+                    {
+                        "label": "Progresso semanal",
+                        "borderColor": "#6610f2",
+                        "backgroundColor": "rgba(102,16,242,0.2)",
+                        "tension": 0.3,
+                        "fill": True,
+                        "data": data,
+                    }
+                ],
+            }
+
         months = _month_sequence_for_range(start_date, end_date)
     else:
         months = _month_sequence()
@@ -297,7 +357,12 @@ def get_progresso_mensal(
     if start_date and end_date:
         qs = qs.filter(data__range=(start_date, end_date))
 
-    mapped = {item["mes"]: item["total"] for item in qs if item["mes"] is not None}
+    mapped = {}
+    for item in qs:
+        month_start = _normalize_to_date(item.get("mes"))
+        if month_start is None:
+            continue
+        mapped[month_start] = item.get("total", 0)
 
     labels = []
     data = []

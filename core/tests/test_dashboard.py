@@ -1,3 +1,6 @@
+from datetime import date
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -7,8 +10,9 @@ from core.services.dashboard_queries import (
     get_dashboard_kpis,
     get_metas_por_unidade,
     get_atividades_por_area,
+    get_progresso_mensal,
 )
-from metas.models import Meta, MetaAlocacao
+from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from servidores.models import Servidor
 from atividades.models import Area, Atividade
 
@@ -120,3 +124,89 @@ class DashboardMetasPorUnidadeTest(TestCase):
 
         empty = get_atividades_por_area(self.user, unidade_ids=[])
         self.assertEqual(empty["datasets"][0]["data"], [])
+
+
+class DashboardProgressoMensalTest(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="progresso", password="secret123")
+        self.root = No.objects.create(nome="Regional", tipo="setor")
+        UserProfile.objects.create(user=self.user, unidade=self.root)
+        self.meta = Meta.objects.create(
+            unidade_criadora=self.root,
+            titulo="Meta de Progresso",
+            descricao="",
+            quantidade_alvo=100,
+            criado_por=self.user,
+        )
+        self.alocacao = MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.root,
+            quantidade_alocada=100,
+            atribuida_por=self.user,
+        )
+
+    @patch("core.services.dashboard_queries.timezone.localdate", return_value=date(2026, 2, 20))
+    def test_current_month_range_returns_weekly_series(self, _mock_today):
+        ProgressoMeta.objects.create(
+            alocacao=self.alocacao,
+            data=date(2026, 2, 3),
+            quantidade=2,
+            registrado_por=self.user,
+        )
+        ProgressoMeta.objects.create(
+            alocacao=self.alocacao,
+            data=date(2026, 2, 18),
+            quantidade=4,
+            registrado_por=self.user,
+        )
+        ProgressoMeta.objects.create(
+            alocacao=self.alocacao,
+            data=date(2026, 2, 27),
+            quantidade=1,
+            registrado_por=self.user,
+        )
+
+        result = get_progresso_mensal(
+            self.user,
+            unidade_ids=[self.root.id],
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 2, 28),
+        )
+
+        expected_labels = [
+            "26/01 a 01/02",
+            "02/02 a 08/02",
+            "09/02 a 15/02",
+            "16/02 a 22/02",
+            "23/02 a 01/03",
+        ]
+        self.assertEqual(result["datasets"][0]["label"], "Progresso semanal")
+        self.assertEqual(result["labels"], expected_labels)
+        self.assertEqual(result["datasets"][0]["data"], [0, 2, 0, 4, 1])
+
+    @patch("core.services.dashboard_queries.timezone.localdate", return_value=date(2026, 2, 20))
+    def test_non_current_month_range_keeps_monthly_series(self, _mock_today):
+        ProgressoMeta.objects.create(
+            alocacao=self.alocacao,
+            data=date(2026, 1, 10),
+            quantidade=3,
+            registrado_por=self.user,
+        )
+        ProgressoMeta.objects.create(
+            alocacao=self.alocacao,
+            data=date(2026, 1, 22),
+            quantidade=5,
+            registrado_por=self.user,
+        )
+
+        result = get_progresso_mensal(
+            self.user,
+            unidade_ids=[self.root.id],
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 31),
+        )
+
+        self.assertEqual(result["datasets"][0]["label"], "Progresso acumulado")
+        self.assertEqual(result["labels"], ["Jan/2026"])
+        self.assertEqual(result["datasets"][0]["data"], [8])
