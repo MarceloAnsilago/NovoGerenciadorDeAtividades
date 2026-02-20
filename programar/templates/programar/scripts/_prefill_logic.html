@@ -11,8 +11,31 @@
   NS._hasPrefilledExpediente    = false;  // ser true se o expediente veio do banco
 
   const DEBUG = false;
+  NS._prefillRunId = NS._prefillRunId || 0;
 
   // ---------- helpers ----------
+  function isISODate(value) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
+  }
+
+  function getModalSelectedDate() {
+    return String(document.getElementById("programar-dataAtividade")?.value || "").trim();
+  }
+
+  function resolveCurrentPrefillDate() {
+    const active = getModalSelectedDate();
+    if (isISODate(active)) return active;
+    const last = String(NS._lastPrefill?.date || "").trim();
+    return isISODate(last) ? last : "";
+  }
+
+  function isStalePrefill(runId, requestedDate) {
+    if (NS._prefillRunId !== runId) return true;
+    const activeDate = getModalSelectedDate();
+    if (isISODate(activeDate) && activeDate !== requestedDate) return true;
+    return false;
+  }
+
   function waitFor(testFn, timeout = 6000, step = 50){
     return new Promise((resolve, reject)=>{
       const t0 = Date.now();
@@ -161,15 +184,19 @@
 
   // ---------- PREFILL ----------
   NS.prefillProgramacaoDia = async function prefillProgramacaoDia(dateStr){
+    const requestedDate = String(dateStr || "").trim();
     const urlBase = NS.urls?.programacaoDia;
-    if (!urlBase || !dateStr) return;
+    if (!urlBase || !isISODate(requestedDate)) return;
+    const runId = (Number(NS._prefillRunId) || 0) + 1;
+    NS._prefillRunId = runId;
 
     // containers base
     try { await waitFor(() => document.getElementById('metaCardsContainer') && document.getElementById('servidoresLivres')); } catch {}
+    if (isStalePrefill(runId, requestedDate)) return;
 
     // busca programao do dia
     const url = new URL(urlBase, window.location.origin);
-    url.searchParams.set('data', dateStr);
+    url.searchParams.set('data', requestedDate);
 
     let itens = [];
     try{
@@ -178,11 +205,13 @@
       const data = await resp.json().catch(()=> ({}));
       itens = Array.isArray(data?.itens) ? data.itens : [];
     }catch{ return; }
+    if (isStalePrefill(runId, requestedDate)) return;
 
-    NS._lastPrefill = { date: dateStr, itens };
+    NS._lastPrefill = { date: requestedDate, itens };
 
     // sempre limpa
     resetAllocations({ skipExpediente: itens.length === 0 });
+    if (isStalePrefill(runId, requestedDate)) return;
 
     // por padro, permite semear; caso venham itens, bloqueia
     NS._allowExpedienteFromLivres = itens.length === 0;
@@ -193,11 +222,12 @@
       (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
       try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
       NS._obsDirty = false;
-      document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: dateStr, count: 0 }}));
+      document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: requestedDate, count: 0 }}));
       return;
     }
 
     await waitForMetasGridReady();
+    if (isStalePrefill(runId, requestedDate)) return;
 
     const expEl = document.getElementById('expedienteAdmin');
     const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
@@ -256,31 +286,35 @@
       else sel.dataset.veiculoId = String(it.veiculo_id);
     }
 
-    const drop = card.querySelector('.meta-dropzone') || card;
-    const nomes = new Map((it.servidores || []).map(s => [String(s.id), s.nome]));
-    (it.servidores_ids || []).forEach(sid => ensureChipIn(drop, sid, nomes.get(String(sid))));
+      const drop = card.querySelector('.meta-dropzone') || card;
+      const nomes = new Map((it.servidores || []).map(s => [String(s.id), s.nome]));
+      (it.servidores_ids || []).forEach(sid => ensureChipIn(drop, sid, nomes.get(String(sid))));
+      if (isStalePrefill(runId, requestedDate)) return;
   }
 
+    if (isStalePrefill(runId, requestedDate)) return;
     try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
     (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
     NS._obsDirty = false;
-    document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: dateStr, count: itens.length }}));
+    document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: requestedDate, count: itens.length }}));
     if (DEBUG) console.debug('[prefill] aplicado', itens.length, 'itens');
   };
 
   // reaplica assim que o catlogo terminar de carregar
   const moLate = new MutationObserver(() => {
-    if (!NS._lastPrefill?.date) return;
+    const targetDate = resolveCurrentPrefillDate();
+    if (!targetDate) return;
     const hasCatalog = !!document.querySelector('#servidoresLivres [data-id], #servidoresLivres [data-servidor-id]');
     if (!hasCatalog) return;
     moLate.disconnect();
-    NS.prefillProgramacaoDia(NS._lastPrefill.date);
+    NS.prefillProgramacaoDia(targetDate);
   });
   moLate.observe(document.getElementById('servidoresLivres') || document.body, { childList:true, subtree:true });
 
   // evento que o loader deve disparar quando terminar de montar o catlogo
   document.addEventListener('programar:servidoresLoaded', () => {
-    if (NS._lastPrefill?.date) NS.prefillProgramacaoDia(NS._lastPrefill.date);
+    const targetDate = resolveCurrentPrefillDate();
+    if (targetDate) NS.prefillProgramacaoDia(targetDate);
   });
 
   // ao abrir a modal: destrava e busca programao

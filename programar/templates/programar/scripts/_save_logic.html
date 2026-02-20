@@ -2,6 +2,8 @@
 (function () {
   // Namespace
   const NS = window.PROGRAMAR = window.PROGRAMAR || {};
+  if (NS._saveLogicLoaded) return;
+  NS._saveLogicLoaded = true;
 
   // ---------- CSRF ----------
   function getCookie(name){

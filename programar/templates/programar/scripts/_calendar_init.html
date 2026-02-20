@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const baseUrl = NS?.urls?.feriadosPage || "/descanso/feriados/";
     if (!baseUrl || !event) return "";
     const start = event.start;
-    const iso = (start instanceof Date) ? start.toISOString().slice(0, 10) : (event.startStr || "").slice(0, 10);
+    const iso = toIsoDate(start instanceof Date ? start : (event.startStr || ""));
     const month = iso ? iso.slice(0, 7) : "";
     const props = event.extendedProps || {};
     const cadastroId = props.cadastro_id ? String(props.cadastro_id).trim() : "";
@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function(){
         const data = info.event.start;
         if (data instanceof Date) {
           const label = formatModalLabel(data);
-          NS.openProgramarModal(data.toISOString().slice(0, 10), label);
+          NS.openProgramarModal(toIsoDate(data), label);
         }
       }
     },
@@ -295,7 +295,7 @@ document.addEventListener('DOMContentLoaded', function(){
   document.addEventListener('programar:saved', refreshCalendarEvents);
   document.addEventListener('programar:deleted', refreshCalendarEvents);
 
-  function isoDate(d){ return d.toISOString().slice(0,10); }
+  function isoDate(d){ return toIsoDate(d); }
   function prevOrSameSaturday(d){ const x = new Date(d); const sh=(x.getDay()-6+7)%7; x.setDate(x.getDate()-sh); return x; }
 
   function populateWeeksSelect(arg){

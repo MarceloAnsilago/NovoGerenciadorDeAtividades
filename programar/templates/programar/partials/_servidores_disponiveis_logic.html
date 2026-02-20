@@ -301,7 +301,9 @@
     const hidden = document.getElementById('programar-dataAtividade') ||
                    document.getElementById('programar-data') ||
                    document.querySelector('[data-programar-data]');
-    const iso = hidden?.value || hidden?.getAttribute?.('data-programar-data') || new Date().toISOString().slice(0,10);
+    const now = new Date();
+    const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const iso = hidden?.value || hidden?.getAttribute?.('data-programar-data') || todayLocal;
 
     // Autopreencher só se ainda não houve prefill/salvamento
     const wantAuto = (document.body.dataset.progLoaded === '1') ? false : true;
