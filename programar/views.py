@@ -640,6 +640,7 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
             "servidor_ids": serv_ids.get(it.id, []),
             "veiculo": veiculo_label,
             "observacao": (getattr(it, "observacao", "") or "").strip(),
+            "meta_descricao": (getattr(meta, "descricao", "") or "").strip() if meta else "",
         })
 
     return out
@@ -871,6 +872,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 "servidores": it["servidores"],
                 "veiculo": it["veiculo"],
                 "observacao": it.get("observacao") or "",
+                "meta_descricao": it.get("meta_descricao") or "",
             })
         if impedidos:
             blocks.append({"kind": "impedidos", "dados": impedidos})
@@ -950,14 +952,19 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 
                 obs_txt = (b.get("observacao") or "").strip()
                 obs_html = (
-                    f" <span class='atividade-obs'>({html.escape(obs_txt)})</span>"
+                    f"<div class='atividade-obs'>Obs.: {html.escape(obs_txt)}</div>"
                     if obs_txt else ""
+                )
+                meta_desc_txt = (b.get("meta_descricao") or "").strip()
+                meta_desc_html = (
+                    f"<div class='text-muted fst-italic mt-1'>Obs: {html.escape(meta_desc_txt)}</div>"
+                    if meta_desc_txt else ""
                 )
                 day_rows.append(
                     open_tr
                     + dia_td
-                    + f"<td class='atividade-cell'>{html.escape(b['meta'])}{obs_html}</td>"
-                    + f"<td>{_srv_list_html(b['servidores'], with_boxes=True, inline=False)}</td>"
+                    + f"<td class='atividade-cell'><div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
+                    + f"<td>{_srv_list_html(b['servidores'], with_boxes=True, inline=False)}{meta_desc_html}</td>"
                     + f"<td class='veiculo-cell text-nowrap'>{html.escape(b['veiculo'])}</td>"
                     + f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
                     + "</tr>"
@@ -1001,7 +1008,8 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "}"
         ".programacao-semana-table th:first-child, .programacao-semana-table td.dia-cell{ min-width:110px; }"
         ".programacao-semana-table td, .programacao-semana-table th{ vertical-align: top; }"
-        ".programacao-semana-table .atividade-obs{ font-style:italic; font-size:.82em; color:#6c757d; }"
+        ".programacao-semana-table .atividade-main{ font-weight:600; }"
+        ".programacao-semana-table .atividade-obs{ display:block; margin-top:.15rem; font-style:italic; font-size:.82em; line-height:1.25; color:#6c757d; }"
 
         "/* Relatório 'Justificativa' */"
         ".rel-atividades .card-ativ{ page-break-inside: avoid; }"
@@ -1010,6 +1018,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".rel-atividades .mini-table .lbl{ width:180px; white-space:nowrap; }"
         ".rel-atividades .mini-table .just{ height:2.2rem; }"
         ".rel-atividades .servidor-title{ font-weight:600; margin-bottom:.35rem; }"
+        ".rel-atividades .atividade-obs{ display:block; margin-top:.15rem; font-style:italic; font-size:.9em; line-height:1.25; color:#6c757d; }"
 
         "/* ====== IMPRESSÃO ====== */"
         "@media print{"
@@ -1092,7 +1101,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             dia = html.escape(it["dia_label"])
             atividade = html.escape(it.get("atividade") or "")
             obs_txt = (it.get("observacao") or "").strip()
-            obs_html = f" <span class='atividade-obs'>({html.escape(obs_txt)})</span>" if obs_txt else ""
+            obs_html = f"<div class='atividade-obs'>Obs.: {html.escape(obs_txt)}</div>" if obs_txt else ""
 
             # 1ª linha: dia + atividade
             linhas.append(
