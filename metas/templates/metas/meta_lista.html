@@ -85,6 +85,9 @@
                   {% else %}
                     {{ aloc.meta.display_titulo }}
                   {% endif %}
+                  {% if aloc.is_virtual %}
+                    <span class="badge bg-secondary ms-2">Sem alocacao</span>
+                  {% endif %}
                 </td>
                 <td class="text-center">{{ aloc.meta.data_inicio|date:"d/m/Y"|default:"--" }}</td>
                 <td class="text-center">{{ aloc.meta.data_limite|date:"d/m/Y"|default:"--" }}</td>

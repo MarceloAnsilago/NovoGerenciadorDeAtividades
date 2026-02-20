@@ -116,6 +116,66 @@ def _prepare_metas_context(request, *, emit_messages=False):
 
     alocacoes = list(alocacoes)
 
+    # Inclui metas criadas na unidade atual sem qualquer alocacao.
+    metas_sem_aloc = (
+        Meta.objects.select_related("atividade", "unidade_criadora")
+        .filter(unidade_criadora=unidade_real, alocacoes__isnull=True)
+        .order_by("data_limite", "titulo")
+    )
+    if atividade_filtrada:
+        metas_sem_aloc = metas_sem_aloc.filter(atividade_id=atividade_filtrada.id)
+
+    if area_code:
+        if area_code == Area.CODE_ANIMAL:
+            metas_sem_aloc = metas_sem_aloc.filter(
+                Q(atividade__area__code=Area.CODE_ANIMAL)
+                | Q(atividade__area__code=Area.CODE_ANIMAL_VEGETAL)
+            )
+        elif area_code == Area.CODE_VEGETAL:
+            metas_sem_aloc = metas_sem_aloc.filter(
+                Q(atividade__area__code=Area.CODE_VEGETAL)
+                | Q(atividade__area__code=Area.CODE_ANIMAL_VEGETAL)
+            )
+        else:
+            metas_sem_aloc = metas_sem_aloc.filter(atividade__area__code=area_code)
+
+    if status == "ativas":
+        metas_sem_aloc = metas_sem_aloc.filter(encerrada=False)
+    elif status == "encerradas":
+        metas_sem_aloc = metas_sem_aloc.filter(encerrada=True)
+
+    for meta_obj in metas_sem_aloc:
+        alocacoes.append(
+            SimpleNamespace(
+                id=None,
+                meta=meta_obj,
+                meta_id=meta_obj.id,
+                unidade=unidade_real,
+                unidade_id=getattr(unidade_real, "id", None),
+                quantidade_alocada=0,
+                realizado=0,
+                percentual_execucao=0.0,
+                parent_id=None,
+                is_virtual=True,
+            )
+        )
+
+    def _aloc_sort_key(aloc):
+        meta_obj = getattr(aloc, "meta", None)
+        limite = getattr(meta_obj, "data_limite", None)
+        if limite and hasattr(limite, "date") and not isinstance(limite, date):
+            limite = limite.date()
+        titulo = ""
+        if meta_obj:
+            titulo = (
+                (getattr(meta_obj, "display_titulo", None) or getattr(meta_obj, "titulo", "") or "")
+                .strip()
+                .lower()
+            )
+        return (limite is None, limite or date.max, titulo)
+
+    alocacoes.sort(key=_aloc_sort_key)
+
     # total de programações (pendentes ou concluídas) por meta na unidade atual
     try:
         meta_ids = [getattr(aloc, "meta_id", None) for aloc in alocacoes if getattr(aloc, "meta_id", None)]
