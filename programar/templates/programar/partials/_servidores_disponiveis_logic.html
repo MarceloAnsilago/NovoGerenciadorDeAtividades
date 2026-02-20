@@ -124,6 +124,9 @@
   // ================== FETCH + APLICAR ==================
   async function loadServidoresDisponiveis(iso, options = {}){
     const opts = { ...DEFAULTS, ...options };
+    const requestId = (Number(NS._servidoresRequestId) || 0) + 1;
+    NS._servidoresRequestId = requestId;
+    const isStaleRequest = () => requestId !== NS._servidoresRequestId;
     console.debug('[programar] loadServidoresDisponiveis v3', {
       iso, opts, progLoaded: document.body.dataset.progLoaded
     });
@@ -149,8 +152,10 @@
       const url = new URL(urlBase, window.location.origin);
       url.searchParams.set('data', iso);
       const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (isStaleRequest()) return { livres: [], impedidos: [] };
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const json = await resp.json();
+      if (isStaleRequest()) return { livres: [], impedidos: [] };
 
    
       let livres = Array.isArray(json.livres) ? json.livres : [];
@@ -259,6 +264,7 @@
 
       return { livres, impedidos };
     } catch (err) {
+      if (isStaleRequest()) return { livres: [], impedidos: [] };
       console.error('[programar] Falha ao carregar servidores:', err);
       if (target) {
         target.innerHTML = `<div class="text-danger">Erro ao carregar.</div>`;

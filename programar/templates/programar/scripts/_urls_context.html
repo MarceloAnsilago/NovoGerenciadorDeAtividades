@@ -29,7 +29,9 @@
 <script>
 (function () {
   window.PROGRAMAR = window.PROGRAMAR || {};
-  // se não vier do backend, cai para null (JS null, não string)
+  if (window.PROGRAMAR._impedidosContextBound) return;
+  window.PROGRAMAR._impedidosContextBound = true;
+  // se nao vier do backend, cai para null (JS null, nao string)
   PROGRAMAR.metaExpedienteId = Number("{{ META_EXPEDIENTE_ID|default_if_none:'null'|default:'null' }}") || null;
 
 
@@ -61,7 +63,10 @@
   }
 
   function detectarDataDaTela() {
-    // prioridade 1: hidden/attr que você pode manter atualizado quando o dia mudar
+    const modalDateInput = document.getElementById('programar-dataAtividade');
+    const modalDateValue = String(modalDateInput?.value || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(modalDateValue)) return modalDateValue;
+    // prioridade 1: hidden/attr que voce pode manter atualizado quando o dia mudar
     const holder = document.querySelector('#programar-data, [data-programar-data]');
     if (holder) {
       const v = holder.value || holder.getAttribute('data-programar-data') || '';
@@ -69,8 +74,8 @@
       const iso = ddmmyyyyToIso(v);
       if (iso) return iso;
     }
-    // prioridade 2: título da modal "Programar atividades — 17/09/2025"
-    const title = document.querySelector('.modal.show .modal-title, .modal .modal-title');
+    // prioridade 2: titulo da modal "Programar atividades - 17/09/2025"
+    const title = document.querySelector('#programar-modalAtividade.show .modal-title, #programar-modalAtividade .modal-title');
     if (title) {
       const m = title.textContent.match(/(\d{2}\/\d{2}\/\d{4})/);
       if (m) return ddmmyyyyToIso(m[1]);
@@ -80,21 +85,21 @@
   }
 
   // ---------------- fetch + render ----------------
-  let _ultimoIso = null; // evita requisições repetidas
+  let _ultimoIso = null; // evita requisicoes repetidas
 
   async function carregarServidoresImpedidos(dataISO) {
     try {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dataISO || ''))) {
-        console.warn('Data inválida para impedidos:', dataISO);
+        console.warn('Data invalida para impedidos:', dataISO);
         return;
       }
       if (_ultimoIso === dataISO && $tbody()?.dataset.rendered === '1') {
-        return; // já renderizado para esta data
+        return; // ja renderizado para esta data
       }
 
       const urlBase = window.PROGRAMAR?.urls?.servidores;
       if (!urlBase) {
-        console.error('URL programar:servidores_para_data não definida.');
+        console.error('URL programar:servidores_para_data nao definida.');
         return;
       }
       const url = new URL(urlBase, window.location.origin);
@@ -102,7 +107,7 @@
 
       _ultimoIso = dataISO;
       if ($tbody()) {
-        $tbody().innerHTML = `<tr><td colspan="2" class="text-muted">Carregando…</td></tr>`;
+        $tbody().innerHTML = `<tr><td colspan="2" class="text-muted">Carregando...</td></tr>`;
         delete $tbody().dataset.rendered;
       }
       if ($badge()) $badge().textContent = '0';
@@ -145,9 +150,12 @@
   }
 
   // 1) quando a modal abrir (Bootstrap 5)
-  document.addEventListener('shown.bs.modal', atualizarPelaUI);
+  document.addEventListener('shown.bs.modal', (ev) => {
+    if (!ev.target || ev.target.id !== 'programar-modalAtividade') return;
+    atualizarPelaUI();
+  });
 
-  // 2) quando o app trocar o dia do calendário
+  // 2) quando o app trocar o dia do calendario
   document.addEventListener('programar:diaSelecionado', (e) => {
     const iso = e?.detail?.iso;
     if (iso) carregarServidoresImpedidos(iso);
@@ -167,19 +175,18 @@
   });
   mo.observe(document.documentElement, { childList: true, subtree: true });
 
-  // 4) se a tabela já existir no load inicial
+  // 4) se a tabela ja existir no load inicial
   document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('tabelaImpedidos')) {
       atualizarPelaUI();
     }
   });
 
-  // 5) expõe helpers
+  // 5) expoe helpers
   window.PROGRAMAR.carregarServidoresImpedidos = carregarServidoresImpedidos;
   window.PROGRAMAR.atualizarImpedidosPelaUI = atualizarPelaUI;
 })();
 </script>
-
 <script>
 (function () {
   const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
@@ -297,3 +304,4 @@
   NS.carregarImpedidosMes = carregarImpedidosMes;
 })();
 </script>
+

@@ -99,6 +99,10 @@
   NS.loadMetas = async function (dateStr = null, opts = {}) {
     const metasGrid = document.getElementById("metasGrid");
     if (!metasGrid) return;
+    const requestId = (Number(NS._metasRequestId) || 0) + 1;
+    NS._metasRequestId = requestId;
+    const isStaleRequest = () => requestId !== NS._metasRequestId;
+
     const options = opts && typeof opts === "object" ? opts : {};
     const preserveMonth = String(options.preserveMonth || "").trim();
     const monthFromDate = monthKeyFromDateString(dateStr);
@@ -130,7 +134,9 @@
 
     try {
       const resp = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+      if (isStaleRequest()) return;
       const data = await resp.json();
+      if (isStaleRequest()) return;
       const earliestMonthByYear = (data && typeof data.earliest_month_by_year === "object" && data.earliest_month_by_year)
         ? data.earliest_month_by_year
         : {};
@@ -375,6 +381,7 @@
         });
       });
     } catch (err) {
+      if (isStaleRequest()) return;
       metasGrid.innerHTML = `<div class="alert alert-danger">Erro ao carregar metas.</div>`;
       console.error(err);
     }

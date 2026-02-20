@@ -1,68 +1,28 @@
-<style>
-  .toast-container.top-right{position:fixed;top:1rem;right:1rem;z-index:1080}
-  .fallback-toast{position:fixed;right:1rem;top:1rem;z-index:1080;background:#198754;color:#fff;padding:.6rem .8rem;border-radius:.5rem;box-shadow:0 4px 10px rgba(0,0,0,.1);opacity:.95}
-  .fallback-toast.error{background:#dc3545}
-</style>
-
 <script>
-(function(){
-  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
-  if (NS._saveHandlerBound) return;            // evita bind duplo se o arquivo for incluído 2x
-  NS._saveHandlerBound = true;
+(function () {
+  const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
 
-  // ---------- Toast (Bootstrap com fallback) ----------
-  function ensureToastContainer(){
-    let c = document.getElementById('toast-stack');
-    if(!c){
-      c = document.createElement('div');
-      c.id = 'toast-stack';
-      c.className = 'toast-container top-right p-3';
-      document.body.appendChild(c);
-    }
-    return c;
-  }
-  NS.toast = NS.toast || function(message, opts={}){
-    const { variant='success', title=null, delay=3500 } = opts;
-    if (window.bootstrap?.Toast){
-      const cont = ensureToastContainer();
-      const el = document.createElement('div');
-      el.className = `toast text-bg-${variant} border-0`;
-      el.setAttribute('role','alert'); el.setAttribute('aria-live','assertive'); el.setAttribute('aria-atomic','true');
-      el.innerHTML = `
-        <div class="toast-header border-0">
-          <strong class="me-auto">${title ?? (variant==='success' ? 'Sucesso' : 'Aviso')}</strong>
-          <small class="text-white-50">agora</small>
-          <button type="button" class="btn-close btn-close-white ms-2 mb-1" data-bs-dismiss="toast" aria-label="Fechar"></button>
-        </div>
-        <div class="toast-body">${message}</div>`;
-      cont.appendChild(el);
-      const t = bootstrap.Toast.getOrCreateInstance(el, { delay, autohide:true });
-      t.show();
-      el.addEventListener('hidden.bs.toast', ()=> el.remove());
-    } else {
-      const el = document.createElement('div');
-      el.className = `fallback-toast ${variant==='danger'?'error':''}`;
-      el.textContent = message; document.body.appendChild(el);
-      setTimeout(()=> el.remove(), delay);
-    }
-  };
-
-  // ---------- Helpers ----------
-  const get = id => document.getElementById(id);
   const IDS = {
-    modal: 'programar-modalAtividade',
-    btn: 'programar-btnSalvar',
-    date: 'programar-dataAtividade',
-    cards: 'metaCardsContainer',
-    title: 'programar-modalAtividadeLabel',
-    selectedActivitiesSeparator: 'programar-separator-atividades-label',
+    modal: "programar-modalAtividade",
+    date: "programar-dataAtividade",
+    title: "programar-modalAtividadeLabel",
+    saveBtn: "programar-btnSalvar",
+    selectedActivitiesSeparator: "programar-separator-atividades-label",
   };
 
-  function buildSelectedActivitiesLabelLite(dateStr, labelText){
-    let dateBR = '';
-    let weekday = '';
+  function get(id) {
+    return document.getElementById(id);
+  }
 
-    const rawDate = String(dateStr || '').trim();
+  function isISODate(value) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
+  }
+
+  function buildSelectedActivitiesLabel(dateStr, labelText) {
+    let dateBR = "";
+    let weekday = "";
+
+    const rawDate = String(dateStr || "").trim();
     const match = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (match) {
       const year = Number(match[1]);
@@ -70,404 +30,57 @@
       const day = Number(match[3]);
       const dt = new Date(year, month - 1, day, 12, 0, 0, 0);
       if (!Number.isNaN(dt.getTime())) {
-        dateBR = dt.toLocaleDateString('pt-BR');
-        weekday = dt.toLocaleDateString('pt-BR', { weekday: 'long' });
+        dateBR = dt.toLocaleDateString("pt-BR");
+        weekday = dt.toLocaleDateString("pt-BR", { weekday: "long" });
       }
     }
 
     if ((!dateBR || !weekday) && labelText) {
-      const parts = String(labelText).split(',');
+      const parts = String(labelText).split(",");
       if (parts.length >= 2) {
         if (!weekday) weekday = parts[0].trim();
-        if (!dateBR) dateBR = parts.slice(1).join(',').trim();
+        if (!dateBR) dateBR = parts.slice(1).join(",").trim();
       }
     }
 
     if (weekday) weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
     if (dateBR && weekday) return `Atividades selecionadas para o dia ${dateBR}, ${weekday}`;
     if (dateBR) return `Atividades selecionadas para o dia ${dateBR}`;
-    return 'Atividades selecionadas';
+    return "Atividades selecionadas";
   }
 
-  function bindOpenProgramarModalOnly(){
-    NS.openProgramarModal = function(dateStr, labelText){
-      const modalEl = get(IDS.modal);
-      const inputData = get(IDS.date);
-      const btn = get(IDS.btn);
-      if (!modalEl) return;
-
-      const rows = modalEl.querySelectorAll('#programar-atividadesRow, .cards-row');
-      if (rows.length > 1) rows.forEach((r, i) => { if (i > 0) r.remove(); });
-
-      if (btn) btn.type = 'button';
-      if (inputData) inputData.value = dateStr || '';
-
-      const lbl = get(IDS.title);
-      if (lbl) lbl.textContent = labelText ? `Programar atividades - ${labelText}` : 'Programar atividades';
-
-      const selectedActivitiesSeparator = get(IDS.selectedActivitiesSeparator);
-      if (selectedActivitiesSeparator) {
-        selectedActivitiesSeparator.textContent = buildSelectedActivitiesLabelLite(dateStr, labelText);
-      }
-
-      if (btn) btn.disabled = true;
-      window.PROGRAMAR.loadMetas?.(dateStr);
-      window.PROGRAMAR.loadServidores?.(dateStr);
-
-      if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).show();
-    };
-  }
-
-  NS._useModernProgramarModal = true;
-  bindOpenProgramarModalOnly();
-  return;
-
-  function getCookie(name){
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    return parts.length === 2 ? decodeURIComponent(parts.pop().split(';').shift()) : null;
-  }
-  const csrf = getCookie('csrftoken');
-
-  function extractVeiculoId(card){
-    const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
-    if (!sel) return null;
-    const raw = sel.tagName === 'SELECT'
-      ? (sel.value || sel.dataset.veiculoId || '')
-      : (sel.dataset.veiculoId || '');
-    const value = String(raw || '').trim();
-    if (!value) return null;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  function extractItem(card){
-    const metaId = Number(card.dataset.metaId);
-    const itemId = Number(card.dataset.itemId || 0);   // 👈 pega id existente
-    const drop = card.querySelector('.meta-dropzone') || card;
-    const chips = drop.querySelectorAll('[data-id], [data-servidor-id], .servidor-chip');
-    const servidores_ids = [...chips].map(el => Number(el.getAttribute('data-id') || el.getAttribute('data-servidor-id'))).filter(Boolean);
-    const obs = (card.querySelector('textarea[name="observacao"]')?.value || '').trim();
-    const veiculo_id = extractVeiculoId(card);
-
-    const out = { meta_id: metaId, observacao: obs, veiculo_id, servidores_ids };
-    if (itemId) out.id = itemId;                       // 👈 inclui id só se houver
-    return out;
-  }
-
-  function buildSelectedActivitiesLabel(dateStr, labelText){
-    let dateBR = '';
-    let weekday = '';
-
-    const rawDate = String(dateStr || '').trim();
-    const match = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (match) {
-      const dt = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00Z`);
-      if (!Number.isNaN(dt.getTime())) {
-        dateBR = dt.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-        weekday = dt.toLocaleDateString('pt-BR', { timeZone: 'UTC', weekday: 'long' });
-      }
-    }
-
-    if ((!dateBR || !weekday) && labelText) {
-      const parts = String(labelText).split(',');
-      if (parts.length >= 2) {
-        if (!weekday) weekday = parts[0].trim();
-        if (!dateBR) dateBR = parts.slice(1).join(',').trim();
-      }
-    }
-
-    if (weekday) weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-
-    if (dateBR && weekday) {
-      return `Atividades selecionadas para o dia ${dateBR}, ${weekday}`;
-    }
-    if (dateBR) {
-      return `Atividades selecionadas para o dia ${dateBR}`;
-    }
-    return 'Atividades selecionadas';
-  }
-
-  function refreshSalvar(){
-    const btn = get(IDS.btn), cont = get(IDS.cards);
-    const hasMetaCards = !!cont?.querySelector('[data-meta-id]');
-    const expEl = document.getElementById('expedienteAdmin');
-    const expHas = !!expEl && (
-      !!expEl.querySelector('[data-id],[data-servidor-id]') || !!expEl.dataset.itemId
-    );
-    if (btn) btn.disabled = !(hasMetaCards || expHas);
-  }
-
-  // Observa mudanças nos cards e ao abrir o modal
-  document.addEventListener('DOMContentLoaded', ()=>{
-    const cont = get(IDS.cards);
-    if (cont) new MutationObserver(refreshSalvar).observe(cont, { childList:true, subtree:true });
-    refreshSalvar();
-  });
-  document.addEventListener('shown.bs.modal', ev=>{
-    if (ev.target?.id === IDS.modal) refreshSalvar();
-  });
-
-  // ---------- Expor função de abrir modal ----------
-  NS.openProgramarModal = function(dateStr, labelText){
+  NS.openProgramarModal = function openProgramarModal(dateStr, labelText) {
     const modalEl = get(IDS.modal);
-    const inputData = get(IDS.date);
-    const btn = get(IDS.btn);
     if (!modalEl) return;
+    const rows = modalEl.querySelectorAll("#programar-atividadesRow, .cards-row");
+    if (rows.length > 1) rows.forEach((row, index) => { if (index > 0) row.remove(); });
 
-    // anti-duplicação de linha de cards
-    const rows = modalEl.querySelectorAll('#programar-atividadesRow, .cards-row');
-    if (rows.length > 1) rows.forEach((r,i)=>{ if (i>0) r.remove(); });
-
-    if (btn) btn.type = 'button';
-    if (inputData) inputData.value = dateStr || '';
-
-    const lbl = get(IDS.title);
-    if (lbl) lbl.textContent = labelText ? `Programar atividades — ${labelText}` : 'Programar atividades';
-
+    const inputDate = get(IDS.date);
+    const titleEl = get(IDS.title);
+    const saveBtn = get(IDS.saveBtn);
     const selectedActivitiesSeparator = get(IDS.selectedActivitiesSeparator);
+
+    if (inputDate) inputDate.value = dateStr || "";
+    if (titleEl) titleEl.textContent = labelText ? `Programar atividades - ${labelText}` : "Programar atividades";
     if (selectedActivitiesSeparator) {
       selectedActivitiesSeparator.textContent = buildSelectedActivitiesLabel(dateStr, labelText);
     }
+    if (saveBtn) saveBtn.disabled = true;
 
-    if (btn) btn.disabled = true;
-    window.PROGRAMAR.loadMetas?.(dateStr);
-    window.PROGRAMAR.loadServidores?.(dateStr);
+    if (isISODate(dateStr)) {
+      document.dispatchEvent(
+        new CustomEvent("programar:diaSelecionado", {
+          detail: { iso: dateStr, label: labelText || "" },
+        })
+      );
+    }
 
-    if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    NS.loadMetas?.(dateStr);
+    NS.loadServidores?.(dateStr);
+
+    if (window.bootstrap) {
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
   };
-
-  // ---------- Salvar ----------
-  async function salvar(){
-    const url = NS.urls?.salvar;
-    const modalEl = get(IDS.modal);
-    const btn = get(IDS.btn);
-    const inputData = get(IDS.date);
-    const cont = get(IDS.cards);
-
-    if (!url){ NS.toast('Rota de salvar não configurada.', {variant:'danger'}); return; }
-    const dateStr = inputData?.value;
-    if (!dateStr){ NS.toast('Selecione uma data para salvar.', { variant:'warning' }); return; }
-
-    let cards = [...(cont?.querySelectorAll('[data-meta-id]') || [])];
-
-    const expEl = document.getElementById('expedienteAdmin');
-    const expMetaId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
-    if (expEl && expMetaId) {
-      expEl.dataset.metaId = String(expMetaId); // garante que extractItem leia o meta_id
-      const expHasChips = !!expEl.querySelector('[data-id],[data-servidor-id]');
-      const hadItem     = !!expEl.dataset.itemId; // setado pelo prefill quando já existe no banco
-      if (expHasChips || hadItem) cards.push(expEl);
-    }
-    if (!cards.length){ NS.toast('Adicione pelo menos uma atividade.', { variant:'warning' }); return; }
-
-    const payload = { data: dateStr, observacao: '', itens: cards.map(extractItem) };
-
-    const original = btn?.innerHTML;
-    if (btn){
-      btn.disabled = true;
-      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Salvando...`;
-    }
-
-    try{
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          ...(csrf ? { 'X-CSRFToken': csrf } : {})
-        },
-        body: JSON.stringify(payload)
-      });
-      const json = await resp.json().catch(()=> ({}));
-      if (!resp.ok || json.ok === false) throw new Error(json.error || `Falha ao salvar (HTTP ${resp.status}).`);
-
-      NS._obsDirty = false;
-      if (modalEl && window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-      NS.toast('Programação salva com sucesso!', { variant:'success' });
-
-      document.dispatchEvent(new CustomEvent('programar:saved', {
-        detail: { data: dateStr, programacao_id: json.programacao_id, itens_criados: json.itens_criados || [] }
-      }));
-      if (typeof NS.refreshCalendarEvents === 'function') NS.refreshCalendarEvents();
-      else if (NS.calendar && typeof NS.calendar.refetchEvents === 'function') NS.calendar.refetchEvents();
-    }catch(err){
-      console.error(err);
-      NS.toast(err.message || 'Erro ao salvar a programação.', { variant:'danger', title:'Erro' });
-    }finally{
-      if (btn){ btn.innerHTML = original; refreshSalvar(); }
-    }
-  }
-
-  // ---------- Um único handler (delegação) ----------
-  document.addEventListener('click', ev=>{
-    const btn = ev.target.closest('#'+IDS.btn);
-    if (!btn) return;
-    ev.preventDefault();
-    if (!btn.disabled) salvar();
-  });
-  document.addEventListener('keydown', ev=>{
-    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
-      const btn = get(IDS.btn);
-      if (btn && !btn.disabled) { ev.preventDefault(); salvar(); }
-    }
-  });
-})();
-</script>
-<script>
-(function () {
-  const NS = window.PROGRAMAR = window.PROGRAMAR || {};
-  if (NS._useModernProgramarModal || NS._prefillOverride) return;
-
-  // espera condicional (polling curtinho)
-  function waitFor(testFn, timeout = 5000, step = 50) {
-    return new Promise((resolve, reject) => {
-      const t0 = Date.now();
-      (function loop() {
-        if (testFn()) return resolve(true);
-        if (Date.now() - t0 > timeout) return reject(new Error('waitFor timeout'));
-        setTimeout(loop, step);
-      })();
-    });
-  }
-
-  function metaTitleFromGrid(metaId, fallbackTitle) {
-    const n = document.querySelector(`#metasGrid [data-id="${metaId}"] .meta-title`);
-    const fallback = String(fallbackTitle || "").trim();
-    return (n && n.textContent.trim()) || fallback || `Meta ${metaId}`;
-  }
-
-  function findChip(id) {
-    return document.querySelector(`[data-id="${id}"], [data-servidor-id="${id}"]`);
-  }
-
-  function moveChipTo(target, id) {
-    if (!target) return false;
-    const already = target.querySelector(`[data-id="${id}"], [data-servidor-id="${id}"]`);
-    if (already) return true;
-    const chip = findChip(id);
-    if (chip) { target.appendChild(chip); return true; }
-    return false; // (fallback de criar chip não necessário pois os livres já foram carregados)
-  }
-
-  async function prefillProgramacaoDia(dateStr) {
-    const urlBase = NS.urls?.programacaoDia;
-    if (!urlBase || !dateStr) return;
-
-    // 1) busca programação do dia
-    const url = new URL(urlBase, window.location.origin);
-    url.searchParams.set('data', dateStr);
-    const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-    if (!resp.ok) return;
-    const { itens = [] } = await resp.json();
-    if (!itens.length) return;
-
-    // 2) aguarda metas e servidores na tela
-    try { await waitFor(() => typeof NS.ensureMetaCard === 'function', 5000); } catch {}
-    try {
-      await waitFor(() =>
-        document.querySelector('#servidoresLivres [data-id], #servidoresLivres [data-servidor-id], #expedienteAdmin [data-id]')
-      , 5000);
-    } catch {}
-
-    const expEl = document.getElementById('expedienteAdmin');
-    const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
-
-    const ordered = [...itens].sort((a, b) => {
-      const av = a?.veiculo_id != null;
-      const bv = b?.veiculo_id != null;
-      if (av !== bv) return av ? 1 : -1;
-      return (b?.id || 0) - (a?.id || 0);
-    });
-
-    for (const it of ordered) {
-      // Expediente Administrativo
-    
-      if (expId && it.meta_id === expId) {
-        const expEl = document.getElementById('expedienteAdmin');
-        if (expEl) {
-          if (it.id) expEl.dataset.itemId = String(it.id);        // 👈 guarda id
-          (it.servidores_ids || []).forEach(sid => moveChipTo(expEl, sid));
-        }
-        continue;
-      }
-
-      // Demais metas
-      const title = metaTitleFromGrid(it.meta_id, it.titulo);
-      const card = NS.ensureMetaCard?.(String(it.meta_id), title);
-      if (!card) continue;
-      if (it.id) {
-        card.dataset.itemId = String(it.id);
-        window.PROGRAMAR?.syncMetaConclusionLink?.(card);
-      } else {
-        delete card.dataset.itemId;
-        window.PROGRAMAR?.syncMetaConclusionLink?.(card);
-      }
-      const ta = card.querySelector('textarea[name="observacao"]');
-      if (ta) ta.value = it.observacao || '';
-
-      const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
-      if (sel) {
-        if (it.veiculo_id != null) {
-          const value = String(it.veiculo_id);
-          if (sel.tagName === 'SELECT') sel.value = value;
-          sel.dataset.veiculoId = value;
-          if (it.veiculo_label) sel.dataset.veiculoLabel = String(it.veiculo_label);
-          else delete sel.dataset.veiculoLabel;
-        } else {
-          if (sel.tagName === 'SELECT') sel.value = '';
-          delete sel.dataset.veiculoId;
-          delete sel.dataset.veiculoLabel;
-        }
-      }
-
-      const drop = card.querySelector('.meta-dropzone') || card;
-      it.servidores_ids.forEach(sid => moveChipTo(drop, sid));
-    }
-
-    if (typeof NS.refreshVeiculoSelects === 'function') {
-      NS.refreshVeiculoSelects();
-    }
-
-    // atualizar contagens (usa quem estiver disponível)
-    (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
-
-    // evento opcional p/ integrações
-    document.dispatchEvent(new CustomEvent('programar:prefilled', { detail: { data: dateStr } }));
-  }
-
-  // expõe API pública
-  if (!NS._prefillOverride) {
-    NS.prefillProgramacaoDia = prefillProgramacaoDia;
-  }
-
-  // quando o modal abrir, tenta preencher
-  document.addEventListener('shown.bs.modal', (ev) => {
-    if (ev.target && ev.target.id === 'programar-modalAtividade') {
-      const dateStr = document.getElementById('programar-dataAtividade')?.value;
-      const loader = NS.prefillProgramacaoDia || prefillProgramacaoDia;
-      if (loader && dateStr) loader(dateStr);
-    }
-  });
-
-  // fallback: duplo clique remove servidor/expediente
-  document.addEventListener('dblclick', (ev) => {
-    const chip = ev.target.closest('.servidor-chip');
-    if (chip) {
-      const btn = chip.querySelector('.chip-remove');
-      if (btn) {
-        ev.preventDefault();
-        btn.click();
-      }
-      return;
-    }
-    const card = ev.target.closest('#expedienteAdmin .servidor-card');
-    if (card) {
-      const btn = card.querySelector('.srv-close');
-      if (btn) {
-        ev.preventDefault();
-        btn.click();
-      }
-    }
-  });
 })();
 </script>
