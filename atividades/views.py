@@ -23,8 +23,8 @@ def _get_safe_next(request):
 def lista(request):
     unidade = _get_unidade_atual(request)
 
-    # base query (ordenada mais recentes primeiro)
-    qs = Atividade.objects.all().order_by("-criado_em")
+    # base query (ordenada alfabeticamente por título)
+    qs = Atividade.objects.all().order_by("titulo")
     if unidade:
         qs = qs.filter(unidade_origem=unidade)
 
