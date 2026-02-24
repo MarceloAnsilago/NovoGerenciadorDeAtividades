@@ -611,31 +611,9 @@ def editar_meta_view(request, meta_id):
     if request.method == "POST":
         form = _build_form(request.POST)
         if form.is_valid():
-            new_qty = form.cleaned_data.get("quantidade_alvo") or 0
-            old_qty = meta.quantidade_alvo or 0
-            if new_qty < old_qty:
-                # usa import global; já disponível no topo do módulo
-                programadas_total = ProgramacaoItem.objects.filter(meta=meta).count()
-                if programadas_total > new_qty:
-                    form.add_error(
-                        "quantidade_alvo",
-                        (
-                            f"Existem {programadas_total} atividade(s) desta meta já programadas. "
-                            f"Remova-as da programação antes de reduzir a quantidade alvo para {new_qty}."
-                        ),
-                    )
-                    messages.error(
-                        request,
-                        "Remova as atividades programadas desta meta antes de reduzir a quantidade alvo.",
-                    )
-                else:
-                    form.save()
-                    messages.success(request, "Meta atualizada com sucesso.")
-                    return redirect("metas:metas-unidade")
-            else:
-                form.save()
-                messages.success(request, "Meta atualizada com sucesso.")
-                return redirect("metas:metas-unidade")
+            form.save()
+            messages.success(request, "Meta atualizada com sucesso.")
+            return redirect(next_url)
         else:
             messages.error(request, "Corrija os erros do formulário.")
     else:

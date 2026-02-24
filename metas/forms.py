@@ -59,7 +59,7 @@ class MetaForm(forms.ModelForm):
         if instance and getattr(instance, "encerrada", False):
             raise forms.ValidationError("Esta meta ja foi encerrada e nao pode ser editada.")
 
-        # valida quantidade x programacoes existentes
+        # valida quantidade para não ficar abaixo do que já foi alocado/programado
         if instance and getattr(instance, "pk", None) and new_qty is not None:
             programadas_total = 0
             try:
@@ -69,23 +69,21 @@ class MetaForm(forms.ModelForm):
             except Exception:
                 programadas_total = 0
 
-            alocacoes_exist = instance.alocacoes.exists()
-            alocacoes_count = instance.alocacoes.count() if alocacoes_exist else 0
+            alocado_total = instance.alocado_total or 0
 
             old_qty = getattr(instance, "quantidade_alvo", 0) or 0
             is_decrease = new_qty < old_qty
-            if is_decrease and (alocacoes_exist or programadas_total):
+            if is_decrease and (new_qty < alocado_total or new_qty < programadas_total):
                 parts = []
-                if alocacoes_exist:
-                    parts.append(f"{alocacoes_count} meta(s) alocada(s)")
-                if programadas_total:
+                if new_qty < alocado_total:
+                    parts.append(f"total alocado ({alocado_total})")
+                if new_qty < programadas_total:
                     parts.append(f"{programadas_total} atividade(s) programada(s)")
                 joined = " e ".join(parts) if len(parts) > 1 else parts[0]
                 self.add_error(
                     "quantidade_alvo",
                     (
-                        f"Nao e possivel reduzir a meta porque ja existem {joined}. "
-                        "Remova essas referencias antes de diminuir a quantidade alvo."
+                        f"Nao e possivel reduzir a meta para {new_qty} porque ficaria abaixo de {joined}."
                     ),
                 )
 
