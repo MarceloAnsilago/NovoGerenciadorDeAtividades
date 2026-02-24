@@ -258,7 +258,7 @@ def metas_unidade_view(request):
 @login_required
 def atividades_lista_view(request):
     unidade = get_unidade_atual(request)
-    atividades = Atividade.objects.filter(ativo=True).order_by('-criado_em')
+    atividades = Atividade.objects.filter(ativo=True).order_by("titulo")
 
     if unidade:
         atividades = atividades.filter(unidade_origem=unidade)
