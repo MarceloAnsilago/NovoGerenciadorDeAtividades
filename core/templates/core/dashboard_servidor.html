@@ -1,9 +1,17 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Dashboard do Servidor{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3">
+<div
+  class="container-fluid py-3"
+  id="dashboard-servidor-root"
+  data-concluidas="{{ kpis.concluidas|default:0 }}"
+  data-pendentes="{{ kpis.pendentes|default:0 }}"
+  data-expediente-total="{% if kpis.expediente_total is not None %}{{ kpis.expediente_total }}{% endif %}"
+  data-campo-total="{% if kpis.campo_total is not None %}{{ kpis.campo_total }}{% endif %}"
+>
   <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
     <div>
       <h1 class="h3 mb-1">Dashboard do servidor: {{ servidor.nome }}</h1>
@@ -204,6 +212,79 @@
       </div>
     </div>
     {% endif %}
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Status das alocacoes</div>
+        <div class="card-body" style="min-height: 320px;">
+          <canvas id="chartServidorStatus" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Natureza da atuacao</div>
+        <div class="card-body" style="min-height: 320px;">
+          <canvas id="chartServidorExpCampo" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Serie mensal (concluidas x pendentes)</div>
+        <div class="card-body" style="min-height: 320px;">
+          <canvas id="chartServidorMensal" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Distribuicao por area</div>
+        <div class="card-body" style="min-height: 320px;">
+          <canvas id="chartServidorArea" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Distribuicao por unidade</div>
+        <div class="card-body" style="min-height: 320px;">
+          <canvas id="chartServidorUnidade" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Veiculos mais usados</div>
+        <div class="card-body" style="min-height: 320px;">
+          <canvas id="chartServidorVeiculo" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-12 col-xl-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Top atividades (visual)</div>
+        <div class="card-body" style="min-height: 360px;">
+          <canvas id="chartServidorAtividadesTop" height="300"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Top metas (visual)</div>
+        <div class="card-body" style="min-height: 360px;">
+          <canvas id="chartServidorMetasTop" height="300"></canvas>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="row g-4 mb-4">
@@ -448,4 +529,16 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  {{ area_rows|json_script:"dashboard-servidor-area-rows" }}
+  {{ unidade_rows|json_script:"dashboard-servidor-unidade-rows" }}
+  {{ veiculo_rows|json_script:"dashboard-servidor-veiculo-rows" }}
+  {{ mensal_rows|json_script:"dashboard-servidor-mensal-rows" }}
+  {{ atividade_rows|json_script:"dashboard-servidor-atividade-rows" }}
+  {{ meta_rows|json_script:"dashboard-servidor-meta-rows" }}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="{% static 'core/js/dashboard_servidor.js' %}?v=20260225-1" defer></script>
 {% endblock %}
