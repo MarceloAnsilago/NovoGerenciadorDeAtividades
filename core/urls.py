@@ -8,6 +8,7 @@ app_name = "core"
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="core:dashboard", permanent=False)),
     path("dashboard/", views.dashboard_view, name="dashboard"),
+    path("dashboard/servidor/<int:servidor_id>/", views.dashboard_servidor_view, name="dashboard_servidor"),
     path("admin/dashboard/", views.AdminDashboardView.as_view(), name="admin_dashboard"),
     path(
         "api/dashboard/kpis/",

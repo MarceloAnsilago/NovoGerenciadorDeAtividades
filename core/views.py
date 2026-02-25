@@ -2,6 +2,7 @@ from collections import defaultdict
 import json
 import calendar
 from datetime import date
+from urllib.parse import urlencode
 
 # core/views.py
 
@@ -20,8 +21,10 @@ from django.utils import timezone
 from django.core.exceptions import PermissionDenied
 from django.views.generic import TemplateView
 from django.urls import reverse
+from django.conf import settings
 from django.db import transaction
-from django.db.models import deletion
+from django.db.models import deletion, Count, Q, Min, Max
+from django.db.models.functions import TruncMonth
 
 from .models import No, UserProfile  # No (Unidade) e UserProfile
 from .models import No as Unidade
@@ -443,6 +446,12 @@ def _dashboard_period_range(start_value, end_value):
     end_last_day = calendar.monthrange(end_year, end_month)[1]
     end_date = date(end_year, end_month, end_last_day)
     return start_date, end_date
+
+
+def _month_value_from_date(value):
+    if not value:
+        return None
+    return f"{value.year:04d}-{value.month:02d}"
 
 
 # ============ ÁRVORE (jsTree) ============
@@ -1227,3 +1236,284 @@ def dashboard_top_servidores(request):
         end_date=end_date,
     )
     return JsonResponse(data)
+
+
+@login_required
+@require_GET
+def dashboard_servidor_view(request, servidor_id):
+    from programar.models import ProgramacaoItemServidor
+    from servidores.models import Servidor
+
+    unidade_scope = get_unidade_scope_ids(request)
+
+    servidor_qs = Servidor.objects.select_related("unidade", "cargo")
+    if unidade_scope is not None:
+        if unidade_scope:
+            servidor_qs = servidor_qs.filter(unidade_id__in=unidade_scope)
+        else:
+            servidor_qs = servidor_qs.none()
+
+    servidor = get_object_or_404(servidor_qs, pk=servidor_id)
+
+    base_qs = ProgramacaoItemServidor.objects.select_related(
+        "item__programacao__unidade",
+        "item__meta__atividade__area",
+        "item__veiculo",
+        "servidor__unidade",
+        "servidor__cargo",
+    ).filter(servidor_id=servidor.id)
+
+    if unidade_scope is not None:
+        base_qs = base_qs.filter(item__programacao__unidade_id__in=unidade_scope)
+
+    bounds = base_qs.exclude(item__programacao__data__isnull=True).aggregate(
+        min_data=Min("item__programacao__data"),
+        max_data=Max("item__programacao__data"),
+    )
+    min_month_value = _month_value_from_date(bounds.get("min_data"))
+    max_month_value = _month_value_from_date(bounds.get("max_data"))
+
+    start_param = request.GET.get("inicio") or request.GET.get("start")
+    end_param = request.GET.get("fim") or request.GET.get("end")
+    start_value = start_param if _parse_month_value(start_param) else min_month_value
+    end_value = end_param if _parse_month_value(end_param) else max_month_value
+
+    start_date, end_date = _dashboard_period_range(start_value, end_value)
+
+    period_qs = base_qs
+    if start_date and end_date:
+        period_qs = period_qs.filter(item__programacao__data__range=(start_date, end_date))
+
+    total_alocacoes = period_qs.count()
+    concluidas = period_qs.filter(item__concluido=True).count()
+    pendentes = max(total_alocacoes - concluidas, 0)
+    taxa_conclusao = round((concluidas / total_alocacoes) * 100, 2) if total_alocacoes else 0.0
+
+    metas_distintas = period_qs.values("item__meta_id").distinct().count()
+    atividades_distintas = (
+        period_qs.exclude(item__meta__atividade_id__isnull=True)
+        .values("item__meta__atividade_id")
+        .distinct()
+        .count()
+    )
+    dias_programados = period_qs.values("item__programacao__data").distinct().count()
+    unidades_atuacao = period_qs.values("item__programacao__unidade_id").distinct().count()
+    veiculos_usados = period_qs.exclude(item__veiculo_id__isnull=True).values("item__veiculo_id").distinct().count()
+    com_observacao = (
+        period_qs.exclude(item__observacao__isnull=True)
+        .exclude(item__observacao__exact="")
+        .count()
+    )
+
+    extremos = period_qs.aggregate(
+        primeira_data=Min("item__programacao__data"),
+        ultima_data=Max("item__programacao__data"),
+    )
+
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
+
+    expediente_total = None
+    campo_total = None
+    if meta_expediente_id:
+        expediente_total = period_qs.filter(item__meta_id=meta_expediente_id).count()
+        campo_total = max(total_alocacoes - expediente_total, 0)
+
+    area_rows = []
+    area_qs = (
+        period_qs.values("item__meta__atividade__area__nome")
+        .annotate(total=Count("id"))
+        .order_by("-total", "item__meta__atividade__area__nome")
+    )
+    for row in area_qs:
+        area_rows.append(
+            {
+                "nome": row.get("item__meta__atividade__area__nome") or "Sem area",
+                "total": int(row.get("total") or 0),
+            }
+        )
+
+    unidade_rows = []
+    unidade_qs = (
+        period_qs.values("item__programacao__unidade__nome")
+        .annotate(total=Count("id"))
+        .order_by("-total", "item__programacao__unidade__nome")
+    )
+    for row in unidade_qs:
+        unidade_rows.append(
+            {
+                "nome": row.get("item__programacao__unidade__nome") or "Sem unidade",
+                "total": int(row.get("total") or 0),
+            }
+        )
+
+    veiculo_rows = []
+    veiculo_qs = (
+        period_qs.exclude(item__veiculo__placa__isnull=True)
+        .exclude(item__veiculo__placa__exact="")
+        .values("item__veiculo__placa")
+        .annotate(total=Count("id"))
+        .order_by("-total", "item__veiculo__placa")[:15]
+    )
+    for row in veiculo_qs:
+        veiculo_rows.append(
+            {
+                "placa": row.get("item__veiculo__placa"),
+                "total": int(row.get("total") or 0),
+            }
+        )
+
+    atividade_rows = []
+    atividade_qs = (
+        period_qs.values(
+            "item__meta__atividade__titulo",
+            "item__meta__titulo",
+            "item__meta__atividade__area__nome",
+        )
+        .annotate(
+            total=Count("id"),
+            concluidas=Count("id", filter=Q(item__concluido=True)),
+            pendentes=Count("id", filter=Q(item__concluido=False)),
+            ultima_data=Max("item__programacao__data"),
+        )
+        .order_by("-total", "item__meta__atividade__titulo", "item__meta__titulo")[:20]
+    )
+    for row in atividade_qs:
+        atividade_rows.append(
+            {
+                "atividade": row.get("item__meta__atividade__titulo") or row.get("item__meta__titulo") or "Sem titulo",
+                "area": row.get("item__meta__atividade__area__nome") or "Sem area",
+                "total": int(row.get("total") or 0),
+                "concluidas": int(row.get("concluidas") or 0),
+                "pendentes": int(row.get("pendentes") or 0),
+                "ultima_data": row.get("ultima_data"),
+            }
+        )
+
+    meta_rows = []
+    meta_qs = (
+        period_qs.values(
+            "item__meta_id",
+            "item__meta__titulo",
+            "item__meta__atividade__titulo",
+            "item__meta__encerrada",
+        )
+        .annotate(
+            total=Count("id"),
+            concluidas=Count("id", filter=Q(item__concluido=True)),
+            pendentes=Count("id", filter=Q(item__concluido=False)),
+            ultima_data=Max("item__programacao__data"),
+        )
+        .order_by("-total", "item__meta__titulo")[:20]
+    )
+    for row in meta_qs:
+        meta_rows.append(
+            {
+                "meta_id": row.get("item__meta_id"),
+                "titulo": row.get("item__meta__atividade__titulo") or row.get("item__meta__titulo") or "Sem titulo",
+                "encerrada": bool(row.get("item__meta__encerrada")),
+                "total": int(row.get("total") or 0),
+                "concluidas": int(row.get("concluidas") or 0),
+                "pendentes": int(row.get("pendentes") or 0),
+                "ultima_data": row.get("ultima_data"),
+            }
+        )
+
+    mensal_rows = []
+    mensal_qs = (
+        period_qs.annotate(mes=TruncMonth("item__programacao__data"))
+        .values("mes")
+        .annotate(
+            total=Count("id"),
+            concluidas=Count("id", filter=Q(item__concluido=True)),
+            pendentes=Count("id", filter=Q(item__concluido=False)),
+        )
+        .order_by("mes")
+    )
+    for row in mensal_qs:
+        mes = row.get("mes")
+        mes_label = mes.strftime("%m/%Y") if mes else "-"
+        mensal_rows.append(
+            {
+                "mes": mes_label,
+                "total": int(row.get("total") or 0),
+                "concluidas": int(row.get("concluidas") or 0),
+                "pendentes": int(row.get("pendentes") or 0),
+            }
+        )
+
+    recentes_rows = []
+    recentes_qs = period_qs.order_by("-item__programacao__data", "-item_id")[:120]
+    for link in recentes_qs:
+        item = link.item
+        meta = item.meta
+        atividade = getattr(meta, "atividade", None)
+        area = getattr(atividade, "area", None)
+        programacao = item.programacao
+        unidade = getattr(programacao, "unidade", None)
+        veiculo = item.veiculo
+        recentes_rows.append(
+            {
+                "data": getattr(programacao, "data", None),
+                "unidade": getattr(unidade, "nome", "Sem unidade"),
+                "meta": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Sem titulo"),
+                "atividade": getattr(atividade, "titulo", "") or "-",
+                "area": getattr(area, "nome", "") or "-",
+                "concluido": bool(item.concluido),
+                "concluido_em": item.concluido_em,
+                "veiculo": getattr(veiculo, "placa", "") or "-",
+                "observacao": (item.observacao or "").strip(),
+            }
+        )
+
+    period_label = "Todo o historico"
+    if start_date and end_date:
+        period_label = f"{start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}"
+
+    params = {}
+    if start_value:
+        params["inicio"] = start_value
+    if end_value:
+        params["fim"] = end_value
+    period_query = urlencode(params)
+
+    dashboard_return_url = reverse("core:dashboard")
+    if period_query:
+        dashboard_return_url = f"{dashboard_return_url}?{period_query}"
+
+    context = {
+        "servidor": servidor,
+        "period_label": period_label,
+        "dashboard_month_min": min_month_value,
+        "dashboard_month_max": max_month_value,
+        "dashboard_month_start": start_value,
+        "dashboard_month_end": end_value,
+        "dashboard_return_url": dashboard_return_url,
+        "kpis": {
+            "total_alocacoes": total_alocacoes,
+            "concluidas": concluidas,
+            "pendentes": pendentes,
+            "taxa_conclusao": taxa_conclusao,
+            "metas_distintas": metas_distintas,
+            "atividades_distintas": atividades_distintas,
+            "dias_programados": dias_programados,
+            "unidades_atuacao": unidades_atuacao,
+            "veiculos_usados": veiculos_usados,
+            "com_observacao": com_observacao,
+            "primeira_data": extremos.get("primeira_data"),
+            "ultima_data": extremos.get("ultima_data"),
+            "expediente_total": expediente_total,
+            "campo_total": campo_total,
+        },
+        "area_rows": area_rows,
+        "unidade_rows": unidade_rows,
+        "veiculo_rows": veiculo_rows,
+        "atividade_rows": atividade_rows,
+        "meta_rows": meta_rows,
+        "mensal_rows": mensal_rows,
+        "recentes_rows": recentes_rows,
+    }
+    return render(request, "core/dashboard_servidor.html", context)

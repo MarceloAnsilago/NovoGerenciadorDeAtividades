@@ -610,32 +610,35 @@ def get_top_servidores(
 
     if meta_expediente_id:
         qs = (
-            base_qs.values("servidor__nome")
+            base_qs.values("servidor_id", "servidor__nome")
             .annotate(
                 total=Count("id"),
                 expediente=Count("id", filter=Q(item__meta_id=meta_expediente_id)),
                 campo=Count("id", filter=~Q(item__meta_id=meta_expediente_id)),
             )
-            .order_by("-campo", "-expediente", "servidor__nome")
+            .order_by("-campo", "-expediente", "servidor__nome", "servidor_id")
         )
     else:
         qs = (
-            base_qs.values("servidor__nome")
+            base_qs.values("servidor_id", "servidor__nome")
             .annotate(
                 total=Count("id"),
                 expediente=Value(0, output_field=IntegerField()),
                 campo=Count("id"),
             )
-            .order_by("-campo", "servidor__nome")
+            .order_by("-campo", "servidor__nome", "servidor_id")
         )
 
     qs = qs[:limit]
 
     labels: list[str] = []
+    servidor_ids: list[int] = []
     expediente_data: list[int] = []
     campo_data: list[int] = []
     for item in qs:
+        servidor_id = int(item.get("servidor_id") or 0)
         nome = item["servidor__nome"] or "Servidor"
+        servidor_ids.append(servidor_id)
         labels.append(nome)
         expediente = int(item.get("expediente") or 0)
         campo = int(item.get("campo") or 0)
@@ -643,33 +646,34 @@ def get_top_servidores(
         campo_data.append(campo)
 
     # monta dicas com atividades de campo (top 3 por servidor)
-    detail_map: dict[str, list[tuple[str, int]]] = {}
+    detail_map: dict[int, list[tuple[str, int]]] = {}
     campo_exists = meta_expediente_id is not None
     if campo_exists:
         detalhes_qs = (
             base_qs.exclude(item__meta_id=meta_expediente_id)
-            .values("servidor__nome", "item__meta__titulo")
+            .values("servidor_id", "item__meta__titulo")
             .annotate(total=Count("id"))
-            .order_by("servidor__nome", "-total", "item__meta__titulo")
+            .order_by("servidor_id", "-total", "item__meta__titulo")
         )
         for row in detalhes_qs:
-            nome = row["servidor__nome"] or "Servidor"
+            servidor_id = int(row.get("servidor_id") or 0)
             meta_titulo = row["item__meta__titulo"] or "Atividade"
             total = int(row.get("total") or 0)
             if total <= 0:
                 continue
-            detail_map.setdefault(nome, [])
-            if len(detail_map[nome]) < 3:
-                detail_map[nome].append((meta_titulo, total))
+            detail_map.setdefault(servidor_id, [])
+            if len(detail_map[servidor_id]) < 3:
+                detail_map[servidor_id].append((meta_titulo, total))
 
     hints: list[str] = []
     for idx, nome in enumerate(labels):
+        servidor_id = servidor_ids[idx] if idx < len(servidor_ids) else 0
         expediente = expediente_data[idx] if idx < len(expediente_data) else 0
         campo = campo_data[idx] if idx < len(campo_data) else 0
 
         if campo_exists:
             if campo > 0:
-                detalhes = detail_map.get(nome, [])
+                detalhes = detail_map.get(servidor_id, [])
                 if detalhes:
                     texto = ", ".join(f"{titulo} ({qt})" for titulo, qt in detalhes)
                     hints.append(f"Campo: {texto}")
@@ -707,6 +711,7 @@ def get_top_servidores(
 
     return {
         "labels": labels,
+        "servidor_ids": servidor_ids,
         "datasets": datasets,
         "hints": hints,
     }

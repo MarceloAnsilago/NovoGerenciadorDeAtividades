@@ -124,6 +124,58 @@
     return endpoint.toString();
   }
 
+  function buildServidorDashboardUrl(servidorId) {
+    if (!servidorId) {
+      return "";
+    }
+    const template = endpoints.servidorDashboardTemplate || "";
+    if (template.includes("/0/")) {
+      return template.replace("/0/", `/${encodeURIComponent(String(servidorId))}/`);
+    }
+    return `/dashboard/servidor/${encodeURIComponent(String(servidorId))}/`;
+  }
+
+  function resolveTopServidorIndex(event, elements, chart) {
+    if (elements && elements.length) {
+      return elements[0].index;
+    }
+    const nativeEvent = event && event.native;
+    if (!nativeEvent || !chart || !chart.scales || !chart.scales.y) {
+      return -1;
+    }
+    const yScale = chart.scales.y;
+    const labels = (chart.data && chart.data.labels) || [];
+    if (!labels.length) {
+      return -1;
+    }
+    const clickY = nativeEvent.offsetY;
+    const step = labels.length > 1 ? Math.abs(yScale.getPixelForTick(1) - yScale.getPixelForTick(0)) : 24;
+    const tolerance = Math.max(10, Math.floor(step / 2));
+    for (let i = 0; i < labels.length; i += 1) {
+      const tickY = yScale.getPixelForTick(i);
+      if (Math.abs(clickY - tickY) <= tolerance) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function navigateToServidorDashboard(servidorId) {
+    const targetUrl = buildServidorDashboardUrl(servidorId);
+    if (!targetUrl) {
+      return;
+    }
+    const { start, end } = getRangeValues();
+    const target = new URL(targetUrl, window.location.origin);
+    if (start) {
+      target.searchParams.set("inicio", start);
+    }
+    if (end) {
+      target.searchParams.set("fim", end);
+    }
+    window.location.href = target.toString();
+  }
+
   function syncUrlParams() {
     const { start, end } = getRangeValues();
     const current = new URL(window.location.href);
@@ -328,6 +380,7 @@
     const topServPayload = await fetchJson(buildEndpoint(endpoints.topServidores));
     const hasStack = (topServPayload?.datasets || []).length > 1;
     const topHints = topServPayload?.hints || [];
+    const topServidorIds = topServPayload?.servidor_ids || [];
     renderChart(
       "chartTopServidores",
       topServPayload,
@@ -354,6 +407,17 @@
                 },
               },
             },
+          },
+          onClick: (event, elements, chart) => {
+            const idx = resolveTopServidorIndex(event, elements, chart);
+            if (idx < 0) {
+              return;
+            }
+            const servidorId = topServidorIds[idx];
+            if (!servidorId) {
+              return;
+            }
+            navigateToServidorDashboard(servidorId);
           },
           scales: {
             x: {

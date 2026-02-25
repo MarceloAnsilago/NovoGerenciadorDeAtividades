@@ -1,0 +1,451 @@
+{% extends "core/base.html" %}
+
+{% block title %}Dashboard do Servidor{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">Dashboard do servidor: {{ servidor.nome }}</h1>
+      <p class="text-muted mb-0">
+        Periodo analisado: <strong>{{ period_label }}</strong>
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ dashboard_return_url }}" class="btn btn-outline-secondary btn-sm">
+        Voltar ao dashboard principal
+      </a>
+      <a href="{% url 'core:dashboard_servidor' servidor.id %}" class="btn btn-outline-dark btn-sm">
+        Limpar periodo
+      </a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label small mb-1" for="inicio">Inicio</label>
+          <input
+            id="inicio"
+            type="month"
+            name="inicio"
+            class="form-control form-control-sm"
+            value="{{ dashboard_month_start|default:'' }}"
+            {% if dashboard_month_min %}min="{{ dashboard_month_min }}"{% endif %}
+            {% if dashboard_month_max %}max="{{ dashboard_month_max }}"{% endif %}
+          >
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small mb-1" for="fim">Fim</label>
+          <input
+            id="fim"
+            type="month"
+            name="fim"
+            class="form-control form-control-sm"
+            value="{{ dashboard_month_end|default:'' }}"
+            {% if dashboard_month_min %}min="{{ dashboard_month_min }}"{% endif %}
+            {% if dashboard_month_max %}max="{{ dashboard_month_max }}"{% endif %}
+          >
+        </div>
+        <div class="col-12 col-md-6 d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm">Aplicar periodo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Dados do servidor</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-3">
+          <div class="text-muted small">Unidade</div>
+          <div class="fw-semibold">{{ servidor.unidade.nome }}</div>
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="text-muted small">Cargo</div>
+          <div class="fw-semibold">{{ servidor.cargo.nome|default:"Nao informado" }}</div>
+        </div>
+        <div class="col-12 col-md-2">
+          <div class="text-muted small">Matricula</div>
+          <div class="fw-semibold">{{ servidor.matricula|default:"-" }}</div>
+        </div>
+        <div class="col-12 col-md-2">
+          <div class="text-muted small">Telefone</div>
+          <div class="fw-semibold">{{ servidor.telefone|default:"-" }}</div>
+        </div>
+        <div class="col-12 col-md-2">
+          <div class="text-muted small">Status</div>
+          <div class="fw-semibold">
+            {% if servidor.ativo %}
+              <span class="badge text-bg-success">Ativo</span>
+            {% else %}
+              <span class="badge text-bg-secondary">Inativo</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Alocacoes no periodo</div>
+          <div class="display-6 fw-bold">{{ kpis.total_alocacoes }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Concluidas</div>
+          <div class="display-6 fw-bold text-success">{{ kpis.concluidas }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Pendentes</div>
+          <div class="display-6 fw-bold text-danger">{{ kpis.pendentes }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Taxa de conclusao</div>
+          <div class="display-6 fw-bold">{{ kpis.taxa_conclusao|floatformat:2 }}%</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-2">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Metas distintas</div>
+          <div class="h3 mb-0 fw-bold">{{ kpis.metas_distintas }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-2">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Atividades distintas</div>
+          <div class="h3 mb-0 fw-bold">{{ kpis.atividades_distintas }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-2">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Dias programados</div>
+          <div class="h3 mb-0 fw-bold">{{ kpis.dias_programados }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-2">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Unidades de atuacao</div>
+          <div class="h3 mb-0 fw-bold">{{ kpis.unidades_atuacao }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-2">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Veiculos usados</div>
+          <div class="h3 mb-0 fw-bold">{{ kpis.veiculos_usados }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-2">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Itens com observacao</div>
+          <div class="h3 mb-0 fw-bold">{{ kpis.com_observacao }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Primeira data no periodo</div>
+          <div class="h5 mb-0 fw-bold">{{ kpis.primeira_data|date:"d/m/Y"|default:"-" }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Ultima data no periodo</div>
+          <div class="h5 mb-0 fw-bold">{{ kpis.ultima_data|date:"d/m/Y"|default:"-" }}</div>
+        </div>
+      </div>
+    </div>
+    {% if kpis.expediente_total is not None %}
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Expediente administrativo</div>
+          <div class="h3 mb-0 fw-bold">{{ kpis.expediente_total }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Atividades de campo</div>
+          <div class="h3 mb-0 fw-bold">{{ kpis.campo_total }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-12 col-xl-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Top atividades do servidor</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Atividade</th>
+                <th>Area</th>
+                <th class="text-end">Total</th>
+                <th class="text-end">Concluidas</th>
+                <th class="text-end">Pendentes</th>
+                <th class="text-end">Ultima data</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in atividade_rows %}
+              <tr>
+                <td>{{ row.atividade }}</td>
+                <td>{{ row.area }}</td>
+                <td class="text-end">{{ row.total }}</td>
+                <td class="text-end">{{ row.concluidas }}</td>
+                <td class="text-end">{{ row.pendentes }}</td>
+                <td class="text-end">{{ row.ultima_data|date:"d/m/Y" }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="6" class="text-center text-muted py-3">Sem atividades no periodo selecionado.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Top metas vinculadas</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Meta</th>
+                <th class="text-end">Total</th>
+                <th class="text-end">Concluidas</th>
+                <th class="text-end">Pendentes</th>
+                <th class="text-end">Ultima data</th>
+                <th class="text-end">Status meta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in meta_rows %}
+              <tr>
+                <td>{{ row.titulo }}</td>
+                <td class="text-end">{{ row.total }}</td>
+                <td class="text-end">{{ row.concluidas }}</td>
+                <td class="text-end">{{ row.pendentes }}</td>
+                <td class="text-end">{{ row.ultima_data|date:"d/m/Y" }}</td>
+                <td class="text-end">
+                  {% if row.encerrada %}
+                    <span class="badge text-bg-secondary">Encerrada</span>
+                  {% else %}
+                    <span class="badge text-bg-success">Ativa</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="6" class="text-center text-muted py-3">Sem metas no periodo selecionado.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-12 col-lg-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Distribuicao por area</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Area</th>
+                <th class="text-end">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in area_rows %}
+              <tr>
+                <td>{{ row.nome }}</td>
+                <td class="text-end">{{ row.total }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="2" class="text-center text-muted py-3">Sem dados.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Distribuicao por unidade</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Unidade</th>
+                <th class="text-end">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in unidade_rows %}
+              <tr>
+                <td>{{ row.nome }}</td>
+                <td class="text-end">{{ row.total }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="2" class="text-center text-muted py-3">Sem dados.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Veiculos mais usados</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Placa</th>
+                <th class="text-end">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in veiculo_rows %}
+              <tr>
+                <td>{{ row.placa }}</td>
+                <td class="text-end">{{ row.total }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="2" class="text-center text-muted py-3">Sem uso de veiculos no periodo.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Serie mensal do servidor</div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Mes</th>
+            <th class="text-end">Total</th>
+            <th class="text-end">Concluidas</th>
+            <th class="text-end">Pendentes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in mensal_rows %}
+          <tr>
+            <td>{{ row.mes }}</td>
+            <td class="text-end">{{ row.total }}</td>
+            <td class="text-end">{{ row.concluidas }}</td>
+            <td class="text-end">{{ row.pendentes }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="4" class="text-center text-muted py-3">Sem serie mensal para o periodo selecionado.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+      <span>Ultimas alocacoes detalhadas</span>
+      <small class="text-muted">Mostrando ate {{ recentes_rows|length }} registros</small>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Unidade</th>
+            <th>Meta</th>
+            <th>Atividade</th>
+            <th>Area</th>
+            <th class="text-center">Status</th>
+            <th>Concluida em</th>
+            <th>Veiculo</th>
+            <th>Observacao</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in recentes_rows %}
+          <tr>
+            <td>{{ row.data|date:"d/m/Y" }}</td>
+            <td>{{ row.unidade }}</td>
+            <td>{{ row.meta }}</td>
+            <td>{{ row.atividade }}</td>
+            <td>{{ row.area }}</td>
+            <td class="text-center">
+              {% if row.concluido %}
+                <span class="badge text-bg-success">Concluida</span>
+              {% else %}
+                <span class="badge text-bg-warning">Pendente</span>
+              {% endif %}
+            </td>
+            <td>{{ row.concluido_em|date:"d/m/Y H:i" }}</td>
+            <td>{{ row.veiculo }}</td>
+            <td>{{ row.observacao|default:"-" }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="9" class="text-center text-muted py-3">Sem alocacoes para este servidor no periodo.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
