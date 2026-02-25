@@ -49,14 +49,14 @@
       </div>
 
       <div class="row g-2 mb-3">
-        <div class="col-md-4">
+        <div class="col-lg-3 col-md-6">
           <label class="form-label mb-1">Periodo</label>
           <div class="d-flex gap-2">
             <input type="date" id="filtroMetasInicio" class="form-control form-control-sm">
             <input type="date" id="filtroMetasFim" class="form-control form-control-sm">
           </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-lg-3 col-md-6">
           <label class="form-label mb-1">Status</label>
           <select id="filtroMetasStatus" class="form-select form-select-sm">
             <option value="">Todos</option>
@@ -66,7 +66,16 @@
             <option value="encerrada">Encerradas</option>
           </select>
         </div>
-        <div class="col-md-4 d-flex align-items-end">
+        <div class="col-lg-3 col-md-6">
+          <label class="form-label mb-1">Area</label>
+          <select id="filtroMetasArea" class="form-select form-select-sm">
+            <option value="">Todas</option>
+            {% for area_obj in areas %}
+              <option value="{{ area_obj.code }}" {% if area_obj.code == area_selected %}selected{% endif %}>{{ area_obj.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-lg-3 col-md-6 d-flex align-items-end">
           <button type="button" class="btn btn-outline-primary w-100" id="btnAplicarFiltroMetas">
             <i class="bi bi-funnel"></i> Aplicar filtro
           </button>
@@ -190,8 +199,12 @@
   var monthTabs = Array.from(document.querySelectorAll("#metasMonthTabs .nav-link"));
   var startInput = document.getElementById("filtroMetasInicio");
   var endInput = document.getElementById("filtroMetasFim");
+  var areaSelect = document.getElementById("filtroMetasArea");
   var yearSelect = document.getElementById("metaYearSelect");
   var selectedMonthKey = "{{ meta_month_default|default:'' }}";
+  var AREA_ANIMAL = "ANIMAL";
+  var AREA_VEGETAL = "VEGETAL";
+  var AREA_ANIMAL_VEGETAL = "ANIMAL_VEGETAL";
   if (!btnFiltro || !tbody) return;
 
   if (yearSelect) {
@@ -200,6 +213,8 @@
       var ano = yearSelect.value;
       if (ano) url.searchParams.set("ano", ano);
       else url.searchParams.delete("ano");
+      if (areaSelect && areaSelect.value) url.searchParams.set("area", areaSelect.value);
+      else url.searchParams.delete("area");
       url.searchParams.delete("month");
       window.location.href = url.toString();
     });
@@ -247,6 +262,7 @@
     var inicio = parseDate(document.getElementById("filtroMetasInicio")?.value || "");
     var fim = parseDate(document.getElementById("filtroMetasFim")?.value || "");
     var status = (document.getElementById("filtroMetasStatus")?.value || "").toLowerCase();
+    var area = (areaSelect?.value || "").toUpperCase();
     var monthKey = (selectedMonthKey || "").toLowerCase();
 
     var rows = Array.from(tbody.querySelectorAll("tr"));
@@ -259,6 +275,7 @@
       var rowStatus = (row.getAttribute("data-meta-status") || "").toLowerCase();
       var rowDataRaw = row.getAttribute("data-meta-data") || "";
       var rowMonthKey = (row.getAttribute("data-meta-month") || "").toLowerCase();
+      var rowArea = (row.getAttribute("data-meta-area") || "").toUpperCase();
       var rowDate = parseDate(rowDataRaw);
 
       var visible = true;
@@ -266,6 +283,15 @@
       if (visible && monthKey && rowMonthKey !== monthKey) visible = false;
       if (visible && inicio && rowDate && rowDate < inicio) visible = false;
       if (visible && fim && rowDate && rowDate > fim) visible = false;
+      if (visible && area) {
+        if (area === AREA_ANIMAL) {
+          visible = rowArea === AREA_ANIMAL || rowArea === AREA_ANIMAL_VEGETAL;
+        } else if (area === AREA_VEGETAL) {
+          visible = rowArea === AREA_VEGETAL || rowArea === AREA_ANIMAL_VEGETAL;
+        } else {
+          visible = rowArea === area;
+        }
+      }
 
       row.classList.toggle("d-none", !visible);
       if (visible) visibleCount += 1;

@@ -2,7 +2,8 @@
 {% with meta=aloc.meta %}
 <tr data-meta-status="{% if meta.encerrada %}encerrada{% elif meta.atrasada %}atrasada{% elif meta.concluida %}concluida{% else %}andamento{% endif %}"
     data-meta-data="{{ meta.data_limite|date:'Y-m-d' }}"
-    data-meta-month="{{ meta.month_key|default:'nodate' }}">
+    data-meta-month="{{ meta.month_key|default:'nodate' }}"
+    data-meta-area="{% if meta.atividade and meta.atividade.area %}{{ meta.atividade.area.code }}{% endif %}">
   <td>
     <i class="bi bi-card-text text-primary me-2" aria-hidden="true"></i>
     {% if meta.atividade %}
