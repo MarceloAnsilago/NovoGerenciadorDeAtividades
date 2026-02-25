@@ -58,7 +58,7 @@ def _item_execucao_info(item):
     concluido = bool(getattr(item, "concluido", False))
     concluido_em = getattr(item, "concluido_em", None)
     if concluido:
-        return "concluidas", "Executada"
+        return "concluidas", "Concluida"
     if concluido_em:
         return "nao_executadas", "Nao executada"
     return "pendentes", "Pendente"
