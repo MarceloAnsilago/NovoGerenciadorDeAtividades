@@ -61,6 +61,11 @@
     <div class="flex-grow-1">
       {% if meta_month_filters %}
       <ul class="nav nav-tabs mb-0" id="metaMonthTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button id="metaLoadPrevMonth" class="nav-link" type="button" role="button" title="Carregar mes anterior" aria-label="Carregar mes anterior">
+            <i class="bi bi-chevron-left me-1"></i>Anterior
+          </button>
+        </li>
         {% for filter in meta_month_filters %}
           <li class="nav-item" role="presentation">
             <button class="nav-link {% if filter.key == meta_month_default %}active{% elif forloop.first and not meta_month_default %}active{% endif %}" type="button" role="tab" data-month-filter="{{ filter.key }}">
@@ -279,7 +284,8 @@
 <script>
 (function () {
   var grid = document.getElementById("metaCardsGrid");
-  var tabs = Array.from(document.querySelectorAll("#metaMonthTabs .nav-link"));
+  var tabs = Array.from(document.querySelectorAll("#metaMonthTabs .nav-link[data-month-filter]"));
+  var prevBtn = document.getElementById("metaLoadPrevMonth");
   var startInput = document.querySelector('input[name="start"]');
   var endInput = document.querySelector('input[name="end"]');
   var yearSelect = document.getElementById("metaYearSelect");
@@ -304,13 +310,41 @@
     return d.getFullYear() + "-" + month + "-" + day;
   }
 
-  function getRangeFromMonthKey(key) {
+  function parseMonthKey(key) {
     if (!key || key === "nodate") return null;
     var parts = key.split("-");
     if (parts.length !== 2) return null;
     var year = Number(parts[0]);
     var month = Number(parts[1]);
     if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
+    return { year: year, month: month };
+  }
+
+  function toPreviousMonthKey(key) {
+    var parsed = parseMonthKey(key);
+    if (!parsed) return "";
+    var year = parsed.year;
+    var month = parsed.month - 1;
+    if (month < 1) {
+      month = 12;
+      year -= 1;
+    }
+    if (year < 1) return "";
+    return String(year).padStart(4, "0") + "-" + String(month).padStart(2, "0");
+  }
+
+  function monthKeyFromIso(isoValue) {
+    var raw = String(isoValue || "");
+    var match = raw.match(/^(\d{4})-(\d{2})-\d{2}$/);
+    if (!match) return "";
+    return match[1] + "-" + match[2];
+  }
+
+  function getRangeFromMonthKey(key) {
+    var parsed = parseMonthKey(key);
+    if (!parsed) return null;
+    var year = parsed.year;
+    var month = parsed.month;
     var start = new Date(year, month - 1, 1);
     var end = new Date(year, month, 0);
     return { start: formatIso(start), end: formatIso(end) };
@@ -329,6 +363,10 @@
     url.searchParams.set("end", range.end);
     if (monthKey) {
       url.searchParams.set("month", monthKey);
+      var parsed = parseMonthKey(monthKey);
+      if (parsed) {
+        url.searchParams.set("ano", String(parsed.year));
+      }
     } else {
       url.searchParams.delete("month");
     }
@@ -336,14 +374,36 @@
   }
 
   function applyMonthFilter(key) {
+    var hasMatch = !key || cards.some(function (card) {
+      return card.dataset.monthKey === key;
+    });
     cards.forEach(function (card) {
-      var matches = !key || card.dataset.monthKey === key;
+      var matches = !key || !hasMatch || card.dataset.monthKey === key;
       card.style.display = matches ? "" : "none";
     });
     tabs.forEach(function (tab) {
       var tabKey = tab.dataset.monthFilter || "";
       tab.classList.toggle("active", tabKey === (key || ""));
     });
+  }
+
+  function resolveCurrentMonthKey() {
+    var urlObj = new URL(window.location.href);
+    var monthFromQuery = urlObj.searchParams.get("month") || "";
+    if (parseMonthKey(monthFromQuery)) return monthFromQuery;
+    var activeTab = tabs.find(function (t) { return t.classList.contains("active"); });
+    var monthFromTab = activeTab ? (activeTab.dataset.monthFilter || "") : "";
+    if (parseMonthKey(monthFromTab)) return monthFromTab;
+    var fromStart = monthKeyFromIso(startInput ? startInput.value : "");
+    if (parseMonthKey(fromStart)) return fromStart;
+    return "";
+  }
+
+  function updatePrevButton(monthKey) {
+    if (!prevBtn) return;
+    var prevMonth = toPreviousMonthKey(monthKey);
+    prevBtn.disabled = !prevMonth;
+    prevBtn.setAttribute("data-prev-month", prevMonth || "");
   }
 
   tabs.forEach(function (tab) {
@@ -358,11 +418,22 @@
     });
   });
 
+  if (prevBtn) {
+    prevBtn.addEventListener("click", function () {
+      var prevMonth = String(prevBtn.getAttribute("data-prev-month") || "").trim();
+      if (!prevMonth) return;
+      var range = getRangeFromMonthKey(prevMonth);
+      if (!range) return;
+      applyRangeToInputs(range);
+      reloadWithRange(range, prevMonth);
+    });
+  }
+
   var urlObj = new URL(window.location.href);
   var initialMonth = urlObj.searchParams.get("month") || "";
-  var activeTab = tabs.find(function (t) { return t.classList.contains("active"); });
-  var initialKey = initialMonth || (activeTab ? activeTab.dataset.monthFilter || "" : "");
+  var initialKey = initialMonth || resolveCurrentMonthKey();
   applyMonthFilter(initialKey);
+  updatePrevButton(initialKey);
 })();
 </script>
 {# ====== JS: aplica o width das barras a partir do data-pct ====== #}

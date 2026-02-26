@@ -41,6 +41,21 @@ def _parse_iso(value: str | None) -> date | None:
         return None
 
 
+def _parse_month_key(value: str | None) -> tuple[int, int] | None:
+    if not value:
+        return None
+    raw = str(value).strip()
+    try:
+        year_str, month_str = raw.split("-")
+        year = int(year_str)
+        month = int(month_str)
+    except Exception:
+        return None
+    if year < 1 or month < 1 or month > 12:
+        return None
+    return year, month
+
+
 def _meta_status_info(meta):
     if not meta:
         return "andamento", "Em andamento"
@@ -82,6 +97,18 @@ def minhas_metas_view(request):
         meta_filter_id = None
 
     today = timezone.localdate()
+    month_param = (request.GET.get("month") or "").strip()
+    month_param_parsed = _parse_month_key(month_param)
+    ano_raw = request.GET.get("ano")
+
+    include_encerradas_cards = False
+    if month_param_parsed:
+        include_encerradas_cards = (month_param_parsed[0], month_param_parsed[1]) < (today.year, today.month)
+    elif ano_raw:
+        try:
+            include_encerradas_cards = int(ano_raw) < today.year
+        except (TypeError, ValueError):
+            include_encerradas_cards = False
 
     status_param = request.GET.get("status")
     status_value = (status_param or "").lower()
@@ -98,9 +125,11 @@ def minhas_metas_view(request):
         MetaAlocacao.objects
         .select_related("meta", "meta__atividade", "meta__criado_por", "meta__unidade_criadora")
         .annotate(realizado_unidade=Sum("progresso__quantidade"))
-        .filter(unidade=unidade, meta__encerrada=False)
+        .filter(unidade=unidade)
         .order_by("meta__data_limite", "meta__titulo")
     )
+    if not include_encerradas_cards:
+        alocacoes_qs = alocacoes_qs.filter(meta__encerrada=False)
 
     meta_ids = list(alocacoes_qs.values_list("meta_id", flat=True))
     programadas_por_meta: dict[int, int] = {}
@@ -132,19 +161,24 @@ def minhas_metas_view(request):
         if limite and hasattr(limite, "year"):
             years_set.add(limite.year)
     years = sorted(years_set, reverse=True)
+    years_base = set(years_set)
 
-    ano_raw = request.GET.get("ano")
     ano_selected: int | None = None
     if ano_raw:
         try:
             ano_selected = int(ano_raw)
         except (ValueError, TypeError):
             ano_selected = None
+    if ano_selected is None and month_param_parsed:
+        ano_selected = month_param_parsed[0]
     if ano_selected is None and years:
         current_year = today.year
         ano_selected = current_year if current_year in years else years[0]
 
-    if ano_selected:
+    if ano_selected is not None and ano_selected not in years:
+        years = sorted({*years, ano_selected}, reverse=True)
+
+    if ano_selected and ano_selected in years_base:
         # Inclui metas sem data_limite mesmo quando um ano específico está selecionado.
         alocacoes = [
             aloc for aloc in alocacoes
@@ -170,15 +204,21 @@ def minhas_metas_view(request):
             month_keys[key] = label
         setattr(meta_obj, "month_key", key)
 
-    month_param = request.GET.get("month") or ""
     today_key = f"{today.year}-{today.month:02d}"
     month_default_key: str | None = None
-    if month_param and month_param in month_keys:
-        month_default_key = month_param
+    if month_param_parsed:
+        month_default_key = f"{month_param_parsed[0]}-{month_param_parsed[1]:02d}"
     elif today_key in month_keys:
         month_default_key = today_key
     elif month_keys:
         month_default_key = next(iter(month_keys))
+
+    if month_default_key and month_default_key not in month_keys:
+        parsed_default = _parse_month_key(month_default_key)
+        if parsed_default:
+            month_year, month_number = parsed_default
+            month_label = f"{MONTH_NAMES_PT[month_number - 1]} de {month_year}"
+            month_keys = OrderedDict([(month_default_key, month_label), *month_keys.items()])
 
     meta_month_filters = [{"key": key, "label": label} for key, label in month_keys.items()]
 
