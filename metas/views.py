@@ -287,6 +287,9 @@ def atividades_lista_view(request):
     paginator = Paginator(atividades, 20)
     page = request.GET.get("page")
     page_obj = paginator.get_page(page)
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
+    atividades_filters_qs = query_params.urlencode()
 
     metas_context = _prepare_metas_context(request, emit_messages=True)
 
@@ -298,6 +301,7 @@ def atividades_lista_view(request):
             "unidade_nome": getattr(unidade, "nome", "Nao selecionada"),
             "atividades": page_obj.object_list,
             "page_obj": page_obj,
+            "atividades_filters_qs": atividades_filters_qs,
             "areas": Area.objects.filter(ativo=True).order_by("nome"),
             "area_selected": area,
             "q": q,
