@@ -1,3 +1,4 @@
+import json
 from collections import defaultdict, OrderedDict
 from datetime import date
 from calendar import monthrange
@@ -15,6 +16,7 @@ from django.urls import reverse
 from core.utils import get_unidade_atual
 from metas.models import MetaAlocacao
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
+from veiculos.models import Veiculo
 
 MONTH_NAMES_PT = (
     "Janeiro",
@@ -423,6 +425,18 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         "metas_sem_programacao": metas_sem_programacao,
         "resumo_meta": resumo_meta,
     }
+    veiculos_json = "[]"
+    try:
+        veiculos_qs = (
+            Veiculo.objects.filter(unidade_id=unidade.id, ativo=True)
+            .order_by("nome")
+            .values("id", "nome", "placa")
+        )
+        veiculos_json = json.dumps(list(veiculos_qs))
+    except Exception:
+        veiculos_json = "[]"
+    contexto["META_EXPEDIENTE_ID"] = expediente_meta_id
+    contexto["VEICULOS_ATIVOS_JSON"] = veiculos_json
     lista_base_url = reverse("minhas_metas:lista")
     query_string = request.GET.urlencode()
     contexto["back_to_metas_url"] = f"{lista_base_url}?{query_string}" if query_string else lista_base_url

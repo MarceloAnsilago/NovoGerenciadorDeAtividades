@@ -40,6 +40,15 @@
           Concluir
         {% endif %}
       </a>
+
+      {% if it.data %}
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary js-abrir-programacao-dia"
+          data-date="{{ it.data|date:'Y-m-d' }}">
+          Abrir programacao
+        </button>
+      {% endif %}
     </div>
   </td>
 </tr>

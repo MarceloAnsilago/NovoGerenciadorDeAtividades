@@ -2,8 +2,55 @@
 
 {% block title %}Andamento das Atividades{% endblock %}
 
+{% block extra_head %}
+  {{ block.super }}
+  {% include "programar/styles/_programacao_styles.html" %}
+{% endblock %}
+
 {% block content %}
 <div class="container py-4">
   {% include "minhas_metas/partials/_andamento_grid.html" with show_back_to_metas_button=True show_clear_meta_filter=False show_date_filters=False %}
+  {% include "programar/partials/_modal_programacao.html" %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  {% include "programar/scripts/_urls_context.html" %}
+  {% include "programar/partials/_servidores_disponiveis_logic.html" %}
+  {% include "programar/scripts/_atividades_logic.html" %}
+  {% include "programar/scripts/_metas_logic.html" %}
+  {% include "programar/scripts/_modal_logic.html" %}
+  <script>
+    (function () {
+      function parseIsoToDate(dateStr) {
+        const match = String(dateStr || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return null;
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const dt = new Date(year, month - 1, day, 12, 0, 0, 0);
+        return Number.isNaN(dt.getTime()) ? null : dt;
+      }
+
+      function formatModalLabel(dateStr) {
+        const dt = parseIsoToDate(dateStr);
+        if (!dt) return "";
+        const dateBR = dt.toLocaleDateString("pt-BR");
+        let weekday = dt.toLocaleDateString("pt-BR", { weekday: "long" });
+        if (weekday) weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+        return weekday ? `${weekday}, ${dateBR}` : dateBR;
+      }
+
+      document.addEventListener("click", function (ev) {
+        const btn = ev.target.closest(".js-abrir-programacao-dia");
+        if (!btn) return;
+        ev.preventDefault();
+        const iso = String(btn.getAttribute("data-date") || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
+        const label = formatModalLabel(iso);
+        window.PROGRAMAR?.openProgramarModal?.(iso, label);
+      });
+    })();
+  </script>
 {% endblock %}
