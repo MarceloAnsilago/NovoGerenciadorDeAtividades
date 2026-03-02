@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.conf import settings
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -325,17 +325,75 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
 
     selected_meta_title: str = ""
     selected_meta = None
+    selected_aloc = None
     if meta_filter_id:
         for aloc in alocacoes:
             meta_obj = getattr(aloc, "meta", None)
             if meta_obj and getattr(meta_obj, "id", None) == meta_filter_id:
                 selected_meta = meta_obj
+                selected_aloc = aloc
                 break
         if not selected_meta:
-            selected_meta = MetaAlocacao.objects.filter(meta_id=meta_filter_id, unidade=unidade).select_related("meta").first()
-            selected_meta = getattr(selected_meta, "meta", None)
+            selected_aloc = MetaAlocacao.objects.filter(meta_id=meta_filter_id, unidade=unidade).select_related("meta").first()
+            selected_meta = getattr(selected_aloc, "meta", None)
         if selected_meta:
             selected_meta_title = getattr(selected_meta, "display_titulo", None) or getattr(selected_meta, "titulo", "")
+
+    resumo_meta = None
+    if selected_meta and meta_filter_id:
+        resumo_qs = ProgramacaoItem.objects.filter(
+            programacao__unidade_id=unidade.id,
+            meta_id=meta_filter_id,
+        )
+        if expediente_meta_id:
+            resumo_qs = resumo_qs.exclude(meta_id=expediente_meta_id)
+
+        resumo_agg = resumo_qs.aggregate(
+            total=Count("id"),
+            concluidas=Count("id", filter=Q(concluido=True)),
+            nao_executadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
+            em_andamento=Count("id", filter=Q(concluido=False, concluido_em__isnull=True)),
+            pendentes_atrasadas=Count(
+                "id",
+                filter=Q(concluido=False, concluido_em__isnull=True, programacao__data__lt=today),
+            ),
+        )
+
+        total_programadas = int(resumo_agg.get("total") or 0)
+        atividades_meta = int(getattr(selected_meta, "quantidade_alvo", 0) or 0)
+        nao_programadas = max(atividades_meta - total_programadas, 0)
+        concluidas = int(resumo_agg.get("concluidas") or 0)
+        percentual_conclusao = round((concluidas / total_programadas) * 100, 1) if total_programadas else 0.0
+        alocado_unidade = int(getattr(selected_aloc, "quantidade_alocada", 0) or 0)
+        executado_unidade = int(getattr(selected_aloc, "realizado_unidade", 0) or 0)
+
+        primeira_data = (
+            resumo_qs.order_by("programacao__data")
+            .values_list("programacao__data", flat=True)
+            .first()
+        )
+        ultima_data = (
+            resumo_qs.order_by("-programacao__data")
+            .values_list("programacao__data", flat=True)
+            .first()
+        )
+
+        resumo_meta = {
+            "numero_atividades": atividades_meta,
+            "data_inicio": getattr(selected_meta, "data_inicio", None),
+            "data_final": getattr(selected_meta, "data_limite", None),
+            "em_andamento": int(resumo_agg.get("em_andamento") or 0),
+            "concluidas": concluidas,
+            "nao_executadas": int(resumo_agg.get("nao_executadas") or 0),
+            "em_programacao": total_programadas,
+            "nao_programadas": nao_programadas,
+            "pendentes_atrasadas": int(resumo_agg.get("pendentes_atrasadas") or 0),
+            "percentual_conclusao": percentual_conclusao,
+            "primeira_programacao": primeira_data,
+            "ultima_programacao": ultima_data,
+            "alocado_unidade": alocado_unidade,
+            "executado_unidade": executado_unidade,
+        }
 
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
         html = render_to_string(
@@ -363,6 +421,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         "meta_month_filters": meta_month_filters,
         "meta_month_default": month_default_key or "",
         "metas_sem_programacao": metas_sem_programacao,
+        "resumo_meta": resumo_meta,
     }
     lista_base_url = reverse("minhas_metas:lista")
     query_string = request.GET.urlencode()
