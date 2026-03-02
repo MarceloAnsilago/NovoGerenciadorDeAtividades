@@ -1,0 +1,9 @@
+{% extends "core/base.html" %}
+
+{% block title %}Andamento das Atividades{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  {% include "minhas_metas/partials/_andamento_grid.html" with show_back_to_metas_button=True show_clear_meta_filter=False show_date_filters=False %}
+</div>
+{% endblock %}

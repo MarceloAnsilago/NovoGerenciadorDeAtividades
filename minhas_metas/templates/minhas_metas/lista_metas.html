@@ -221,60 +221,11 @@
     {% endfor %}
   </div>
 
-  {# ====== 2) CARD ANDAMENTO (EMBAIXO) ====== #}
   <div class="card border-0 shadow-sm mt-4">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-        <div>
-          <h5 class="mb-1">Andamento das Atividades</h5>
-          <div class="text-muted small">
-            Periodo:
-            <strong>{{ dt_start|date:"d/m/Y" }}</strong>
-            &rarr;
-            <strong>{{ dt_end|date:"d/m/Y" }}</strong>
-          </div>
-          <div id="metaAndamentoBadge" class="mt-2{% if not meta_filter_title %} d-none{% endif %}">
-            <span class="badge bg-info-subtle text-info-emphasis">
-              Filtrando meta: <strong id="metaAndamentoNome">{{ meta_filter_title }}</strong>
-            </span>
-            <button type="button" id="btnClearMetaFiltro" class="btn btn-link btn-sm text-decoration-none">
-              Limpar filtro
-            </button>
-          </div>
-        </div>
-
-        <form method="get" class="d-flex align-items-center gap-2">
-          <input type="date" name="start" value="{{ dt_start|date:'Y-m-d' }}" class="form-control form-control-sm">
-          <input type="date" name="end"   value="{{ dt_end|date:'Y-m-d' }}"   class="form-control form-control-sm">
-          <input type="hidden" name="month" value="{{ request.GET.month|default:'' }}">
-          <input type="hidden" name="ano" value="{{ ano_selected|default:'' }}">
-          <select name="status" class="form-select form-select-sm" style="max-width: 160px;">
-            <option value="" {% if not status_filter %}selected{% endif %}>Todas</option>
-            <option value="concluidas" {% if status_filter == 'concluidas' %}selected{% endif %}>Concluidas</option>
-            <option value="nao_executadas" {% if status_filter == 'nao_executadas' %}selected{% endif %}>Nao executadas</option>
-            <option value="pendentes" {% if status_filter == 'pendentes' %}selected{% endif %}>Pendentes</option>
-          </select>
-          <button class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-calendar-range"></i> Atualizar
-          </button>
-        </form>
-      </div>
-
-      <div class="table-responsive mt-3" id="andamentoTabelaWrap">
-        <table class="table table-sm align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th style="width:105px;">Data</th>
-              <th>Meta / Atividade</th>
-              <th style="width:32%;">Servidores</th>
-              <th style="width:150px;">Veiculo</th>
-              <th style="width:160px;">Status</th>
-            </tr>
-          </thead>
-          <tbody id="andamentoTbody">
-            {% include "minhas_metas/partials/_andamento_rows.html" with andamento=andamento %}
-          </tbody>
-        </table>
+    <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div>
+        <h5 class="mb-1">Andamento das Atividades</h5>
+        <p class="text-muted small mb-0">Clique em um card de meta para abrir o andamento detalhado da meta selecionada.</p>
       </div>
     </div>
   </div>
@@ -439,70 +390,24 @@
 {# ====== JS: aplica o width das barras a partir do data-pct ====== #}
 <script>
 (function () {
-  var selectedClass = "meta-card-selected";
   var cards = document.querySelectorAll(".meta-click-card");
-  var tbody = document.getElementById("andamentoTbody");
-  var badgeWrap = document.getElementById("metaAndamentoBadge");
-  var badgeName = document.getElementById("metaAndamentoNome");
-  var clearBtn = document.getElementById("btnClearMetaFiltro");
 
-  function updateCardSelection(metaId) {
-    cards.forEach(function (card) {
-      if (metaId && card.dataset.metaId === String(metaId)) {
-        card.classList.add(selectedClass);
-      } else {
-        card.classList.remove(selectedClass);
-      }
+  function buildAndamentoUrl(metaId) {
+    var currentUrl = new URL(window.location.href);
+    var target = new URL("{% url 'minhas_metas:andamento' %}", window.location.origin);
+    ["month", "ano"].forEach(function (key) {
+      var value = currentUrl.searchParams.get(key);
+      if (value) target.searchParams.set(key, value);
     });
-  }
-
-  function updateBadge(metaId, title) {
-    if (!badgeWrap) return;
-    if (metaId) {
-      badgeWrap.classList.remove("d-none");
-      if (badgeName) {
-        badgeName.textContent = title || ("Meta #" + metaId);
-      }
-    } else {
-      badgeWrap.classList.add("d-none");
-    }
-  }
-
-  function buildUrl(metaId) {
-    var url = new URL(window.location.href);
-    if (metaId) {
-      url.searchParams.set("meta", metaId);
-    } else {
-      url.searchParams.delete("meta");
-    }
-    return url;
-  }
-
-  function fetchAndamento(metaId) {
-    var urlObj = buildUrl(metaId);
-    var finalUrl = urlObj.toString();
-    fetch(finalUrl, { headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then(function (resp) { return resp.json(); })
-      .then(function (data) {
-        if (tbody && typeof data.html === "string") {
-          tbody.innerHTML = data.html;
-        }
-        updateCardSelection(data.meta);
-        updateBadge(data.meta, data.meta_title);
-        history.replaceState(null, "", finalUrl);
-      })
-      .catch(function (err) {
-        console.error("Erro ao atualizar andamento:", err);
-      });
+    if (metaId) target.searchParams.set("meta", metaId);
+    return target.toString();
   }
 
   cards.forEach(function (card) {
     function handleActivate() {
-      var current = document.querySelector(".meta-click-card." + selectedClass);
-      var currentId = current ? current.dataset.metaId : null;
       var clickedId = card.dataset.metaId;
-      var nextId = (currentId === clickedId) ? null : clickedId;
-      fetchAndamento(nextId);
+      if (!clickedId) return;
+      window.location.href = buildAndamentoUrl(clickedId);
     }
     card.addEventListener("click", function (ev) {
       ev.preventDefault();
@@ -515,13 +420,6 @@
       }
     });
   });
-
-  if (clearBtn) {
-    clearBtn.addEventListener("click", function (ev) {
-      ev.preventDefault();
-      fetchAndamento(null);
-    });
-  }
 
   document.querySelectorAll(".progress-bar[data-pct]").forEach(function (el) {
     var raw = el.getAttribute("data-pct");

@@ -10,6 +10,7 @@ from django.conf import settings
 from django.db.models import Sum, Count
 from django.http import JsonResponse
 from django.template.loader import render_to_string
+from django.urls import reverse
 
 from core.utils import get_unidade_atual
 from metas.models import MetaAlocacao
@@ -80,7 +81,8 @@ def _item_execucao_info(item):
 
 
 @login_required
-def minhas_metas_view(request):
+def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
+    is_andamento_template = template_name == "minhas_metas/andamento_atividades.html"
     unidade = get_unidade_atual(request)
     if not unidade:
         messages.error(request, "Selecione uma unidade antes de ver as metas.")
@@ -95,6 +97,9 @@ def minhas_metas_view(request):
                 meta_filter_id = meta_candidate
     except (TypeError, ValueError):
         meta_filter_id = None
+    if is_andamento_template and not meta_filter_id:
+        messages.info(request, "Selecione uma meta pela tela Minhas Metas para ver o andamento.")
+        return redirect("minhas_metas:lista")
 
     today = timezone.localdate()
     month_param = (request.GET.get("month") or "").strip()
@@ -118,8 +123,12 @@ def minhas_metas_view(request):
     status_query_filter = status_value
     status_dropdown = status_value
     if status_param is None:
-        status_query_filter = "pendentes"
-        status_dropdown = "pendentes"
+        if is_andamento_template:
+            status_query_filter = ""
+            status_dropdown = ""
+        else:
+            status_query_filter = "pendentes"
+            status_dropdown = "pendentes"
 
     alocacoes_qs = (
         MetaAlocacao.objects
@@ -146,13 +155,24 @@ def minhas_metas_view(request):
         }
 
     alocacoes = list(alocacoes_qs)
+    metas_sem_programacao = []
+    metas_sem_programacao_ids = set()
     for aloc in alocacoes:
         meta_obj = getattr(aloc, "meta", None)
         if meta_obj and getattr(meta_obj, "id", None):
-            setattr(meta_obj, "programadas_total", programadas_por_meta.get(int(meta_obj.id), 0))
+            meta_id_int = int(meta_obj.id)
+            total_programadas = programadas_por_meta.get(meta_id_int, 0)
+            setattr(meta_obj, "programadas_total", total_programadas)
             status_key, status_label = _meta_status_info(meta_obj)
             setattr(meta_obj, "status_key", status_key)
             setattr(meta_obj, "status_label", status_label)
+            if (
+                total_programadas == 0
+                and (not meta_filter_id or meta_filter_id == meta_id_int)
+                and meta_id_int not in metas_sem_programacao_ids
+            ):
+                metas_sem_programacao_ids.add(meta_id_int)
+                metas_sem_programacao.append(meta_obj)
 
     # anos disponíveis (baseados na data_limite)
     years_set: set[int] = set()
@@ -240,20 +260,21 @@ def minhas_metas_view(request):
     if dt_end < dt_start:
         dt_end = dt_start
 
-    progs_qs = Programacao.objects.filter(
-        unidade_id=unidade.id,
-        data__gte=dt_start,
-        data__lte=dt_end,
-    )
-
     expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    has_explicit_date = bool(start_qs or end_qs)
+    usar_historico_completo_meta = bool(is_andamento_template and meta_filter_id and not has_explicit_date)
 
     itens_qs = (
         ProgramacaoItem.objects
         .select_related("programacao", "meta", "veiculo")
-        .filter(programacao__in=progs_qs)
+        .filter(programacao__unidade_id=unidade.id)
         .order_by("programacao__data", "id")
     )
+    if not usar_historico_completo_meta:
+        itens_qs = itens_qs.filter(
+            programacao__data__gte=dt_start,
+            programacao__data__lte=dt_end,
+        )
     if expediente_meta_id:
         itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
     if meta_filter_id:
@@ -341,5 +362,14 @@ def minhas_metas_view(request):
         "meta_filter_title": selected_meta_title,
         "meta_month_filters": meta_month_filters,
         "meta_month_default": month_default_key or "",
+        "metas_sem_programacao": metas_sem_programacao,
     }
-    return render(request, "minhas_metas/lista_metas.html", contexto)
+    lista_base_url = reverse("minhas_metas:lista")
+    query_string = request.GET.urlencode()
+    contexto["back_to_metas_url"] = f"{lista_base_url}?{query_string}" if query_string else lista_base_url
+    return render(request, template_name, contexto)
+
+
+@login_required
+def andamento_atividades_view(request):
+    return minhas_metas_view(request, template_name="minhas_metas/andamento_atividades.html")
