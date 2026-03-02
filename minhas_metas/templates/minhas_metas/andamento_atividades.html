@@ -9,7 +9,9 @@
 
 {% block content %}
 <div class="container py-4">
-  {% include "minhas_metas/partials/_andamento_grid.html" with show_back_to_metas_button=True show_clear_meta_filter=False show_date_filters=False %}
+  <div id="andamentoGridRoot">
+    {% include "minhas_metas/partials/_andamento_grid.html" with show_back_to_metas_button=True show_clear_meta_filter=False show_date_filters=False %}
+  </div>
   {% include "programar/partials/_modal_programacao.html" %}
 </div>
 {% endblock %}
@@ -45,24 +47,28 @@
       }
 
       async function atualizarTabelaAndamento() {
-        const tbody = document.getElementById("andamentoTbody");
-        if (!tbody) {
+        const root = document.getElementById("andamentoGridRoot");
+        if (!root) {
           window.location.reload();
           return;
         }
 
         const btn = document.getElementById("btnAtualizarAndamento");
         if (btn) btn.disabled = true;
-        tbody.innerHTML = '<tr><td colspan="5" class="text-muted py-3">Atualizando...</td></tr>';
+        const tbody = document.getElementById("andamentoTbody");
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="5" class="text-muted py-3">Atualizando...</td></tr>';
+        }
 
         try {
-          const resp = await fetch(window.location.href, {
-            headers: { "X-Requested-With": "XMLHttpRequest" },
-          });
+          const resp = await fetch(window.location.href, { cache: "no-store" });
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const data = await resp.json();
-          if (!data || typeof data.html !== "string") throw new Error("Resposta invalida");
-          tbody.innerHTML = data.html;
+          const html = await resp.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, "text/html");
+          const nextRoot = doc.getElementById("andamentoGridRoot");
+          if (!nextRoot) throw new Error("Bloco de andamento nao encontrado");
+          root.innerHTML = nextRoot.innerHTML;
         } catch (_err) {
           window.location.reload();
         } finally {
