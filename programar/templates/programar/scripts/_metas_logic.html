@@ -167,6 +167,9 @@
         const dataLimiteStr = dLimite ? dLimite.toLocaleDateString("pt-BR") : "";
         const dataLimiteEscaped = escapeHtml(dataLimiteStr);
         const percentualExecutado = alocado ? Math.min(100, Math.round((executado / alocado) * 100)) : 0;
+        const andamentoBase = String(NS.urls?.minhasMetasAndamento || "").trim();
+        const andamentoHref = andamentoBase ? `${andamentoBase}?meta=${encodeURIComponent(m.id)}` : "";
+        const andamentoHrefEscaped = escapeHtml(andamentoHref);
         return `
           <button type="button"
                   class="meta-card"
@@ -210,6 +213,11 @@
               </div>
               <div class="progress"><div class="progress-bar bg-primary" style="width:${percentualExecutado}%"></div></div>
             </div>
+            ${andamentoHref ? `
+              <div class="meta-link-row mt-2">
+                <span class="meta-andamento-link" data-href="${andamentoHrefEscaped}">Ver andamento</span>
+              </div>
+            ` : ""}
           </button>
         `;
       }).join("");
@@ -348,7 +356,15 @@
       applyFilters();
 
       metasGrid.querySelectorAll(".meta-card").forEach((card) => {
-        card.addEventListener("click", () => {
+        card.addEventListener("click", (event) => {
+          const linkEl = event?.target?.closest?.(".meta-andamento-link");
+          if (linkEl) {
+            const href = String(linkEl.getAttribute("data-href") || "").trim();
+            if (href) window.location.href = href;
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
           metasGrid.querySelectorAll(".meta-card").forEach((c) => c.classList.remove("selected"));
           card.classList.add("selected");
 

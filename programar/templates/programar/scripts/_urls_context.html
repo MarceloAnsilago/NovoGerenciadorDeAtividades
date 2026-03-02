@@ -16,7 +16,8 @@
     relatorios:     "{% url 'programar:relatorios_parcial' %}",
     printRelatorioSemana: "{% url 'programar:print_relatorio_semana' %}",
     printRelatorioJustificativas: "{% url 'programar:print_relatorio_justificativas' %}",
-    concluirItemBase: "{% url 'programar:concluir-item-form' 0 %}"
+    concluirItemBase: "{% url 'programar:concluir-item-form' 0 %}",
+    minhasMetasAndamento: "{% url 'minhas_metas:andamento' %}"
   };
   try {
     NS.veiculosAtivos = JSON.parse("{{ VEICULOS_ATIVOS_JSON|escapejs }}") || [];
