@@ -23,6 +23,8 @@
   {% include "programar/scripts/_modal_logic.html" %}
   <script>
     (function () {
+      let andamentoRefreshPending = false;
+
       function parseIsoToDate(dateStr) {
         const match = String(dateStr || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
         if (!match) return null;
@@ -42,6 +44,32 @@
         return weekday ? `${weekday}, ${dateBR}` : dateBR;
       }
 
+      async function atualizarTabelaAndamento() {
+        const tbody = document.getElementById("andamentoTbody");
+        if (!tbody) {
+          window.location.reload();
+          return;
+        }
+
+        const btn = document.getElementById("btnAtualizarAndamento");
+        if (btn) btn.disabled = true;
+        tbody.innerHTML = '<tr><td colspan="5" class="text-muted py-3">Atualizando...</td></tr>';
+
+        try {
+          const resp = await fetch(window.location.href, {
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          if (!data || typeof data.html !== "string") throw new Error("Resposta invalida");
+          tbody.innerHTML = data.html;
+        } catch (_err) {
+          window.location.reload();
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      }
+
       document.addEventListener("click", function (ev) {
         const btn = ev.target.closest(".js-abrir-programacao-dia");
         if (!btn) return;
@@ -50,6 +78,28 @@
         if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
         const label = formatModalLabel(iso);
         window.PROGRAMAR?.openProgramarModal?.(iso, label);
+      });
+
+      document.addEventListener("programar:saved", function () {
+        andamentoRefreshPending = true;
+      });
+
+      document.addEventListener("programar:deleted", function () {
+        andamentoRefreshPending = true;
+      });
+
+      document.addEventListener("hidden.bs.modal", function (ev) {
+        if (!ev.target || ev.target.id !== "programar-modalAtividade") return;
+        if (!andamentoRefreshPending) return;
+        andamentoRefreshPending = false;
+        atualizarTabelaAndamento();
+      });
+
+      document.addEventListener("click", function (ev) {
+        const btn = ev.target.closest("#btnAtualizarAndamento");
+        if (!btn) return;
+        ev.preventDefault();
+        atualizarTabelaAndamento();
       });
     })();
   </script>
