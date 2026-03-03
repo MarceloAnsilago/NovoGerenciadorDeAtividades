@@ -139,10 +139,17 @@
               </div>
             </div>
 
-            {% if meta.data_limite %}
+            {% if meta.data_inicio or meta.data_limite %}
               <div class="small text-muted mb-2">
-                <i class="bi bi-calendar-event me-1"></i>
-                Data limite: {{ meta.data_limite|date:"d/m/Y" }}
+                {% if meta.data_inicio %}
+                  <i class="bi bi-calendar-date me-1"></i>
+                  Data inicial: {{ meta.data_inicio|date:"d/m/Y" }}
+                {% endif %}
+                {% if meta.data_inicio and meta.data_limite %}<br>{% endif %}
+                {% if meta.data_limite %}
+                  <i class="bi bi-calendar-event me-1"></i>
+                  Data limite: {{ meta.data_limite|date:"d/m/Y" }}
+                {% endif %}
               </div>
             {% endif %}
 
