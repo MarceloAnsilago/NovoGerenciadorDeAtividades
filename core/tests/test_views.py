@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from atividades.models import Atividade
 from core.models import No, UserProfile
-from core.utils import gerar_senha_provisoria
+from core.utils import gerar_senha_provisoria, get_unidade_atual_id
 
 
 class RedefinirSenhaTests(TestCase):
@@ -141,3 +141,55 @@ class ForceDeleteProfileTests(TestCase):
         # o usuario e suas atividades protegidas devem desaparecer
         self.assertFalse(get_user_model().objects.filter(id=self.target.id).exists())
         self.assertFalse(Atividade.objects.filter(titulo="Atividade Bloqueio").exists())
+
+
+class AssumirUnidadeSessionSyncTests(TestCase):
+    def setUp(self):
+        self.root = No.objects.create(nome="Raiz")
+        self.u1 = No.objects.create(nome="Unidade 1", parent=self.root)
+        self.u2 = No.objects.create(nome="Unidade 2", parent=self.root)
+
+        self.user = get_user_model().objects.create_user(
+            username="gestor_unidade",
+            email="gestor@example.com",
+            password="gestor123",
+        )
+        UserProfile.objects.create(user=self.user, unidade=self.root, ativado=True)
+
+        perm = Permission.objects.get(codename="assumir_unidade")
+        self.user.user_permissions.add(perm)
+        self.client.force_login(self.user)
+
+    def test_assumir_unidade_substitui_contexto_legado(self):
+        session = self.client.session
+        session["contexto"] = {"tipo": "unidade", "id": self.u1.id}
+        session["contexto_atual"] = self.u1.id
+        session["contexto_nome"] = self.u1.nome
+        session.save()
+
+        response = self.client.get(reverse("core:assumir_unidade", args=[self.u2.id]), follow=False)
+        self.assertEqual(response.status_code, 302)
+
+        session = self.client.session
+        self.assertEqual(session.get("contexto_atual"), self.u2.id)
+        self.assertEqual(session.get("contexto_nome"), self.u2.nome)
+        self.assertEqual(session.get("unidade_id"), self.u2.id)
+        self.assertEqual(session.get("contexto", {}).get("id"), self.u2.id)
+        self.assertEqual(get_unidade_atual_id(response.wsgi_request), self.u2.id)
+
+    def test_voltar_contexto_limpa_chaves_de_sessao(self):
+        session = self.client.session
+        session["contexto"] = {"tipo": "unidade", "id": self.u2.id}
+        session["unidade_id"] = self.u2.id
+        session["contexto_atual"] = self.u2.id
+        session["contexto_nome"] = self.u2.nome
+        session.save()
+
+        response = self.client.get(reverse("core:voltar_contexto"), follow=False)
+        self.assertEqual(response.status_code, 302)
+
+        session = self.client.session
+        self.assertNotIn("contexto", session)
+        self.assertNotIn("unidade_id", session)
+        self.assertNotIn("contexto_atual", session)
+        self.assertNotIn("contexto_nome", session)

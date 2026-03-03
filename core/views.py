@@ -975,6 +975,14 @@ def logout_view(request):
 def assumir_unidade(request, unidade_id=None, id=None):
     pk = unidade_id or id
     unidade = get_object_or_404(No, pk=pk)
+    # Mantem compatibilidade com estruturas de sessao antigas e atuais.
+    request.session['contexto'] = {
+        'tipo': 'unidade',
+        'id': unidade.id,
+        'unidade_id': unidade.id,
+        'nome': unidade.nome,
+    }
+    request.session['unidade_id'] = unidade.id
     request.session['contexto_atual'] = unidade.id
     request.session['contexto_nome'] = unidade.nome
     messages.success(request, f'Unidade alterada para: {unidade.nome}')
@@ -987,6 +995,8 @@ def assumir_unidade(request, unidade_id=None, id=None):
 
 @login_required
 def voltar_contexto(request):
+    request.session.pop("contexto", None)
+    request.session.pop("unidade_id", None)
     request.session.pop("contexto_atual", None)
     request.session.pop("contexto_nome", None)
     messages.success(request, "Contexto restaurado para a unidade original.")
