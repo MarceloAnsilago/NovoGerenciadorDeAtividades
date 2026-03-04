@@ -65,15 +65,16 @@
 
   function renderStatusChart() {
     const concluidas = parseNumber(root.dataset.concluidas);
+    const naoExecutadas = parseNumber(root.dataset.naoExecutadas);
     const pendentes = parseNumber(root.dataset.pendentes);
     createOrUpdateChart("chartServidorStatus", {
       type: "doughnut",
       data: {
-        labels: ["Concluidas", "Pendentes"],
+        labels: ["Concluidas", "Nao executadas", "Pendentes"],
         datasets: [
           {
-            data: [concluidas, pendentes],
-            backgroundColor: ["#198754", "#dc3545"],
+            data: [concluidas, naoExecutadas, pendentes],
+            backgroundColor: ["#198754", "#6c757d", "#dc3545"],
             borderWidth: 0,
           },
         ],
@@ -144,6 +145,7 @@
     const rows = normalizeRows(readJsonScript("dashboard-servidor-mensal-rows", []));
     const labels = rows.map((row) => String(row.mes || "-"));
     const concluidas = rows.map((row) => parseNumber(row.concluidas));
+    const naoExecutadas = rows.map((row) => parseNumber(row.nao_executadas));
     const pendentes = rows.map((row) => parseNumber(row.pendentes));
     const totais = rows.map((row) => parseNumber(row.total));
 
@@ -159,6 +161,13 @@
             label: "Concluidas",
             data: isEmpty ? [0] : concluidas,
             backgroundColor: "#198754",
+            stack: "status",
+          },
+          {
+            type: "bar",
+            label: "Nao executadas",
+            data: isEmpty ? [0] : naoExecutadas,
+            backgroundColor: "#6c757d",
             stack: "status",
           },
           {
@@ -237,6 +246,7 @@
     const topRows = takeTop(rows, 10);
     const labels = topRows.map((row) => truncateLabel(row[labelKey], 44));
     const concluidas = topRows.map((row) => parseNumber(row.concluidas));
+    const naoExecutadas = topRows.map((row) => parseNumber(row.nao_executadas));
     const pendentes = topRows.map((row) => parseNumber(row.pendentes));
     const fallback = withFallback(labels, topRows.map((row) => parseNumber(row.total)), fallbackLabel);
     const isEmpty = Boolean(fallback.isEmpty);
@@ -250,6 +260,12 @@
             label: "Concluidas",
             data: isEmpty ? [0] : concluidas,
             backgroundColor: "#198754",
+            stack: "status",
+          },
+          {
+            label: "Nao executadas",
+            data: isEmpty ? [0] : naoExecutadas,
+            backgroundColor: "#6c757d",
             stack: "status",
           },
           {

@@ -911,7 +911,7 @@ def encerrar_meta_view(request, meta_id):
         pendentes_qs = (
             ProgramacaoItem.objects
             .select_related("programacao", "programacao__unidade", "veiculo")
-            .filter(meta_id=meta.id, concluido=False)
+            .filter(meta_id=meta.id, concluido=False, concluido_em__isnull=True)
             .order_by("programacao__data", "id")
         )
         pendentes_total = pendentes_qs.count()

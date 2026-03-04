@@ -100,8 +100,15 @@
 
             <div>
               <label class="form-label">Observacoes</label>
-              <textarea name="observacoes" rows="3" class="form-control"
+              <textarea name="observacoes"
+                        rows="3"
+                        class="form-control{% if form_errors.observacoes %} is-invalid{% endif %}"
                         placeholder="Descreva justificativas, ocorrencias, etc.">{{ request.POST.observacoes|default:item.observacao }}</textarea>
+              {% if form_errors.observacoes %}
+                <div class="invalid-feedback d-block">{{ form_errors.observacoes }}</div>
+              {% else %}
+                <div class="form-text">Obrigatoria quando o status for Nao executada.</div>
+              {% endif %}
             </div>
 
             {% if pendentes_total %}

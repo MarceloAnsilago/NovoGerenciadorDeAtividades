@@ -1,0 +1,96 @@
+{% extends "core/base.html" %}
+
+{% block title %}Itens nao executados{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">Itens nao executados</h1>
+      <div class="text-muted small">
+        Unidade: <strong>{{ unidade.nome }}</strong>
+        {% if dt_start and dt_end %}
+          | Mes: <strong>{{ dt_start|date:"m/Y" }}</strong>
+        {% endif %}
+        | Total geral: <strong>{{ total_geral }}</strong>
+      </div>
+    </div>
+    <a href="{% url 'minhas_metas:lista' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar para Minhas Metas
+    </a>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      {% if month_filters %}
+        <ul class="nav nav-tabs mb-3" role="tablist">
+          {% for item in month_filters %}
+            <li class="nav-item" role="presentation">
+              <a class="nav-link {% if item.key == selected_month_key %}active{% endif %}"
+                 href="?month={{ item.key }}"
+                 role="tab">
+                {{ item.label }}
+                <span class="badge text-bg-light border ms-1">{{ item.total }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="alert alert-info mb-0">Nenhum item com status nao executada foi encontrado.</div>
+      {% endif %}
+
+      {% if month_filters %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width:100px;">Data</th>
+                <th>Meta / Atividade</th>
+                <th style="width:26%;">Servidores</th>
+                <th style="width:140px;">Veiculo</th>
+                <th style="width:24%;">Observacao</th>
+                <th style="width:140px;">Marcada em</th>
+                <th style="width:140px;">Acoes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in nao_executadas %}
+              <tr>
+                <td class="text-nowrap">{{ item.data|date:"d/m/Y" }}</td>
+                <td>
+                  <div class="fw-semibold">{{ item.meta_titulo }}</div>
+                  {% if item.atividade_nome %}
+                    <div class="text-muted small">Atividade: {{ item.atividade_nome }}</div>
+                  {% endif %}
+                  <div class="text-muted small">Meta #{{ item.meta_id }}</div>
+                </td>
+                <td>
+                  {% if item.servidores %}
+                    {{ item.servidores|join:", " }}
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td class="text-nowrap">{{ item.veiculo|default:"-" }}</td>
+                <td>{{ item.observacao|default:"-" }}</td>
+                <td class="text-nowrap">{{ item.concluido_em|date:"d/m/Y H:i" }}</td>
+                <td class="text-nowrap">
+                  <a class="btn btn-sm btn-outline-warning"
+                     href="{% url 'programar:concluir-item-form' item.item_id %}?next={{ request.get_full_path|urlencode }}&source=minhas-metas">
+                    Revisar status
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr class="table-light">
+                <td colspan="7" class="text-center text-muted py-4">Nenhum item nao executado no mes selecionado.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

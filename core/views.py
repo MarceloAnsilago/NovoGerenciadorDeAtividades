@@ -1296,7 +1296,8 @@ def dashboard_servidor_view(request, servidor_id):
 
     total_alocacoes = period_qs.count()
     concluidas = period_qs.filter(item__concluido=True).count()
-    pendentes = max(total_alocacoes - concluidas, 0)
+    nao_executadas = period_qs.filter(item__concluido=False, item__concluido_em__isnull=False).count()
+    pendentes = max(total_alocacoes - concluidas - nao_executadas, 0)
     taxa_conclusao = round((concluidas / total_alocacoes) * 100, 2) if total_alocacoes else 0.0
 
     metas_distintas = period_qs.values("item__meta_id").distinct().count()
@@ -1386,7 +1387,8 @@ def dashboard_servidor_view(request, servidor_id):
         .annotate(
             total=Count("id"),
             concluidas=Count("id", filter=Q(item__concluido=True)),
-            pendentes=Count("id", filter=Q(item__concluido=False)),
+            nao_executadas=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=False)),
+            pendentes=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=True)),
             ultima_data=Max("item__programacao__data"),
         )
         .order_by("-total", "item__meta__atividade__titulo", "item__meta__titulo")[:20]
@@ -1398,6 +1400,7 @@ def dashboard_servidor_view(request, servidor_id):
                 "area": row.get("item__meta__atividade__area__nome") or "Sem area",
                 "total": int(row.get("total") or 0),
                 "concluidas": int(row.get("concluidas") or 0),
+                "nao_executadas": int(row.get("nao_executadas") or 0),
                 "pendentes": int(row.get("pendentes") or 0),
                 "ultima_data": row.get("ultima_data"),
             }
@@ -1414,7 +1417,8 @@ def dashboard_servidor_view(request, servidor_id):
         .annotate(
             total=Count("id"),
             concluidas=Count("id", filter=Q(item__concluido=True)),
-            pendentes=Count("id", filter=Q(item__concluido=False)),
+            nao_executadas=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=False)),
+            pendentes=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=True)),
             ultima_data=Max("item__programacao__data"),
         )
         .order_by("-total", "item__meta__titulo")[:20]
@@ -1427,6 +1431,7 @@ def dashboard_servidor_view(request, servidor_id):
                 "encerrada": bool(row.get("item__meta__encerrada")),
                 "total": int(row.get("total") or 0),
                 "concluidas": int(row.get("concluidas") or 0),
+                "nao_executadas": int(row.get("nao_executadas") or 0),
                 "pendentes": int(row.get("pendentes") or 0),
                 "ultima_data": row.get("ultima_data"),
             }
@@ -1439,7 +1444,8 @@ def dashboard_servidor_view(request, servidor_id):
         .annotate(
             total=Count("id"),
             concluidas=Count("id", filter=Q(item__concluido=True)),
-            pendentes=Count("id", filter=Q(item__concluido=False)),
+            nao_executadas=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=False)),
+            pendentes=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=True)),
         )
         .order_by("mes")
     )
@@ -1451,6 +1457,7 @@ def dashboard_servidor_view(request, servidor_id):
                 "mes": mes_label,
                 "total": int(row.get("total") or 0),
                 "concluidas": int(row.get("concluidas") or 0),
+                "nao_executadas": int(row.get("nao_executadas") or 0),
                 "pendentes": int(row.get("pendentes") or 0),
             }
         )
@@ -1473,6 +1480,7 @@ def dashboard_servidor_view(request, servidor_id):
                 "atividade": getattr(atividade, "titulo", "") or "-",
                 "area": getattr(area, "nome", "") or "-",
                 "concluido": bool(item.concluido),
+                "nao_executada": (not bool(item.concluido)) and bool(item.concluido_em),
                 "concluido_em": item.concluido_em,
                 "veiculo": getattr(veiculo, "placa", "") or "-",
                 "observacao": (item.observacao or "").strip(),
@@ -1505,6 +1513,7 @@ def dashboard_servidor_view(request, servidor_id):
         "kpis": {
             "total_alocacoes": total_alocacoes,
             "concluidas": concluidas,
+            "nao_executadas": nao_executadas,
             "pendentes": pendentes,
             "taxa_conclusao": taxa_conclusao,
             "metas_distintas": metas_distintas,

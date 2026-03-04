@@ -8,6 +8,7 @@
   class="container-fluid py-3"
   id="dashboard-servidor-root"
   data-concluidas="{{ kpis.concluidas|default:0 }}"
+  data-nao-executadas="{{ kpis.nao_executadas|default:0 }}"
   data-pendentes="{{ kpis.pendentes|default:0 }}"
   data-expediente-total="{% if kpis.expediente_total is not None %}{{ kpis.expediente_total }}{% endif %}"
   data-campo-total="{% if kpis.campo_total is not None %}{{ kpis.campo_total }}{% endif %}"
@@ -111,6 +112,14 @@
         <div class="card-body">
           <div class="text-muted text-uppercase small">Concluidas</div>
           <div class="display-6 fw-bold text-success">{{ kpis.concluidas }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Nao executadas</div>
+          <div class="display-6 fw-bold text-secondary">{{ kpis.nao_executadas }}</div>
         </div>
       </div>
     </div>
@@ -233,7 +242,7 @@
     </div>
     <div class="col-12 col-xl-4">
       <div class="card shadow-sm h-100">
-        <div class="card-header bg-white fw-semibold">Serie mensal (concluidas x pendentes)</div>
+        <div class="card-header bg-white fw-semibold">Serie mensal por status</div>
         <div class="card-body" style="min-height: 320px;">
           <canvas id="chartServidorMensal" height="260"></canvas>
         </div>
@@ -299,6 +308,7 @@
                 <th>Area</th>
                 <th class="text-end">Total</th>
                 <th class="text-end">Concluidas</th>
+                <th class="text-end">Nao executadas</th>
                 <th class="text-end">Pendentes</th>
                 <th class="text-end">Ultima data</th>
               </tr>
@@ -310,12 +320,13 @@
                 <td>{{ row.area }}</td>
                 <td class="text-end">{{ row.total }}</td>
                 <td class="text-end">{{ row.concluidas }}</td>
+                <td class="text-end">{{ row.nao_executadas }}</td>
                 <td class="text-end">{{ row.pendentes }}</td>
                 <td class="text-end">{{ row.ultima_data|date:"d/m/Y" }}</td>
               </tr>
               {% empty %}
               <tr>
-                <td colspan="6" class="text-center text-muted py-3">Sem atividades no periodo selecionado.</td>
+                <td colspan="7" class="text-center text-muted py-3">Sem atividades no periodo selecionado.</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -333,6 +344,7 @@
                 <th>Meta</th>
                 <th class="text-end">Total</th>
                 <th class="text-end">Concluidas</th>
+                <th class="text-end">Nao executadas</th>
                 <th class="text-end">Pendentes</th>
                 <th class="text-end">Ultima data</th>
                 <th class="text-end">Status meta</th>
@@ -344,6 +356,7 @@
                 <td>{{ row.titulo }}</td>
                 <td class="text-end">{{ row.total }}</td>
                 <td class="text-end">{{ row.concluidas }}</td>
+                <td class="text-end">{{ row.nao_executadas }}</td>
                 <td class="text-end">{{ row.pendentes }}</td>
                 <td class="text-end">{{ row.ultima_data|date:"d/m/Y" }}</td>
                 <td class="text-end">
@@ -356,7 +369,7 @@
               </tr>
               {% empty %}
               <tr>
-                <td colspan="6" class="text-center text-muted py-3">Sem metas no periodo selecionado.</td>
+                <td colspan="7" class="text-center text-muted py-3">Sem metas no periodo selecionado.</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -459,6 +472,7 @@
             <th>Mes</th>
             <th class="text-end">Total</th>
             <th class="text-end">Concluidas</th>
+            <th class="text-end">Nao executadas</th>
             <th class="text-end">Pendentes</th>
           </tr>
         </thead>
@@ -468,11 +482,12 @@
             <td>{{ row.mes }}</td>
             <td class="text-end">{{ row.total }}</td>
             <td class="text-end">{{ row.concluidas }}</td>
+            <td class="text-end">{{ row.nao_executadas }}</td>
             <td class="text-end">{{ row.pendentes }}</td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="4" class="text-center text-muted py-3">Sem serie mensal para o periodo selecionado.</td>
+            <td colspan="5" class="text-center text-muted py-3">Sem serie mensal para o periodo selecionado.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -511,6 +526,8 @@
             <td class="text-center">
               {% if row.concluido %}
                 <span class="badge text-bg-success">Concluida</span>
+              {% elif row.nao_executada %}
+                <span class="badge text-bg-secondary">Nao executada</span>
               {% else %}
                 <span class="badge text-bg-warning">Pendente</span>
               {% endif %}
@@ -540,5 +557,5 @@
   {{ atividade_rows|json_script:"dashboard-servidor-atividade-rows" }}
   {{ meta_rows|json_script:"dashboard-servidor-meta-rows" }}
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="{% static 'core/js/dashboard_servidor.js' %}?v=20260225-1" defer></script>
+  <script src="{% static 'core/js/dashboard_servidor.js' %}?v=20260304-1" defer></script>
 {% endblock %}

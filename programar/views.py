@@ -1431,7 +1431,10 @@ def events_feed(request):
 
     programacoes = list(qs.values("id", "data", "concluida"))
     prog_ids = [p["id"] for p in programacoes]
-    counts: Dict[int, Dict[str, int]] = {pid: {"total": 0, "concluidas": 0} for pid in prog_ids}
+    counts: Dict[int, Dict[str, int]] = {
+        pid: {"total": 0, "concluidas": 0, "nao_executadas": 0}
+        for pid in prog_ids
+    }
     metas_por_programacao: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
     atividades_por_programacao: Dict[int, list[Dict[str, Any]]] = {pid: [] for pid in prog_ids}
 
@@ -1448,6 +1451,7 @@ def events_feed(request):
             .annotate(
                 total=Count("id"),
                 concluidas=Count("id", filter=Q(concluido=True)),
+                nao_executadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
             )
         )
         for row in itens_stats:
@@ -1456,11 +1460,12 @@ def events_feed(request):
                 counts[pid] = {
                     "total": int(row.get("total") or 0),
                     "concluidas": int(row.get("concluidas") or 0),
+                    "nao_executadas": int(row.get("nao_executadas") or 0),
                 }
         title_counts: Dict[int, Dict[str, int]] = {pid: {} for pid in prog_ids}
         title_order: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
-        activity_counts: Dict[int, Dict[tuple[str, bool], int]] = {pid: {} for pid in prog_ids}
-        activity_order: Dict[int, list[tuple[str, bool]]] = {pid: [] for pid in prog_ids}
+        activity_counts: Dict[int, Dict[tuple[str, str], int]] = {pid: {} for pid in prog_ids}
+        activity_order: Dict[int, list[tuple[str, str]]] = {pid: [] for pid in prog_ids}
         itens_com_meta = itens_qs.select_related("meta", "meta__atividade").order_by("programacao_id", "meta__titulo")
         for item in itens_com_meta:
             pid = item.programacao_id
@@ -1486,8 +1491,11 @@ def events_feed(request):
                 title_order[pid].append(titulo)
             title_counts[pid][titulo] += 1
 
-            concluido_item = bool(getattr(item, "concluido", False))
-            key = (titulo, concluido_item)
+            status_item = _item_execucao_status_from_fields(
+                bool(getattr(item, "concluido", False)),
+                getattr(item, "concluido_em", None),
+            )
+            key = (titulo, status_item)
             if key not in activity_counts[pid]:
                 activity_counts[pid][key] = 0
                 activity_order[pid].append(key)
@@ -1499,28 +1507,32 @@ def events_feed(request):
                 label = f"{titulo} ({count})" if count > 1 else titulo
                 metas_por_programacao[pid].append(label)
             for key in activity_order[pid]:
-                titulo, concluido_item = key
+                titulo, status_item = key
                 count = activity_counts[pid].get(key, 0)
                 atividades_por_programacao[pid].append({
                     "titulo": titulo,
-                    "concluido": concluido_item,
+                    "status": status_item,
                     "quantidade": count,
                 })
 
     data = []
     for prog in programacoes:
         pid = prog["id"]
-        contadores = counts.get(pid, {"total": 0, "concluidas": 0})
+        contadores = counts.get(pid, {"total": 0, "concluidas": 0, "nao_executadas": 0})
         total = contadores["total"]
         if total == 0:
             continue
         concluidas = contadores["concluidas"]
+        nao_executadas = contadores.get("nao_executadas", 0)
+        pendentes = max(total - concluidas - nao_executadas, 0)
 
         nome_atividades = metas_por_programacao.get(pid) or []
         nome_titulo = "; ".join(nome_atividades) if nome_atividades else ""
         total_label = f"{total} atividade{'s' if total != 1 else ''}"
         concluidas_label = f"{concluidas} concluida{'s' if concluidas != 1 else ''}"
-        title = nome_titulo or f"({total_label} | {concluidas_label})"
+        nao_executadas_label = f"{nao_executadas} nao executada{'s' if nao_executadas != 1 else ''}"
+        pendentes_label = f"{pendentes} pendente{'s' if pendentes != 1 else ''}"
+        title = nome_titulo or f"({total_label} | {concluidas_label} | {nao_executadas_label} | {pendentes_label})"
         if prog.get("concluida"):
             title = "[Concluída] " + title
 
@@ -1533,6 +1545,8 @@ def events_feed(request):
             "extendedProps": {
                 "total_programadas": total,
                 "total_concluidas": concluidas,
+                "total_nao_executadas": nao_executadas,
+                "total_pendentes": pendentes,
                 "nomes_atividades": nome_atividades,
                 "atividades": atividades_por_programacao.get(pid, []),
             },
@@ -1867,9 +1881,16 @@ def marcar_item_realizada(request, item_id: int):
 
 
 def _item_execucao_status(item: ProgramacaoItem) -> str:
-    if bool(getattr(item, "concluido", False)):
+    return _item_execucao_status_from_fields(
+        bool(getattr(item, "concluido", False)),
+        getattr(item, "concluido_em", None),
+    )
+
+
+def _item_execucao_status_from_fields(concluido: bool, concluido_em) -> str:
+    if concluido:
         return "executada"
-    if getattr(item, "concluido_em", None):
+    if concluido_em:
         return "nao_executada"
     return "pendente"
 
@@ -1926,6 +1947,7 @@ def concluir_item_form(request, item_id: int):
         pendentes_tem_mais = pendentes_total > len(pendentes_preview)
 
     if request.method == "POST":
+        form_errors: dict[str, str] = {}
         status_execucao = (request.POST.get("status_execucao") or "").strip().lower()
         if status_execucao not in {"executada", "nao_executada", "pendente"}:
             # Compatibilidade com payload legado (checkbox "realizado").
@@ -1936,6 +1958,28 @@ def concluir_item_form(request, item_id: int):
         marcado_com_status = status_execucao in {"executada", "nao_executada"}
         obs_final = (request.POST.get("observacoes") or "").strip()
         confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
+
+        if status_execucao == "nao_executada" and not obs_final:
+            form_errors["observacoes"] = "Informe uma observacao para marcar como nao executada."
+            messages.error(request, form_errors["observacoes"])
+            contexto = {
+                "item": pi,
+                "programacao": programacao,
+                "meta": meta,
+                "atividade": getattr(meta, "atividade", None),
+                "veiculo": getattr(pi, "veiculo", None),
+                "servidores": servidores,
+                "next": request.POST.get("next") or "/minhas-metas/",
+                "pendentes_total": pendentes_total,
+                "pendentes_preview": pendentes_preview,
+                "pendentes_tem_mais": pendentes_tem_mais,
+                "pendentes_confirmacao_obrigatoria": False,
+                "confirmar_pendentes_checked": confirmar_pendentes,
+                "status_execucao_current": status_execucao,
+                "source": source_context,
+                "form_errors": form_errors,
+            }
+            return render(request, "minhas_metas/concluir_item.html", contexto)
 
         if (not ignorar_pendentes) and concluido_flag and pendentes_total > 0 and not confirmar_pendentes:
             # exige confirmacao explícita antes de concluir com pendencias
@@ -1954,6 +1998,7 @@ def concluir_item_form(request, item_id: int):
                 "confirmar_pendentes_checked": confirmar_pendentes,
                 "status_execucao_current": status_execucao,
                 "source": source_context,
+                "form_errors": form_errors,
             }
             return render(request, "minhas_metas/concluir_item.html", contexto)
 
@@ -2011,5 +2056,6 @@ def concluir_item_form(request, item_id: int):
         "confirmar_pendentes_checked": False,
         "status_execucao_current": _item_execucao_status(pi),
         "source": source_context,
+        "form_errors": {},
     }
     return render(request, "minhas_metas/concluir_item.html", contexto)

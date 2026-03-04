@@ -31,10 +31,13 @@ document.addEventListener('DOMContentLoaded', function(){
       .programar-event-counts{margin-left:auto;display:inline-flex;align-items:center;gap:.35rem;font-variant-numeric:tabular-nums;}
       .programar-event-count-badge{display:inline-flex;align-items:center;gap:.25rem;padding:.1rem .4rem;border-radius:.45rem;font-size:.72rem;font-weight:700;border:1px solid transparent;}
       .programar-event-count-badge.is-done{background:#e8f2ff;border-color:#bcd8ff;color:#0b4f9c;}
+      .programar-event-count-badge.is-not-executed{background:#f1f3f5;border-color:#ced4da;color:#343a40;}
       .programar-event-count-badge.is-pending{background:#fdecef;border-color:#f5c2c7;color:#842029;}
       .programar-event-count-badge.is-overdue{background:#ffe1bf;border-color:#ffb977;color:#7a2f00;}
       .programar-event-status.is-done{background:#e8f2ff;border-color:#bcd8ff;color:#0b4f9c;}
       .programar-event-status.is-done .programar-event-count{color:#0b4f9c;}
+      .programar-event-status.is-not-executed{background:#f1f3f5;border-color:#ced4da;color:#343a40;}
+      .programar-event-status.is-not-executed .programar-event-count{color:#343a40;}
       .programar-event-status.is-partial{background:#f1f7eb;border-color:#d5e8b8;color:#3d5c1f;}
       .programar-event-status.is-partial .programar-event-count{color:#3d5c1f;}
       .programar-event-status.is-pending{background:#fdecef;border-color:#f5c2c7;color:#842029;}
@@ -45,9 +48,11 @@ document.addEventListener('DOMContentLoaded', function(){
       .programar-event-line{display:flex;align-items:flex-start;gap:.35rem;white-space:normal;}
       .programar-event-line-icon{margin-top:.05rem;font-size:.85rem;}
       .programar-event-line-icon.is-done{color:#0f5132;}
+      .programar-event-line-icon.is-not-executed{color:#495057;}
       .programar-event-line-icon.is-pending{color:#842029;}
       .prog-event-card{border:1px solid #d8e6fb;background:#f7f9fd;border-radius:.65rem;box-shadow:0 1px 4px rgba(15,23,42,.05);}
       .prog-event-card.is-done{background:#eef6ff;border-color:#c6defc;}
+      .prog-event-card.is-not-executed{background:#f8f9fa;border-color:#dee2e6;}
       .prog-event-card.is-partial{background:#f7faf2;border-color:#dfecc9;}
       .prog-event-card.is-pending{background:#fff4f5;border-color:#f5c2c7;}
       .prog-event-card.is-overdue{background:#ffedd6;border-color:#ffbf86;}
@@ -87,16 +92,24 @@ document.addEventListener('DOMContentLoaded', function(){
   function computeStatus(props, startRef){
     const total = Number(props?.total_programadas || 0);
     const concluidas = Number(props?.total_concluidas || 0);
+    const naoExecutadas = Number(props?.total_nao_executadas || 0);
+    const pendentesBase = Number(props?.total_pendentes);
+    const pendentes = Number.isFinite(pendentesBase)
+      ? Math.max(pendentesBase, 0)
+      : Math.max(total - concluidas - naoExecutadas, 0);
     const done = total > 0 && concluidas >= total;
-    const partial = !done && concluidas > 0;
-    const pendentes = Math.max(total - concluidas, 0);
+    const notExecuted = total > 0 && naoExecutadas >= total;
+    const partial = !done && !notExecuted && (concluidas > 0 || naoExecutadas > 0);
     const dayIso = toIsoDate(startRef);
     const todayIso = toIsoDate(new Date());
     const overdue = pendentes > 0 && !!dayIso && dayIso < todayIso;
     return {
-      key: overdue ? "overdue" : (done ? "done" : (partial ? "partial" : "pending")),
+      key: overdue
+        ? "overdue"
+        : (done ? "done" : (notExecuted ? "not-executed" : (partial ? "partial" : "pending"))),
       total,
       concluidas,
+      naoExecutadas,
       pendentes,
     };
   }
@@ -174,6 +187,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
       const statusCfg = {
         done: { label: 'Concluida' },
+        "not-executed": { label: 'Nao executada' },
         partial: { label: 'Em andamento' },
         pending: { label: 'Pendente' },
         overdue: { label: 'Atrasada' },
@@ -184,8 +198,12 @@ document.addEventListener('DOMContentLoaded', function(){
 
       const statusEl = document.createElement('div');
       statusEl.className = `programar-event-status is-${status.key}`;
-      const countClass = status.key === "done" ? "done" : (status.key === "overdue" ? "overdue" : "pending");
-      const countValue = status.key === "done" ? status.total : status.pendentes;
+      const countClass = status.key === "done"
+        ? "done"
+        : (status.key === "not-executed" ? "not-executed" : (status.key === "overdue" ? "overdue" : "pending"));
+      const countValue = status.key === "done"
+        ? status.total
+        : (status.key === "not-executed" ? status.naoExecutadas : status.pendentes);
       const countsHtml = (status.key === "partial")
         ? ""
         : `
@@ -205,9 +223,13 @@ document.addEventListener('DOMContentLoaded', function(){
         const lineEl = document.createElement('div');
         lineEl.className = 'programar-event-line';
         if (hasActivityStatus && line && typeof line === "object") {
-          const done = Boolean(line.concluido);
+          const statusLine = String(line.status || (line.concluido ? "executada" : "pendente"));
+          const done = statusLine === "executada";
+          const notExecuted = statusLine === "nao_executada";
+          const iconName = done ? "bi-check-circle-fill" : (notExecuted ? "bi-slash-circle-fill" : "bi-x-circle-fill");
+          const iconClass = done ? "is-done" : (notExecuted ? "is-not-executed" : "is-pending");
           const icon = document.createElement('i');
-          icon.className = `bi ${done ? "bi-check-circle-fill" : "bi-x-circle-fill"} programar-event-line-icon ${done ? "is-done" : "is-pending"}`;
+          icon.className = `bi ${iconName} programar-event-line-icon ${iconClass}`;
           lineEl.appendChild(icon);
           const textEl = document.createElement('span');
           const qty = Number(line.quantidade || 0);

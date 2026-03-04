@@ -9,6 +9,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.conf import settings
 from django.db.models import Sum, Count, Q
+from django.db.models.functions import TruncMonth
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -441,6 +442,120 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
     query_string = request.GET.urlencode()
     contexto["back_to_metas_url"] = f"{lista_base_url}?{query_string}" if query_string else lista_base_url
     return render(request, template_name, contexto)
+
+
+@login_required
+def nao_executadas_view(request):
+    unidade = get_unidade_atual(request)
+    if not unidade:
+        messages.error(request, "Selecione uma unidade antes de ver os itens nao executados.")
+        return redirect("core:dashboard")
+
+    today = timezone.localdate()
+    month_param = (request.GET.get("month") or "").strip()
+    month_param_parsed = _parse_month_key(month_param)
+
+    itens_base = (
+        ProgramacaoItem.objects
+        .select_related("programacao", "meta", "meta__atividade", "veiculo")
+        .filter(
+            programacao__unidade_id=unidade.id,
+            concluido=False,
+            concluido_em__isnull=False,
+        )
+        .order_by("-programacao__data", "-id")
+    )
+    expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    if expediente_meta_id:
+        itens_base = itens_base.exclude(meta_id=expediente_meta_id)
+
+    month_filters: list[dict[str, str | int]] = []
+    month_counts_qs = (
+        itens_base.exclude(programacao__data__isnull=True)
+        .annotate(month_start=TruncMonth("programacao__data"))
+        .values("month_start")
+        .annotate(total=Count("id"))
+        .order_by("-month_start")
+    )
+    for row in month_counts_qs:
+        month_start = row.get("month_start")
+        month_value = month_start.date() if hasattr(month_start, "date") else month_start
+        if not month_value:
+            continue
+        month_key = f"{month_value.year}-{month_value.month:02d}"
+        month_filters.append({
+            "key": month_key,
+            "label": f"{MONTH_NAMES_PT[month_value.month - 1]} de {month_value.year}",
+            "total": int(row.get("total") or 0),
+        })
+
+    month_keys = [str(item.get("key") or "") for item in month_filters]
+    selected_month_key = ""
+    if month_param_parsed:
+        candidate = f"{month_param_parsed[0]}-{month_param_parsed[1]:02d}"
+        selected_month_key = candidate if candidate in month_keys else ""
+    if not selected_month_key:
+        today_key = f"{today.year}-{today.month:02d}"
+        if today_key in month_keys:
+            selected_month_key = today_key
+        elif month_filters:
+            selected_month_key = str(month_filters[0]["key"])
+
+    dt_start = None
+    dt_end = None
+    itens_qs = itens_base
+    if selected_month_key:
+        selected_parsed = _parse_month_key(selected_month_key)
+        if selected_parsed:
+            dt_start = date(selected_parsed[0], selected_parsed[1], 1)
+            dt_end = date(
+                selected_parsed[0],
+                selected_parsed[1],
+                monthrange(selected_parsed[0], selected_parsed[1])[1],
+            )
+            itens_qs = itens_qs.filter(programacao__data__gte=dt_start, programacao__data__lte=dt_end)
+
+    item_ids = list(itens_qs.values_list("id", flat=True))
+    servidores_por_item: dict[int, list[str]] = defaultdict(list)
+    if item_ids:
+        links = (
+            ProgramacaoItemServidor.objects
+            .select_related("servidor")
+            .filter(item_id__in=item_ids, servidor__ativo=True)
+            .order_by("servidor__nome")
+        )
+        for link in links:
+            nome = getattr(getattr(link, "servidor", None), "nome", "") or f"Servidor {link.servidor_id}"
+            servidores_por_item[link.item_id].append(nome)
+
+    nao_executadas = []
+    for item in itens_qs:
+        meta = getattr(item, "meta", None)
+        programacao = getattr(item, "programacao", None)
+        if not meta or not programacao:
+            continue
+        nao_executadas.append({
+            "item_id": item.id,
+            "data": getattr(programacao, "data", None),
+            "meta_id": getattr(meta, "id", None),
+            "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem titulo)"),
+            "atividade_nome": getattr(getattr(meta, "atividade", None), "titulo", None),
+            "servidores": servidores_por_item.get(item.id, []),
+            "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
+            "observacao": (getattr(item, "observacao", "") or "").strip(),
+            "concluido_em": getattr(item, "concluido_em", None),
+        })
+
+    contexto = {
+        "unidade": unidade,
+        "nao_executadas": nao_executadas,
+        "month_filters": month_filters,
+        "selected_month_key": selected_month_key,
+        "dt_start": dt_start,
+        "dt_end": dt_end,
+        "total_geral": itens_base.count(),
+    }
+    return render(request, "minhas_metas/nao_executadas.html", contexto)
 
 
 @login_required

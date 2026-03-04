@@ -195,7 +195,7 @@
     </div>
     <div class="col-12 col-xl-6">
       <div class="card shadow-sm h-100">
-        <div class="card-header bg-white fw-semibold">Programações concluídas vs pendentes por data de encerramento</div>
+        <div class="card-header bg-white fw-semibold">Programacoes por status (concluidas, nao executadas e pendentes)</div>
         <div class="card-body">
           <canvas id="chartProgramacoesStatus" data-endpoint="{% url 'core:dashboard_programacoes_status_mensal' %}" height="260"></canvas>
         </div>
@@ -255,5 +255,6 @@
       servidorDashboardTemplate: "{% url 'core:dashboard_servidor' 0 %}",
     };
   </script>
-  <script src="{% static 'core/js/dashboard.js' %}?v=20260225-1" defer></script>
+  <script src="{% static 'core/js/dashboard.js' %}?v=20260304-1" defer></script>
 {% endblock %}
+
