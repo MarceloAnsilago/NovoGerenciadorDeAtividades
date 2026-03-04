@@ -94,6 +94,13 @@
           <option value="" selected>Sem anos disponíveis</option>
         {% endif %}
       </select>
+      <label for="metaStatusSelect" class="form-label small mb-0 ms-2">Status</label>
+      <select id="metaStatusSelect" class="form-select form-select-sm" aria-label="Filtrar metas por status">
+        <option value="" {% if not meta_status_cards_filter %}selected{% endif %}>Todos</option>
+        <option value="andamento" {% if meta_status_cards_filter == "andamento" %}selected{% endif %}>Em andamento</option>
+        <option value="atrasada" {% if meta_status_cards_filter == "atrasada" %}selected{% endif %}>Atrasadas</option>
+        <option value="concluida" {% if meta_status_cards_filter == "concluida" %}selected{% endif %}>Concluídas</option>
+      </select>
     </div>
   </div>
 
@@ -103,7 +110,8 @@
       {% with meta=aloc.meta %}
     <div class="col-12 col-md-6 col-lg-4"
          data-month-key="{{ meta.month_key|default:'nodate' }}"
-         data-carry-forward="{{ meta.carry_forward|yesno:'1,0' }}">
+         data-carry-forward="{{ meta.carry_forward|yesno:'1,0' }}"
+         data-status="{{ meta.status_key|default:'andamento' }}">
         <div class="card h-100 shadow-sm meta-click-card{% if meta_filter_id == meta.id %} meta-card-selected{% endif %}"
              data-status="{{ meta.status_key|default:'andamento' }}"
               role="button"
@@ -254,6 +262,7 @@
   var startInput = document.querySelector('input[name="start"]');
   var endInput = document.querySelector('input[name="end"]');
   var yearSelect = document.getElementById("metaYearSelect");
+  var statusSelect = document.getElementById("metaStatusSelect");
 
   if (yearSelect) {
     yearSelect.addEventListener("change", function () {
@@ -264,6 +273,17 @@
       url.searchParams.delete("month");
       window.location.href = url.toString();
     });
+  }
+
+  function normalizeStatusFilter(value) {
+    var raw = String(value || "").trim().toLowerCase();
+    if (raw === "andamento" || raw === "atrasada" || raw === "concluida") return raw;
+    return "";
+  }
+
+  function getSelectedStatusFilter() {
+    if (!statusSelect) return "";
+    return normalizeStatusFilter(statusSelect.value);
   }
 
   if (!grid || !tabs.length) return;
@@ -321,11 +341,15 @@
     if (endInput) endInput.value = range.end;
   }
 
-  function reloadWithRange(range, monthKey) {
+  function reloadWithRange(range, monthKey, resetStatus) {
     if (!range) return;
     var url = new URL(window.location.href);
     url.searchParams.set("start", range.start);
     url.searchParams.set("end", range.end);
+    if (resetStatus) {
+      url.searchParams.delete("meta_status");
+      if (statusSelect) statusSelect.value = "";
+    }
     if (monthKey) {
       url.searchParams.set("month", monthKey);
       var parsed = parseMonthKey(monthKey);
@@ -356,13 +380,21 @@
     return selectedNumber >= cardNumber;
   }
 
+  function cardMatchesStatus(card, statusKey) {
+    if (!statusKey) return true;
+    var cardStatus = normalizeStatusFilter(card.dataset.status || "");
+    return cardStatus === statusKey;
+  }
+
   function applyMonthFilter(key) {
+    var selectedStatus = getSelectedStatusFilter();
     var hasMatch = !key || cards.some(function (card) {
       return cardMatchesMonth(card, key);
     });
     cards.forEach(function (card) {
-      var matches = !key || !hasMatch || cardMatchesMonth(card, key);
-      card.style.display = matches ? "" : "none";
+      var monthMatches = !key || !hasMatch || cardMatchesMonth(card, key);
+      var statusMatches = cardMatchesStatus(card, selectedStatus);
+      card.style.display = (monthMatches && statusMatches) ? "" : "none";
     });
     tabs.forEach(function (tab) {
       var tabKey = tab.dataset.monthFilter || "";
@@ -392,11 +424,12 @@
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function () {
       var key = tab.dataset.monthFilter || "";
+      if (statusSelect) statusSelect.value = "";
       applyMonthFilter(key);
       var range = getRangeFromMonthKey(key);
       if (range) {
         applyRangeToInputs(range);
-        reloadWithRange(range, key);
+        reloadWithRange(range, key, true);
       }
     });
   });
@@ -408,7 +441,20 @@
       var range = getRangeFromMonthKey(prevMonth);
       if (!range) return;
       applyRangeToInputs(range);
-      reloadWithRange(range, prevMonth);
+      reloadWithRange(range, prevMonth, true);
+    });
+  }
+
+  if (statusSelect) {
+    statusSelect.addEventListener("change", function () {
+      var selectedStatus = getSelectedStatusFilter();
+      var url = new URL(window.location.href);
+      if (selectedStatus) url.searchParams.set("meta_status", selectedStatus);
+      else url.searchParams.delete("meta_status");
+      window.history.replaceState({}, "", url.toString());
+      var currentKey = resolveCurrentMonthKey();
+      applyMonthFilter(currentKey);
+      updatePrevButton(currentKey);
     });
   }
 
@@ -427,7 +473,7 @@
   function buildAndamentoUrl(metaId) {
     var currentUrl = new URL(window.location.href);
     var target = new URL("{% url 'minhas_metas:andamento' %}", window.location.origin);
-    ["month", "ano"].forEach(function (key) {
+    ["month", "ano", "meta_status"].forEach(function (key) {
       var value = currentUrl.searchParams.get(key);
       if (value) target.searchParams.set(key, value);
     });

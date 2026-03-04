@@ -66,6 +66,12 @@
     return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
   }
 
+  function normalizeStatusFilter(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    if (raw === "andamento" || raw === "atrasada" || raw === "concluida") return raw;
+    return "";
+  }
+
   function highlightExistingCard(metaId) {
     const container = document.getElementById("metaCardsContainer");
     if (!container) return;
@@ -226,6 +232,15 @@
 
       // === Filtros por mês ===
       const cards = Array.from(metasGrid.querySelectorAll(".meta-card"));
+      const statusSelect = document.getElementById("metasStatusSelect");
+      if (typeof NS.metaStatusSelected !== "string") {
+        NS.metaStatusSelected = "";
+      }
+      if (statusSelect) {
+        const normalizedSelected = normalizeStatusFilter(NS.metaStatusSelected);
+        statusSelect.value = normalizedSelected;
+        NS.metaStatusSelected = normalizedSelected;
+      }
 
       const buildMonthTabs = () => {
         const existingTabs = document.getElementById("metasTabs");
@@ -308,8 +323,13 @@
         parts.push("</ul>");
         metasGrid.insertAdjacentHTML("beforebegin", parts.join(""));
 
-        const applyMonthFilter = (key) => {
+        const applyMonthFilter = (key, resetStatus = false) => {
           NS.metaMonthSelected = key || "";
+          if (resetStatus) {
+            NS.metaStatusSelected = "";
+            const statusSelectEl = document.getElementById("metasStatusSelect");
+            if (statusSelectEl) statusSelectEl.value = "";
+          }
           applyFilters();
           const tabs = metasGrid.previousElementSibling?.querySelectorAll?.(".nav-link[data-key]") || [];
           tabs.forEach((b) => { b.classList.toggle("active", b.getAttribute("data-key") === key); });
@@ -317,12 +337,15 @@
 
         const tabContainer = metasGrid.previousElementSibling;
         tabContainer?.querySelectorAll?.(".nav-link[data-key]")?.forEach((btn) => {
-          btn.addEventListener("click", () => applyMonthFilter(btn.getAttribute("data-key")));
+          btn.addEventListener("click", () => applyMonthFilter(btn.getAttribute("data-key"), true));
         });
         const prevBtn = tabContainer?.querySelector?.(".metas-load-prev");
         prevBtn?.addEventListener("click", async () => {
           const prev = String(prevBtn.getAttribute("data-prev-month") || "").trim();
           if (!prev || NS._metaTabsLoadingPrev) return;
+          NS.metaStatusSelected = "";
+          const statusSelectEl = document.getElementById("metasStatusSelect");
+          if (statusSelectEl) statusSelectEl.value = "";
           NS._metaTabsLoadingPrev = true;
           prevBtn.disabled = true;
           prevBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Anterior`;
@@ -338,9 +361,11 @@
 
       const applyFilters = () => {
         const selectedMonth = NS.metaMonthSelected || "";
+        const selectedStatus = normalizeStatusFilter(NS.metaStatusSelected || "");
         const selectedMonthNumber = monthKeyToNumber(selectedMonth);
         cards.forEach((card) => {
           const cm = card.getAttribute("data-month") || "nodate";
+          const cardStatus = normalizeStatusFilter(card.getAttribute("data-status") || "");
           const startMonth = card.getAttribute("data-start-month") || "nodate";
           const endMonth = card.getAttribute("data-end-month") || cm;
           const carryForward = (card.getAttribute("data-carry-forward") || "") === "1";
@@ -351,12 +376,22 @@
             if (startMonthNumber !== null && selectedMonthNumber < startMonthNumber) visible = false;
             if (visible && !carryForward && endMonthNumber !== null && selectedMonthNumber > endMonthNumber) visible = false;
           }
+          if (visible && selectedStatus) {
+            visible = cardStatus === selectedStatus;
+          }
           card.style.display = visible ? "" : "none";
         });
       };
 
       buildMonthTabs();
       applyFilters();
+
+      if (statusSelect) {
+        statusSelect.onchange = () => {
+          NS.metaStatusSelected = normalizeStatusFilter(statusSelect.value);
+          applyFilters();
+        };
+      }
 
       metasGrid.querySelectorAll(".meta-card").forEach((card) => {
         card.addEventListener("click", (event) => {

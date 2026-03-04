@@ -141,6 +141,10 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
     if status_value not in {"concluidas", "pendentes", "nao_realizadas"}:
         status_value = ""
 
+    meta_status_cards_filter = (request.GET.get("meta_status") or "").strip().lower()
+    if meta_status_cards_filter not in {"andamento", "atrasada", "concluida"}:
+        meta_status_cards_filter = ""
+
     status_query_filter = status_value
     status_dropdown = status_value
     if status_param is None:
@@ -480,6 +484,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         "dt_start": dt_start,
         "dt_end": dt_end,
         "status_filter": status_dropdown,
+        "meta_status_cards_filter": meta_status_cards_filter,
         "years": years,
         "ano_selected": ano_selected,
         "meta_filter_id": meta_filter_id or 0,
