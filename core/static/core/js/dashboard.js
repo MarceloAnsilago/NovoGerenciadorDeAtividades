@@ -39,6 +39,13 @@
     return value.toLocaleString("pt-BR");
   }
 
+  function normalizeText(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  }
+
   function updateKpis(data) {
     if (!data) {
       return;
@@ -331,13 +338,14 @@
                   if (!items || !items.length) return "";
                   const idx = items[0].dataIndex;
                   const dsLabel = items[0].dataset?.label || "";
+                  const dsKey = normalizeText(dsLabel);
                   const hints = (progStatusPayload && progStatusPayload.hints) || {};
                   let hint = "";
-                  if ((dsLabel || "").toLowerCase().includes("conclu")) {
+                  if (dsKey.includes("conclu")) {
                     hint = (hints.concluidas && hints.concluidas[idx]) || "";
-                  } else if ((dsLabel || "").toLowerCase().includes("nao realiz")) {
+                  } else if (dsKey.includes("nao realiz")) {
                     hint = (hints.nao_realizadas && hints.nao_realizadas[idx]) || "";
-                  } else if ((dsLabel || "").toLowerCase().includes("penden")) {
+                  } else if (dsKey.includes("penden")) {
                     hint = (hints.pendentes && hints.pendentes[idx]) || "";
                   }
                   return hint ? `Atividade: ${hint}` : "";

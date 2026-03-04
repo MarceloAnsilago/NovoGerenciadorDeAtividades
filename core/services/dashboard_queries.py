@@ -454,7 +454,7 @@ def get_programacoes_status_mensal(
     detalhe_qs = (
         base_qs
         .annotate(mes=TruncMonth("programacao__data"))
-        .values("mes", "concluido", "concluido_em__isnull", "meta__atividade__titulo")
+        .values("mes", "concluido", "concluido_em", "meta__atividade__titulo")
         .annotate(total=Count("id"))
         .order_by("mes", "-total")
     )
@@ -469,7 +469,7 @@ def get_programacoes_status_mensal(
             if titulo not in cur:
                 cur.append(titulo)
                 hints_concluidas_map[mes_key] = cur[:3]
-        elif row.get("concluido_em__isnull") is False:
+        elif row.get("concluido_em") is not None:
             cur = hints_nao_realizadas_map.get(mes_key) or []
             if titulo not in cur:
                 cur.append(titulo)
@@ -488,7 +488,7 @@ def get_programacoes_status_mensal(
         "labels": labels,
         "datasets": [
             {
-                "label": "Concluidas",
+                "label": "Concluídas",
                 "backgroundColor": "#198754",
                 "data": concluidas_data,
             },
