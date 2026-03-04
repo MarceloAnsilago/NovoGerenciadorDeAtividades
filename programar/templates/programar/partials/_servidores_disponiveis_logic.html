@@ -134,11 +134,11 @@
     const urlBase = NS?.urls?.servidores;
     if (!urlBase) {
       console.error('[programar] URL programar:servidores_para_data não definida.');
-      return { livres: [], impedidos: [] };
+      return { livres: [], impedidos: [], plantao: [] };
     }
     if (!isISODate(iso)) {
       console.warn('[programar] Data inválida:', iso);
-      return { livres: [], impedidos: [] };
+      return { livres: [], impedidos: [], plantao: [] };
     }
 
     const target = getContainer(opts.targetSelector);
@@ -152,15 +152,16 @@
       const url = new URL(urlBase, window.location.origin);
       url.searchParams.set('data', iso);
       const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-      if (isStaleRequest()) return { livres: [], impedidos: [] };
+      if (isStaleRequest()) return { livres: [], impedidos: [], plantao: [] };
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const json = await resp.json();
-      if (isStaleRequest()) return { livres: [], impedidos: [] };
+      if (isStaleRequest()) return { livres: [], impedidos: [], plantao: [] };
 
    
       let livres = Array.isArray(json.livres) ? json.livres : [];
       const impedidos = Array.isArray(json.impedidos) ? json.impedidos : [];
       const feriados = Array.isArray(json.feriados) ? json.feriados : [];
+      const plantao = Array.isArray(json.plantao) ? json.plantao : [];
       // garante que impedidos não apareçam no pool
       const impedidosIds = new Set(
         impedidos.map(i => String(i.id ?? i.sid ?? '')).filter(Boolean)
@@ -194,6 +195,8 @@
         const badge = document.getElementById('countImpedidos');
         const feriadoBox = document.getElementById('programar-feriadosAviso');
         const feriadoList = document.getElementById('programar-feriadosLista');
+        const plantaoBox = document.getElementById('programar-plantaoAviso');
+        const plantaoList = document.getElementById('programar-plantaoLista');
         if (!tbody) return;
 
         const esc = (s)=>String(s??'')
@@ -212,6 +215,21 @@
             });
             feriadoList.textContent = labels.join('; ');
             feriadoBox.classList.remove('d-none');
+          }
+        }
+
+        if (plantaoBox && plantaoList) {
+          if (!plantao.length) {
+            plantaoBox.classList.add('d-none');
+            plantaoList.textContent = '';
+          } else {
+            const nomes = plantao
+              .map(p => p.nome ?? p.name ?? p.servidor ?? p.servidor_nome ?? '')
+              .map(v => String(v || '').trim())
+              .filter(Boolean);
+            const nomesUnicos = Array.from(new Set(nomes));
+            plantaoList.textContent = nomesUnicos.join('; ');
+            plantaoBox.classList.remove('d-none');
           }
         }
 
@@ -259,18 +277,18 @@
       updateBadges(opts);
 
       document.dispatchEvent(new CustomEvent('programar:servidoresLoaded', {
-        detail: { iso, livres, impedidos }
+        detail: { iso, livres, impedidos, plantao }
       }));
 
-      return { livres, impedidos };
+      return { livres, impedidos, plantao };
     } catch (err) {
-      if (isStaleRequest()) return { livres: [], impedidos: [] };
+      if (isStaleRequest()) return { livres: [], impedidos: [], plantao: [] };
       console.error('[programar] Falha ao carregar servidores:', err);
       if (target) {
         target.innerHTML = `<div class="text-danger">Erro ao carregar.</div>`;
         target.classList.remove('is-loading');
       }
-      return { livres: [], impedidos: [] };
+      return { livres: [], impedidos: [], plantao: [] };
     }
   }
 

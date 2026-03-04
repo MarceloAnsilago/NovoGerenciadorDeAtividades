@@ -39,6 +39,10 @@
   // ---------------- DOM helpers ----------------
   const $tbody = () => document.querySelector('#tabelaImpedidos tbody');
   const $badge = () => document.getElementById('countImpedidos');
+  const $feriadoBox = () => document.getElementById('programar-feriadosAviso');
+  const $feriadoList = () => document.getElementById('programar-feriadosLista');
+  const $plantaoBox = () => document.getElementById('programar-plantaoAviso');
+  const $plantaoList = () => document.getElementById('programar-plantaoLista');
 
   function escapeHtml(s) {
     return String(s ?? '')
@@ -47,6 +51,37 @@
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#039;');
+  }
+
+  function renderInfosExtras(feriados, plantao) {
+    if ($feriadoBox() && $feriadoList()) {
+      if (!feriados.length) {
+        $feriadoBox().classList.add('d-none');
+        $feriadoList().textContent = '';
+      } else {
+        const labels = feriados.map((f) => {
+          const cadastro = f.cadastro ? ` (${f.cadastro})` : '';
+          return `${f.descricao || 'Feriado'}${cadastro}`;
+        });
+        $feriadoList().textContent = labels.join('; ');
+        $feriadoBox().classList.remove('d-none');
+      }
+    }
+
+    if ($plantaoBox() && $plantaoList()) {
+      if (!plantao.length) {
+        $plantaoBox().classList.add('d-none');
+        $plantaoList().textContent = '';
+      } else {
+        const nomes = plantao
+          .map(p => p.nome ?? p.name ?? p.servidor ?? p.servidor_nome ?? '')
+          .map(v => String(v || '').trim())
+          .filter(Boolean);
+        const nomesUnicos = Array.from(new Set(nomes));
+        $plantaoList().textContent = nomesUnicos.join('; ');
+        $plantaoBox().classList.remove('d-none');
+      }
+    }
   }
 
   // ---------------- data detection ----------------
@@ -118,7 +153,10 @@
       const json = await resp.json();
 
       const impedidos = Array.isArray(json.impedidos) ? json.impedidos : [];
+      const feriados = Array.isArray(json.feriados) ? json.feriados : [];
+      const plantao = Array.isArray(json.plantao) ? json.plantao : [];
       if ($badge()) $badge().textContent = String(impedidos.length);
+      renderInfosExtras(feriados, plantao);
 
       if (!impedidos.length) {
         if ($tbody()) {
@@ -141,6 +179,7 @@
       console.error('Falha ao carregar impedidos:', e);
       if ($tbody()) $tbody().innerHTML = `<tr><td colspan="2" class="text-danger">Erro ao carregar a lista.</td></tr>`;
       if ($badge()) $badge().textContent = '0';
+      renderInfosExtras([], []);
     }
   }
 

@@ -124,17 +124,67 @@ def _impedidos_por_descanso(unidade_id: int | None, data_ref):
     return list(impedidos_map.values()), set(impedidos_map.keys())
 
 
+def _plantonistas_por_data(unidade_id: int | None, data_ref: date) -> list[dict[str, Any]]:
+    if not unidade_id:
+        return []
+
+    try:
+        from plantao.models import SemanaServidor  # type: ignore
+    except Exception:
+        return []
+
+    qs = (
+        SemanaServidor.objects
+        .select_related("servidor", "semana", "semana__plantao")
+        .filter(
+            servidor__ativo=True,
+            semana__inicio__lte=data_ref,
+            semana__fim__gte=data_ref,
+        )
+    )
+
+    # prioridade para o recorte da unidade do plantao; fallback para unidade do servidor
+    try:
+        qs = qs.filter(semana__plantao__unidade_id=unidade_id)
+    except Exception:
+        qs = qs.filter(servidor__unidade_id=unidade_id)
+
+    qs = qs.order_by("ordem", "servidor__nome", "id")
+
+    plantao_map: Dict[int, dict[str, Any]] = {}
+    for item in qs:
+        sid = int(getattr(item, "servidor_id", 0) or 0)
+        if not sid or sid in plantao_map:
+            continue
+
+        servidor_nome = getattr(getattr(item, "servidor", None), "nome", "") or ""
+        semana = getattr(item, "semana", None)
+        inicio = getattr(semana, "inicio", None)
+        fim = getattr(semana, "fim", None)
+        periodo = ""
+        if inicio and fim:
+            periodo = f"{inicio:%d/%m} a {fim:%d/%m}"
+
+        plantao_map[sid] = {
+            "id": sid,
+            "nome": servidor_nome,
+            "periodo": periodo,
+        }
+
+    return list(plantao_map.values())
+
+
 def _servidores_status_para_data(
     unidade_id: int | None,
     data_ref: date,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Calcula os servidores livres e impedidos para a unidade/data informadas.
     Livres: todos os servidores da unidade que nao estao marcados como impedidos.
     Impedidos: registros com id/nome/motivo consolidados (ex.: descanso).
     """
     if not unidade_id:
-        return [], [], []
+        return [], [], [], []
 
     impedidos_descanso, impedidos_ids = _impedidos_por_descanso(unidade_id, data_ref)
 
@@ -158,29 +208,31 @@ def _servidores_status_para_data(
         }
         for f in feriados
     ]
+    plantao_final = _plantonistas_por_data(unidade_id, data_ref)
+    plantao_final.sort(key=lambda x: str(x.get("nome") or "").lower())
 
     servidores_qs = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).order_by("nome")
     if impedidos_ids:
         servidores_qs = servidores_qs.exclude(id__in=impedidos_ids)
 
     livres = [{"id": s.id, "nome": s.nome} for s in servidores_qs]
-    return livres, impedidos_final, feriados_final
+    return livres, impedidos_final, feriados_final, plantao_final
 
 
 @require_GET
 def servidores_para_data(request):
     data_str = request.GET.get("data")
     if not data_str:
-        return JsonResponse({"livres": [], "impedidos": []})
+        return JsonResponse({"livres": [], "impedidos": [], "feriados": [], "plantao": []})
     try:
         data_ref = datetime.strptime(data_str, "%Y-%m-%d").date()
     except ValueError:
-        return JsonResponse({"livres": [], "impedidos": []})
+        return JsonResponse({"livres": [], "impedidos": [], "feriados": [], "plantao": []})
 
     unidade_id = get_unidade_atual_id(request)
 
-    livres, impedidos, feriados = _servidores_status_para_data(unidade_id, data_ref)
-    return JsonResponse({"livres": livres, "impedidos": impedidos, "feriados": feriados})
+    livres, impedidos, feriados, plantao = _servidores_status_para_data(unidade_id, data_ref)
+    return JsonResponse({"livres": livres, "impedidos": impedidos, "feriados": feriados, "plantao": plantao})
 
 
 @login_required
@@ -659,7 +711,7 @@ def _fetch_expediente_admin(
     if not unidade_id:
         return [], []
 
-    livres, impedidos, _feriados = _servidores_status_para_data(unidade_id, dia)
+    livres, impedidos, _feriados, _plantao = _servidores_status_para_data(unidade_id, dia)
 
     livres_map: dict[str, str] = {}
     for s in livres:
