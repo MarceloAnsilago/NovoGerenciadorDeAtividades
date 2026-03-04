@@ -59,16 +59,29 @@ def _meta_status_info(meta: Any) -> tuple[str, str]:
     return "andamento", "Em andamento"
 
 
-def _meta_ids_com_itens_abertos(unidade_id: int | None) -> set[int]:
+def _meta_ids_com_itens_abertos(
+    unidade_id: int | None,
+    *,
+    reference_month_start: date | None = None,
+) -> set[int]:
     if not unidade_id:
         return set()
-    ids = (
+    itens_qs = (
         ProgramacaoItem.objects
         .filter(
             programacao__unidade_id=unidade_id,
             concluido=False,
             meta_id__isnull=False,
         )
+    )
+    if reference_month_start:
+        itens_qs = itens_qs.filter(
+            programacao__data__lt=reference_month_start,
+            meta__data_limite__isnull=False,
+            meta__data_limite__lt=reference_month_start,
+        )
+    ids = (
+        itens_qs
         .values_list("meta_id", flat=True)
         .distinct()
     )
@@ -1589,7 +1602,15 @@ def metas_disponiveis(request):
     atividade_id = request.GET.get("atividade")
     data_ref = _parse_date((request.GET.get("data") or "").strip())
     today = timezone.localdate()
-    metas_com_itens_abertos_ids = _meta_ids_com_itens_abertos(unidade_id) if data_ref else set()
+    reference_month_start = (data_ref or today).replace(day=1)
+    metas_com_itens_abertos_ids = (
+        _meta_ids_com_itens_abertos(
+            unidade_id,
+            reference_month_start=reference_month_start,
+        )
+        if data_ref
+        else set()
+    )
     qs = (
         MetaAlocacao.objects
         .select_related("meta", "meta__atividade")
@@ -1635,7 +1656,10 @@ def metas_disponiveis(request):
                 "status": status_key,
                 "status_label": status_label,
                 "carry_forward": bool(
-                    data_ref and limite_meta and limite_meta < data_ref and mid in metas_com_itens_abertos_ids
+                    data_ref
+                    and limite_meta
+                    and limite_meta < reference_month_start
+                    and mid in metas_com_itens_abertos_ids
                 ),
             }
         bucket[mid]["alocado_unidade"] += int(getattr(al, "quantidade_alocada", 0) or 0)
@@ -1688,7 +1712,10 @@ def metas_disponiveis(request):
             "status": status_key,
             "status_label": status_label,
             "carry_forward": bool(
-                data_ref and limite_meta and limite_meta < data_ref and mid in metas_com_itens_abertos_ids
+                data_ref
+                and limite_meta
+                and limite_meta < reference_month_start
+                and mid in metas_com_itens_abertos_ids
             ),
             "programadas_total": 0,
         }
@@ -1716,7 +1743,16 @@ def metas_disponiveis(request):
             .values("meta_id")
             .annotate(
                 total=Count("id"),
-                nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
+                nao_realizadas_atrasadas=Count(
+                    "id",
+                    filter=Q(
+                        concluido=False,
+                        concluido_em__isnull=False,
+                        programacao__data__lt=reference_month_start,
+                        meta__data_limite__isnull=False,
+                        meta__data_limite__lt=reference_month_start,
+                    ),
+                ),
                 pendentes_atrasadas=Count(
                     "id",
                     filter=Q(concluido=False, concluido_em__isnull=True, programacao__data__lt=today),
@@ -1730,7 +1766,7 @@ def metas_disponiveis(request):
                 if (
                     bucket[mid].get("status") == "andamento"
                     and (
-                        int(row.get("nao_realizadas") or 0) > 0
+                        int(row.get("nao_realizadas_atrasadas") or 0) > 0
                         or int(row.get("pendentes_atrasadas") or 0) > 0
                     )
                 ):

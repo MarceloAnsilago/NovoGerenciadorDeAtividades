@@ -85,16 +85,29 @@ def _item_execucao_info(item):
     return "pendentes", "Pendente"
 
 
-def _meta_ids_com_itens_abertos(unidade_id: int | None) -> set[int]:
+def _meta_ids_com_itens_abertos(
+    unidade_id: int | None,
+    *,
+    reference_month_start: date | None = None,
+) -> set[int]:
     if not unidade_id:
         return set()
-    ids = (
+    itens_qs = (
         ProgramacaoItem.objects
         .filter(
             programacao__unidade_id=unidade_id,
             concluido=False,
             meta_id__isnull=False,
         )
+    )
+    if reference_month_start:
+        itens_qs = itens_qs.filter(
+            programacao__data__lt=reference_month_start,
+            meta__data_limite__isnull=False,
+            meta__data_limite__lt=reference_month_start,
+        )
+    ids = (
+        itens_qs
         .values_list("meta_id", flat=True)
         .distinct()
     )
@@ -126,6 +139,11 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
     month_param = (request.GET.get("month") or "").strip()
     month_param_parsed = _parse_month_key(month_param)
     ano_raw = request.GET.get("ano")
+    status_month_start = (
+        date(month_param_parsed[0], month_param_parsed[1], 1)
+        if month_param_parsed
+        else today.replace(day=1)
+    )
 
     include_encerradas_cards = False
     if month_param_parsed:
@@ -175,7 +193,16 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             .values("meta_id")
             .annotate(
                 total=Count("id"),
-                nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
+                nao_realizadas_atrasadas=Count(
+                    "id",
+                    filter=Q(
+                        concluido=False,
+                        concluido_em__isnull=False,
+                        programacao__data__lt=status_month_start,
+                        meta__data_limite__isnull=False,
+                        meta__data_limite__lt=status_month_start,
+                    ),
+                ),
                 pendentes_atrasadas=Count(
                     "id",
                     filter=Q(concluido=False, concluido_em__isnull=True, programacao__data__lt=today),
@@ -187,10 +214,13 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             if not mid:
                 continue
             programadas_por_meta[mid] = int(row.get("total") or 0)
-            if int(row.get("nao_realizadas") or 0) > 0 or int(row.get("pendentes_atrasadas") or 0) > 0:
+            if int(row.get("nao_realizadas_atrasadas") or 0) > 0 or int(row.get("pendentes_atrasadas") or 0) > 0:
                 metas_com_execucao_atrasada_ids.add(mid)
 
-    metas_com_itens_abertos_ids = _meta_ids_com_itens_abertos(getattr(unidade, "id", None))
+    metas_com_itens_abertos_ids = _meta_ids_com_itens_abertos(
+        getattr(unidade, "id", None),
+        reference_month_start=status_month_start,
+    )
 
     alocacoes = list(alocacoes_qs)
     metas_sem_programacao = []
@@ -209,7 +239,11 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             limite_meta = getattr(meta_obj, "data_limite", None)
             if limite_meta and hasattr(limite_meta, "date") and not isinstance(limite_meta, date):
                 limite_meta = limite_meta.date()
-            carry_forward = bool(limite_meta) and meta_id_int in metas_com_itens_abertos_ids
+            carry_forward = (
+                bool(limite_meta)
+                and limite_meta < status_month_start
+                and meta_id_int in metas_com_itens_abertos_ids
+            )
             setattr(meta_obj, "carry_forward", carry_forward)
             if (
                 total_programadas == 0

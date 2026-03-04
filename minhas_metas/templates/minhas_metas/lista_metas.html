@@ -388,11 +388,8 @@
 
   function applyMonthFilter(key) {
     var selectedStatus = getSelectedStatusFilter();
-    var hasMatch = !key || cards.some(function (card) {
-      return cardMatchesMonth(card, key);
-    });
     cards.forEach(function (card) {
-      var monthMatches = !key || !hasMatch || cardMatchesMonth(card, key);
+      var monthMatches = !key || cardMatchesMonth(card, key);
       var statusMatches = cardMatchesStatus(card, selectedStatus);
       card.style.display = (monthMatches && statusMatches) ? "" : "none";
     });
