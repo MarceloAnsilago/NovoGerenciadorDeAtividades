@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', function(){
 
   const holidayDates = new Set();
   const overdueDates = new Set();
+  const notExecutedDates = new Set();
+  let lastDayMarker = "";
   const updateDayCells = () => {
     const cells = el.querySelectorAll('[data-date]');
     cells.forEach((cell) => {
@@ -14,8 +16,10 @@ document.addEventListener('DOMContentLoaded', function(){
       if (!date) return;
       const isHoliday = holidayDates.has(date);
       const isOverdue = !isHoliday && overdueDates.has(date);
+      const isNotExecuted = !isHoliday && !isOverdue && notExecutedDates.has(date);
       cell.classList.toggle('fc-day-feriado', isHoliday);
       cell.classList.toggle('fc-day-atrasado', isOverdue);
+      cell.classList.toggle('fc-day-nao-realizada', isNotExecuted);
     });
   };
 
@@ -151,6 +155,7 @@ document.addEventListener('DOMContentLoaded', function(){
     eventsSet(events) {
       holidayDates.clear();
       overdueDates.clear();
+      notExecutedDates.clear();
       events.forEach((ev) => {
         const eventDay = toIsoDate(ev?.startStr || ev?.start);
         if (!eventDay) return;
@@ -158,6 +163,8 @@ document.addEventListener('DOMContentLoaded', function(){
           holidayDates.add(eventDay);
           return;
         }
+        const naoRealizadas = Number(ev?.extendedProps?.total_nao_realizadas || 0);
+        if (naoRealizadas > 0) notExecutedDates.add(eventDay);
         const status = computeStatus(ev?.extendedProps || {}, eventDay);
         if (status.key === "overdue") overdueDates.add(eventDay);
       });
@@ -316,6 +323,25 @@ document.addEventListener('DOMContentLoaded', function(){
   NS.refreshCalendarEvents = refreshCalendarEvents;
   document.addEventListener('programar:saved', refreshCalendarEvents);
   document.addEventListener('programar:deleted', refreshCalendarEvents);
+
+  function refreshIfDayChanged() {
+    const nowMarker = toIsoDate(new Date());
+    if (!nowMarker) return;
+    if (!lastDayMarker) {
+      lastDayMarker = nowMarker;
+      return;
+    }
+    if (nowMarker === lastDayMarker) return;
+    lastDayMarker = nowMarker;
+    refreshCalendarEvents();
+  }
+
+  // Garante atualização automática de status/cores quando virar o dia.
+  setInterval(refreshIfDayChanged, 60 * 1000);
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) return;
+    refreshIfDayChanged();
+  });
 
   function isoDate(d){ return toIsoDate(d); }
   function prevOrSameSaturday(d){ const x = new Date(d); const sh=(x.getDay()-6+7)%7; x.setDate(x.getDate()-sh); return x; }
