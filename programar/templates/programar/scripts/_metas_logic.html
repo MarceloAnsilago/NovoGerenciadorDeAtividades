@@ -180,6 +180,7 @@
                   data-start-month="${startMonthKey}"
                   data-end-month="${endMonthKey}"
                   data-month="${monthKey}"
+                  data-carry-forward="${m.carry_forward ? "1" : "0"}"
                   data-status="${normalizedStatus}">
             <div class="meta-head">
               <span class="icon"><i class="bi bi-flag"></i></span>
@@ -341,12 +342,13 @@
           const cm = card.getAttribute("data-month") || "nodate";
           const startMonth = card.getAttribute("data-start-month") || "nodate";
           const endMonth = card.getAttribute("data-end-month") || cm;
+          const carryForward = (card.getAttribute("data-carry-forward") || "") === "1";
           const startMonthNumber = monthKeyToNumber(startMonth);
           const endMonthNumber = monthKeyToNumber(endMonth);
           let visible = true;
           if (selectedMonth && selectedMonthNumber !== null) {
             if (startMonthNumber !== null && selectedMonthNumber < startMonthNumber) visible = false;
-            if (visible && endMonthNumber !== null && selectedMonthNumber > endMonthNumber) visible = false;
+            if (visible && !carryForward && endMonthNumber !== null && selectedMonthNumber > endMonthNumber) visible = false;
           }
           card.style.display = visible ? "" : "none";
         });

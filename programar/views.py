@@ -56,6 +56,23 @@ def _meta_status_info(meta: Any) -> tuple[str, str]:
         pass
     return "andamento", "Em andamento"
 
+
+def _meta_ids_com_itens_abertos(unidade_id: int | None) -> set[int]:
+    if not unidade_id:
+        return set()
+    ids = (
+        ProgramacaoItem.objects
+        .filter(
+            programacao__unidade_id=unidade_id,
+            concluido=False,
+            meta_id__isnull=False,
+        )
+        .values_list("meta_id", flat=True)
+        .distinct()
+    )
+    return {int(meta_id) for meta_id in ids if meta_id}
+
+
 def calendario_view(request):
     meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
     veiculos_json = "[]"
@@ -1569,6 +1586,7 @@ def metas_disponiveis(request):
 
     atividade_id = request.GET.get("atividade")
     data_ref = _parse_date((request.GET.get("data") or "").strip())
+    metas_com_itens_abertos_ids = _meta_ids_com_itens_abertos(unidade_id) if data_ref else set()
     qs = (
         MetaAlocacao.objects
         .select_related("meta", "meta__atividade")
@@ -1578,10 +1596,12 @@ def metas_disponiveis(request):
     if atividade_id:
         qs = qs.filter(meta__atividade_id=atividade_id)
     if data_ref:
-        # Mantemos metas com data limite futura para popular as abas dos meses seguintes.
-        # O recorte por intervalo inicio/fim e aplicado no front pelos filtros de mes/ano.
+        # Mantemos metas com data limite futura e tambem metas vencidas que ainda
+        # tenham itens pendentes/nao realizadas, para que continuem nos meses seguintes.
         qs = qs.filter(
-            Q(meta__data_limite__isnull=True) | Q(meta__data_limite__gte=data_ref),
+            Q(meta__data_limite__isnull=True)
+            | Q(meta__data_limite__gte=data_ref)
+            | Q(meta_id__in=metas_com_itens_abertos_ids),
         )
 
     bucket: Dict[int, Dict[str, Any]] = {}
@@ -1596,6 +1616,9 @@ def metas_disponiveis(request):
             if atividade:
                 atividade_nome = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
             status_key, status_label = _meta_status_info(meta)
+            limite_meta = getattr(meta, "data_limite", None)
+            if limite_meta and hasattr(limite_meta, "date") and not isinstance(limite_meta, date):
+                limite_meta = limite_meta.date()
             bucket[mid] = {
                 "id": mid,
                 "nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem título)"),
@@ -1608,6 +1631,9 @@ def metas_disponiveis(request):
                 "meta_total": int(getattr(meta, "quantidade_alvo", 0) or 0),
                 "status": status_key,
                 "status_label": status_label,
+                "carry_forward": bool(
+                    data_ref and limite_meta and limite_meta < data_ref and mid in metas_com_itens_abertos_ids
+                ),
             }
         bucket[mid]["alocado_unidade"] += int(getattr(al, "quantidade_alocada", 0) or 0)
         try:
@@ -1627,7 +1653,9 @@ def metas_disponiveis(request):
         metas_sem_alocacao_qs = metas_sem_alocacao_qs.filter(atividade_id=atividade_id)
     if data_ref:
         metas_sem_alocacao_qs = metas_sem_alocacao_qs.filter(
-            Q(data_limite__isnull=True) | Q(data_limite__gte=data_ref),
+            Q(data_limite__isnull=True)
+            | Q(data_limite__gte=data_ref)
+            | Q(id__in=metas_com_itens_abertos_ids),
         )
 
     for meta in metas_sem_alocacao_qs:
@@ -1641,6 +1669,9 @@ def metas_disponiveis(request):
         if atividade:
             atividade_nome = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
         status_key, status_label = _meta_status_info(meta)
+        limite_meta = getattr(meta, "data_limite", None)
+        if limite_meta and hasattr(limite_meta, "date") and not isinstance(limite_meta, date):
+            limite_meta = limite_meta.date()
         bucket[mid] = {
             "id": mid,
             "nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem titulo)"),
@@ -1653,6 +1684,9 @@ def metas_disponiveis(request):
             "meta_total": int(getattr(meta, "quantidade_alvo", 0) or 0),
             "status": status_key,
             "status_label": status_label,
+            "carry_forward": bool(
+                data_ref and limite_meta and limite_meta < data_ref and mid in metas_com_itens_abertos_ids
+            ),
             "programadas_total": 0,
         }
 

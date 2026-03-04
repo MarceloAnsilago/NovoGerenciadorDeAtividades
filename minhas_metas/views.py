@@ -83,6 +83,22 @@ def _item_execucao_info(item):
     return "pendentes", "Pendente"
 
 
+def _meta_ids_com_itens_abertos(unidade_id: int | None) -> set[int]:
+    if not unidade_id:
+        return set()
+    ids = (
+        ProgramacaoItem.objects
+        .filter(
+            programacao__unidade_id=unidade_id,
+            concluido=False,
+            meta_id__isnull=False,
+        )
+        .values_list("meta_id", flat=True)
+        .distinct()
+    )
+    return {int(meta_id) for meta_id in ids if meta_id}
+
+
 @login_required
 def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
     is_andamento_template = template_name == "minhas_metas/andamento_atividades.html"
@@ -157,6 +173,8 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             for row in itens_stats
         }
 
+    metas_com_itens_abertos_ids = _meta_ids_com_itens_abertos(getattr(unidade, "id", None))
+
     alocacoes = list(alocacoes_qs)
     metas_sem_programacao = []
     metas_sem_programacao_ids = set()
@@ -169,6 +187,11 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             status_key, status_label = _meta_status_info(meta_obj)
             setattr(meta_obj, "status_key", status_key)
             setattr(meta_obj, "status_label", status_label)
+            limite_meta = getattr(meta_obj, "data_limite", None)
+            if limite_meta and hasattr(limite_meta, "date") and not isinstance(limite_meta, date):
+                limite_meta = limite_meta.date()
+            carry_forward = bool(limite_meta) and meta_id_int in metas_com_itens_abertos_ids
+            setattr(meta_obj, "carry_forward", carry_forward)
             if (
                 total_programadas == 0
                 and (not meta_filter_id or meta_filter_id == meta_id_int)
@@ -183,8 +206,14 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         limite = getattr(getattr(aloc, "meta", None), "data_limite", None)
         if limite and hasattr(limite, "year"):
             years_set.add(limite.year)
+    if any(
+        getattr(getattr(aloc, "meta", None), "carry_forward", False)
+        and getattr(getattr(aloc, "meta", None), "data_limite", None)
+        and getattr(getattr(aloc, "meta", None), "data_limite", None).year < today.year
+        for aloc in alocacoes
+    ):
+        years_set.add(today.year)
     years = sorted(years_set, reverse=True)
-    years_base = set(years_set)
 
     ano_selected: int | None = None
     if ano_raw:
@@ -201,13 +230,23 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
     if ano_selected is not None and ano_selected not in years:
         years = sorted({*years, ano_selected}, reverse=True)
 
-    if ano_selected and ano_selected in years_base:
-        # Inclui metas sem data_limite mesmo quando um ano específico está selecionado.
-        alocacoes = [
-            aloc for aloc in alocacoes
-            if not getattr(getattr(aloc, "meta", None), "data_limite", None)
-            or getattr(aloc.meta.data_limite, "year", None) == ano_selected
-        ]
+    if ano_selected:
+        # Inclui metas sem data_limite e carrega pendentes/não realizadas de anos anteriores.
+        filtradas = []
+        for aloc in alocacoes:
+            meta_obj = getattr(aloc, "meta", None)
+            limite = getattr(meta_obj, "data_limite", None) if meta_obj else None
+            if limite and hasattr(limite, "date") and not isinstance(limite, date):
+                limite = limite.date()
+            if not limite:
+                filtradas.append(aloc)
+                continue
+            if limite.year == ano_selected:
+                filtradas.append(aloc)
+                continue
+            if getattr(meta_obj, "carry_forward", False) and limite.year < ano_selected:
+                filtradas.append(aloc)
+        alocacoes = filtradas
 
     month_keys = OrderedDict()
     for aloc in alocacoes:
@@ -223,7 +262,11 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         else:
             key = "nodate"
             label = "Sem data"
-        if key not in month_keys:
+        include_key = True
+        parsed_key = _parse_month_key(key)
+        if ano_selected is not None and key != "nodate":
+            include_key = bool(parsed_key and parsed_key[0] == ano_selected)
+        if include_key and key not in month_keys:
             month_keys[key] = label
         setattr(meta_obj, "month_key", key)
 
@@ -235,6 +278,11 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         month_default_key = today_key
     elif month_keys:
         month_default_key = next(iter(month_keys))
+    elif ano_selected:
+        if ano_selected == today.year:
+            month_default_key = today_key
+        else:
+            month_default_key = f"{ano_selected}-01"
 
     if month_default_key and month_default_key not in month_keys:
         parsed_default = _parse_month_key(month_default_key)

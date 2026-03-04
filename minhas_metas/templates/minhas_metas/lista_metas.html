@@ -96,7 +96,9 @@
     <div class="row g-3" id="metaCardsGrid">
     {% for aloc in alocacoes %}
       {% with meta=aloc.meta %}
-    <div class="col-12 col-md-6 col-lg-4" data-month-key="{{ meta.month_key|default:'nodate' }}">
+    <div class="col-12 col-md-6 col-lg-4"
+         data-month-key="{{ meta.month_key|default:'nodate' }}"
+         data-carry-forward="{{ meta.carry_forward|yesno:'1,0' }}">
         <div class="card h-100 shadow-sm meta-click-card{% if meta_filter_id == meta.id %} meta-card-selected{% endif %}"
              data-status="{{ meta.status_key|default:'andamento' }}"
               role="button"
@@ -331,12 +333,30 @@
     window.location.href = url.toString();
   }
 
+  function monthKeyToNumber(key) {
+    var parsed = parseMonthKey(key);
+    if (!parsed) return null;
+    return (parsed.year * 12) + parsed.month;
+  }
+
+  function cardMatchesMonth(card, key) {
+    var cardKey = card.dataset.monthKey || "";
+    if (!key) return true;
+    if (cardKey === key) return true;
+    var carryForward = (card.dataset.carryForward || "") === "1";
+    if (!carryForward) return false;
+    var selectedNumber = monthKeyToNumber(key);
+    var cardNumber = monthKeyToNumber(cardKey);
+    if (selectedNumber === null || cardNumber === null) return false;
+    return selectedNumber >= cardNumber;
+  }
+
   function applyMonthFilter(key) {
     var hasMatch = !key || cards.some(function (card) {
-      return card.dataset.monthKey === key;
+      return cardMatchesMonth(card, key);
     });
     cards.forEach(function (card) {
-      var matches = !key || !hasMatch || card.dataset.monthKey === key;
+      var matches = !key || !hasMatch || cardMatchesMonth(card, key);
       card.style.display = matches ? "" : "none";
     });
     tabs.forEach(function (tab) {
