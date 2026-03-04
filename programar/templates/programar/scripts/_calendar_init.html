@@ -92,14 +92,14 @@ document.addEventListener('DOMContentLoaded', function(){
   function computeStatus(props, startRef){
     const total = Number(props?.total_programadas || 0);
     const concluidas = Number(props?.total_concluidas || 0);
-    const naoExecutadas = Number(props?.total_nao_executadas || 0);
+    const naoRealizadas = Number(props?.total_nao_realizadas || 0);
     const pendentesBase = Number(props?.total_pendentes);
     const pendentes = Number.isFinite(pendentesBase)
       ? Math.max(pendentesBase, 0)
-      : Math.max(total - concluidas - naoExecutadas, 0);
+      : Math.max(total - concluidas - naoRealizadas, 0);
     const done = total > 0 && concluidas >= total;
-    const notExecuted = total > 0 && naoExecutadas >= total;
-    const partial = !done && !notExecuted && (concluidas > 0 || naoExecutadas > 0);
+    const notExecuted = total > 0 && naoRealizadas >= total;
+    const partial = !done && !notExecuted && (concluidas > 0 || naoRealizadas > 0);
     const dayIso = toIsoDate(startRef);
     const todayIso = toIsoDate(new Date());
     const overdue = pendentes > 0 && !!dayIso && dayIso < todayIso;
@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', function(){
         : (done ? "done" : (notExecuted ? "not-executed" : (partial ? "partial" : "pending"))),
       total,
       concluidas,
-      naoExecutadas,
+      naoRealizadas,
       pendentes,
     };
   }
@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
       const statusCfg = {
         done: { label: 'Concluida' },
-        "not-executed": { label: 'Nao executada' },
+        "not-executed": { label: 'Nao realizada' },
         partial: { label: 'Em andamento' },
         pending: { label: 'Pendente' },
         overdue: { label: 'Atrasada' },
@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function(){
         : (status.key === "not-executed" ? "not-executed" : (status.key === "overdue" ? "overdue" : "pending"));
       const countValue = status.key === "done"
         ? status.total
-        : (status.key === "not-executed" ? status.naoExecutadas : status.pendentes);
+        : (status.key === "not-executed" ? status.naoRealizadas : status.pendentes);
       const countsHtml = (status.key === "partial")
         ? ""
         : `
@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', function(){
         if (hasActivityStatus && line && typeof line === "object") {
           const statusLine = String(line.status || (line.concluido ? "executada" : "pendente"));
           const done = statusLine === "executada";
-          const notExecuted = statusLine === "nao_executada";
+          const notExecuted = statusLine === "nao_realizada";
           const iconName = done ? "bi-check-circle-fill" : (notExecuted ? "bi-slash-circle-fill" : "bi-x-circle-fill");
           const iconClass = done ? "is-done" : (notExecuted ? "is-not-executed" : "is-pending");
           const icon = document.createElement('i');

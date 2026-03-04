@@ -87,11 +87,11 @@
                     <input class="form-check-input"
                            type="radio"
                            name="status_execucao"
-                           id="id_status_nao_executada"
-                           value="nao_executada"
-                           {% if status_current == 'nao_executada' %}checked{% endif %}>
-                    <label class="form-check-label" for="id_status_nao_executada">
-                      Nao executada
+                           id="id_status_nao_realizada"
+                           value="nao_realizada"
+                           {% if status_current == 'nao_realizada' %}checked{% endif %}>
+                    <label class="form-check-label" for="id_status_nao_realizada">
+                      Nao realizada
                     </label>
                   </div>
                 </div>
@@ -107,7 +107,7 @@
               {% if form_errors.observacoes %}
                 <div class="invalid-feedback d-block">{{ form_errors.observacoes }}</div>
               {% else %}
-                <div class="form-text">Obrigatoria quando o status for Nao executada.</div>
+                <div class="form-text">Obrigatoria quando o status for Nao realizada.</div>
               {% endif %}
             </div>
 
@@ -160,7 +160,7 @@
 
       <div class="small text-muted mt-2">
         Ao salvar: voce pode manter <em>pendente</em>, marcar como <em>concluida</em>
-        ou <em>nao executada</em>, mantendo a observacao vinculada ao item.
+        ou <em>nao realizada</em>, mantendo a observacao vinculada ao item.
       </div>
       <div class="alert alert-info mt-2 mb-0 py-2 small">
         <i class="bi bi-info-circle me-1"></i>

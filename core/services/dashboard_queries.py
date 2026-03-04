@@ -419,37 +419,37 @@ def get_programacoes_status_mensal(
         .values("mes")
         .annotate(
             concluidas=Count("id", filter=Q(concluido=True)),
-            nao_executadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
+            nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
             pendentes=Count("id", filter=Q(concluido=False, concluido_em__isnull=True)),
         )
         .order_by("mes")
     )
 
     concluidas_map = {}
-    nao_executadas_map = {}
+    nao_realizadas_map = {}
     pendentes_map = {}
     for item in qs:
         mes_key = _month_key(item.get("mes"))
         if mes_key is None:
             continue
         concluidas_map[mes_key] = item.get("concluidas", 0)
-        nao_executadas_map[mes_key] = item.get("nao_executadas", 0)
+        nao_realizadas_map[mes_key] = item.get("nao_realizadas", 0)
         pendentes_map[mes_key] = item.get("pendentes", 0)
 
     labels = []
     concluidas_data = []
-    nao_executadas_data = []
+    nao_realizadas_data = []
     pendentes_data = []
 
     for month_start in months:
         labels.append(_format_month_label_pt(month_start))
         concluidas_data.append(concluidas_map.get(month_start, 0))
-        nao_executadas_data.append(nao_executadas_map.get(month_start, 0))
+        nao_realizadas_data.append(nao_realizadas_map.get(month_start, 0))
         pendentes_data.append(pendentes_map.get(month_start, 0))
 
     # --- Hints por mes com a atividade (titulo) mais frequente por status ---
     hints_concluidas_map = {}
-    hints_nao_executadas_map = {}
+    hints_nao_realizadas_map = {}
     hints_pendentes_map = {}
     detalhe_qs = (
         base_qs
@@ -470,10 +470,10 @@ def get_programacoes_status_mensal(
                 cur.append(titulo)
                 hints_concluidas_map[mes_key] = cur[:3]
         elif row.get("concluido_em__isnull") is False:
-            cur = hints_nao_executadas_map.get(mes_key) or []
+            cur = hints_nao_realizadas_map.get(mes_key) or []
             if titulo not in cur:
                 cur.append(titulo)
-                hints_nao_executadas_map[mes_key] = cur[:3]
+                hints_nao_realizadas_map[mes_key] = cur[:3]
         else:
             cur = hints_pendentes_map.get(mes_key) or []
             if titulo not in cur:
@@ -481,7 +481,7 @@ def get_programacoes_status_mensal(
                 hints_pendentes_map[mes_key] = cur[:3]
 
     hints_concluidas = [", ".join(hints_concluidas_map.get(m, [])) for m in months]
-    hints_nao_executadas = [", ".join(hints_nao_executadas_map.get(m, [])) for m in months]
+    hints_nao_realizadas = [", ".join(hints_nao_realizadas_map.get(m, [])) for m in months]
     hints_pendentes = [", ".join(hints_pendentes_map.get(m, [])) for m in months]
 
     return {
@@ -493,9 +493,9 @@ def get_programacoes_status_mensal(
                 "data": concluidas_data,
             },
             {
-                "label": "Nao executadas",
+                "label": "Nao realizadas",
                 "backgroundColor": "#6c757d",
-                "data": nao_executadas_data,
+                "data": nao_realizadas_data,
             },
             {
                 "label": "Pendentes",
@@ -505,7 +505,7 @@ def get_programacoes_status_mensal(
         ],
         "hints": {
             "concluidas": hints_concluidas,
-            "nao_executadas": hints_nao_executadas,
+            "nao_realizadas": hints_nao_realizadas,
             "pendentes": hints_pendentes,
         },
     }

@@ -79,7 +79,7 @@ def _item_execucao_info(item):
     if concluido:
         return "concluidas", "Concluida"
     if concluido_em:
-        return "nao_executadas", "Nao executada"
+        return "nao_realizadas", "Nao realizada"
     return "pendentes", "Pendente"
 
 
@@ -120,7 +120,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
 
     status_param = request.GET.get("status")
     status_value = (status_param or "").lower()
-    if status_value not in {"concluidas", "pendentes", "nao_executadas"}:
+    if status_value not in {"concluidas", "pendentes", "nao_realizadas"}:
         status_value = ""
 
     status_query_filter = status_value
@@ -284,7 +284,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         itens_qs = itens_qs.filter(meta_id=meta_filter_id)
     if status_query_filter == "concluidas":
         itens_qs = itens_qs.filter(concluido=True)
-    elif status_query_filter == "nao_executadas":
+    elif status_query_filter == "nao_realizadas":
         itens_qs = itens_qs.filter(concluido=False, concluido_em__isnull=False)
     elif status_query_filter == "pendentes":
         itens_qs = itens_qs.filter(concluido=False, concluido_em__isnull=True)
@@ -354,7 +354,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         resumo_agg = resumo_qs.aggregate(
             total=Count("id"),
             concluidas=Count("id", filter=Q(concluido=True)),
-            nao_executadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
+            nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
             em_andamento=Count("id", filter=Q(concluido=False, concluido_em__isnull=True)),
             pendentes_atrasadas=Count(
                 "id",
@@ -387,7 +387,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             "data_final": getattr(selected_meta, "data_limite", None),
             "em_andamento": int(resumo_agg.get("em_andamento") or 0),
             "concluidas": concluidas,
-            "nao_executadas": int(resumo_agg.get("nao_executadas") or 0),
+            "nao_realizadas": int(resumo_agg.get("nao_realizadas") or 0),
             "em_programacao": total_programadas,
             "nao_programadas": nao_programadas,
             "pendentes_atrasadas": int(resumo_agg.get("pendentes_atrasadas") or 0),
@@ -445,10 +445,10 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
 
 
 @login_required
-def nao_executadas_view(request):
+def nao_realizadas_view(request):
     unidade = get_unidade_atual(request)
     if not unidade:
-        messages.error(request, "Selecione uma unidade antes de ver os itens nao executados.")
+        messages.error(request, "Selecione uma unidade antes de ver os itens nao realizados.")
         return redirect("core:dashboard")
 
     today = timezone.localdate()
@@ -528,13 +528,13 @@ def nao_executadas_view(request):
             nome = getattr(getattr(link, "servidor", None), "nome", "") or f"Servidor {link.servidor_id}"
             servidores_por_item[link.item_id].append(nome)
 
-    nao_executadas = []
+    nao_realizadas = []
     for item in itens_qs:
         meta = getattr(item, "meta", None)
         programacao = getattr(item, "programacao", None)
         if not meta or not programacao:
             continue
-        nao_executadas.append({
+        nao_realizadas.append({
             "item_id": item.id,
             "data": getattr(programacao, "data", None),
             "meta_id": getattr(meta, "id", None),
@@ -548,14 +548,14 @@ def nao_executadas_view(request):
 
     contexto = {
         "unidade": unidade,
-        "nao_executadas": nao_executadas,
+        "nao_realizadas": nao_realizadas,
         "month_filters": month_filters,
         "selected_month_key": selected_month_key,
         "dt_start": dt_start,
         "dt_end": dt_end,
         "total_geral": itens_base.count(),
     }
-    return render(request, "minhas_metas/nao_executadas.html", contexto)
+    return render(request, "minhas_metas/nao_realizadas.html", contexto)
 
 
 @login_required

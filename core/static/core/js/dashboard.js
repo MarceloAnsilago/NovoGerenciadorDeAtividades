@@ -335,8 +335,8 @@
                   let hint = "";
                   if ((dsLabel || "").toLowerCase().includes("conclu")) {
                     hint = (hints.concluidas && hints.concluidas[idx]) || "";
-                  } else if ((dsLabel || "").toLowerCase().includes("nao execut")) {
-                    hint = (hints.nao_executadas && hints.nao_executadas[idx]) || "";
+                  } else if ((dsLabel || "").toLowerCase().includes("nao realiz")) {
+                    hint = (hints.nao_realizadas && hints.nao_realizadas[idx]) || "";
                   } else if ((dsLabel || "").toLowerCase().includes("penden")) {
                     hint = (hints.pendentes && hints.pendentes[idx]) || "";
                   }

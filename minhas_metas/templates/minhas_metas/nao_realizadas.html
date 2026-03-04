@@ -1,12 +1,12 @@
 {% extends "core/base.html" %}
 
-{% block title %}Itens nao executados{% endblock %}
+{% block title %}Itens nao realizados{% endblock %}
 
 {% block content %}
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-      <h1 class="h4 mb-1">Itens nao executados</h1>
+      <h1 class="h4 mb-1">Itens nao realizados</h1>
       <div class="text-muted small">
         Unidade: <strong>{{ unidade.nome }}</strong>
         {% if dt_start and dt_end %}
@@ -36,7 +36,7 @@
           {% endfor %}
         </ul>
       {% else %}
-        <div class="alert alert-info mb-0">Nenhum item com status nao executada foi encontrado.</div>
+        <div class="alert alert-info mb-0">Nenhum item com status nao realizada foi encontrado.</div>
       {% endif %}
 
       {% if month_filters %}
@@ -54,7 +54,7 @@
               </tr>
             </thead>
             <tbody>
-              {% for item in nao_executadas %}
+              {% for item in nao_realizadas %}
               <tr>
                 <td class="text-nowrap">{{ item.data|date:"d/m/Y" }}</td>
                 <td>
@@ -83,7 +83,7 @@
               </tr>
               {% empty %}
               <tr class="table-light">
-                <td colspan="7" class="text-center text-muted py-4">Nenhum item nao executado no mes selecionado.</td>
+                <td colspan="7" class="text-center text-muted py-4">Nenhum item nao realizado no mes selecionado.</td>
               </tr>
               {% endfor %}
             </tbody>

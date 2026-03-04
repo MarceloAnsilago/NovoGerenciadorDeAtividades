@@ -314,19 +314,11 @@
     </li>
     {% with mm_app=request.resolver_match.app_name mm_url=request.resolver_match.url_name %}
       <li class="nav-item">
-        <a class="nav-link {% if mm_app == 'minhas_metas' and mm_url != 'nao-executadas' %}active{% endif %}"
+        <a class="nav-link {% if mm_app == 'minhas_metas' and mm_url != 'nao-realizadas' %}active{% endif %}"
           href="{% url 'minhas_metas:minhas_metas' %}"
           data-bs-title="Minhas Metas"
-          aria-current="{% if mm_app == 'minhas_metas' and mm_url != 'nao-executadas' %}page{% endif %}">
+          aria-current="{% if mm_app == 'minhas_metas' and mm_url != 'nao-realizadas' %}page{% endif %}">
           <i class="bi bi-clipboard-check"></i> <span>Minhas Metas</span>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {% if mm_app == 'minhas_metas' and mm_url == 'nao-executadas' %}active{% endif %}"
-          href="{% url 'minhas_metas:nao-executadas' %}"
-          data-bs-title="Nao Executadas"
-          aria-current="{% if mm_app == 'minhas_metas' and mm_url == 'nao-executadas' %}page{% endif %}">
-          <i class="bi bi-slash-circle"></i> <span>Nao Executadas</span>
         </a>
       </li>
     {% endwith %}
@@ -343,6 +335,16 @@
         </a>
       </li>
 
+    {% endwith %}
+    {% with mm_app=request.resolver_match.app_name mm_url=request.resolver_match.url_name %}
+      <li class="nav-item">
+        <a class="nav-link {% if mm_app == 'minhas_metas' and mm_url == 'nao-realizadas' %}active{% endif %}"
+          href="{% url 'minhas_metas:nao-realizadas' %}"
+          data-bs-title="Nao Realizadas"
+          aria-current="{% if mm_app == 'minhas_metas' and mm_url == 'nao-realizadas' %}page{% endif %}">
+          <i class="bi bi-slash-circle"></i> <span>Nao Realizadas</span>
+        </a>
+      </li>
     {% endwith %}
 
     {% if request.user.is_superuser %}
@@ -459,3 +461,5 @@
 {% block scripts %}{% endblock %}
 </body>
 </html>
+
+
