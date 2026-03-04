@@ -1530,7 +1530,7 @@ def events_feed(request):
         nome_titulo = "; ".join(nome_atividades) if nome_atividades else ""
         total_label = f"{total} atividade{'s' if total != 1 else ''}"
         concluidas_label = f"{concluidas} concluida{'s' if concluidas != 1 else ''}"
-        nao_realizadas_label = f"{nao_realizadas} nao realizada{'s' if nao_realizadas != 1 else ''}"
+        nao_realizadas_label = f"{nao_realizadas} não realizada{'s' if nao_realizadas != 1 else ''}"
         pendentes_label = f"{pendentes} pendente{'s' if pendentes != 1 else ''}"
         title = nome_titulo or f"({total_label} | {concluidas_label} | {nao_realizadas_label} | {pendentes_label})"
         if prog.get("concluida"):
@@ -1960,7 +1960,7 @@ def concluir_item_form(request, item_id: int):
         confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
 
         if status_execucao == "nao_realizada" and not obs_final:
-            form_errors["observacoes"] = "Informe uma observacao para marcar como nao realizada."
+            form_errors["observacoes"] = "Informe uma observação para marcar como não realizada."
             messages.error(request, form_errors["observacoes"])
             contexto = {
                 "item": pi,

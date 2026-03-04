@@ -493,7 +493,7 @@ def get_programacoes_status_mensal(
                 "data": concluidas_data,
             },
             {
-                "label": "Nao realizadas",
+                "label": "Não realizadas",
                 "backgroundColor": "#6c757d",
                 "data": nao_realizadas_data,
             },

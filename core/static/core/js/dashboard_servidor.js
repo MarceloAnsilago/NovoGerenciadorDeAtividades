@@ -70,7 +70,7 @@
     createOrUpdateChart("chartServidorStatus", {
       type: "doughnut",
       data: {
-        labels: ["Concluidas", "Nao realizadas", "Pendentes"],
+        labels: ["Concluidas", "Não realizadas", "Pendentes"],
         datasets: [
           {
             data: [concluidas, naoRealizadas, pendentes],
@@ -165,7 +165,7 @@
           },
           {
             type: "bar",
-            label: "Nao realizadas",
+            label: "Não realizadas",
             data: isEmpty ? [0] : naoRealizadas,
             backgroundColor: "#6c757d",
             stack: "status",
@@ -263,7 +263,7 @@
             stack: "status",
           },
           {
-            label: "Nao realizadas",
+            label: "Não realizadas",
             data: isEmpty ? [0] : naoRealizadas,
             backgroundColor: "#6c757d",
             stack: "status",

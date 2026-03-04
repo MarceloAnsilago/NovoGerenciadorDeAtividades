@@ -79,7 +79,7 @@ def _item_execucao_info(item):
     if concluido:
         return "concluidas", "Concluida"
     if concluido_em:
-        return "nao_realizadas", "Nao realizada"
+        return "nao_realizadas", "Não realizada"
     return "pendentes", "Pendente"
 
 
@@ -448,7 +448,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
 def nao_realizadas_view(request):
     unidade = get_unidade_atual(request)
     if not unidade:
-        messages.error(request, "Selecione uma unidade antes de ver os itens nao realizados.")
+        messages.error(request, "Selecione uma unidade antes de ver as atividades não realizadas.")
         return redirect("core:dashboard")
 
     today = timezone.localdate()
