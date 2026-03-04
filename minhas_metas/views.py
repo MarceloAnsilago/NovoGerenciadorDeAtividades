@@ -68,6 +68,8 @@ def _meta_status_info(meta):
             return "encerrada", "Encerrada"
         if getattr(meta, "concluida", False):
             return "concluida", "Concluída"
+        if getattr(meta, "atrasada", False):
+            return "atrasada", "Atrasada"
     except Exception:
         pass
     return "andamento", "Em andamento"
@@ -161,17 +163,28 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
 
     meta_ids = list(alocacoes_qs.values_list("meta_id", flat=True))
     programadas_por_meta: dict[int, int] = {}
+    metas_com_execucao_atrasada_ids: set[int] = set()
     if meta_ids:
         itens_stats = (
             ProgramacaoItem.objects
-            .filter(meta_id__in=meta_ids)
+            .filter(meta_id__in=meta_ids, programacao__unidade_id=unidade.id)
             .values("meta_id")
-            .annotate(total=Count("id"))
+            .annotate(
+                total=Count("id"),
+                nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
+                pendentes_atrasadas=Count(
+                    "id",
+                    filter=Q(concluido=False, concluido_em__isnull=True, programacao__data__lt=today),
+                ),
+            )
         )
-        programadas_por_meta = {
-            int(row["meta_id"]): int(row.get("total") or 0)
-            for row in itens_stats
-        }
+        for row in itens_stats:
+            mid = int(row.get("meta_id") or 0)
+            if not mid:
+                continue
+            programadas_por_meta[mid] = int(row.get("total") or 0)
+            if int(row.get("nao_realizadas") or 0) > 0 or int(row.get("pendentes_atrasadas") or 0) > 0:
+                metas_com_execucao_atrasada_ids.add(mid)
 
     metas_com_itens_abertos_ids = _meta_ids_com_itens_abertos(getattr(unidade, "id", None))
 
@@ -185,6 +198,8 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             total_programadas = programadas_por_meta.get(meta_id_int, 0)
             setattr(meta_obj, "programadas_total", total_programadas)
             status_key, status_label = _meta_status_info(meta_obj)
+            if status_key == "andamento" and meta_id_int in metas_com_execucao_atrasada_ids:
+                status_key, status_label = "atrasada", "Atrasada"
             setattr(meta_obj, "status_key", status_key)
             setattr(meta_obj, "status_label", status_label)
             limite_meta = getattr(meta_obj, "data_limite", None)

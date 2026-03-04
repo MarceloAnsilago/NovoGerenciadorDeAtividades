@@ -52,6 +52,8 @@ def _meta_status_info(meta: Any) -> tuple[str, str]:
             return "encerrada", "Encerrada"
         if getattr(meta, "concluida", False):
             return "concluida", "Concluída"
+        if getattr(meta, "atrasada", False):
+            return "atrasada", "Atrasada"
     except Exception:
         pass
     return "andamento", "Em andamento"
@@ -1586,6 +1588,7 @@ def metas_disponiveis(request):
 
     atividade_id = request.GET.get("atividade")
     data_ref = _parse_date((request.GET.get("data") or "").strip())
+    today = timezone.localdate()
     metas_com_itens_abertos_ids = _meta_ids_com_itens_abertos(unidade_id) if data_ref else set()
     qs = (
         MetaAlocacao.objects
@@ -1709,14 +1712,30 @@ def metas_disponiveis(request):
     if meta_ids:
         itens_stats = (
             ProgramacaoItem.objects
-            .filter(meta_id__in=meta_ids)
+            .filter(meta_id__in=meta_ids, programacao__unidade_id=unidade_id)
             .values("meta_id")
-            .annotate(total=Count("id"))
+            .annotate(
+                total=Count("id"),
+                nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
+                pendentes_atrasadas=Count(
+                    "id",
+                    filter=Q(concluido=False, concluido_em__isnull=True, programacao__data__lt=today),
+                ),
+            )
         )
         for row in itens_stats:
             mid = int(row.get("meta_id") or 0)
             if mid in bucket:
                 bucket[mid]["programadas_total"] = int(row.get("total") or 0)
+                if (
+                    bucket[mid].get("status") == "andamento"
+                    and (
+                        int(row.get("nao_realizadas") or 0) > 0
+                        or int(row.get("pendentes_atrasadas") or 0) > 0
+                    )
+                ):
+                    bucket[mid]["status"] = "atrasada"
+                    bucket[mid]["status_label"] = "Atrasada"
 
     metas = list(bucket.values())
     metas.sort(
