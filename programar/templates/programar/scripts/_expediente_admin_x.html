@@ -41,6 +41,11 @@
   };
   const $  = (s,r=document)=>r.querySelector(s);
   const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
+  function escapeHtml(value){
+    return String(value ?? '').replace(/[&<>"']/g, (ch) => (
+      {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]
+    ));
+  }
 
   function resolveName(sid){
     const el = document.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
@@ -91,7 +96,7 @@
           novo.setAttribute('draggable','true');
           novo.innerHTML = `
             <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
-            <span class="srv-name">${name}</span>
+            <span class="srv-name">${escapeHtml(name)}</span>
             <span class="srv-count-badge"></span>`;
         }
         livres.appendChild(novo);

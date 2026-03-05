@@ -317,6 +317,9 @@ def lista_plantao(request):
     servidores_com_descanso = dict(mapa_dd)
 
     todos = Servidor.objects.filter(unidade_id=unidade_id, ativo=True).order_by("nome")
+    servidor_scope_filter = {"ativo": True}
+    if unidade_id:
+        servidor_scope_filter["unidade_id"] = unidade_id
     bloqueados_ids = (Descanso.objects
                       .filter(servidor__in=todos, data_inicio__lte=dt_ini, data_fim__gte=dt_fim)
                       .values_list("servidor_id", flat=True).distinct())
@@ -379,6 +382,8 @@ def lista_plantao(request):
                    .filter(servidor_id__in=ids, data_inicio__lte=fim, data_fim__gte=ini)
                    .select_related("servidor")
                    .order_by("servidor__nome", "data_inicio"))
+        if unidade_id:
+            qs_conf = qs_conf.filter(servidor__unidade_id=unidade_id)
         mapa = defaultdict(list)
         for d in qs_conf:
             mapa[d.servidor].append(d)
@@ -404,7 +409,7 @@ def lista_plantao(request):
         grupos_data = []
         for i, (ini, fim) in enumerate(weeks, start=1):
             ids = grupos_sel_ids.get(i, [])
-            objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids), ativo=True)}
+            objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids), **servidor_scope_filter)}
             ordered = [objs[sid] for sid in ids if sid in objs]
             for obj in ordered:
                 tel = getattr(obj, "telefone", None) or getattr(obj, "celular", None) or ""
@@ -440,7 +445,7 @@ def lista_plantao(request):
             grupos_data = []
             for i, (ini, fim) in enumerate(weeks, start=1):
                 ids = grupos_sel_ids.get(i, [])
-                objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids), ativo=True)}
+                objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids), **servidor_scope_filter)}
                 ordered = [objs[sid] for sid in ids if sid in objs]
                 for obj in ordered:
                     tel = getattr(obj, "telefone", None) or getattr(obj, "celular", None) or ""
@@ -487,7 +492,7 @@ def lista_plantao(request):
                     ids = grupos_sel_ids.get(i, [])
                     for ordem, sid in enumerate(ids, start=1):
                         try:
-                            srv = Servidor.objects.get(pk=sid, ativo=True)
+                            srv = Servidor.objects.get(pk=sid, **servidor_scope_filter)
                             tel = getattr(srv, "telefone", None) or getattr(srv, "celular", None) or ""
                         except Servidor.DoesNotExist:
                             srv = None
@@ -510,7 +515,7 @@ def lista_plantao(request):
     grupos_data = []
     for i, (ini, fim) in enumerate(weeks, start=1):
         ids = grupos_sel_ids.get(i, [])
-        objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids), ativo=True)}
+        objs = {s.id: s for s in Servidor.objects.filter(id__in=set(ids), **servidor_scope_filter)}
         ordered = [objs[sid] for sid in ids if sid in objs]
         for obj in ordered:
             tel = getattr(obj, "telefone", None) or getattr(obj, "celular", None) or ""
@@ -591,13 +596,19 @@ def verificar_descanso(request):
     try:
         servidor_id = int(servidor_id)
     except (ValueError, TypeError):
-        return JsonResponse({"erro": "servidor_id inválido"}, status=400)
+        return JsonResponse({"erro": "servidor_id invalido"}, status=400)
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id and not request.user.is_superuser:
+        return JsonResponse({"erro": "unidade nao definida no contexto"}, status=400)
 
     qs = Descanso.objects.filter(
         servidor_id=servidor_id,
         data_inicio__lte=dt_fim,
         data_fim__gte=dt_ini,
     ).order_by("data_inicio")
+    if unidade_id:
+        qs = qs.filter(servidor__unidade_id=unidade_id)
 
     impedimentos = []
     for d in qs:
@@ -863,4 +874,3 @@ def servidores_por_intervalo(request):
             })
 
     return JsonResponse({"ok": True, "semanas": semanas_out})
-

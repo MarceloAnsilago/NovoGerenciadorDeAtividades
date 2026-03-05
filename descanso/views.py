@@ -19,6 +19,7 @@ from servidores.models import Servidor
 from .models import Descanso, Feriado, FeriadoCadastro
 from .forms import DescansoForm
 from core.utils import get_unidade_atual_id
+from core.utils.security import safe_next_url
 from programar.models import ProgramacaoItemServidor
 
 
@@ -451,7 +452,7 @@ def feriados_cadastro_excluir(request, cadastro_id: int):
 
     cadastro = get_object_or_404(FeriadoCadastro, pk=cadastro_id, unidade_id=unidade_id)
     feriados_count = cadastro.feriados.count()
-    back_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("descanso:lista_servidores")
+    back_url = safe_next_url(request, reverse("descanso:lista_servidores"))
 
     if request.method == "POST":
         descricao = cadastro.descricao
@@ -705,7 +706,7 @@ def editar_descanso(request, pk: int):
         return redirect("descanso:lista_servidores")
 
     obj = get_object_or_404(Descanso, pk=pk, servidor__unidade_id=unidade_id)
-    next_url = request.POST.get("next") or request.GET.get("next")
+    next_url = safe_next_url(request, reverse("descanso:descansos_unidade"))
 
     if request.method == "POST":
         form = DescansoForm(request.POST, request=request, instance=obj)
@@ -739,7 +740,7 @@ def editar_descanso(request, pk: int):
                     f"{len(conflicts)} vinculo(s) com atividades foram removidos para registrar o descanso.",
                 )
             messages.success(request, "Descanso atualizado com sucesso.")
-            return redirect(next_url or reverse("descanso:descansos_unidade"))
+            return redirect(next_url)
         messages.error(request, "Revise os erros no formulario.")
     else:
         form = DescansoForm(request=request, instance=obj)
@@ -755,13 +756,14 @@ def excluir_descanso(request, pk: int):
 
     obj = get_object_or_404(Descanso, pk=pk, servidor__unidade_id=unidade_id)
 
+    next_url = safe_next_url(request, reverse("descanso:descansos_unidade"))
+
     if request.method == "POST":
-        next_url = request.POST.get("next")
         obj.delete()
         messages.success(request, "Descanso excluído com sucesso.")
-        return redirect(next_url or reverse("descanso:descansos_unidade"))
+        return redirect(next_url)
 
-    return render(request, "descanso/excluir.html", {"obj": obj, "next": request.GET.get("next")})
+    return render(request, "descanso/excluir.html", {"obj": obj, "next": next_url})
 
 
 @login_required

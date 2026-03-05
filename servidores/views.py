@@ -22,6 +22,8 @@ def lista(request):
     qs = Servidor.objects.select_related("cargo").all().order_by("nome")
     if unidade:
         qs = qs.filter(unidade=unidade)
+    elif not request.user.is_superuser:
+        qs = qs.none()
 
     q = (request.GET.get("q") or "").strip()
     raw_status = request.GET.get("status")
@@ -57,7 +59,7 @@ def lista(request):
             except Exception:
                 selected_unidade = None
 
-            if selected_unidade:
+            if selected_unidade and request.user.is_superuser:
                 serv.unidade = selected_unidade
             else:
                 # força a unidade do contexto (impede unidade=NULL)
@@ -95,14 +97,19 @@ def lista(request):
 @login_required
 def editar(request, pk):
     unidade = _get_unidade_atual(request)
-    serv = get_object_or_404(Servidor, pk=pk)
-    if unidade and serv.unidade_id != unidade.id:
-        messages.warning(request, "Você só pode editar servidores da unidade atual.")
+    if unidade:
+        serv = get_object_or_404(Servidor, pk=pk, unidade=unidade)
+    elif request.user.is_superuser:
+        serv = get_object_or_404(Servidor, pk=pk)
+    else:
+        messages.warning(request, "Selecione uma unidade para editar servidores.")
         return redirect("servidores:lista")
 
     if request.method == "POST":
         form = ServidorForm(request.POST, instance=serv)
         if form.is_valid():
+            if unidade and not request.user.is_superuser:
+                form.instance.unidade = unidade
             form.save()
             messages.success(request, "Servidor atualizado com sucesso.")
             return redirect(_get_safe_next(request) or "servidores:lista")
@@ -114,10 +121,13 @@ def editar(request, pk):
 @login_required
 @require_POST
 def inativar(request, pk):
-    serv = get_object_or_404(Servidor, pk=pk)
     unidade = _get_unidade_atual(request)
-    if unidade and serv.unidade_id != unidade.id:
-        messages.warning(request, "Você só pode alterar servidores da unidade atual.")
+    if unidade:
+        serv = get_object_or_404(Servidor, pk=pk, unidade=unidade)
+    elif request.user.is_superuser:
+        serv = get_object_or_404(Servidor, pk=pk)
+    else:
+        messages.warning(request, "Selecione uma unidade para alterar servidores.")
         return redirect("servidores:lista")
     if serv.ativo:
         serv.ativo = False
@@ -130,10 +140,13 @@ def inativar(request, pk):
 @login_required
 @require_POST
 def ativar(request, pk):
-    serv = get_object_or_404(Servidor, pk=pk)
     unidade = _get_unidade_atual(request)
-    if unidade and serv.unidade_id != unidade.id:
-        messages.warning(request, "Você só pode alterar servidores da unidade atual.")
+    if unidade:
+        serv = get_object_or_404(Servidor, pk=pk, unidade=unidade)
+    elif request.user.is_superuser:
+        serv = get_object_or_404(Servidor, pk=pk)
+    else:
+        messages.warning(request, "Selecione uma unidade para alterar servidores.")
         return redirect("servidores:lista")
     if not serv.ativo:
         serv.ativo = True

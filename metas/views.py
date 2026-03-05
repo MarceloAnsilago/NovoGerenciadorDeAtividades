@@ -318,9 +318,15 @@ def atividades_lista_view(request):
 
 @login_required
 def definir_meta_view(request, atividade_id):
-    atividade = get_object_or_404(Atividade, id=atividade_id)
     unidade = get_unidade_atual(request)
     has_unidade = unidade is not None
+    atividade_qs = Atividade.objects.all()
+    if not request.user.is_superuser:
+        if not unidade:
+            messages.error(request, "Selecione ou assuma uma unidade antes de criar metas.")
+            return redirect("metas:metas-unidade")
+        atividade_qs = atividade_qs.filter(unidade_origem=unidade)
+    atividade = get_object_or_404(atividade_qs, id=atividade_id)
 
     # Anos únicos baseados na data_limite
     anos_disponiveis = (
@@ -403,6 +409,9 @@ def atribuir_meta_view(request, meta_id):
     meta = Meta.objects.filter(pk=meta_id).select_related("unidade_criadora", "atividade").first()
     if not meta:
         messages.error(request, "Meta não encontrada ou já foi removida.")
+        return redirect("metas:metas-unidade")
+    if not request.user.is_superuser and meta.unidade_criadora_id != unidade.id:
+        messages.warning(request, "Você não tem permissão para atribuir esta meta.")
         return redirect("metas:metas-unidade")
 
     # montar grupos: filhos diretos da unidade atual (ex.: supervisores -> unidades)
@@ -586,7 +595,13 @@ def editar_meta_view(request, meta_id):
     next_url_default = reverse("metas:metas-unidade")
     next_url = safe_next_url(request, next_url_default)
     unidade = get_unidade_atual(request)
-    meta = get_object_or_404(Meta, pk=meta_id)
+    if request.user.is_superuser:
+        meta = get_object_or_404(Meta, pk=meta_id)
+    else:
+        if not unidade:
+            messages.error(request, "Selecione ou assuma uma unidade antes de editar metas.")
+            return redirect(next_url)
+        meta = get_object_or_404(Meta, pk=meta_id, unidade_criadora=unidade)
 
     # checagem de permissão básica
     if unidade and meta.unidade_criadora_id != unidade.id and not request.user.is_superuser:
@@ -689,8 +704,14 @@ def toggle_encerrada_view(request, meta_id):
     if request.method != "POST":
         return redirect("metas:metas-unidade")
 
-    meta = get_object_or_404(Meta, pk=meta_id)
     unidade = get_unidade_atual(request)
+    if request.user.is_superuser:
+        meta = get_object_or_404(Meta, pk=meta_id)
+    else:
+        if not unidade:
+            messages.error(request, "Selecione ou assuma uma unidade antes de alterar metas.")
+            return redirect("metas:metas-unidade")
+        meta = get_object_or_404(Meta, pk=meta_id, unidade_criadora=unidade)
 
     # checagem de permissão básica
     if unidade and meta.unidade_criadora_id != unidade.id and not request.user.is_superuser:
@@ -839,12 +860,14 @@ def encerrar_meta_view(request, meta_id):
         messages.error(request, "Selecione ou assuma uma unidade antes de encerrar metas.")
         return redirect(next_url)
 
-    meta = (
+    meta_qs = (
         Meta.objects
         .select_related("unidade_criadora", "atividade")
         .filter(pk=meta_id)
-        .first()
     )
+    if not request.user.is_superuser:
+        meta_qs = meta_qs.filter(unidade_criadora=unidade)
+    meta = meta_qs.first()
     if not meta:
         messages.error(request, "Meta nao encontrada ou ja foi removida.")
         return redirect(next_url)

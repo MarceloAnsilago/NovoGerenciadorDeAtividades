@@ -93,11 +93,12 @@ def lista(request):
 @login_required
 def editar(request, pk: int):
     unidade = _get_unidade_atual(request)
-    obj = get_object_or_404(Atividade, pk=pk)
-
-    # segurança: só pode editar atividades da unidade atual
-    if unidade and obj.unidade_origem_id != unidade.id:
-        messages.warning(request, "Você só pode editar atividades da unidade atual.")
+    if unidade:
+        obj = get_object_or_404(Atividade, pk=pk, unidade_origem=unidade)
+    elif request.user.is_superuser:
+        obj = get_object_or_404(Atividade, pk=pk)
+    else:
+        messages.warning(request, "Selecione uma unidade para editar atividades.")
         return redirect("atividades:lista")
 
     if request.method == "POST":
@@ -126,10 +127,12 @@ def editar(request, pk: int):
 @require_POST
 def toggle_ativo(request, pk: int):
     unidade = _get_unidade_atual(request)
-    obj = get_object_or_404(Atividade, pk=pk)
-
-    if unidade and obj.unidade_origem_id != unidade.id:
-        messages.warning(request, "Você só pode alterar status de atividades da unidade atual.")
+    if unidade:
+        obj = get_object_or_404(Atividade, pk=pk, unidade_origem=unidade)
+    elif request.user.is_superuser:
+        obj = get_object_or_404(Atividade, pk=pk)
+    else:
+        messages.warning(request, "Selecione uma unidade para alterar atividades.")
         return redirect("atividades:lista")
 
     obj.ativo = not obj.ativo

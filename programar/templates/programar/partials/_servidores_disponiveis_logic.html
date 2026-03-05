@@ -158,7 +158,11 @@
     const target = getContainer(opts.targetSelector);
     if (target) {
       target.classList.add('is-loading');
-      target.innerHTML = `<div class="text-muted">Carregando…</div>`;
+      target.replaceChildren();
+      const loading = document.createElement('div');
+      loading.className = 'text-muted';
+      loading.textContent = 'Carregando...';
+      target.appendChild(loading);
       setBadgeFor(target, 0, opts.badgeSelector);
     }
 
@@ -198,7 +202,7 @@
       // Render da pool por diff
       if (target) {
         target.classList.add('servidores-grid');
-        target.innerHTML = '';
+        target.replaceChildren();
         diffRenderPool(target, livres, opts);
         target.classList.remove('is-loading');
       }
@@ -313,7 +317,11 @@
       if (isStaleRequest()) return { livres: [], impedidos: [], plantao: [] };
       console.error('[programar] Falha ao carregar servidores:', err);
       if (target) {
-        target.innerHTML = `<div class="text-danger">Erro ao carregar.</div>`;
+        target.replaceChildren();
+        const error = document.createElement('div');
+        error.className = 'text-danger';
+        error.textContent = 'Erro ao carregar.';
+        target.appendChild(error);
         target.classList.remove('is-loading');
       }
       return { livres: [], impedidos: [], plantao: [] };
@@ -391,4 +399,3 @@
 
 })();
 </script>
-

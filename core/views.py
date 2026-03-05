@@ -15,7 +15,6 @@ from django.contrib.auth.decorators import login_required, user_passes_test, per
 from django.contrib.auth import authenticate, logout, login as auth_login, get_user_model
 from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib.auth.models import Group
 from django.utils import timezone
 from django.core.exceptions import PermissionDenied
@@ -29,6 +28,7 @@ from django.db.models.functions import TruncMonth
 from .models import No, UserProfile  # No (Unidade) e UserProfile
 from .models import No as Unidade
 from .utils import gerar_senha_provisoria, get_unidade_scope_ids, get_unidade_atual
+from core.utils.security import safe_next_url
 from .services.dashboard_queries import (
     get_dashboard_kpis,
     get_dashboard_activity_filters,
@@ -974,6 +974,10 @@ def logout_view(request):
 @permission_required('core.assumir_unidade', raise_exception=True)
 def assumir_unidade(request, unidade_id=None, id=None):
     pk = unidade_id or id
+    if not request.user.is_superuser:
+        allowed_ids = get_unidade_scope_ids(request, include_descendants=True) or []
+        if int(pk) not in {int(uid) for uid in allowed_ids}:
+            raise PermissionDenied("Unidade fora do escopo permitido.")
     unidade = get_object_or_404(No, pk=pk)
     # Mantem compatibilidade com estruturas de sessao antigas e atuais.
     request.session['contexto'] = {
@@ -987,10 +991,7 @@ def assumir_unidade(request, unidade_id=None, id=None):
     request.session['contexto_nome'] = unidade.nome
     messages.success(request, f'Unidade alterada para: {unidade.nome}')
 
-    next_url = request.GET.get('next')
-    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
-        return redirect(next_url)
-    return redirect(reverse('core:dashboard'))
+    return redirect(safe_next_url(request, reverse("core:dashboard")))
 
 
 @login_required
@@ -1000,7 +1001,7 @@ def voltar_contexto(request):
     request.session.pop("contexto_atual", None)
     request.session.pop("contexto_nome", None)
     messages.success(request, "Contexto restaurado para a unidade original.")
-    return redirect(request.META.get("HTTP_REFERER", "core:dashboard"))
+    return redirect(safe_next_url(request, reverse("core:dashboard")))
 
 
 class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
