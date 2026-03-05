@@ -175,6 +175,10 @@ def _plantonistas_por_data(unidade_id: int | None, data_ref: date) -> list[dict[
             servidor__ativo=True,
             semana__inicio__lte=data_ref,
             semana__fim__gte=data_ref,
+            # Garante que o dia também esteja dentro do período oficial do plantão.
+            # Evita "vazamento" dos dias extras da semana (ex.: sab->sex) entre meses.
+            semana__plantao__inicio__lte=data_ref,
+            semana__plantao__fim__gte=data_ref,
         )
     )
 
