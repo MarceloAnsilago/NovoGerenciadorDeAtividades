@@ -145,11 +145,11 @@ def _impedidos_por_descanso(unidade_id: int | None, data_ref):
         if d.servidor_id in impedidos_map:
             continue
         tipo_label = getattr(d, "get_tipo_display", lambda: "Descanso")()
-        periodo = f"{d.data_inicio:%d/%m}–{d.data_fim:%d/%m}"
+        periodo = f"{d.data_inicio:%d/%m}-{d.data_fim:%d/%m}"
         motivo = f"{tipo_label} ({periodo})"
         obs = getattr(d, "observacoes", None)
         if obs:
-            motivo += f" — {obs}"
+            motivo += f" - {obs}"
         impedidos_map[d.servidor_id] = {
             "id": d.servidor_id,
             "nome": d.servidor.nome,
@@ -536,7 +536,7 @@ def salvar_programacao(request):
 
 # antigo dummy de exclusão removido (substituído por excluir_programacao_secure)
 # =============================================================================
-# Helpers – datas
+# Helpers - datas
 # =============================================================================
 def _parse_iso(s: str) -> date | None:
     try:
@@ -545,8 +545,50 @@ def _parse_iso(s: str) -> date | None:
         return None
 
 
+def _pick_plantao_id(request, ds: date | None, de: date | None) -> int | None:
+    if not ds or not de:
+        return None
+    try:
+        from plantao.models import Plantao  # type: ignore
+    except Exception:
+        return None
+
+    unidade_id = get_unidade_atual_id(request)
+    try:
+        field_names = [f.name for f in Plantao._meta.fields]
+    except Exception:
+        field_names = []
+
+    qs = Plantao.objects.filter(inicio__lte=de, fim__gte=ds)
+    if ("unidade" in field_names or "unidade_id" in field_names) and unidade_id:
+        qs = qs.filter(unidade_id=unidade_id)
+    plantao_id = qs.order_by("-inicio", "-id").values_list("id", flat=True).first()
+    return int(plantao_id) if plantao_id else None
+
+
+def _pick_plantao_id_by_date(request, d_ref: date | None) -> int | None:
+    if not d_ref:
+        return None
+    try:
+        from plantao.models import Plantao  # type: ignore
+    except Exception:
+        return None
+
+    unidade_id = get_unidade_atual_id(request)
+    try:
+        field_names = [f.name for f in Plantao._meta.fields]
+    except Exception:
+        field_names = []
+
+    qs = Plantao.objects.filter(inicio__lte=d_ref, fim__gte=d_ref)
+    if ("unidade" in field_names or "unidade_id" in field_names) and unidade_id:
+        qs = qs.filter(unidade_id=unidade_id)
+    plantao_id = qs.order_by("-inicio", "-id").values_list("id", flat=True).first()
+    return int(plantao_id) if plantao_id else None
+
+
 # =============================================================================
-# Helpers – PLANTONISTAS (bridge + ORM + render)
+# Helpers - PLANTONISTAS (bridge + ORM + render)
 # =============================================================================
 def _fetch_plantonistas_via_bridge(request, start: str, end: str) -> List[Dict[str, Any]]:
     """
@@ -566,9 +608,16 @@ def _fetch_plantonistas_via_bridge(request, start: str, end: str) -> List[Dict[s
         {"start": start, "end": end, "inicio": start, "fim": end},
     ]
     plantao_id = request.GET.get("plantao_id") or request.session.get("plantao_id")
+    if not plantao_id:
+        ds = _parse_iso(start)
+        de = _parse_iso(end)
+        plantao_id = _pick_plantao_id_by_date(request, de) or _pick_plantao_id(request, ds, de)
     if plantao_id:
         for c in combos:
             c["plantao_id"] = plantao_id
+
+    ds = _parse_iso(start)
+    de = _parse_iso(end)
 
     for params in combos:
         try:
@@ -586,23 +635,40 @@ def _fetch_plantonistas_via_bridge(request, start: str, end: str) -> List[Dict[s
             data = json.loads(raw) if str(raw).strip() else {}
             semanas = data.get("semanas") if isinstance(data, dict) else None
             if isinstance(semanas, list) and semanas:
-                dedup = []
-                seen = set()
+                by_server: Dict[Any, Dict[str, Any]] = {}
                 for sem in semanas:
+                    sem_ini_raw = sem.get("inicio")
+                    sem_fim_raw = sem.get("fim")
+                    sem_ini = _parse_iso(str(sem_ini_raw or "")[:10]) if sem_ini_raw else None
+                    sem_fim = _parse_iso(str(sem_fim_raw or "")[:10]) if sem_fim_raw else None
+                    if sem_ini and ds and sem_ini < ds:
+                        sem_ini = ds
+                    if sem_fim and de and sem_fim > de:
+                        sem_fim = de
+                    periodo_label = ""
+                    if sem_ini and sem_fim:
+                        periodo_label = f"{sem_ini:%d/%m/%Y} a {sem_fim:%d/%m/%Y}"
+
                     for srv in (sem.get("servidores") or []):
-                        # usa id quando disponivel; senao (nome,telefone)
-                        key = srv.get("id")
+                        sid = srv.get("id")
+                        nome = (srv.get("nome") or srv.get("servidor") or "").strip()
+                        tel = (srv.get("telefone") or "").strip()
+                        key: Any = sid
                         if key is None:
-                            key = (srv.get("nome") or "", srv.get("telefone") or "")
-                        if key in seen:
-                            continue
-                        seen.add(key)
-                        dedup.append({
-                            "nome": srv.get("nome") or srv.get("servidor") or "",
-                            "telefone": srv.get("telefone") or "",
-                        })
-                if dedup:
-                    return dedup
+                            key = (nome.casefold(), tel)
+
+                        item = by_server.get(key)
+                        if not item:
+                            item = {"id": sid, "nome": nome, "telefone": tel, "periodos": []}
+                            by_server[key] = item
+
+                        if periodo_label and periodo_label not in item["periodos"]:
+                            item["periodos"].append(periodo_label)
+
+                out = list(by_server.values())
+                out.sort(key=lambda x: str(x.get("nome") or "").lower())
+                if out:
+                    return out
         except Exception:
             continue
 
@@ -619,39 +685,67 @@ def _fetch_plantonistas_via_orm(request, start: str, end: str) -> List[Dict[str,
         return []
 
     try:
-        from plantao.models import Semana, SemanaServidor  # type: ignore
+        from plantao.models import SemanaServidor  # type: ignore
         unidade_id = get_unidade_atual_id(request)
         plantao_id = request.GET.get("plantao_id") or request.session.get("plantao_id")
-        qs = Semana.objects.filter(inicio__lte=de, fim__gte=ds)
+        if not plantao_id:
+            plantao_id = _pick_plantao_id_by_date(request, de) or _pick_plantao_id(request, ds, de)
+
+        ss_qs = (
+            SemanaServidor.objects
+            .select_related("servidor", "semana", "semana__plantao")
+            .filter(
+                servidor__ativo=True,
+                semana__inicio__lte=de,
+                semana__fim__gte=ds,
+                semana__plantao__inicio__lte=de,
+                semana__plantao__fim__gte=ds,
+            )
+        )
         if plantao_id:
-            qs = qs.filter(plantao_id=plantao_id)
-        # aplica escopo por unidade quando disponivel (evita misturar outras unidades)
+            ss_qs = ss_qs.filter(semana__plantao_id=plantao_id)
         if unidade_id:
             try:
-                qs = qs.filter(plantao__unidade_id=unidade_id)
+                ss_qs = ss_qs.filter(semana__plantao__unidade_id=unidade_id)
             except Exception:
-                pass
+                ss_qs = ss_qs.filter(servidor__unidade_id=unidade_id)
 
-        semanas = list(qs.order_by("ordem", "inicio"))
-        if not semanas:
-            return []
+        ss_qs = ss_qs.order_by("servidor__nome", "semana__inicio", "ordem", "id")
 
-        out: List[Dict[str, Any]] = []
-        seen: set = set()
-        for sem in semanas:
-            ss_qs = (
-                SemanaServidor.objects.filter(semana=sem, servidor__ativo=True)
-                .select_related("servidor")
-                .order_by("ordem", "servidor__nome")
-            )
-            for ss in ss_qs:
-                nome = getattr(getattr(ss, "servidor", None), "nome", "") or ""
-                tel = getattr(ss, "telefone_snapshot", "") or ""
-                key = (nome, tel)
-                if key in seen:
+        by_server: Dict[Any, Dict[str, Any]] = {}
+        for ss in ss_qs:
+            servidor = getattr(ss, "servidor", None)
+            sid = getattr(servidor, "id", None)
+            nome = (getattr(servidor, "nome", "") or "").strip()
+            tel = (getattr(ss, "telefone_snapshot", "") or "").strip()
+            key: Any = sid if sid is not None else (nome.casefold(), tel)
+
+            item = by_server.get(key)
+            if not item:
+                item = {"id": sid, "nome": nome, "telefone": tel, "periodos": []}
+                by_server[key] = item
+
+            sem = getattr(ss, "semana", None)
+            sem_ini = getattr(sem, "inicio", None)
+            sem_fim = getattr(sem, "fim", None)
+            plantao = getattr(sem, "plantao", None)
+            plantao_ini = getattr(plantao, "inicio", None)
+            plantao_fim = getattr(plantao, "fim", None)
+            if sem_ini and sem_fim:
+                ini = sem_ini if sem_ini >= ds else ds
+                fim = sem_fim if sem_fim <= de else de
+                if plantao_ini and ini < plantao_ini:
+                    ini = plantao_ini
+                if plantao_fim and fim > plantao_fim:
+                    fim = plantao_fim
+                if fim < ini:
                     continue
-                seen.add(key)
-                out.append({"nome": nome, "telefone": tel})
+                periodo_label = f"{ini:%d/%m/%Y} a {fim:%d/%m/%Y}"
+                if periodo_label not in item["periodos"]:
+                    item["periodos"].append(periodo_label)
+
+        out = list(by_server.values())
+        out.sort(key=lambda x: str(x.get("nome") or "").lower())
         return out
     except Exception:
         return []
@@ -661,41 +755,54 @@ def _render_plantonistas_html(servidores: List[Dict[str, Any]], start: str, end:
     esc = lambda s: html.escape(str(s or ""))
     start_br = _format_iso_to_br(start)
     end_br = _format_iso_to_br(end)
+    ds = _parse_iso(start)
+    de = _parse_iso(end)
+    titulo = "Plantonista da semana"
+    if ds and de and (de - ds).days >= 7:
+        titulo = "Plantonistas no periodo"
+
     def _phone_display(raw: str) -> str:
         val = (raw or "").strip()
         if not val:
             return ""
-        # Evita duplicar parênteses se já vierem no cadastro.
         if "(" in val or ")" in val:
             return val
         return f"({val})"
+
     header = (
         '<h6 class="fw-semibold mb-2">'
         '<span class="badge bg-light border me-2">'
         '<i class="bi bi-person-badge text-primary"></i></span>'
-        f'Plantonista da semana <small class="text-muted">({esc(start_br)} → {esc(end_br)})</small>'
+        f'{esc(titulo)} <small class="text-muted">({esc(start_br)} -> {esc(end_br)})</small>'
         "</h6>"
     )
     if not servidores:
-        return header + '<div class="text-muted">Nenhum plantonista encontrado para o período.</div>'
+        return header + '<div class="text-muted">Nenhum plantonista encontrado para o periodo.</div>'
 
     items = []
     for s in servidores:
         nome = esc(s.get("nome") or s.get("servidor") or "")
         tel = s.get("telefone")
         tel_disp = _phone_display(str(tel or ""))
-        tel_html = f' <span class="text-muted">— {esc(tel_disp)}</span>' if tel_disp else ""
-        items.append(f"<li>{nome}{tel_html}</li>")
+        tel_html = f' <span class="text-muted">- {esc(tel_disp)}</span>' if tel_disp else ""
+
+        periodos = s.get("periodos") or []
+        periodos_fmt = []
+        for p in periodos:
+            p_txt = str(p or "").strip()
+            if p_txt and p_txt not in periodos_fmt:
+                periodos_fmt.append(p_txt)
+        if not periodos_fmt and start_br and end_br:
+            periodos_fmt.append(f"{start_br} a {end_br}")
+
+        periodo_suffix = ""
+        if periodos_fmt:
+            periodo_suffix = f" <span class='text-muted'>- de {esc('; de '.join(periodos_fmt))}</span>"
+
+        items.append(f"<li><span class='fw-semibold'>{nome}</span>{tel_html}{periodo_suffix}</li>")
 
     return header + f'<ul class="mb-0">{"".join(items)}</ul>'
 
-
-# =============================================================================
-# Helpers – PROGRAMAÇÃO DA SEMANA (bridge no legado) + render
-# =============================================================================
-# =============================================================================
-# Helpers - PROGRAMACAO DA SEMANA (ORM) + render
-# =============================================================================
 def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
@@ -906,7 +1013,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 
     def _srv_list_html(nomes: list[str], *, with_boxes: bool = True, inline: bool = False) -> str:
         if not nomes:
-            return "<span class='text-muted'>—</span>"
+            return "<span class='text-muted'>-</span>"
         if inline or not with_boxes:
             return "<span class='srv-inline'>" + ", ".join(html.escape(n) for n in nomes) + "</span>"
         parts = []
@@ -1001,8 +1108,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 "observacao": it.get("observacao") or "",
                 "meta_descricao": it.get("meta_descricao") or "",
             })
-        if impedidos:
-            blocks.append({"kind": "impedidos", "dados": impedidos})
+        blocks.append({"kind": "impedidos", "dados": impedidos})
 
         if dt.weekday() >= 5:
             has_atividade = any(b["kind"] in {"atividade", "feriado"} for b in blocks)
@@ -1060,8 +1166,8 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + dia_td
                     + "<td class='atividade-cell'><em>Expediente administrativo</em></td>"
                     + f"<td>{_srv_list_html(b['servidores'], with_boxes=False, inline=True)}</td>"
-                    + "<td class='veiculo-cell text-nowrap'>—</td>"
-                    + "<td class='realizada-cell'>—</td>"
+                    + "<td class='veiculo-cell text-nowrap'>-</td>"
+                    + "<td class='realizada-cell'>-</td>"
                     + "</tr>"
                 )
 
@@ -1100,16 +1206,18 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             else:  # impedidos
                 imp_lines = "".join(
                     f"<div class='text-muted'><span class='fw-semibold'>{html.escape(i['nome'])}</span>"
-                    f" — {html.escape(i['motivo'])}</div>"
+                    f" - {html.escape(i['motivo'])}</div>"
                     for i in b["dados"]
                 )
+                if not imp_lines:
+                    imp_lines = "<span class='text-muted'>-</span>"
                 day_rows.append(
                     open_tr
                     + dia_td
                     + "<td class='atividade-cell'><em>Impedidos</em></td>"
                     + f"<td>{imp_lines}</td>"
-                    + "<td class='veiculo-cell text-nowrap'>—</td>"
-                    + "<td class='realizada-cell'>—</td>"
+                    + "<td class='veiculo-cell text-nowrap'>-</td>"
+                    + "<td class='realizada-cell'>-</td>"
                     + "</tr>"
                 )
 
@@ -1119,7 +1227,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
     # ---------- CSS embutido ----------
     style = (
         "<style>"
-        "/* ====== RELATÓRIO ====== */"
+        "/* ====== RELATORIO ====== */"
         ".report-container{ max-width:1200px; margin-left:auto; margin-right:auto; padding:0 0.5rem; }"
         ".report-toolbar{ display:flex; align-items:center; gap:.35rem; }"
         ".report-toolbar .btn{ min-width:110px; }"
@@ -1133,7 +1241,10 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table tbody td.dia-cell.day-end{"
         "  border-bottom: 1px solid #000 !important;"
         "}"
-        ".programacao-semana-table th:first-child, .programacao-semana-table td.dia-cell{ min-width:110px; }"
+        ".programacao-semana-table th.col-dia, .programacao-semana-table td.dia-cell{ min-width:110px; width:110px; }"
+        ".programacao-semana-table th.col-veiculo, .programacao-semana-table td.veiculo-cell{ min-width:120px; width:120px; }"
+        ".programacao-semana-table th.col-realizada, .programacao-semana-table td.realizada-cell{ min-width:100px; width:100px; }"
+        ".programacao-semana-table th.col-veiculo, .programacao-semana-table th.col-realizada{ white-space:nowrap; }"
         ".programacao-semana-table td, .programacao-semana-table th{ vertical-align: top; }"
         ".programacao-semana-table .atividade-main{ font-weight:600; }"
         ".programacao-semana-table .atividade-obs{ display:block; margin-top:.15rem; font-style:italic; font-size:.82em; line-height:1.25; color:#6c757d; }"
@@ -1147,7 +1258,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".rel-atividades .servidor-title{ font-weight:600; margin-bottom:.35rem; }"
         ".rel-atividades .atividade-obs{ display:block; margin-top:.15rem; font-style:italic; font-size:.9em; line-height:1.25; color:#6c757d; }"
 
-        "/* ====== IMPRESSÃO ====== */"
+        "/* ====== IMPRESSAO ====== */"
         "@media print{"
         "  .programacao-semana-table .dia-bucket{"
         "    break-inside: avoid; page-break-inside: avoid;"
@@ -1167,8 +1278,14 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "    border-top: 0.5pt solid #000 !important;"
         "    vertical-align: top;"
         "  }"
-        "  .programacao-semana-table th:first-child, .programacao-semana-table td.dia-cell{"
+        "  .programacao-semana-table th.col-dia, .programacao-semana-table td.dia-cell{"
         "    min-width: 90px !important; width: 90px !important;"
+        "  }"
+        "  .programacao-semana-table th.col-veiculo, .programacao-semana-table td.veiculo-cell{"
+        "    min-width: 120px !important; width: 120px !important;"
+        "  }"
+        "  .programacao-semana-table th.col-realizada, .programacao-semana-table td.realizada-cell{"
+        "    min-width: 100px !important; width: 100px !important;"
         "  }"
         "  .print-cbx{ width:10px; height:10px; margin:0 3px 0 4px; border-width:1.2px; }"
         "  .programacao-semana-table thead th{"
@@ -1180,6 +1297,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "    border-bottom: 0.5pt solid #000 !important;"
         "  }"
         "  .rel-atividades .mini-table td{ padding:.25rem .35rem !important; }"
+        "  .rel-atividades .just{ display:inline-block; width:100%; min-height:14px; border-bottom:1px solid #000; }"
         "  .programacao-semana-table td.veiculo-cell{"
         "    text-align: center !important;"
         "    vertical-align: middle !important;"
@@ -1198,11 +1316,11 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "<table class='table table-sm align-middle mb-0 programacao-semana-table'>"
         "<thead class='table-light'>"
         "<tr>"
-        "<th style='width:90px'>Dia</th>"
-        "<th>Atividade</th>"
-        "<th>Servidores</th>"
-        "<th style='width:200px'>Veículo</th>"
-        "<th style='width:140px'>Realizada</th>"
+        "<th class='col-dia'>Dia</th>"
+        "<th class='col-atividade'>Atividade</th>"
+        "<th class='col-servidores'>Servidores</th>"
+        "<th class='col-veiculo'>Veículo</th>"
+        "<th class='col-realizada'>Realizada</th>"
         "</tr>"
         "</thead>"
         + "".join(bodies_html) +  # <<< vários <tbody>, um por dia
@@ -1213,7 +1331,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         + "</div>"
     )
 
-    # ---------- RELATÓRIO DE ATIVIDADES (embaixo) ----------
+    # ---------- RELATORIO DE ATIVIDADES (embaixo) ----------
     servidores_ordenados = sorted(atividades_por_servidor.keys(), key=str.casefold)
 
     cards: list[str] = []
@@ -1237,13 +1355,12 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 f"<td>{dia}" + (f": {atividade}" if atividade else "") + obs_html + "</td>"
                 "</tr>"
             )
-            # 2ª linha: apenas “Justificativa” com linha
+            # 2a linha: apenas "Justificativa" com linha
             linhas.append(
                 "<tr>"
                 "<td class='lbl'>Justificativa</td>"
                 "<td>"
-                "<span class='just d-inline-block' "
-                "style='display:inline-block;border-bottom:1px solid var(--bs-border-color);width:100%;'></span>"
+                "<span class='just d-inline-block'></span>"
                 "</td>"
                 "</tr>"
             )
@@ -1296,9 +1413,10 @@ def relatorios_parcial(request):
     start = request.GET.get("start", "")
     end = request.GET.get("end", "")
 
-    servidores = _fetch_plantonistas_via_bridge(request, start, end)
+    # ORM primeiro: garante periodos por servidor de forma consistente no relatorio mensal.
+    servidores = _fetch_plantonistas_via_orm(request, start, end)
     if not servidores:
-        servidores = _fetch_plantonistas_via_orm(request, start, end)
+        servidores = _fetch_plantonistas_via_bridge(request, start, end)
 
     plantonistas_html = _render_plantonistas_html(servidores, start, end)
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
@@ -1373,9 +1491,9 @@ def print_relatorio_semana(request):
     except Exception:
         pass
 
-    servidores = _fetch_plantonistas_via_bridge(request, start, end)
+    servidores = _fetch_plantonistas_via_orm(request, start, end)
     if not servidores:
-        servidores = _fetch_plantonistas_via_orm(request, start, end)
+        servidores = _fetch_plantonistas_via_bridge(request, start, end)
 
     plantonistas_html = _render_plantonistas_html(servidores, start, end)
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
@@ -2249,4 +2367,5 @@ def concluir_item_form(request, item_id: int):
         "form_errors": {},
     }
     return render(request, "minhas_metas/concluir_item.html", contexto)
+
 

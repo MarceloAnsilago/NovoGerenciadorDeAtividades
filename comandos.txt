@@ -1,6 +1,7 @@
 .\venv\Scripts\Activate
 
 python manage.py runserver
+.\start_dev_http.ps1
 
 python manage.py shell
 

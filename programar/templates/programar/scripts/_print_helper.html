@@ -52,9 +52,10 @@
   function printCurrentRelatorio(btn) {
     if (!btn || btn.dataset.printing === "1") return;
     const mode = String(btn.dataset.mode || '').toLowerCase();
-    const pageSizeRule = mode === 'programacao-only'
-      ? 'size:A4 landscape;'
-      : (mode === 'just-only' ? 'size:A4 portrait;' : '');
+    const effectiveMode = mode || 'programacao-only';
+    const pageSizeRule = effectiveMode === 'just-only'
+      ? 'size:A4 portrait;'
+      : 'size:A4 landscape;';
 
     // Resolve range (from the button or from the select fallback)
     function getRangeFromSelect() {
@@ -64,10 +65,12 @@
       return { start: opt.dataset.inicio, end: opt.dataset.fim };
     }
     function resolveRangeLocal(b) {
-      if (!b) return getRangeFromSelect();
+      const fromSelect = getRangeFromSelect();
+      if (fromSelect?.start && fromSelect?.end) return fromSelect;
+      if (!b) return null;
       const { start, end } = b.dataset || {};
       if (start && end) return { start, end };
-      return getRangeFromSelect();
+      return null;
     }
 
     const range = resolveRangeLocal(btn);
@@ -146,10 +149,12 @@
   }
 
   function resolveRange(btn) {
+    const fromSelect = getRangeFromSelect();
+    if (fromSelect?.start && fromSelect?.end) return fromSelect;
     if (!btn) return null;
     const { start, end } = btn.dataset || {};
     if (start && end) return { start, end };
-    return getRangeFromSelect();
+    return null;
   }
 
   // Botões principais da barra (agora: gerar na tela)

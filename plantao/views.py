@@ -72,6 +72,22 @@ def _weeks_sat_to_fri(dt_ini, dt_fim):
     return weeks
 
 
+def _pick_plantao_id_by_date(request, d_ref):
+    if not d_ref:
+        return None
+    unidade_id = get_unidade_atual_id(request)
+    try:
+        field_names = [f.name for f in Plantao._meta.fields]
+    except Exception:
+        field_names = []
+
+    qs = Plantao.objects.filter(inicio__lte=d_ref, fim__gte=d_ref)
+    if ("unidade" in field_names or "unidade_id" in field_names) and unidade_id:
+        qs = qs.filter(unidade_id=unidade_id)
+    plantao_id = qs.order_by("-inicio", "-id").values_list("id", flat=True).first()
+    return int(plantao_id) if plantao_id else None
+
+
 def _build_plantoes_salvos_context(request):
     month_names_pt = (
         "Janeiro", "Fevereiro", "Marco", "Abril",
@@ -809,6 +825,13 @@ def servidores_por_intervalo(request):
     """
     start = request.GET.get('start')
     end   = request.GET.get('end')
+    plantao_id_raw = (request.GET.get('plantao_id') or '').strip()
+    plantao_id = None
+    if plantao_id_raw:
+        try:
+            plantao_id = int(plantao_id_raw)
+        except (ValueError, TypeError):
+            return JsonResponse({"ok": False, "error": "invalid plantao_id"}, status=400)
     if not start or not end:
         return JsonResponse({"ok": False, "error": "start and end required"}, status=400)
     try:
@@ -826,6 +849,13 @@ def servidores_por_intervalo(request):
         field_names = []
     if ("unidade" in field_names or "unidade_id" in field_names) and unidade_id:
         plantoes_qs = plantoes_qs.filter(unidade_id=unidade_id)
+    if plantao_id is not None:
+        plantoes_qs = plantoes_qs.filter(pk=plantao_id)
+    else:
+        # Evita misturar plantoes quando a semana cruza meses (ex.: sab->sex).
+        ref_id = _pick_plantao_id_by_date(request, dt_end) or _pick_plantao_id_by_date(request, dt_start)
+        if ref_id:
+            plantoes_qs = plantoes_qs.filter(pk=ref_id)
     plantoes = plantoes_qs.order_by('inicio')
     if not plantoes.exists():
         return JsonResponse({"ok": True, "semanas": []})
@@ -841,10 +871,12 @@ def servidores_por_intervalo(request):
             semanas_qs = Semana.objects.filter(plantao=plantao).order_by('ordem', 'inicio')
 
         for semana in semanas_qs:
-            # opcional: filtrar semanas que intersectam o intervalo pedido
-            if semana.fim < dt_start or semana.inicio > dt_end:
+            semana_inicio = max(semana.inicio, dt_start, plantao.inicio)
+            semana_fim = min(semana.fim, dt_end, plantao.fim)
+            if semana_fim < semana_inicio:
                 continue
             servidores = []
+            seen_servidores = set()
             # tenta vários relacionamentos
             if hasattr(semana, 'itens'):
                 itens_qs = getattr(semana, 'itens').all()
@@ -860,16 +892,21 @@ def servidores_por_intervalo(request):
                 telefone_servidor = getattr(srv, 'telefone', '') if srv else ''
                 celular_servidor = getattr(srv, 'celular', '') if srv else ''
                 telefone_final = telefone_snapshot or telefone_servidor or celular_servidor or ''
+                sid = getattr(srv, 'id', None)
+                key = sid if sid is not None else (str(nome).strip().lower(), str(telefone_final).strip())
+                if key in seen_servidores:
+                    continue
+                seen_servidores.add(key)
                 servidores.append({
-                    "id": getattr(srv, 'id', None),
+                    "id": sid,
                     "nome": nome,
                     "telefone": telefone_final,
                 })
        
             semanas_out.append({
-                "inicio": semana.inicio.isoformat(),
-                "fim": semana.fim.isoformat(),
-                "label": f"{semana.inicio.strftime('%d/%m/%Y')} → {semana.fim.strftime('%d/%m/%Y')}",
+                "inicio": semana_inicio.isoformat(),
+                "fim": semana_fim.isoformat(),
+                "label": f"{semana_inicio.strftime('%d/%m/%Y')} → {semana_fim.strftime('%d/%m/%Y')}",
                 "servidores": servidores
             })
 

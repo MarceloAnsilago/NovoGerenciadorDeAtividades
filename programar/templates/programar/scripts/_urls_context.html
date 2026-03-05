@@ -338,26 +338,25 @@
       impedidos.forEach((item) => {
         const nome = item?.nome ?? item?.name ?? item?.servidor ?? '';
         const periodos = Array.isArray(item?.periodos) ? item.periodos : [];
-        const ranges = periodos.map((p) => {
-          const raw = String(p || '');
-          const m = raw.match(/\((\d{2}\/\d{2}-\d{2}\/\d{2})\)/);
-          return m ? m[1] : raw;
-        }).filter(Boolean);
+        const motivos = periodos
+          .map((p) => String(p || '').trim())
+          .filter(Boolean);
 
         const li = document.createElement('li');
         if (periodos.length) li.title = periodos.join('; ');
-
-        if (ranges.length) {
-          const prefix = document.createElement('span');
-          prefix.className = 'programar-impedidos-mes-range';
-          prefix.textContent = ranges.join(', ');
-          li.appendChild(prefix);
-        }
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'programar-impedidos-mes-name';
         nameSpan.textContent = String(nome);
         li.appendChild(nameSpan);
+
+        const infoSpan = document.createElement('span');
+        infoSpan.className = 'programar-impedidos-mes-range';
+        infoSpan.textContent = motivos.length
+          ? ` - ${motivos.join('; ')}`
+          : ' - Descanso (periodo nao informado)';
+        li.appendChild(infoSpan);
+
         list.appendChild(li);
       });
       list.dataset.rendered = '1';

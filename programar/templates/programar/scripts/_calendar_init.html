@@ -194,7 +194,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
       const statusCfg = {
         done: { label: 'Concluida' },
-        "not-executed": { label: 'Não realizada' },
+        "not-executed": { label: 'Nao realizada' },
         partial: { label: 'Em andamento' },
         pending: { label: 'Pendente' },
         overdue: { label: 'Atrasada' },
@@ -290,7 +290,6 @@ document.addEventListener('DOMContentLoaded', function(){
     datesSet(arg){
       window._lastCalendarArg = arg;
       populateWeeksSelect(arg);
-      printBtns.forEach(b => { if (b) { delete b.dataset.start; delete b.dataset.end; b.disabled = true; } });
       const cont = document.getElementById('programar-relatoriosContainer');
       if (cont && !cont.__filled) {
         cont.innerHTML = '<div class="alert alert-light border mb-0">Selecione uma semana.</div>';
@@ -336,7 +335,7 @@ document.addEventListener('DOMContentLoaded', function(){
     refreshCalendarEvents();
   }
 
-  // Garante atualização automática de status/cores quando virar o dia.
+  // Garante atualizacao automatica de status/cores quando virar o dia.
   setInterval(refreshIfDayChanged, 60 * 1000);
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) return;
@@ -349,6 +348,14 @@ document.addEventListener('DOMContentLoaded', function(){
   function populateWeeksSelect(arg){
     const select = document.getElementById('programar-select-semana');
     if (!select) return;
+    // Sempre reseta range dos botoes ao trocar de mes/visao.
+    printBtns.forEach(b => {
+      if (!b) return;
+      b.disabled = true;
+      delete b.dataset.start;
+      delete b.dataset.end;
+    });
+
     select.innerHTML = '<option value="">Selecione a semana</option>';
     const viewStart = new Date(arg.start), viewEndEx = new Date(arg.end);
     let sat = prevOrSameSaturday(viewStart);
@@ -358,10 +365,23 @@ document.addEventListener('DOMContentLoaded', function(){
       opt.value = isoDate(ini) + '_' + isoDate(fim);
       opt.dataset.inicio = isoDate(ini);
       opt.dataset.fim = isoDate(fim);
-      opt.textContent = ini.toLocaleDateString('pt-BR') + ' → ' + fim.toLocaleDateString('pt-BR');
+      opt.textContent = ini.toLocaleDateString('pt-BR') + ' -> ' + fim.toLocaleDateString('pt-BR');
       select.appendChild(opt);
       sat.setDate(sat.getDate()+7);
     }
+    // Forca placeholder como default (evita auto-select do navegador).
+    const forcePlaceholder = () => {
+      select.selectedIndex = 0;
+      select.value = '';
+      if (select.options.length) {
+        select.options[0].selected = true;
+        for (let i = 1; i < select.options.length; i += 1) {
+          select.options[i].selected = false;
+        }
+      }
+    };
+    forcePlaceholder();
+    setTimeout(forcePlaceholder, 0);
   }
 
   // ao selecionar, apenas habilita os botoes e guarda o intervalo; NAO carrega automaticamente
