@@ -160,8 +160,10 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         status_value = ""
 
     meta_status_cards_filter = (request.GET.get("meta_status") or "").strip().lower()
-    if meta_status_cards_filter not in {"andamento", "atrasada", "concluida"}:
+    if meta_status_cards_filter not in {"andamento", "atrasada", "concluida", "encerrada"}:
         meta_status_cards_filter = ""
+    if meta_status_cards_filter == "encerrada":
+        include_encerradas_cards = True
 
     status_query_filter = status_value
     status_dropdown = status_value
@@ -396,7 +398,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         links = (
             ProgramacaoItemServidor.objects
             .select_related("servidor")
-            .filter(item_id__in=item_ids, servidor__ativo=True)
+            .filter(item_id__in=item_ids)
         )
         for link in links:
             servidor_nome = getattr(link.servidor, "nome", f"Servidor {link.servidor_id}")
@@ -623,7 +625,7 @@ def nao_realizadas_view(request):
         links = (
             ProgramacaoItemServidor.objects
             .select_related("servidor")
-            .filter(item_id__in=item_ids, servidor__ativo=True)
+            .filter(item_id__in=item_ids)
             .order_by("servidor__nome")
         )
         for link in links:

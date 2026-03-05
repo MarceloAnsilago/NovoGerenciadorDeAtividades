@@ -395,6 +395,12 @@ def salvar_programacao(request):
         # itens já existentes
         existentes_qs = ProgramacaoItem.objects.filter(programacao=prog).select_related("programacao")
         existentes: Dict[int, ProgramacaoItem] = {pi.id: pi for pi in existentes_qs}
+        existentes_servidores_por_item: Dict[int, set[int]] = {}
+        if existentes:
+            for item_id, servidor_id in ProgramacaoItemServidor.objects.filter(
+                item_id__in=list(existentes.keys())
+            ).values_list("item_id", "servidor_id"):
+                existentes_servidores_por_item.setdefault(int(item_id), set()).add(int(servidor_id))
 
         ids_payload: set[int] = set()
         total_vinculos = 0
@@ -416,24 +422,17 @@ def salvar_programacao(request):
             except (TypeError, ValueError):
                 veiculo_id = None
 
-            servidores_ids: list[int] = []
+            candidatos_servidores_ids: list[int] = []
             vistos_servidores: set[int] = set()
             for sid in (it.get("servidores_ids") or []):
                 try:
                     sid_int = int(sid)
                 except (TypeError, ValueError):
                     continue
-                if ativos_ids and sid_int not in ativos_ids:
-                    # ignora servidor inativo ou de outra unidade
-                    continue
                 if sid_int in vistos_servidores:
                     continue
                 vistos_servidores.add(sid_int)
-                servidores_ids.append(sid_int)
-
-            # Ignora item vazio: sem servidores, sem veiculo e sem observacao.
-            if not servidores_ids and veiculo_id is None and not obs:
-                continue
+                candidatos_servidores_ids.append(sid_int)
 
             raw_item_id = it.get("id")
             item_id: int | None = None
@@ -446,6 +445,18 @@ def salvar_programacao(request):
                     item_id = None
                 if item_id and item_id in existentes:
                     pi = existentes[item_id]
+
+            allowed_existing_ids = existentes_servidores_por_item.get(item_id or 0, set())
+            servidores_ids: list[int] = []
+            for sid_int in candidatos_servidores_ids:
+                if ativos_ids and sid_int not in ativos_ids and sid_int not in allowed_existing_ids:
+                    # Bloqueia novos vínculos com inativos, mas preserva vínculos históricos do próprio item.
+                    continue
+                servidores_ids.append(sid_int)
+
+            # Ignora item vazio: sem servidores, sem veiculo e sem observacao.
+            if not servidores_ids and veiculo_id is None and not obs:
+                continue
 
             if pi:
                 ProgramacaoItem.objects.filter(pk=pi.pk).update(
@@ -678,7 +689,7 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
     if item_ids:
         for link in (
             ProgramacaoItemServidor.objects
-            .filter(item_id__in=item_ids, servidor__ativo=True)
+            .filter(item_id__in=item_ids)
             .select_related("servidor")
             .order_by("servidor__nome")
         ):
@@ -1600,6 +1611,12 @@ def metas_disponiveis(request):
         return JsonResponse({"metas": []})
 
     atividade_id = request.GET.get("atividade")
+    meta_status_filter = (request.GET.get("meta_status") or "").strip().lower()
+    if meta_status_filter not in {"andamento", "atrasada", "concluida", "encerrada"}:
+        meta_status_filter = ""
+    only_encerradas = meta_status_filter == "encerrada"
+    include_all_status = meta_status_filter == ""
+    only_nao_encerradas = meta_status_filter in {"andamento", "atrasada", "concluida"}
     data_ref = _parse_date((request.GET.get("data") or "").strip())
     today = timezone.localdate()
     reference_month_start = (data_ref or today).replace(day=1)
@@ -1614,19 +1631,26 @@ def metas_disponiveis(request):
     qs = (
         MetaAlocacao.objects
         .select_related("meta", "meta__atividade")
-        .filter(unidade_id=unidade_id, meta__encerrada=False)
+        .filter(unidade_id=unidade_id)
         .order_by("meta__data_limite", "meta__titulo")
     )
+    if only_encerradas:
+        qs = qs.filter(meta__encerrada=True)
+    elif only_nao_encerradas:
+        qs = qs.filter(meta__encerrada=False)
     if atividade_id:
         qs = qs.filter(meta__atividade_id=atividade_id)
-    if data_ref:
+    if data_ref and not only_encerradas:
         # Mantemos metas com data limite futura e tambem metas vencidas que ainda
         # tenham itens pendentes/nao realizadas, para que continuem nos meses seguintes.
-        qs = qs.filter(
+        q_periodo = (
             Q(meta__data_limite__isnull=True)
             | Q(meta__data_limite__gte=data_ref)
-            | Q(meta_id__in=metas_com_itens_abertos_ids),
+            | Q(meta_id__in=metas_com_itens_abertos_ids)
         )
+        if include_all_status:
+            q_periodo = Q(meta__encerrada=True) | q_periodo
+        qs = qs.filter(q_periodo)
 
     bucket: Dict[int, Dict[str, Any]] = {}
     for al in qs:
@@ -1673,17 +1697,24 @@ def metas_disponiveis(request):
     metas_sem_alocacao_qs = (
         Meta.objects
         .select_related("atividade")
-        .filter(unidade_criadora_id=unidade_id, encerrada=False, alocacoes__isnull=True)
+        .filter(unidade_criadora_id=unidade_id, alocacoes__isnull=True)
         .order_by("data_limite", "titulo")
     )
+    if only_encerradas:
+        metas_sem_alocacao_qs = metas_sem_alocacao_qs.filter(encerrada=True)
+    elif only_nao_encerradas:
+        metas_sem_alocacao_qs = metas_sem_alocacao_qs.filter(encerrada=False)
     if atividade_id:
         metas_sem_alocacao_qs = metas_sem_alocacao_qs.filter(atividade_id=atividade_id)
-    if data_ref:
-        metas_sem_alocacao_qs = metas_sem_alocacao_qs.filter(
+    if data_ref and not only_encerradas:
+        q_periodo_sem_aloc = (
             Q(data_limite__isnull=True)
             | Q(data_limite__gte=data_ref)
-            | Q(id__in=metas_com_itens_abertos_ids),
+            | Q(id__in=metas_com_itens_abertos_ids)
         )
+        if include_all_status:
+            q_periodo_sem_aloc = Q(encerrada=True) | q_periodo_sem_aloc
+        metas_sem_alocacao_qs = metas_sem_alocacao_qs.filter(q_periodo_sem_aloc)
 
     for meta in metas_sem_alocacao_qs:
         if not getattr(meta, "id", None):
@@ -1774,6 +1805,11 @@ def metas_disponiveis(request):
                     bucket[mid]["status_label"] = "Atrasada"
 
     metas = list(bucket.values())
+    if meta_status_filter:
+        metas = [
+            item for item in metas
+            if str(item.get("status") or "").strip().lower() == meta_status_filter
+        ]
     metas.sort(
         key=lambda x: (
             x.get("data_limite") is None,
@@ -1853,7 +1889,7 @@ def programacao_do_dia_orm(request):
     serv_objs_by_item: Dict[int, List[Dict[str, Any]]] = {}
     if item_ids:
         for link in (
-            ProgramacaoItemServidor.objects.filter(item_id__in=item_ids, servidor__ativo=True)
+            ProgramacaoItemServidor.objects.filter(item_id__in=item_ids)
             .select_related("servidor")
         ):
             iid = int(getattr(link, "item_id"))
@@ -2003,7 +2039,7 @@ def concluir_item_form(request, item_id: int):
     links = (
         ProgramacaoItemServidor.objects
         .select_related("servidor")
-        .filter(item_id=pi.id, servidor__ativo=True)
+        .filter(item_id=pi.id)
         .order_by("servidor__nome")
     )
     servidores = [getattr(l.servidor, "nome", f"Servidor {l.servidor_id}") for l in links]

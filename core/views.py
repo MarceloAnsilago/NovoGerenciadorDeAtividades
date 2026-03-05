@@ -1294,10 +1294,29 @@ def dashboard_servidor_view(request, servidor_id):
     if start_date and end_date:
         period_qs = period_qs.filter(item__programacao__data__range=(start_date, end_date))
 
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
+
+    hoje = timezone.localdate()
+    q_pendente_base = Q(item__concluido=False, item__concluido_em__isnull=True)
+    q_auto_concluida_expediente = Q(pk__in=[])
+    if meta_expediente_id:
+        # Expediente administrativo em data passada não exige conclusão manual.
+        q_auto_concluida_expediente = (
+            Q(item__meta_id=meta_expediente_id)
+            & q_pendente_base
+            & Q(item__programacao__data__lt=hoje)
+        )
+    q_concluida_dashboard = Q(item__concluido=True) | q_auto_concluida_expediente
+    q_pendente_dashboard = q_pendente_base & ~q_auto_concluida_expediente
+
     total_alocacoes = period_qs.count()
-    concluidas = period_qs.filter(item__concluido=True).count()
+    concluidas = period_qs.filter(q_concluida_dashboard).count()
     nao_realizadas = period_qs.filter(item__concluido=False, item__concluido_em__isnull=False).count()
-    pendentes = max(total_alocacoes - concluidas - nao_realizadas, 0)
+    pendentes = period_qs.filter(q_pendente_dashboard).count()
     taxa_conclusao = round((concluidas / total_alocacoes) * 100, 2) if total_alocacoes else 0.0
 
     metas_distintas = period_qs.values("item__meta_id").distinct().count()
@@ -1320,12 +1339,6 @@ def dashboard_servidor_view(request, servidor_id):
         primeira_data=Min("item__programacao__data"),
         ultima_data=Max("item__programacao__data"),
     )
-
-    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
-    try:
-        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
-    except (TypeError, ValueError):
-        meta_expediente_id = None
 
     expediente_total = None
     campo_total = None
@@ -1386,9 +1399,9 @@ def dashboard_servidor_view(request, servidor_id):
         )
         .annotate(
             total=Count("id"),
-            concluidas=Count("id", filter=Q(item__concluido=True)),
+            concluidas=Count("id", filter=q_concluida_dashboard),
             nao_realizadas=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=False)),
-            pendentes=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=True)),
+            pendentes=Count("id", filter=q_pendente_dashboard),
             ultima_data=Max("item__programacao__data"),
         )
         .order_by("-total", "item__meta__atividade__titulo", "item__meta__titulo")[:20]
@@ -1416,9 +1429,9 @@ def dashboard_servidor_view(request, servidor_id):
         )
         .annotate(
             total=Count("id"),
-            concluidas=Count("id", filter=Q(item__concluido=True)),
+            concluidas=Count("id", filter=q_concluida_dashboard),
             nao_realizadas=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=False)),
-            pendentes=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=True)),
+            pendentes=Count("id", filter=q_pendente_dashboard),
             ultima_data=Max("item__programacao__data"),
         )
         .order_by("-total", "item__meta__titulo")[:20]
@@ -1443,9 +1456,9 @@ def dashboard_servidor_view(request, servidor_id):
         .values("mes")
         .annotate(
             total=Count("id"),
-            concluidas=Count("id", filter=Q(item__concluido=True)),
+            concluidas=Count("id", filter=q_concluida_dashboard),
             nao_realizadas=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=False)),
-            pendentes=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=True)),
+            pendentes=Count("id", filter=q_pendente_dashboard),
         )
         .order_by("mes")
     )
@@ -1472,15 +1485,25 @@ def dashboard_servidor_view(request, servidor_id):
         programacao = item.programacao
         unidade = getattr(programacao, "unidade", None)
         veiculo = item.veiculo
+        programacao_data = getattr(programacao, "data", None)
+        auto_concluida_expediente = bool(
+            meta_expediente_id
+            and getattr(item, "meta_id", None) == meta_expediente_id
+            and not bool(item.concluido)
+            and not bool(item.concluido_em)
+            and programacao_data
+            and programacao_data < hoje
+        )
+        concluido_linha = bool(item.concluido) or auto_concluida_expediente
         recentes_rows.append(
             {
-                "data": getattr(programacao, "data", None),
+                "data": programacao_data,
                 "unidade": getattr(unidade, "nome", "Sem unidade"),
                 "meta": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Sem titulo"),
                 "atividade": getattr(atividade, "titulo", "") or "-",
                 "area": getattr(area, "nome", "") or "-",
-                "concluido": bool(item.concluido),
-                "nao_realizada": (not bool(item.concluido)) and bool(item.concluido_em),
+                "concluido": concluido_linha,
+                "nao_realizada": (not concluido_linha) and bool(item.concluido_em),
                 "concluido_em": item.concluido_em,
                 "veiculo": getattr(veiculo, "placa", "") or "-",
                 "observacao": (item.observacao or "").strip(),

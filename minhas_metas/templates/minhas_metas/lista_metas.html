@@ -100,6 +100,7 @@
         <option value="andamento" {% if meta_status_cards_filter == "andamento" %}selected{% endif %}>Em andamento</option>
         <option value="atrasada" {% if meta_status_cards_filter == "atrasada" %}selected{% endif %}>Atrasadas</option>
         <option value="concluida" {% if meta_status_cards_filter == "concluida" %}selected{% endif %}>Concluídas</option>
+        <option value="encerrada" {% if meta_status_cards_filter == "encerrada" %}selected{% endif %}>Encerradas</option>
       </select>
     </div>
   </div>
@@ -277,7 +278,7 @@
 
   function normalizeStatusFilter(value) {
     var raw = String(value || "").trim().toLowerCase();
-    if (raw === "andamento" || raw === "atrasada" || raw === "concluida") return raw;
+    if (raw === "andamento" || raw === "atrasada" || raw === "concluida" || raw === "encerrada") return raw;
     return "";
   }
 

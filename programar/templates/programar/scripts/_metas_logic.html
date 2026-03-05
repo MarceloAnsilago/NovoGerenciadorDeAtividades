@@ -68,7 +68,7 @@
 
   function normalizeStatusFilter(value) {
     const raw = String(value || "").trim().toLowerCase();
-    if (raw === "andamento" || raw === "atrasada" || raw === "concluida") return raw;
+    if (raw === "andamento" || raw === "atrasada" || raw === "concluida" || raw === "encerrada") return raw;
     return "";
   }
 
@@ -137,6 +137,10 @@
     }
     if (dateStr) {
       url += (url.includes("?") ? "&" : "?") + "data=" + encodeURIComponent(dateStr);
+    }
+    const selectedStatusForRequest = normalizeStatusFilter(NS.metaStatusSelected || "");
+    if (selectedStatusForRequest) {
+      url += (url.includes("?") ? "&" : "?") + "meta_status=" + encodeURIComponent(selectedStatusForRequest);
     }
 
     try {
@@ -246,53 +250,78 @@
         const existingTabs = document.getElementById("metasTabs");
         if (existingTabs) existingTabs.remove();
 
-        const months = [];
+        const monthsAvailable = [];
         const labels = {};
+        const ensureLabel = (mk) => {
+          if (!mk || labels[mk]) return;
+          try {
+            const [yy, mm] = mk.split("-").map(Number);
+            const dt = new Date(yy, mm - 1, 1);
+            const lbl = dt.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+            labels[mk] = lbl.charAt(0).toUpperCase() + lbl.slice(1);
+          } catch (_e) {
+            labels[mk] = mk;
+          }
+        };
         cards.forEach((c) => {
           const mk = c.getAttribute("data-month") || "nodate";
           if (mk === "nodate") return;
-          if (!months.includes(mk)) {
-            months.push(mk);
-            try {
-              const [yy, mm] = mk.split("-").map(Number);
-              const dt = new Date(yy, mm - 1, 1);
-              const lbl = dt.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-              labels[mk] = lbl.charAt(0).toUpperCase() + lbl.slice(1);
-            } catch (_e) {
-              labels[mk] = mk;
-            }
+          if (!monthsAvailable.includes(mk)) {
+            monthsAvailable.push(mk);
+            ensureLabel(mk);
           }
         });
         const requestedMonth = NS.metaDateMonth || "";
-        if (requestedMonth && !months.includes(requestedMonth)) {
-          months.unshift(requestedMonth);
-          try {
-            const [yy, mm] = requestedMonth.split("-").map(Number);
-            const dt = new Date(yy, mm - 1, 1);
-            const lbl = dt.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-            labels[requestedMonth] = lbl.charAt(0).toUpperCase() + lbl.slice(1);
-          } catch (_e) {
-            labels[requestedMonth] = requestedMonth;
-          }
+        if (requestedMonth && !monthsAvailable.includes(requestedMonth)) {
+          monthsAvailable.push(requestedMonth);
+          ensureLabel(requestedMonth);
         }
 
-        if (months.length === 0) {
+        // Base em ordem cronologica crescente (mais antigo -> mais recente).
+        monthsAvailable.sort((a, b) => (monthKeyToNumber(a) || 0) - (monthKeyToNumber(b) || 0));
+
+        if (monthsAvailable.length === 0) {
           NS.metaMonthSelected = "";
           return;
         }
 
         let curMonth = "";
-        if (NS.metaMonthSelected && months.includes(NS.metaMonthSelected)) {
+        if (NS.metaMonthSelected) {
           curMonth = NS.metaMonthSelected;
+          ensureLabel(curMonth);
         } else {
           const now = new Date();
           const curKey = `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-          curMonth = months.includes(curKey) ? curKey : months[0];
+          curMonth = monthsAvailable.includes(curKey) ? curKey : (requestedMonth || monthsAvailable[monthsAvailable.length - 1]);
+          ensureLabel(curMonth);
+          NS.metaMonthSelected = curMonth;
+        }
+        if (monthKeyToNumber(curMonth) === null) {
+          curMonth = requestedMonth || monthsAvailable[monthsAvailable.length - 1] || "";
+          ensureLabel(curMonth);
           NS.metaMonthSelected = curMonth;
         }
 
-        const firstMonth = months[0] || "";
-        const prevMonth = previousMonthKey(firstMonth);
+        // Exibicao: manter somente meses do mesmo ano do mes selecionado.
+        // Ordem cronologica natural (jan..dez), com o mes atual apenas marcado como ativo.
+        const curYearMatch = String(curMonth || "").match(/^(\d{4})-/);
+        const curYear = curYearMatch ? curYearMatch[1] : "";
+        let monthsSameYear = curYear
+          ? monthsAvailable.filter((mk) => String(mk || "").startsWith(`${curYear}-`))
+          : monthsAvailable.slice();
+        if (curMonth && !monthsSameYear.includes(curMonth)) {
+          monthsSameYear.push(curMonth);
+        }
+        monthsSameYear = Array.from(new Set(monthsSameYear))
+          .sort((a, b) => (monthKeyToNumber(a) || 0) - (monthKeyToNumber(b) || 0));
+        if (monthsSameYear.length === 0) {
+          NS.metaMonthSelected = "";
+          return;
+        }
+
+        const orderedMonths = monthsSameYear.slice();
+        const oldestLoadedMonth = monthsSameYear[0] || curMonth || "";
+        const prevMonth = previousMonthKey(oldestLoadedMonth);
         const prevMonthNumber = monthKeyToNumber(prevMonth);
         let earliestRegisteredMonthNumber = null;
         Object.values(earliestMonthByYear || {}).forEach((mk) => {
@@ -316,7 +345,7 @@
           `</button>` +
           `</li>`
         );
-        months.forEach((k) => {
+        orderedMonths.forEach((k) => {
           const active = k === curMonth;
           parts.push(`<li class='nav-item' role='presentation'><button class='nav-link ${active ? "active" : ""}' data-key='${k}' type='button' role='tab'>${labels[k] || k}</button></li>`);
         });
@@ -337,7 +366,20 @@
 
         const tabContainer = metasGrid.previousElementSibling;
         tabContainer?.querySelectorAll?.(".nav-link[data-key]")?.forEach((btn) => {
-          btn.addEventListener("click", () => applyMonthFilter(btn.getAttribute("data-key"), true));
+          btn.addEventListener("click", async () => {
+            const key = btn.getAttribute("data-key") || "";
+            const hasStatusFilter = !!normalizeStatusFilter(NS.metaStatusSelected || "");
+            if (hasStatusFilter) {
+              NS.metaStatusSelected = "";
+              const statusSelectEl = document.getElementById("metasStatusSelect");
+              if (statusSelectEl) statusSelectEl.value = "";
+              await NS.loadMetas(key ? `${key}-01` : (dateStr || null), {
+                preserveMonth: key,
+              });
+              return;
+            }
+            applyMonthFilter(key, false);
+          });
         });
         const prevBtn = tabContainer?.querySelector?.(".metas-load-prev");
         prevBtn?.addEventListener("click", async () => {
@@ -387,9 +429,14 @@
       applyFilters();
 
       if (statusSelect) {
-        statusSelect.onchange = () => {
+        statusSelect.onchange = async () => {
           NS.metaStatusSelected = normalizeStatusFilter(statusSelect.value);
-          applyFilters();
+          const selectedMonth = String(NS.metaMonthSelected || NS.metaDateMonth || "").trim();
+          const selectedDateFromInput = String(document.getElementById("programar-dataAtividade")?.value || dateStr || "").trim();
+          const reloadDate = selectedMonth ? `${selectedMonth}-01` : selectedDateFromInput;
+          await NS.loadMetas(reloadDate || null, {
+            preserveMonth: selectedMonth,
+          });
         };
       }
 
