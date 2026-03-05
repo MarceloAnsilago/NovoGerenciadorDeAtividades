@@ -55,20 +55,34 @@
   function defaultRenderItem(servidor){
     const el = document.createElement('div');
     el.className = 'servidor-card';
-    el.setAttribute('draggable','true'); // mantém DnD
+    el.setAttribute('draggable','true'); // mantem DnD
     el.dataset.id = servidor.id;
-    el.innerHTML = `
-      <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
-      <span class="srv-name">${escapeHtml(servidor.nome)}</span>`;
+    const iconWrap = document.createElement('span');
+    iconWrap.className = 'srv-icon';
+    const icon = document.createElement('i');
+    icon.className = 'bi bi-person-fill';
+    iconWrap.appendChild(icon);
+    const name = document.createElement('span');
+    name.className = 'srv-name';
+    name.textContent = String(servidor?.nome ?? '');
+    el.appendChild(iconWrap);
+    el.appendChild(name);
     return el;
   }
   function defaultRenderExpedienteItem(servidor){
     const el = document.createElement('div');
     el.className = 'servidor-card';
     el.dataset.id = servidor.id;   // no expediente, sem draggable
-    el.innerHTML = `
-      <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
-      <span class="srv-name">${escapeHtml(servidor.nome)}</span>`;
+    const iconWrap = document.createElement('span');
+    iconWrap.className = 'srv-icon';
+    const icon = document.createElement('i');
+    icon.className = 'bi bi-person-fill';
+    iconWrap.appendChild(icon);
+    const name = document.createElement('span');
+    name.className = 'srv-name';
+    name.textContent = String(servidor?.nome ?? '');
+    el.appendChild(iconWrap);
+    el.appendChild(name);
     return el;
   }
 
@@ -114,7 +128,7 @@
   function renderExpedienteFromLivres(livres, opts){
     const exp = getContainer(opts.expedienteSelector);
     if (!exp) return;
-    exp.innerHTML = '';
+    exp.replaceChildren();
     livres.forEach(s => exp.appendChild(defaultRenderExpedienteItem(s)));
     setBadgeFor(exp, exp.children.length, opts.expedienteBadgeSelector);
   }
@@ -233,15 +247,29 @@
           }
         }
 
+        tbody.replaceChildren();
         if (!impedidos.length) {
-          tbody.innerHTML = `<tr><td colspan="2" class="text-muted">Nenhum servidor impedido.</td></tr>`;
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 2;
+          td.className = 'text-muted';
+          td.textContent = 'Nenhum servidor impedido.';
+          tr.appendChild(td);
+          tbody.appendChild(tr);
           if (badge) badge.textContent = '0';
         } else {
-          tbody.innerHTML = impedidos.map(i => {
+          impedidos.forEach((i) => {
+            const tr = document.createElement('tr');
+            const nomeTd = document.createElement('td');
+            const motivoTd = document.createElement('td');
             const nome = i.nome ?? i.name ?? i.servidor ?? i.servidor_nome ?? '';
             const motivo = i.motivo ?? i.reason ?? i.justificativa ?? '';
-            return `<tr><td>${esc(nome)}</td><td>${esc(motivo)}</td></tr>`;
-          }).join('');
+            nomeTd.textContent = String(nome);
+            motivoTd.textContent = String(motivo);
+            tr.appendChild(nomeTd);
+            tr.appendChild(motivoTd);
+            tbody.appendChild(tr);
+          });
           if (badge) badge.textContent = String(impedidos.length);
         }
       })();
@@ -363,3 +391,4 @@
 
 })();
 </script>
+

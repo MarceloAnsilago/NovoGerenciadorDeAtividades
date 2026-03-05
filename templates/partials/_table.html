@@ -28,13 +28,21 @@
               <i class="bi bi-pencil"></i> Editar
             </a>
             {% if s.ativo %}
-              <a class="btn btn-sm btn-outline-danger" href="{% url 'servidores:inativar' s.id %}">
-                <i class="bi bi-x-circle"></i> Inativar
-              </a>
+              <form method="post" action="{% url 'servidores:inativar' s.id %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-x-circle"></i> Inativar
+                </button>
+              </form>
             {% else %}
-              <a class="btn btn-sm btn-outline-success" href="{% url 'servidores:ativar' s.id %}">
-                <i class="bi bi-check-circle"></i> Ativar
-              </a>
+              <form method="post" action="{% url 'servidores:ativar' s.id %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn btn-sm btn-outline-success">
+                  <i class="bi bi-check-circle"></i> Ativar
+                </button>
+              </form>
             {% endif %}
           </td>
         </tr>

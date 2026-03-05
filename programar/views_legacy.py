@@ -16,6 +16,7 @@ from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET
 from django.contrib.auth.decorators import login_required
 from core.utils import get_unidade_atual_id
+from core.utils.security import safe_next_url
 from servidores.models import Servidor
 from descanso.models import Descanso, Feriado
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
@@ -88,6 +89,8 @@ def _meta_ids_com_itens_abertos(
     return {int(meta_id) for meta_id in ids if meta_id}
 
 
+@login_required
+@require_GET
 def calendario_view(request):
     meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
     veiculos_json = "[]"
@@ -251,6 +254,7 @@ def _servidores_status_para_data(
     return livres, impedidos_final, feriados_final, plantao_final
 
 
+@login_required
 @require_GET
 def servidores_para_data(request):
     data_str = request.GET.get("data")
@@ -374,18 +378,38 @@ def salvar_programacao(request):
     itens_in = body.get("itens") or []
     if not iso:
         return JsonResponse({"ok": False, "error": "Data ausente."}, status=400)
+    dia = _parse_iso(str(iso))
+    if not dia:
+        return JsonResponse({"ok": False, "error": "Data invalida."}, status=400)
 
     unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade nao definida."}, status=400)
+
+    metas_permitidas = set(
+        Meta.objects.filter(
+            Q(alocacoes__unidade_id=unidade_id) | Q(unidade_criadora_id=unidade_id)
+        )
+        .values_list("id", flat=True)
+        .distinct()
+    )
+    veiculos_permitidos = set(
+        Veiculo.objects.filter(unidade_id=unidade_id).values_list("id", flat=True)
+    )
 
     with transaction.atomic():
-        prog, _ = Programacao.objects.get_or_create(
-            data=iso,
-            unidade_id=unidade_id,
-            defaults={
-                "observacao": body.get("observacao") or "",
-                "criado_por": getattr(request, "user", None),
-            },
+        prog = (
+            Programacao.objects.select_for_update()
+            .filter(data=dia, unidade_id=unidade_id)
+            .first()
         )
+        if not prog:
+            prog = Programacao.objects.create(
+                data=dia,
+                unidade_id=unidade_id,
+                observacao=body.get("observacao") or "",
+                criado_por=getattr(request, "user", None),
+            )
 
         if body.get("observacao") is not None:
             Programacao.objects.filter(pk=prog.pk).update(
@@ -414,12 +438,16 @@ def salvar_programacao(request):
                 meta_id = int(raw_meta_id)
             except (TypeError, ValueError):
                 continue
+            if meta_id not in metas_permitidas:
+                continue
 
             obs = it.get("observacao") or ""
             raw_veiculo = it.get("veiculo_id")
             try:
                 veiculo_id = int(raw_veiculo) if raw_veiculo not in (None, "", "null") else None
             except (TypeError, ValueError):
+                veiculo_id = None
+            if veiculo_id is not None and veiculo_id not in veiculos_permitidos:
                 veiculo_id = None
 
             candidatos_servidores_ids: list[int] = []
@@ -1449,6 +1477,8 @@ def print_relatorio_justificativas(request):
 
 
 # (Opcional) endpoint dummy para manter compatibilidade em dev
+@login_required
+@require_GET
 def servidores_por_intervalo(request):
     return JsonResponse({"ok": True, "servidores": []})
 
@@ -1470,7 +1500,8 @@ def events_feed(request):
     if start_date:
         qs = qs.filter(data__gte=start_date)
     if end_date:
-        qs = qs.filter(data__lte=end_date)
+        # FullCalendar envia "end" exclusivo para eventos all-day.
+        qs = qs.filter(data__lt=end_date)
 
     programacoes = list(qs.values("id", "data", "concluida"))
     prog_ids = [p["id"] for p in programacoes]
@@ -1960,7 +1991,15 @@ def excluir_programacao_secure(request):
         if not prog:
             return JsonResponse({"ok": True, "deleted": False})
 
-    prog.delete()
+    with transaction.atomic():
+        prog_locked = (
+            Programacao.objects.select_for_update()
+            .filter(pk=prog.pk, unidade_id=unidade_id)
+            .first()
+        )
+        if not prog_locked:
+            return JsonResponse({"ok": True, "deleted": False})
+        prog_locked.delete()
     return JsonResponse({"ok": True, "deleted": True})
 
 @login_required
@@ -1982,25 +2021,27 @@ def marcar_item_realizada(request, item_id: int):
     if not unidade_id:
         return JsonResponse({"ok": False, "error": "Unidade não definida."}, status=400)
 
-    try:
-        pi = (
-            ProgramacaoItem.objects
-            .select_related("programacao")
-            .get(pk=item_id, programacao__unidade_id=unidade_id)
-        )
-    except ProgramacaoItem.DoesNotExist:
-        return JsonResponse({"ok": False, "error": "Item não encontrado."}, status=404)
+    with transaction.atomic():
+        try:
+            pi = (
+                ProgramacaoItem.objects
+                .select_for_update()
+                .select_related("programacao")
+                .get(pk=item_id, programacao__unidade_id=unidade_id)
+            )
+        except ProgramacaoItem.DoesNotExist:
+            return JsonResponse({"ok": False, "error": "Item não encontrado."}, status=404)
 
-    if realizada:
-        pi.concluido = True
-        pi.concluido_em = timezone.now()
-        pi.concluido_por_id = getattr(request.user, "id", None)
-    else:
-        # No toggle rapido, "desmarcar" volta para pendente.
-        pi.concluido = False
-        pi.concluido_em = None
-        pi.concluido_por_id = None
-    pi.save(update_fields=["concluido", "concluido_em", "concluido_por_id"])
+        if realizada:
+            pi.concluido = True
+            pi.concluido_em = timezone.now()
+            pi.concluido_por_id = getattr(request.user, "id", None)
+        else:
+            # No toggle rapido, "desmarcar" volta para pendente.
+            pi.concluido = False
+            pi.concluido_em = None
+            pi.concluido_por_id = None
+        pi.save(update_fields=["concluido", "concluido_em", "concluido_por_id"])
 
     return JsonResponse({"ok": True, "item_id": pi.id, "realizada": pi.concluido})
 
@@ -2025,11 +2066,20 @@ def _item_execucao_status_from_fields(concluido: bool, concluido_em) -> str:
 @csrf_protect
 def concluir_item_form(request, item_id: int):
     """Permite marcar um item da programacao como realizado ou nao com observacao."""
-    pi = (
-        ProgramacaoItem.objects
-        .select_related("programacao", "meta", "veiculo")
-        .get(pk=item_id)
-    )
+    unidade_ctx_id = get_unidade_atual_id(request)
+    if not unidade_ctx_id:
+        messages.error(request, "Unidade nao definida no contexto.")
+        return redirect("minhas_metas:minhas_metas")
+
+    try:
+        pi = (
+            ProgramacaoItem.objects
+            .select_related("programacao", "meta", "veiculo")
+            .get(pk=item_id, programacao__unidade_id=unidade_ctx_id)
+        )
+    except ProgramacaoItem.DoesNotExist:
+        messages.error(request, "Item nao encontrado para a unidade atual.")
+        return redirect("minhas_metas:minhas_metas")
     prog = pi.programacao
     unidade_id = getattr(prog, "unidade_id", None)
     meta = pi.meta
@@ -2055,7 +2105,12 @@ def concluir_item_form(request, item_id: int):
         pendentes_qs = (
             ProgramacaoItem.objects
             .select_related("programacao", "veiculo")
-            .filter(meta_id=meta.id, concluido=False, concluido_em__isnull=True)
+            .filter(
+                meta_id=meta.id,
+                programacao__unidade_id=unidade_ctx_id,
+                concluido=False,
+                concluido_em__isnull=True,
+            )
             .exclude(pk=pi.id)
             .order_by("programacao__data", "id")
         )
@@ -2094,7 +2149,7 @@ def concluir_item_form(request, item_id: int):
                 "atividade": getattr(meta, "atividade", None),
                 "veiculo": getattr(pi, "veiculo", None),
                 "servidores": servidores,
-                "next": request.POST.get("next") or "/minhas-metas/",
+                "next": safe_next_url(request, "/minhas-metas/"),
                 "pendentes_total": pendentes_total,
                 "pendentes_preview": pendentes_preview,
                 "pendentes_tem_mais": pendentes_tem_mais,
@@ -2115,7 +2170,7 @@ def concluir_item_form(request, item_id: int):
                 "atividade": getattr(meta, "atividade", None),
                 "veiculo": getattr(pi, "veiculo", None),
                 "servidores": servidores,
-                "next": request.POST.get("next") or "/minhas-metas/",
+                "next": safe_next_url(request, "/minhas-metas/"),
                 "pendentes_total": pendentes_total,
                 "pendentes_preview": pendentes_preview,
                 "pendentes_tem_mais": pendentes_tem_mais,
@@ -2127,43 +2182,49 @@ def concluir_item_form(request, item_id: int):
             }
             return render(request, "minhas_metas/concluir_item.html", contexto)
 
-        if concluido_flag and not pi.concluido and unidade_id and meta and getattr(meta, "id", None):
-            aloc = (
-                MetaAlocacao.objects
-                .filter(meta_id=meta.id, unidade_id=unidade_id)
-                .order_by("id")
-                .first()
-            )
-            if aloc:
-                ProgressoMeta.objects.create(
-                    data=getattr(prog, "data", timezone.localdate()),
-                    quantidade=1,
-                    observacao=obs_final or "",
-                    alocacao_id=aloc.id,
-                    registrado_por_id=getattr(request.user, "id", None),
+        with transaction.atomic():
+            if concluido_flag and not pi.concluido and unidade_id and meta and getattr(meta, "id", None):
+                aloc = (
+                    MetaAlocacao.objects
+                    .filter(meta_id=meta.id, unidade_id=unidade_id)
+                    .order_by("id")
+                    .first()
                 )
+                if aloc:
+                    ProgressoMeta.objects.create(
+                        data=getattr(prog, "data", timezone.localdate()),
+                        quantidade=1,
+                        observacao=obs_final or "",
+                        alocacao_id=aloc.id,
+                        registrado_por_id=getattr(request.user, "id", None),
+                    )
+                else:
+                    messages.warning(
+                        request,
+                        "Nao encontrei alocacao desta meta para a unidade. O progresso nao foi registrado.",
+                    )
+
+            if marcado_com_status:
+                concluido_em = timezone.now()
+                concluido_por_id = getattr(request.user, "id", None)
             else:
-                messages.warning(
-                    request,
-                    "Nao encontrei alocacao desta meta para a unidade. O progresso nao foi registrado.",
+                concluido_em = None
+                concluido_por_id = None
+
+            (
+                ProgramacaoItem.objects
+                .select_for_update()
+                .filter(pk=pi.pk, programacao__unidade_id=unidade_ctx_id)
+                .update(
+                    concluido=concluido_flag,
+                    concluido_em=concluido_em,
+                    concluido_por_id=concluido_por_id,
+                    observacao=obs_final,
                 )
-
-        if marcado_com_status:
-            concluido_em = timezone.now()
-            concluido_por_id = getattr(request.user, "id", None)
-        else:
-            concluido_em = None
-            concluido_por_id = None
-
-        ProgramacaoItem.objects.filter(pk=pi.pk).update(
-            concluido=concluido_flag,
-            concluido_em=concluido_em,
-            concluido_por_id=concluido_por_id,
-            observacao=obs_final,
-        )
+            )
 
         messages.success(request, "Item atualizado com sucesso.")
-        back_url = request.GET.get("next") or request.POST.get("next") or "/minhas-metas/"
+        back_url = safe_next_url(request, "/minhas-metas/")
         return redirect(back_url)
 
     contexto = {
@@ -2173,7 +2234,7 @@ def concluir_item_form(request, item_id: int):
         "atividade": getattr(meta, "atividade", None),
         "veiculo": getattr(pi, "veiculo", None),
         "servidores": servidores,
-        "next": request.GET.get("next") or request.META.get("HTTP_REFERER", "/minhas-metas/"),
+        "next": safe_next_url(request, "/minhas-metas/"),
         "pendentes_total": pendentes_total,
         "pendentes_preview": pendentes_preview,
         "pendentes_tem_mais": pendentes_tem_mais,
@@ -2184,3 +2245,4 @@ def concluir_item_form(request, item_id: int):
         "form_errors": {},
     }
     return render(request, "minhas_metas/concluir_item.html", contexto)
+

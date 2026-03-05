@@ -238,7 +238,7 @@
       {% for message in messages %}
         {% with bs=message.tags|default:"info" %}
           <div class="alert alert-{{ bs }} alert-dismissible fade show mb-2 shadow-sm" role="alert" aria-live="polite">
-            {{ message|safe }}
+            {{ message }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
           </div>
         {% endwith %}

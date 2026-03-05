@@ -34,7 +34,12 @@ class Programacao(models.Model):
         db_table = "programar_atividades_programacao"
         managed = False
         indexes = [
+            models.Index(fields=["data"]),
+            models.Index(fields=["unidade"]),
             models.Index(fields=["data", "unidade"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=["data", "unidade"], name="uq_prog_data_unidade"),
         ]
 
     def __str__(self):
@@ -74,6 +79,7 @@ class ProgramacaoItem(models.Model):
         db_table = "programar_atividades_programacaoitem"
         managed = False
         indexes = [
+            models.Index(fields=["meta"]),
             models.Index(fields=["programacao", "meta"]),
         ]
 
@@ -101,7 +107,11 @@ class ProgramacaoItemServidor(models.Model):
         db_table = "programar_atividades_programacaoitemservidor"
         managed = False
         indexes = [
+            models.Index(fields=["servidor"]),
             models.Index(fields=["item", "servidor"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=["item", "servidor"], name="uq_prog_item_servidor"),
         ]
 
     def __str__(self):

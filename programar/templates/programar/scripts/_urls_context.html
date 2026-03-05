@@ -143,7 +143,14 @@
 
       _ultimoIso = dataISO;
       if ($tbody()) {
-        $tbody().innerHTML = `<tr><td colspan="2" class="text-muted">Carregando...</td></tr>`;
+        $tbody().replaceChildren();
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 2;
+        td.className = 'text-muted';
+        td.textContent = 'Carregando...';
+        tr.appendChild(td);
+        $tbody().appendChild(tr);
         delete $tbody().dataset.rendered;
       }
       if ($badge()) $badge().textContent = '0';
@@ -160,24 +167,47 @@
 
       if (!impedidos.length) {
         if ($tbody()) {
-          $tbody().innerHTML = `<tr><td colspan="2" class="text-muted">Nenhum servidor impedido.</td></tr>`;
+          $tbody().replaceChildren();
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 2;
+          td.className = 'text-muted';
+          td.textContent = 'Nenhum servidor impedido.';
+          tr.appendChild(td);
+          $tbody().appendChild(tr);
           $tbody().dataset.rendered = '1';
         }
         return;
       }
 
-      const rows = impedidos.map(i => {
-        const nome = i.nome ?? i.name ?? i.servidor ?? i.servidor_nome ?? '';
-        const motivo = i.motivo ?? i.reason ?? i.justificativa ?? '';
-        return `<tr><td>${escapeHtml(nome)}</td><td>${escapeHtml(motivo)}</td></tr>`;
-      });
       if ($tbody()) {
-        $tbody().innerHTML = rows.join('');
+        $tbody().replaceChildren();
+        impedidos.forEach((i) => {
+          const tr = document.createElement('tr');
+          const nomeTd = document.createElement('td');
+          const motivoTd = document.createElement('td');
+          const nome = i.nome ?? i.name ?? i.servidor ?? i.servidor_nome ?? '';
+          const motivo = i.motivo ?? i.reason ?? i.justificativa ?? '';
+          nomeTd.textContent = String(nome);
+          motivoTd.textContent = String(motivo);
+          tr.appendChild(nomeTd);
+          tr.appendChild(motivoTd);
+          $tbody().appendChild(tr);
+        });
         $tbody().dataset.rendered = '1';
       }
     } catch (e) {
       console.error('Falha ao carregar impedidos:', e);
-      if ($tbody()) $tbody().innerHTML = `<tr><td colspan="2" class="text-danger">Erro ao carregar a lista.</td></tr>`;
+      if ($tbody()) {
+        $tbody().replaceChildren();
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 2;
+        td.className = 'text-danger';
+        td.textContent = 'Erro ao carregar a lista.';
+        tr.appendChild(td);
+        $tbody().appendChild(tr);
+      }
       if ($badge()) $badge().textContent = '0';
       renderInfosExtras([], []);
     }
@@ -279,7 +309,7 @@
 
     _ultimoMes = mes;
     list.dataset.rendered = '0';
-    list.innerHTML = '';
+    list.replaceChildren();
     if (countEl()) countEl().textContent = '0';
     if (emptyEl()) {
       emptyEl().textContent = 'Carregando...';
@@ -304,21 +334,32 @@
         return;
       }
 
-      const items = impedidos.map((item) => {
+      list.replaceChildren();
+      impedidos.forEach((item) => {
         const nome = item?.nome ?? item?.name ?? item?.servidor ?? '';
         const periodos = Array.isArray(item?.periodos) ? item.periodos : [];
-        const titulo = periodos.length ? ` title="${escapeHtml(periodos.join('; '))}"` : '';
         const ranges = periodos.map((p) => {
           const raw = String(p || '');
           const m = raw.match(/\((\d{2}\/\d{2}-\d{2}\/\d{2})\)/);
           return m ? m[1] : raw;
         }).filter(Boolean);
-        const prefix = ranges.length
-          ? `<span class="programar-impedidos-mes-range">${escapeHtml(ranges.join(', '))}</span>`
-          : '';
-        return `<li${titulo}>${prefix}<span class="programar-impedidos-mes-name">${escapeHtml(nome)}</span></li>`;
+
+        const li = document.createElement('li');
+        if (periodos.length) li.title = periodos.join('; ');
+
+        if (ranges.length) {
+          const prefix = document.createElement('span');
+          prefix.className = 'programar-impedidos-mes-range';
+          prefix.textContent = ranges.join(', ');
+          li.appendChild(prefix);
+        }
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'programar-impedidos-mes-name';
+        nameSpan.textContent = String(nome);
+        li.appendChild(nameSpan);
+        list.appendChild(li);
       });
-      list.innerHTML = items.join('');
       list.dataset.rendered = '1';
       if (countEl()) countEl().textContent = String(impedidos.length);
       if (emptyEl()) emptyEl().classList.add('d-none');

@@ -11,6 +11,7 @@ from django.db.models import Q, Sum, Count
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.utils import timezone
+from core.utils.security import safe_next_url
 
 from core.utils import get_unidade_atual
 from core.models import No
@@ -583,7 +584,7 @@ def editar_meta_view(request, meta_id):
     ou se o usuário for superuser.
     """
     next_url_default = reverse("metas:metas-unidade")
-    next_url = request.GET.get("next") or request.POST.get("next") or next_url_default
+    next_url = safe_next_url(request, next_url_default)
     unidade = get_unidade_atual(request)
     meta = get_object_or_404(Meta, pk=meta_id)
 
@@ -646,11 +647,7 @@ def excluir_meta_view(request, meta_id):
     except Meta.DoesNotExist:
         messages.error(request, "Meta não encontrada ou já foi removida.")
         return redirect("metas:metas-unidade")
-    next_url = (
-        request.POST.get("next")
-        or request.META.get("HTTP_REFERER")
-        or reverse("metas:metas-unidade")
-    )
+    next_url = safe_next_url(request, reverse("metas:metas-unidade"))
 
     if not unidade:
         messages.error(request, "Selecione uma unidade antes de excluir metas.")
@@ -705,7 +702,7 @@ def toggle_encerrada_view(request, meta_id):
     messages.success(request, f"Meta {'encerrada' if meta.encerrada else 'reaberta'} com sucesso.")
 
     # tenta voltar para a página anterior
-    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "metas:metas-unidade"
+    next_url = safe_next_url(request, reverse("metas:metas-unidade"))
     return redirect(next_url)
 
 @login_required
@@ -836,7 +833,7 @@ def redistribuir_meta_view(request, meta_id, parent_aloc_id):
 def encerrar_meta_view(request, meta_id):
     unidade = get_unidade_atual(request)
     next_url_default = reverse("metas:metas-unidade")
-    next_url = request.GET.get("next") or request.POST.get("next") or next_url_default
+    next_url = safe_next_url(request, next_url_default)
 
     if not unidade:
         messages.error(request, "Selecione ou assuma uma unidade antes de encerrar metas.")

@@ -9,11 +9,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from .forms import VeiculoForm
 from .models import Veiculo
 from core.utils import _get_unidade_atual
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from django.http import JsonResponse
 
 
 @login_required
+@require_http_methods(["GET", "POST"])
 def lista_veiculos(request: HttpRequest) -> HttpResponse:
     unidade = _get_unidade_atual(request)
     if not unidade:
@@ -98,6 +99,7 @@ def editar_veiculo(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 @login_required
+@require_POST
 def ativar_veiculo(request: HttpRequest, pk: int) -> HttpResponse:
     unidade = _get_unidade_atual(request)
     if not unidade:
@@ -111,6 +113,7 @@ def ativar_veiculo(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 @login_required
+@require_POST
 def inativar_veiculo(request: HttpRequest, pk: int) -> HttpResponse:
     unidade = _get_unidade_atual(request)
     if not unidade:

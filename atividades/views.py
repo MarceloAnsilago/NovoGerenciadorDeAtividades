@@ -6,17 +6,15 @@ from django.contrib import messages
 from django.db import IntegrityError
 from django.db.models import Q
 from django.core.paginator import Paginator
-from django.utils.http import url_has_allowed_host_and_scheme
 from .forms import AreaForm, AtividadeForm
 from .models import Area, Atividade
 from core.utils import _get_unidade_atual
+from core.utils.security import safe_next_url
 
 
 def _get_safe_next(request):
-    next_candidate = request.POST.get("next") or request.GET.get("next")
-    if next_candidate and url_has_allowed_host_and_scheme(next_candidate, allowed_hosts={request.get_host()}):
-        return next_candidate
-    return ""
+    candidate = safe_next_url(request, "")
+    return candidate if candidate != "" else ""
 
 
 @login_required
@@ -111,7 +109,7 @@ def editar(request, pk: int):
                 form.add_error("titulo", "Já existe uma atividade com este título nesta unidade.")
             else:
                 messages.success(request, "Atividade atualizada com sucesso.")
-                next_url = request.POST.get("next") or "atividades:lista"
+                next_url = _get_safe_next(request) or "atividades:lista"
                 return redirect(next_url)
     else:
         form = AtividadeForm(instance=obj)
@@ -137,7 +135,7 @@ def toggle_ativo(request, pk: int):
     obj.ativo = not obj.ativo
     obj.save(update_fields=["ativo"])
     messages.success(request, f"Atividade {'ativada' if obj.ativo else 'inativada'} com sucesso.")
-    return redirect(request.POST.get("next") or "atividades:lista")
+    return redirect(_get_safe_next(request) or "atividades:lista")
 
 
 @login_required

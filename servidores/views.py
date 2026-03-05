@@ -5,18 +5,15 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
-from django.utils.http import url_has_allowed_host_and_scheme
-
 from core.utils import _get_unidade_atual  # seu util
+from core.utils.security import safe_next_url
 from .forms import CargoForm, ServidorForm
 from .models import Cargo, Servidor
 
 
 def _get_safe_next(request):
-    next_candidate = request.POST.get("next") or request.GET.get("next")
-    if next_candidate and url_has_allowed_host_and_scheme(next_candidate, allowed_hosts={request.get_host()}):
-        return next_candidate
-    return ""
+    candidate = safe_next_url(request, "")
+    return candidate if candidate != "" else ""
 
 
 @login_required
@@ -108,7 +105,7 @@ def editar(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, "Servidor atualizado com sucesso.")
-            return redirect(request.POST.get("next") or "servidores:lista")
+            return redirect(_get_safe_next(request) or "servidores:lista")
     else:
         form = ServidorForm(instance=serv)
 
@@ -128,7 +125,7 @@ def inativar(request, pk):
         messages.success(request, f"Servidor {serv.nome} inativado.")
     else:
         messages.info(request, f"Servidor {serv.nome} já está inativo.")
-    return redirect(request.POST.get("next") or "servidores:lista")
+    return redirect(_get_safe_next(request) or "servidores:lista")
 
 @login_required
 @require_POST
@@ -144,7 +141,7 @@ def ativar(request, pk):
         messages.success(request, f"Servidor {serv.nome} ativado.")
     else:
         messages.info(request, f"Servidor {serv.nome} já está ativo.")
-    return redirect(request.POST.get("next") or "servidores:lista")
+    return redirect(_get_safe_next(request) or "servidores:lista")
 
 
 @login_required
