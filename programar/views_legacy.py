@@ -760,6 +760,7 @@ def _render_plantonistas_html(servidores: List[Dict[str, Any]], start: str, end:
     titulo = "Plantonista da semana"
     if ds and de and (de - ds).days >= 7:
         titulo = "Plantonistas no periodo"
+    show_item_period = titulo != "Plantonista da semana"
 
     def _phone_display(raw: str) -> str:
         val = (raw or "").strip()
@@ -773,7 +774,7 @@ def _render_plantonistas_html(servidores: List[Dict[str, Any]], start: str, end:
         '<h6 class="fw-semibold mb-2">'
         '<span class="badge bg-light border me-2">'
         '<i class="bi bi-person-badge text-primary"></i></span>'
-        f'{esc(titulo)} <small class="text-muted">({esc(start_br)} -> {esc(end_br)})</small>'
+        f"{esc(titulo)}"
         "</h6>"
     )
     if not servidores:
@@ -786,18 +787,19 @@ def _render_plantonistas_html(servidores: List[Dict[str, Any]], start: str, end:
         tel_disp = _phone_display(str(tel or ""))
         tel_html = f' <span class="text-muted">- {esc(tel_disp)}</span>' if tel_disp else ""
 
-        periodos = s.get("periodos") or []
-        periodos_fmt = []
-        for p in periodos:
-            p_txt = str(p or "").strip()
-            if p_txt and p_txt not in periodos_fmt:
-                periodos_fmt.append(p_txt)
-        if not periodos_fmt and start_br and end_br:
-            periodos_fmt.append(f"{start_br} a {end_br}")
-
         periodo_suffix = ""
-        if periodos_fmt:
-            periodo_suffix = f" <span class='text-muted'>- de {esc('; de '.join(periodos_fmt))}</span>"
+        if show_item_period:
+            periodos = s.get("periodos") or []
+            periodos_fmt = []
+            for p in periodos:
+                p_txt = str(p or "").strip()
+                if p_txt and p_txt not in periodos_fmt:
+                    periodos_fmt.append(p_txt)
+            if not periodos_fmt and start_br and end_br:
+                periodos_fmt.append(f"{start_br} a {end_br}")
+
+            if periodos_fmt:
+                periodo_suffix = f" <span class='text-muted'>- de {esc('; de '.join(periodos_fmt))}</span>"
 
         items.append(f"<li><span class='fw-semibold'>{nome}</span>{tel_html}{periodo_suffix}</li>")
 
