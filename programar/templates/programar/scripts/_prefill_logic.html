@@ -278,6 +278,8 @@
     } else {
       delete card.dataset.itemId;
     }
+    const statusExecucao = String(it.status_execucao || (it.concluido ? "executada" : "pendente")).trim().toLowerCase();
+    card.dataset.statusExecucao = statusExecucao;
     card.dataset.concluido = it.concluido ? "true" : "false";
     window.PROGRAMAR?.syncMetaConclusionLink?.(card);
 

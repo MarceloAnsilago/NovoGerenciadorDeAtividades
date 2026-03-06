@@ -56,6 +56,7 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
     out: list[dict[str, Any]] = []
     for item in itens:
         meta = getattr(item, "meta", None)
+        status_execucao = "executada" if item.concluido else ("nao_realizada" if item.concluido_em else "pendente")
         out.append(
             {
                 "id": item.id,
@@ -64,6 +65,7 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
                 "observacao": item.observacao or "",
                 "veiculo_id": item.veiculo_id,
                 "concluido": bool(item.concluido),
+                "status_execucao": status_execucao,
                 "servidores": servidores_por_item.get(item.id, []),
             }
         )

@@ -2003,7 +2003,7 @@ def programacao_do_dia_orm(request):
 
     itens_qs = list(
         ProgramacaoItem.objects.filter(programacao=prog).values(
-            "id", "meta_id", "observacao", "veiculo_id", "concluido"
+            "id", "meta_id", "observacao", "veiculo_id", "concluido", "concluido_em"
         )
     )
     meta_ids: set[int] = set()
@@ -2057,12 +2057,15 @@ def programacao_do_dia_orm(request):
     for it in itens_qs:
         meta_id = it["meta_id"]
         iid = int(it["id"])
+        concluido = bool(it.get("concluido"))
+        status_execucao = _item_execucao_status_from_fields(concluido, it.get("concluido_em"))
         obj = {
             "id": iid,
             "meta_id": meta_id,
             "observacao": it.get("observacao") or "",
             "veiculo_id": it.get("veiculo_id"),
-            "concluido": bool(it.get("concluido")),
+            "concluido": concluido,
+            "status_execucao": status_execucao,
             "servidores_ids": serv_ids_by_item.get(iid, []),
             "servidores": serv_objs_by_item.get(iid, []),
         }

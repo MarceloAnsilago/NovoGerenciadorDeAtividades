@@ -27,26 +27,42 @@
     return raw === "true" || raw === "1";
   }
 
-  function applyConclusionStyles(link, concluded) {
+  function getCardExecStatus(card) {
+    if (!card) return "pendente";
+    const raw = String(card.dataset.statusExecucao || "").trim().toLowerCase();
+    if (raw === "executada" || raw === "concluida") return "executada";
+    if (raw === "nao_realizada" || raw === "nao-realizada" || raw === "nao realizada") return "nao_realizada";
+    if (raw === "pendente") return "pendente";
+    return isCardConcluded(card) ? "executada" : "pendente";
+  }
+
+  function applyConclusionStyles(link, status) {
     if (!link) return;
-    if (concluded) {
+    const execStatus = String(status || "").trim().toLowerCase();
+    link.classList.remove("btn-success", "btn-outline-success", "btn-outline-secondary", "btn-secondary", "is-not-executed");
+    if (execStatus === "executada") {
       link.classList.add("btn-success");
-      link.classList.remove("btn-outline-success");
+    } else if (execStatus === "nao_realizada") {
+      link.classList.add("btn-outline-secondary", "is-not-executed");
     } else {
-      link.classList.remove("btn-success");
       link.classList.add("btn-outline-success");
     }
     const icon = link.querySelector("i");
     if (icon) {
-      icon.classList.toggle("bi-check2-square", !concluded);
-      icon.classList.toggle("bi-check-circle", concluded);
+      icon.classList.toggle("bi-check2-square", execStatus === "pendente");
+      icon.classList.toggle("bi-check-circle", execStatus === "executada");
+      icon.classList.toggle("bi-x-circle", execStatus === "nao_realizada");
     }
-    const label = concluded ? "Atividade concluída em Minhas Metas" : "Concluir item em Minhas Metas";
+    const label = execStatus === "executada"
+      ? "Atividade concluida em Minhas Metas"
+      : (execStatus === "nao_realizada"
+        ? "Atividade nao realizada em Minhas Metas"
+        : "Concluir item em Minhas Metas");
     link.title = label;
     link.setAttribute("aria-label", label);
   }
 
-  function syncConclusionLink(card) {
+function syncConclusionLink(card) {
     if (!card) return;
     const link = card.querySelector(".meta-concluir");
     if (!link) return;
@@ -71,7 +87,7 @@
       link.classList.add("d-none");
       link.setAttribute("aria-disabled", "true");
     }
-    applyConclusionStyles(link, isCardConcluded(card));
+    applyConclusionStyles(link, getCardExecStatus(card));
   }
   NS.syncMetaConclusionLink = syncConclusionLink;
   function tryAddVeiculosOptions(select) {
@@ -210,6 +226,7 @@
       </div>
     `;
     card.dataset.concluido = "false";
+    card.dataset.statusExecucao = "pendente";
 
     cont.appendChild(card);
     tryAddVeiculosOptions(card.querySelector("select.card-veiculos"));
