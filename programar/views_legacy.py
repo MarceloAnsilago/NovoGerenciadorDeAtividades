@@ -1459,7 +1459,7 @@ def _render_relatorio_observacao_html(observacao: str) -> str:
     return f"""
       <div class="mt-3 px-3 pb-3">
         <div class="border rounded p-3 bg-light">
-          <div class="small text-uppercase text-muted fw-semibold mb-1">ObservaÃ§Ã£o</div>
+          <div class="small text-uppercase text-muted fw-semibold mb-1">Observação</div>
           <div class="small">{safe}</div>
         </div>
       </div>

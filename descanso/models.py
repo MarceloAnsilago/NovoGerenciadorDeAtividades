@@ -42,16 +42,16 @@ class Descanso(models.Model):
 
     def clean(self):
         if self.data_fim < self.data_inicio:
-            raise ValidationError("A data final nÃ£o pode ser anterior Ã  data inicial.")
+            raise ValidationError("A data final não pode ser anterior à data inicial.")
 
-        # ValidaÃ§Ã£o de sobreposiÃ§Ã£o de perÃ­odos para o mesmo servidor
+        # Validação de sobreposição de períodos para o mesmo servidor
         qs = Descanso.objects.filter(servidor=self.servidor)
         if self.pk:
             qs = qs.exclude(pk=self.pk)
-        # SobrepÃµe quando inicio <= fim_existente e fim >= inicio_existente
+        # Sobrepõe quando inicio <= fim_existente e fim >= inicio_existente
         overlap = qs.filter(data_inicio__lte=self.data_fim, data_fim__gte=self.data_inicio).exists()
         if overlap:
-            raise ValidationError("JÃ¡ existe um descanso cadastrado que sobrepÃµe este perÃ­odo para esse servidor.")
+            raise ValidationError("Já existe um descanso cadastrado que sobrepõe este período para esse servidor.")
 
     @property
     def ativo_agora(self) -> bool:
