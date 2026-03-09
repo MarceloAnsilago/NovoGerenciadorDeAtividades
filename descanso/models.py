@@ -13,6 +13,7 @@ class Descanso(models.Model):
         RECESSO = "RECESSO", "Recesso"
         FERIAS = "FERIAS", "Ferias"
         LICENCA = "LICENCA", "Licenca"
+        DIARIAS = "DIARIAS", "Diarias"
         FOLGA_COMP = "FOLGA_COMP", "Folga compensatoria"
         AFASTAMENTO = "AFASTAMENTO", "Afastamento"
         ATESTADO = "ATESTADO", "Atestado"
