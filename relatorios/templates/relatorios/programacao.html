@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Relatorio de Programacao{% endblock %}
+{% block title %}Relatório de Programação{% endblock %}
 
 {% block extra_head %}
   {% include "programar/styles/_programacao_styles.html" %}
@@ -174,8 +174,8 @@
     <div class="card-body">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
-          <h1 class="h4 mb-1">Relatorio de Programacao</h1>
-          <p class="text-muted mb-0">Gere um relatorio consolidado usando o historico e os dados atuais da programacao.</p>
+          <h1 class="h4 mb-1">Relatório de Programação</h1>
+          <p class="text-muted mb-0">Gere um relatório consolidado usando o histórico e os dados atuais da programação.</p>
         </div>
       </div>
 
@@ -190,15 +190,15 @@
         </div>
         <div class="col-12 col-md-4 d-flex align-items-end">
           <button type="button" id="relatorio-btn-mes-atual" class="btn btn-outline-secondary w-100">
-            <i class="bi bi-calendar-month me-1"></i> Mes atual
+            <i class="bi bi-calendar-month me-1"></i> Mês atual
           </button>
         </div>
         <div class="col-12">
-          <label class="form-label d-block">Secoes do relatorio</label>
+          <label class="form-label d-block">Seções do relatório</label>
           <div class="d-grid gap-2">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="id_sec_historico" name="sec_historico" value="1" {% if selected_sections.historico %}checked{% endif %}>
-              <label class="form-check-label" for="id_sec_historico">Historico de alteracoes da programacao</label>
+              <label class="form-check-label" for="id_sec_historico">Histórico de alterações da programação</label>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="id_sec_desempenho" name="sec_desempenho" value="1" {% if selected_sections.desempenho %}checked{% endif %}>
@@ -212,7 +212,7 @@
         </div>
         <div class="col-12 d-flex justify-content-end">
           <button type="submit" id="relatorio-programacao-btn-submit" class="btn btn-primary">
-            <i class="bi bi-file-earmark-text me-1"></i><span class="btn-label">Gerar relatorio</span>
+            <i class="bi bi-file-earmark-text me-1"></i><span class="btn-label">Gerar relatório</span>
           </button>
         </div>
       </form>
@@ -229,9 +229,9 @@
         <div class="container mt-3 report-container px-0">
           <div class="relatorio-print-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1rem;padding-bottom:.9rem;border-bottom:2px solid #cfd6df;">
             <div>
-              <h2 class="relatorio-print-title" style="margin:0;font-size:2rem;line-height:1.1;color:#162033;font-weight:700;">Relatorio de Programacao de Atividades</h2>
+              <h2 class="relatorio-print-title" style="margin:0;font-size:2rem;line-height:1.1;color:#162033;font-weight:700;">Relatório de Programação de Atividades</h2>
               <div class="relatorio-print-meta" style="margin-top:.7rem;font-size:1rem;color:#475569;">
-                Periodo: <strong>{{ report.periodo_label }}</strong>
+                Período: <strong>{{ report.periodo_label }}</strong>
                 <span class="ms-2">Gerado em {{ report.gerado_em|date:"d/m/Y H:i" }}</span>
               </div>
             </div>
@@ -272,7 +272,7 @@
                       <th>Data</th>
                       <th>Atividade</th>
                       <th>Servidores</th>
-                      <th>Veiculo</th>
+                      <th>Veículo</th>
                       <th>Status final</th>
                     </tr>
                   </thead>
@@ -319,7 +319,7 @@
 
           {% if report.historico %}
             <section class="relatorio-section">
-              <h5 class="fw-semibold mb-3">Historico de alteracoes da programacao</h5>
+              <h5 class="fw-semibold mb-3">Histórico de alterações da programação</h5>
               <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0 programacao-semana-table">
                   <thead class="table-light">
@@ -328,8 +328,8 @@
                       <th>Data programada</th>
                       <th>Evento</th>
                       <th>Atividade</th>
-                      <th>Descricao</th>
-                      <th>Usuario</th>
+                      <th>Descrição</th>
+                      <th>Usuário</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -344,7 +344,7 @@
                       </tr>
                     {% empty %}
                       <tr>
-                        <td colspan="6" class="text-muted">Nenhuma alteracao registrada no periodo.</td>
+                        <td colspan="6" class="text-muted">Nenhuma alteração registrada no período.</td>
                       </tr>
                     {% endfor %}
                   </tbody>

@@ -51,11 +51,11 @@ def relatorio_programacao_view(request):
 
     if data_inicial_raw or data_final_raw:
         if not data_inicial or not data_final:
-            context["form_error"] = "Informe um periodo valido."
+            context["form_error"] = "Informe um período válido."
         elif data_inicial > data_final:
-            context["form_error"] = "A data inicial nao pode ser maior que a data final."
+            context["form_error"] = "A data inicial não pode ser maior que a data final."
         elif not any(selected_sections.values()):
-            context["form_error"] = "Selecione pelo menos uma secao para gerar o relatorio."
+            context["form_error"] = "Selecione pelo menos uma seção para gerar o relatório."
         else:
             context["report"] = build_programacao_report(
                 request=request,
