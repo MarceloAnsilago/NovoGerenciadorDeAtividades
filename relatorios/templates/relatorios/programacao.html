@@ -58,11 +58,16 @@
       <form method="get" class="row g-3">
         <div class="col-12 col-md-4">
           <label for="id_data_inicial" class="form-label">Data inicial</label>
-          <input type="date" id="id_data_inicial" name="data_inicial" class="form-control" value="{{ data_inicial|default:'' }}" max="{{ today_iso }}">
+          <input type="date" id="id_data_inicial" name="data_inicial" class="form-control" value="{{ data_inicial|default:'' }}">
         </div>
         <div class="col-12 col-md-4">
           <label for="id_data_final" class="form-label">Data final</label>
-          <input type="date" id="id_data_final" name="data_final" class="form-control" value="{{ data_final|default:'' }}" max="{{ today_iso }}">
+          <input type="date" id="id_data_final" name="data_final" class="form-control" value="{{ data_final|default:'' }}">
+        </div>
+        <div class="col-12 col-md-4 d-flex align-items-end">
+          <button type="button" id="relatorio-btn-mes-atual" class="btn btn-outline-secondary w-100">
+            <i class="bi bi-calendar-month me-1"></i> Mes atual
+          </button>
         </div>
         <div class="col-12">
           <label class="form-label d-block">Secoes do relatorio</label>
@@ -210,4 +215,30 @@
 {% block extra_js %}
   {{ block.super }}
   {% include "relatorios/scripts/_print_helper.html" %}
+  <script>
+    (function () {
+      function toIsoDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      document.addEventListener("click", function (ev) {
+        const btn = ev.target.closest?.("#relatorio-btn-mes-atual");
+        if (!btn) return;
+
+        const startInput = document.getElementById("id_data_inicial");
+        const endInput = document.getElementById("id_data_final");
+        if (!startInput || !endInput) return;
+
+        const today = new Date();
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+        startInput.value = toIsoDate(start);
+        endInput.value = toIsoDate(end);
+      });
+    })();
+  </script>
 {% endblock %}
