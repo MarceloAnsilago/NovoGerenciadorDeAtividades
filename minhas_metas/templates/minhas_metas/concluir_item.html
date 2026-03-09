@@ -1,12 +1,12 @@
 {% extends "core/base.html" %}
 {% load i18n %}
 
-{% block title %}Concluir item da programação{% endblock %}
+{% block title %}Concluir item da programacao{% endblock %}
 
 {% block content %}
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Concluir item da programação</h1>
+    <h1 class="h4 mb-0">Concluir item da programacao</h1>
     <a href="{{ next|default:'/minhas-metas/' }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-arrow-left"></i> Voltar
     </a>
@@ -30,14 +30,14 @@
               <dd class="col-sm-8">{{ atividade.titulo }}</dd>
             {% endif %}
 
-            <dt class="col-sm-4">Veículo</dt>
+            <dt class="col-sm-4">Veiculo</dt>
             <dd class="col-sm-8">
-              {% if veiculo %}{{ veiculo.nome }} — {{ veiculo.placa }}{% else %}<span class="text-muted">—</span>{% endif %}
+              {% if veiculo %}{{ veiculo.nome }} - {{ veiculo.placa }}{% else %}<span class="text-muted">-</span>{% endif %}
             </dd>
 
             <dt class="col-sm-4">Servidores</dt>
             <dd class="col-sm-8">
-              {% if servidores %}{{ servidores|join:", " }}{% else %}<span class="text-muted">—</span>{% endif %}
+              {% if servidores %}{{ servidores|join:", " }}{% else %}<span class="text-muted">-</span>{% endif %}
             </dd>
 
             {% if item.observacao %}
@@ -69,7 +69,8 @@
                            value="pendente"
                            {% if status_current == 'pendente' %}checked{% endif %}>
                     <label class="form-check-label" for="id_status_pendente">
-                      Pendente
+                      <span class="fw-semibold d-block">Pendente</span>
+                      <span class="text-muted small">Mantem a atividade aberta para continuar no acompanhamento.</span>
                     </label>
                   </div>
                   <div class="form-check">
@@ -80,7 +81,8 @@
                            value="executada"
                            {% if status_current == 'executada' %}checked{% endif %}>
                     <label class="form-check-label" for="id_status_executada">
-                      Concluida
+                      <span class="fw-semibold d-block">Concluida</span>
+                      <span class="text-muted small">Fecha a atividade como executada e conta no progresso normal da meta.</span>
                     </label>
                   </div>
                   <div class="form-check">
@@ -91,7 +93,20 @@
                            value="nao_realizada"
                            {% if status_current == 'nao_realizada' %}checked{% endif %}>
                     <label class="form-check-label" for="id_status_nao_realizada">
-                      Não realizada
+                      <span class="fw-semibold d-block">Nao realizada</span>
+                      <span class="text-muted small">Fecha esta programacao, mas deixa a meta em aberto para os meses seguintes.</span>
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input"
+                           type="radio"
+                           name="status_execucao"
+                           id="id_status_nao_realizada_justificada"
+                           value="nao_realizada_justificada"
+                           {% if status_current == 'nao_realizada_justificada' %}checked{% endif %}>
+                    <label class="form-check-label" for="id_status_nao_realizada_justificada">
+                      <span class="fw-semibold d-block">Nao realizada justificada</span>
+                      <span class="text-muted small">Encerra a atividade sem contar como concluida e sem levar a meta para os proximos meses.</span>
                     </label>
                   </div>
                 </div>
@@ -107,7 +122,7 @@
               {% if form_errors.observacoes %}
                 <div class="invalid-feedback d-block">{{ form_errors.observacoes }}</div>
               {% else %}
-                <div class="form-text">Obrigatória quando o status for Não realizada.</div>
+                <div class="form-text">Obrigatoria quando o status for Nao realizada ou Nao realizada justificada.</div>
               {% endif %}
             </div>
 
@@ -160,7 +175,7 @@
 
       <div class="small text-muted mt-2">
         Ao salvar: voce pode manter <em>pendente</em>, marcar como <em>concluida</em>
-        ou <em>não realizada</em>, mantendo a observacao vinculada ao item.
+        ou registrar como <em>nao realizada</em> / <em>nao realizada justificada</em>, mantendo a observacao vinculada ao item.
       </div>
       <div class="alert alert-info mt-2 mb-0 py-2 small">
         <i class="bi bi-info-circle me-1"></i>

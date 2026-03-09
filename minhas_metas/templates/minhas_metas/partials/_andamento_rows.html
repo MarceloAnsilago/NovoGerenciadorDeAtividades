@@ -22,6 +22,7 @@
     <div class="d-flex align-items-center gap-2">
       <span class="badge
         {% if it.status_key == 'concluidas' %}bg-success-subtle text-success
+        {% elif it.status_key == 'nao_realizadas_justificadas' %}bg-info-subtle text-info-emphasis
         {% elif it.status_key == 'nao_realizadas' %}bg-warning-subtle text-warning-emphasis
         {% else %}bg-secondary-subtle text-secondary{% endif %}">
         {{ it.status_label|default:"Pendente" }}
@@ -29,13 +30,16 @@
 
       <a class="btn btn-sm
         {% if it.status_key == 'concluidas' %}btn-success
+        {% elif it.status_key == 'nao_realizadas_justificadas' %}btn-info
         {% elif it.status_key == 'nao_realizadas' %}btn-warning
         {% else %}btn-primary{% endif %}"
          href="{% url 'programar:concluir-item-form' it.item_id %}?next={{ request.get_full_path|urlencode }}&source=minhas-metas">
         {% if it.status_key == 'concluidas' %}
           Concluida
+        {% elif it.status_key == 'nao_realizadas_justificadas' %}
+          Nao realizada justificada
         {% elif it.status_key == 'nao_realizadas' %}
-          Não realizada
+          Nao realizada
         {% else %}
           Concluir
         {% endif %}
@@ -54,6 +58,6 @@
 </tr>
 {% empty %}
 <tr class="table-light">
-  <td colspan="5" class="text-center text-muted py-4">Nenhum item programado no per&iacute;odo.</td>
+  <td colspan="5" class="text-center text-muted py-4">Nenhum item programado no periodo.</td>
 </tr>
 {% endfor %}

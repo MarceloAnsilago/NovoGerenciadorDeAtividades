@@ -20,6 +20,13 @@ from core.utils.security import safe_next_url
 from servidores.models import Servidor
 from descanso.models import Descanso, Feriado
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
+from programar.status import (
+    EXECUTADA,
+    NAO_REALIZADA,
+    NAO_REALIZADA_JUSTIFICADA,
+    PENDENTE,
+    item_execucao_status_from_fields,
+)
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
@@ -72,6 +79,7 @@ def _meta_ids_com_itens_abertos(
         .filter(
             programacao__unidade_id=unidade_id,
             concluido=False,
+            nao_realizada_justificada=False,
             meta_id__isnull=False,
         )
     )
@@ -1692,6 +1700,7 @@ def events_feed(request):
             status_item = _item_execucao_status_from_fields(
                 bool(getattr(item, "concluido", False)),
                 getattr(item, "concluido_em", None),
+                bool(getattr(item, "nao_realizada_justificada", False)),
             )
             key = (titulo, status_item)
             if key not in activity_counts[pid]:
@@ -1934,6 +1943,7 @@ def metas_disponiveis(request):
                     filter=Q(
                         concluido=False,
                         concluido_em__isnull=False,
+                        nao_realizada_justificada=False,
                         programacao__data__lt=reference_month_start,
                         meta__data_limite__isnull=False,
                         meta__data_limite__lt=reference_month_start,
@@ -2003,7 +2013,13 @@ def programacao_do_dia_orm(request):
 
     itens_qs = list(
         ProgramacaoItem.objects.filter(programacao=prog).values(
-            "id", "meta_id", "observacao", "veiculo_id", "concluido", "concluido_em"
+            "id",
+            "meta_id",
+            "observacao",
+            "veiculo_id",
+            "concluido",
+            "concluido_em",
+            "nao_realizada_justificada",
         )
     )
     meta_ids: set[int] = set()
@@ -2058,7 +2074,11 @@ def programacao_do_dia_orm(request):
         meta_id = it["meta_id"]
         iid = int(it["id"])
         concluido = bool(it.get("concluido"))
-        status_execucao = _item_execucao_status_from_fields(concluido, it.get("concluido_em"))
+        status_execucao = _item_execucao_status_from_fields(
+            concluido,
+            it.get("concluido_em"),
+            bool(it.get("nao_realizada_justificada")),
+        )
         obj = {
             "id": iid,
             "meta_id": meta_id,
@@ -2162,13 +2182,15 @@ def marcar_item_realizada(request, item_id: int):
         if realizada:
             pi.concluido = True
             pi.concluido_em = timezone.now()
+            pi.nao_realizada_justificada = False
             pi.concluido_por_id = getattr(request.user, "id", None)
         else:
             # No toggle rapido, "desmarcar" volta para pendente.
             pi.concluido = False
             pi.concluido_em = None
+            pi.nao_realizada_justificada = False
             pi.concluido_por_id = None
-        pi.save(update_fields=["concluido", "concluido_em", "concluido_por_id"])
+        pi.save(update_fields=["concluido", "concluido_em", "nao_realizada_justificada", "concluido_por_id"])
 
     return JsonResponse({"ok": True, "item_id": pi.id, "realizada": pi.concluido})
 
@@ -2177,15 +2199,16 @@ def _item_execucao_status(item: ProgramacaoItem) -> str:
     return _item_execucao_status_from_fields(
         bool(getattr(item, "concluido", False)),
         getattr(item, "concluido_em", None),
+        bool(getattr(item, "nao_realizada_justificada", False)),
     )
 
 
-def _item_execucao_status_from_fields(concluido: bool, concluido_em) -> str:
-    if concluido:
-        return "executada"
-    if concluido_em:
-        return "nao_realizada"
-    return "pendente"
+def _item_execucao_status_from_fields(
+    concluido: bool,
+    concluido_em,
+    nao_realizada_justificada: bool = False,
+) -> str:
+    return item_execucao_status_from_fields(concluido, concluido_em, nao_realizada_justificada)
 
 
 @login_required
@@ -2256,18 +2279,18 @@ def concluir_item_form(request, item_id: int):
     if request.method == "POST":
         form_errors: dict[str, str] = {}
         status_execucao = (request.POST.get("status_execucao") or "").strip().lower()
-        if status_execucao not in {"executada", "nao_realizada", "pendente"}:
+        if status_execucao not in {EXECUTADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:
             # Compatibilidade com payload legado (checkbox "realizado").
             realizado_raw = (request.POST.get("realizado") or "").strip().lower()
-            status_execucao = "executada" if realizado_raw in {"1", "true", "on", "sim"} else "pendente"
+            status_execucao = EXECUTADA if realizado_raw in {"1", "true", "on", "sim"} else PENDENTE
 
-        concluido_flag = status_execucao == "executada"
-        marcado_com_status = status_execucao in {"executada", "nao_realizada"}
+        concluido_flag = status_execucao == EXECUTADA
+        marcado_com_status = status_execucao in {EXECUTADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA}
         obs_final = (request.POST.get("observacoes") or "").strip()
         confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
 
-        if status_execucao == "nao_realizada" and not obs_final:
-            form_errors["observacoes"] = "Informe uma observação para marcar como não realizada."
+        if status_execucao in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA} and not obs_final:
+            form_errors["observacoes"] = "Informe uma observacao para salvar este status."
             messages.error(request, form_errors["observacoes"])
             contexto = {
                 "item": pi,
@@ -2337,6 +2360,7 @@ def concluir_item_form(request, item_id: int):
             else:
                 concluido_em = None
                 concluido_por_id = None
+            nao_realizada_justificada = status_execucao == NAO_REALIZADA_JUSTIFICADA
 
             (
                 ProgramacaoItem.objects
@@ -2345,6 +2369,7 @@ def concluir_item_form(request, item_id: int):
                 .update(
                     concluido=concluido_flag,
                     concluido_em=concluido_em,
+                    nao_realizada_justificada=nao_realizada_justificada,
                     concluido_por_id=concluido_por_id,
                     observacao=obs_final,
                 )

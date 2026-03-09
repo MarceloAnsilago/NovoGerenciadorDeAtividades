@@ -9,6 +9,13 @@ from django.utils import timezone
 
 from metas.models import Meta
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
+from programar.status import (
+    EXECUTADA,
+    NAO_REALIZADA,
+    NAO_REALIZADA_JUSTIFICADA,
+    PENDENTE,
+    item_execucao_status_from_fields,
+)
 from servidores.models import Servidor
 from veiculos.models import Veiculo
 
@@ -56,7 +63,11 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
     out: list[dict[str, Any]] = []
     for item in itens:
         meta = getattr(item, "meta", None)
-        status_execucao = "executada" if item.concluido else ("nao_realizada" if item.concluido_em else "pendente")
+        status_execucao = item_execucao_status_from_fields(
+            bool(item.concluido),
+            item.concluido_em,
+            bool(getattr(item, "nao_realizada_justificada", False)),
+        )
         out.append(
             {
                 "id": item.id,
@@ -169,26 +180,53 @@ def salvar_programacao(unidade_id: int, data_ref: date, payload: dict[str, Any],
     }
 
 
-def concluir_item(unidade_id: int, item_id: int, user, *, realizada: bool, observacao: str = "") -> ProgramacaoItem:
+def concluir_item(
+    unidade_id: int,
+    item_id: int,
+    user,
+    *,
+    realizada: bool,
+    observacao: str = "",
+    status_execucao: str | None = None,
+) -> ProgramacaoItem:
     with transaction.atomic():
         item = (
             ProgramacaoItem.objects.select_for_update()
             .select_related("programacao")
             .get(pk=item_id, programacao__unidade_id=unidade_id)
         )
-        if realizada:
+        status = (status_execucao or "").strip().lower()
+        if status not in {EXECUTADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:
+            status = EXECUTADA if realizada else PENDENTE
+
+        if status == EXECUTADA:
             item.concluido = True
             item.concluido_em = timezone.now()
+            item.nao_realizada_justificada = False
+            item.concluido_por_id = getattr(user, "id", None)
+        elif status in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA}:
+            item.concluido = False
+            item.concluido_em = timezone.now()
+            item.nao_realizada_justificada = status == NAO_REALIZADA_JUSTIFICADA
             item.concluido_por_id = getattr(user, "id", None)
         else:
             item.concluido = False
             item.concluido_em = None
+            item.nao_realizada_justificada = False
             item.concluido_por_id = None
 
         if observacao is not None:
             item.observacao = (observacao or "").strip()
 
-        item.save(update_fields=["concluido", "concluido_em", "concluido_por_id", "observacao"])
+        item.save(
+            update_fields=[
+                "concluido",
+                "concluido_em",
+                "nao_realizada_justificada",
+                "concluido_por_id",
+                "observacao",
+            ]
+        )
         return item
 
 

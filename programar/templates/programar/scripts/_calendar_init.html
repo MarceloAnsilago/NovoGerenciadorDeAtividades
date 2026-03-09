@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', function(){
       .programar-event-line{display:flex;align-items:flex-start;gap:.35rem;white-space:normal;}
       .programar-event-line-icon{margin-top:.05rem;font-size:.85rem;}
       .programar-event-line-icon.is-done{color:#0f5132;}
+      .programar-event-line-icon.is-justified{color:#0c5460;}
       .programar-event-line-icon.is-not-executed{color:#495057;}
       .programar-event-line-icon.is-pending{color:#842029;}
       .prog-event-card{border:1px solid #d8e6fb;background:#f7f9fd;border-radius:.65rem;box-shadow:0 1px 4px rgba(15,23,42,.05);}
@@ -232,9 +233,14 @@ document.addEventListener('DOMContentLoaded', function(){
         if (hasActivityStatus && line && typeof line === "object") {
           const statusLine = String(line.status || (line.concluido ? "executada" : "pendente"));
           const done = statusLine === "executada";
+          const justified = statusLine === "nao_realizada_justificada";
           const notExecuted = statusLine === "nao_realizada";
-          const iconName = done ? "bi-check-circle-fill" : (notExecuted ? "bi-slash-circle-fill" : "bi-x-circle-fill");
-          const iconClass = done ? "is-done" : (notExecuted ? "is-not-executed" : "is-pending");
+          const iconName = done
+            ? "bi-check-circle-fill"
+            : (justified ? "bi-shield-check" : (notExecuted ? "bi-slash-circle-fill" : "bi-x-circle-fill"));
+          const iconClass = done
+            ? "is-done"
+            : (justified ? "is-justified" : (notExecuted ? "is-not-executed" : "is-pending"));
           const icon = document.createElement('i');
           icon.className = `bi ${iconName} programar-event-line-icon ${iconClass}`;
           lineEl.appendChild(icon);

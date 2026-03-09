@@ -50,6 +50,7 @@ class ProgramacaoItem(models.Model):
     observacao = models.TextField(default="", blank=True)
     concluido = models.BooleanField(default=False)
     concluido_em = models.DateTimeField(null=True, blank=True)
+    nao_realizada_justificada = models.BooleanField(default=False)
     criado_em = models.DateTimeField(default=timezone.now)
 
     concluido_por = models.ForeignKey(
