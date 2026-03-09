@@ -99,7 +99,7 @@
         </div>
       </div>
 
-      <form method="get" class="row g-3">
+      <form method="get" class="row g-3" id="relatorio-programacao-form">
         <div class="col-12 col-md-4">
           <label for="id_data_inicial" class="form-label">Data inicial</label>
           <input type="date" id="id_data_inicial" name="data_inicial" class="form-control" value="{{ data_inicial|default:'' }}">
@@ -131,8 +131,8 @@
           </div>
         </div>
         <div class="col-12 d-flex justify-content-end">
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-file-earmark-text me-1"></i> Gerar relatorio
+          <button type="submit" id="relatorio-programacao-btn-submit" class="btn btn-primary">
+            <i class="bi bi-file-earmark-text me-1"></i><span class="btn-label">Gerar relatorio</span>
           </button>
         </div>
       </form>
@@ -283,6 +283,31 @@
         startInput.value = toIsoDate(start);
         endInput.value = toIsoDate(end);
       });
+
+      const form = document.getElementById("relatorio-programacao-form");
+      const submitBtn = document.getElementById("relatorio-programacao-btn-submit");
+      if (form && submitBtn) {
+        form.addEventListener("submit", function (ev) {
+          if (submitBtn.dataset.submitting === "1") {
+            ev.preventDefault();
+            return;
+          }
+
+          submitBtn.dataset.submitting = "1";
+          submitBtn.disabled = true;
+
+          const icon = submitBtn.querySelector("i");
+          const label = submitBtn.querySelector(".btn-label");
+          if (icon) {
+            icon.className = "";
+            icon.classList.add("me-1", "spinner-border", "spinner-border-sm");
+          }
+          if (label) label.textContent = "Gerando...";
+
+          ev.preventDefault();
+          window.requestAnimationFrame(() => window.setTimeout(() => form.submit(), 60));
+        });
+      }
     })();
   </script>
 {% endblock %}
