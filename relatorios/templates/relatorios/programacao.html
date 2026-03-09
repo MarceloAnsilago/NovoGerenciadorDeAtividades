@@ -45,15 +45,20 @@
       margin-top: 1.5rem;
     }
     .relatorio-print-area .badge-status {
+      display: inline;
       font-size: .74rem;
-      border-radius: 999px;
-      padding: .35rem .55rem;
+      padding: 0;
+      border: 0 !important;
+      background: transparent !important;
+      border-radius: 0;
+      white-space: normal;
+      line-height: 1.2;
     }
-    .relatorio-print-area .badge-status.status-executada { background: #198754; color: #fff; }
-    .relatorio-print-area .badge-status.status-nao_realizada { background: #6c757d; color: #fff; }
-    .relatorio-print-area .badge-status.status-nao_realizada_justificada { background: #0dcaf0; color: #053b4b; }
-    .relatorio-print-area .badge-status.status-pendente { background: #f8f9fa; color: #212529; border: 1px solid #ced4da; }
-    .relatorio-print-area .badge-status.status-removida { background: #dc3545; color: #fff; }
+    .relatorio-print-area .badge-status.status-executada { color: #198754; }
+    .relatorio-print-area .badge-status.status-nao_realizada { color: #495057; }
+    .relatorio-print-area .badge-status.status-nao_realizada_justificada { color: #0b7285; }
+    .relatorio-print-area .badge-status.status-pendente { color: #212529; }
+    .relatorio-print-area .badge-status.status-removida { color: #dc3545; }
     @media print {
       .relatorio-indicadores-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
@@ -67,6 +72,9 @@
       }
       .relatorio-indicador-card .value {
         font-size: 1.6rem;
+      }
+      .relatorio-print-area .badge-status {
+        font-size: .7rem;
       }
     }
     @media (max-width: 768px) {
