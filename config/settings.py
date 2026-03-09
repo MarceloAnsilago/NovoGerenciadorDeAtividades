@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'metas',
     'minhas_metas',
     'programar',
+    'relatorios',
 ]
 
 MIDDLEWARE = [

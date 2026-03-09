@@ -34,6 +34,10 @@ from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from veiculos.models import Veiculo
 from django.db.models import Sum, Count, Q
 from django.db import transaction
+from relatorios.services.programacao_history_service import (
+    record_programacao_day_diff_after_commit,
+    snapshot_programacao_dia,
+)
 
 
 from django.contrib import messages
@@ -397,6 +401,7 @@ def salvar_programacao(request):
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
         return JsonResponse({"ok": False, "error": "Unidade nao definida."}, status=400)
+    before_snapshot = snapshot_programacao_dia(unidade_id, dia)
 
     metas_permitidas = set(
         Meta.objects.filter(
@@ -534,6 +539,16 @@ def salvar_programacao(request):
         if orfaos:
             ProgramacaoItemServidor.objects.filter(item_id__in=orfaos).delete()
             ProgramacaoItem.objects.filter(id__in=orfaos).delete()
+
+        after_snapshot = snapshot_programacao_dia(unidade_id, dia)
+        record_programacao_day_diff_after_commit(
+            unidade_id=unidade_id,
+            data_ref=dia,
+            user=request.user,
+            before_snapshot=before_snapshot,
+            after_snapshot=after_snapshot,
+            origem="modal",
+        )
 
     return JsonResponse({
         "ok": True,
@@ -2137,6 +2152,8 @@ def excluir_programacao_secure(request):
         prog = Programacao.objects.filter(unidade_id=unidade_id, data=iso).first()
         if not prog:
             return JsonResponse({"ok": True, "deleted": False})
+    data_ref = getattr(prog, "data", None)
+    before_snapshot = snapshot_programacao_dia(unidade_id, data_ref) if data_ref else None
 
     with transaction.atomic():
         prog_locked = (
@@ -2147,6 +2164,16 @@ def excluir_programacao_secure(request):
         if not prog_locked:
             return JsonResponse({"ok": True, "deleted": False})
         prog_locked.delete()
+        after_snapshot = snapshot_programacao_dia(unidade_id, data_ref) if data_ref else None
+        if data_ref:
+            record_programacao_day_diff_after_commit(
+                unidade_id=unidade_id,
+                data_ref=data_ref,
+                user=request.user,
+                before_snapshot=before_snapshot,
+                after_snapshot=after_snapshot,
+                origem="exclusao",
+            )
     return JsonResponse({"ok": True, "deleted": True})
 
 @login_required
@@ -2178,6 +2205,8 @@ def marcar_item_realizada(request, item_id: int):
             )
         except ProgramacaoItem.DoesNotExist:
             return JsonResponse({"ok": False, "error": "Item não encontrado."}, status=404)
+        data_ref = getattr(getattr(pi, "programacao", None), "data", None)
+        before_snapshot = snapshot_programacao_dia(unidade_id, data_ref) if data_ref else None
 
         if realizada:
             pi.concluido = True
@@ -2191,6 +2220,16 @@ def marcar_item_realizada(request, item_id: int):
             pi.nao_realizada_justificada = False
             pi.concluido_por_id = None
         pi.save(update_fields=["concluido", "concluido_em", "nao_realizada_justificada", "concluido_por_id"])
+        after_snapshot = snapshot_programacao_dia(unidade_id, data_ref) if data_ref else None
+        if data_ref:
+            record_programacao_day_diff_after_commit(
+                unidade_id=unidade_id,
+                data_ref=data_ref,
+                user=request.user,
+                before_snapshot=before_snapshot,
+                after_snapshot=after_snapshot,
+                origem="status_toggle",
+            )
 
     return JsonResponse({"ok": True, "item_id": pi.id, "realizada": pi.concluido})
 
@@ -2332,6 +2371,8 @@ def concluir_item_form(request, item_id: int):
             }
             return render(request, "minhas_metas/concluir_item.html", contexto)
 
+        before_snapshot = snapshot_programacao_dia(unidade_ctx_id, prog.data)
+
         with transaction.atomic():
             if concluido_flag and not pi.concluido and unidade_id and meta and getattr(meta, "id", None):
                 aloc = (
@@ -2373,6 +2414,15 @@ def concluir_item_form(request, item_id: int):
                     concluido_por_id=concluido_por_id,
                     observacao=obs_final,
                 )
+            )
+            after_snapshot = snapshot_programacao_dia(unidade_ctx_id, prog.data)
+            record_programacao_day_diff_after_commit(
+                unidade_id=unidade_ctx_id,
+                data_ref=prog.data,
+                user=request.user,
+                before_snapshot=before_snapshot,
+                after_snapshot=after_snapshot,
+                origem="status_form",
             )
 
         messages.success(request, "Item atualizado com sucesso.")

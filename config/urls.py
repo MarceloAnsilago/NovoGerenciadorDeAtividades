@@ -16,4 +16,5 @@ urlpatterns = [
     path("minhas-metas/", include(("minhas_metas.urls", "minhas_metas"), namespace="minhas_metas")),
 
     path("programar/", include(("programar.urls", "programar"), namespace="programar")),
+    path("relatorios/", include(("relatorios.urls", "relatorios"), namespace="relatorios")),
 ]

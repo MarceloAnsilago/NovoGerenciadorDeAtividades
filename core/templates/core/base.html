@@ -336,6 +336,16 @@
       </li>
 
     {% endwith %}
+    {% with ns=request.resolver_match.namespace app=request.resolver_match.app_name %}
+      <li class="nav-item">
+        <a class="nav-link {% if ns == 'relatorios' or app == 'relatorios' %}active{% endif %}"
+          href="{% url 'relatorios:programacao' %}"
+          data-bs-title="Relatorios"
+          aria-current="{% if ns == 'relatorios' or app == 'relatorios' %}page{% endif %}">
+          <i class="bi bi-journal-text"></i> <span>Relatorios</span>
+        </a>
+      </li>
+    {% endwith %}
     {% with mm_app=request.resolver_match.app_name mm_url=request.resolver_match.url_name %}
       <li class="nav-item">
         <a class="nav-link {% if mm_app == 'minhas_metas' and mm_url == 'nao-realizadas' %}active{% endif %}"

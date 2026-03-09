@@ -1,0 +1,213 @@
+{% extends "core/base.html" %}
+
+{% block title %}Relatorio de Programacao{% endblock %}
+
+{% block extra_head %}
+  {% include "programar/styles/_programacao_styles.html" %}
+  <style>
+    .relatorios-form-card .form-check {
+      border: 1px solid #e7ebf0;
+      border-radius: .75rem;
+      padding: .85rem 1rem;
+      background: #fff;
+    }
+    .relatorio-indicadores-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+    }
+    .relatorio-indicador-card {
+      border: 1px solid #e7ebf0;
+      border-radius: .9rem;
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      padding: 1rem;
+    }
+    .relatorio-indicador-card .value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1;
+    }
+    .relatorio-section + .relatorio-section {
+      margin-top: 1.5rem;
+    }
+    .relatorio-print-area .badge-status {
+      font-size: .74rem;
+      border-radius: 999px;
+      padding: .35rem .55rem;
+    }
+    .relatorio-print-area .badge-status.status-executada { background: #198754; color: #fff; }
+    .relatorio-print-area .badge-status.status-nao_realizada { background: #6c757d; color: #fff; }
+    .relatorio-print-area .badge-status.status-nao_realizada_justificada { background: #0dcaf0; color: #053b4b; }
+    .relatorio-print-area .badge-status.status-pendente { background: #f8f9fa; color: #212529; border: 1px solid #ced4da; }
+    .relatorio-print-area .badge-status.status-removida { background: #dc3545; color: #fff; }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+  <div class="card border-0 shadow-sm relatorios-form-card">
+    <div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <h1 class="h4 mb-1">Relatorio de Programacao</h1>
+          <p class="text-muted mb-0">Gere um relatorio consolidado usando o historico e os dados atuais da programacao.</p>
+        </div>
+      </div>
+
+      <form method="get" class="row g-3">
+        <div class="col-12 col-md-4">
+          <label for="id_data_inicial" class="form-label">Data inicial</label>
+          <input type="date" id="id_data_inicial" name="data_inicial" class="form-control" value="{{ data_inicial|default:'' }}" max="{{ today_iso }}">
+        </div>
+        <div class="col-12 col-md-4">
+          <label for="id_data_final" class="form-label">Data final</label>
+          <input type="date" id="id_data_final" name="data_final" class="form-control" value="{{ data_final|default:'' }}" max="{{ today_iso }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label d-block">Secoes do relatorio</label>
+          <div class="d-grid gap-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="id_sec_historico" name="sec_historico" value="1" {% if selected_sections.historico %}checked{% endif %}>
+              <label class="form-check-label" for="id_sec_historico">Historico de alteracoes da programacao</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="id_sec_desempenho" name="sec_desempenho" value="1" {% if selected_sections.desempenho %}checked{% endif %}>
+              <label class="form-check-label" for="id_sec_desempenho">Desempenho das atividades</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="id_sec_indicadores" name="sec_indicadores" value="1" {% if selected_sections.indicadores %}checked{% endif %}>
+              <label class="form-check-label" for="id_sec_indicadores">Indicadores de desempenho</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 d-flex justify-content-end">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-file-earmark-text me-1"></i> Gerar relatorio
+          </button>
+        </div>
+      </form>
+
+      {% if form_error %}
+        <div class="alert alert-danger mt-3 mb-0">{{ form_error }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if report %}
+    <div id="relatorio-programacao-print-area" class="card border-0 shadow-sm mt-4 relatorio-print-area">
+      <div class="card-body">
+        <div class="container mt-3 report-container px-0">
+          <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+            <h2 class="mb-0"><i class="bi bi-journal-text me-2"></i> Relatorio de Programacao de Atividades</h2>
+            <div class="report-toolbar">
+              <button id="relatorio-programacao-btn-print" type="button" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-printer me-1"></i> Imprimir
+              </button>
+            </div>
+          </div>
+          <div class="text-muted small mb-3">
+            Periodo: <strong>{{ report.periodo_label }}</strong>
+            <span class="ms-2">Gerado em {{ report.gerado_em|date:"d/m/Y H:i" }}</span>
+          </div>
+
+          {% if report.indicadores %}
+            <section class="relatorio-section">
+              <h5 class="fw-semibold mb-3">Indicadores de desempenho</h5>
+              <div class="relatorio-indicadores-grid">
+                {% for card in report.indicadores.cards %}
+                  <div class="relatorio-indicador-card">
+                    <div class="small text-muted mb-2">{{ card.label }}</div>
+                    <div class="value">{{ card.value }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+            </section>
+          {% endif %}
+
+          {% if report.desempenho %}
+            <section class="relatorio-section">
+              <h5 class="fw-semibold mb-3">Desempenho das atividades</h5>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0 programacao-semana-table">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Data</th>
+                      <th>Atividade</th>
+                      <th>Servidores</th>
+                      <th>Veiculo</th>
+                      <th>Status final</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in report.desempenho.rows %}
+                      <tr>
+                        <td>{{ row.data_programacao_label|default:"-" }}</td>
+                        <td>{{ row.titulo }}</td>
+                        <td>
+                          {% if row.servidores %}
+                            {{ row.servidores|join:", " }}
+                          {% else %}
+                            <span class="text-muted">-</span>
+                          {% endif %}
+                        </td>
+                        <td>{{ row.veiculo|default:"-" }}</td>
+                        <td><span class="badge-status status-{{ row.status_final }}">{{ row.status_final_label }}</span></td>
+                      </tr>
+                    {% empty %}
+                      <tr>
+                        <td colspan="5" class="text-muted">Nenhuma atividade encontrada para o desempenho do periodo.</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          {% endif %}
+
+          {% if report.historico %}
+            <section class="relatorio-section">
+              <h5 class="fw-semibold mb-3">Historico de alteracoes da programacao</h5>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0 programacao-semana-table">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Data/Hora</th>
+                      <th>Data programada</th>
+                      <th>Evento</th>
+                      <th>Atividade</th>
+                      <th>Descricao</th>
+                      <th>Usuario</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for entry in report.historico.entries %}
+                      <tr>
+                        <td>{{ entry.criado_em|date:"d/m/Y H:i" }}</td>
+                        <td>{{ entry.data_programacao|date:"d/m/Y" }}</td>
+                        <td>{{ entry.get_evento_display }}</td>
+                        <td>{{ entry.titulo_item|default:"-" }}</td>
+                        <td>{{ entry.descricao }}</td>
+                        <td>{{ entry.usuario.get_short_name|default:entry.usuario.username|default:"-" }}</td>
+                      </tr>
+                    {% empty %}
+                      <tr>
+                        <td colspan="6" class="text-muted">Nenhuma alteracao registrada no periodo.</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  {% include "relatorios/scripts/_print_helper.html" %}
+{% endblock %}
