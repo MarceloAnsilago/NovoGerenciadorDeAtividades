@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relatorio de Programacao</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --text: #162033;
+      --muted: #5b6575;
+      --line: #d7dee8;
+      --line-strong: #495057;
+      --card: #f8fafc;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--text);
+      background: #fff;
+    }
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 28px 40px;
+    }
+    .toolbar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .toolbar button {
+      border: 1px solid #c7d0db;
+      background: #fff;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 9px 14px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .header {
+      border-bottom: 2px solid var(--line-strong);
+      padding-bottom: 14px;
+      margin-bottom: 18px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 2rem;
+      line-height: 1.1;
+    }
+    .meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: .98rem;
+    }
+    .meta strong {
+      color: var(--text);
+    }
+    .section {
+      margin-top: 24px;
+    }
+    .section h2 {
+      margin: 0 0 12px;
+      font-size: 1.6rem;
+      line-height: 1.15;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--card);
+      padding: 14px;
+      min-height: 94px;
+    }
+    .card .label {
+      font-size: .78rem;
+      text-transform: uppercase;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .card .value {
+      margin-top: 18px;
+      font-size: 2rem;
+      font-weight: 700;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 7px 8px;
+      vertical-align: top;
+      text-align: left;
+      word-wrap: break-word;
+    }
+    th {
+      background: #f5f7fa;
+      font-weight: 700;
+    }
+    .desempenho-table tbody tr td {
+      border-bottom: 1px solid var(--line);
+    }
+    .desempenho-table tbody tr.date-group-start td {
+      border-top: 2px solid var(--line-strong);
+    }
+    .status-executada { color: #198754; }
+    .status-nao_realizada { color: #495057; }
+    .status-nao_realizada_justificada { color: #0b7285; }
+    .status-pendente { color: #212529; }
+    .status-removida { color: #dc3545; }
+    .muted { color: var(--muted); }
+
+    @media print {
+      @page { size: A4 portrait; margin: 10mm; }
+      body { background: #fff; }
+      .page { max-width: none; padding: 0; }
+      .toolbar { display: none !important; }
+      .card { break-inside: avoid; }
+      .section { break-inside: avoid; }
+      .section h2 { font-size: 1.35rem; }
+      .header h1 { font-size: 1.7rem; }
+      .meta { font-size: .9rem; }
+      table { font-size: 11px; }
+      th, td { padding: 5px 6px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="toolbar no-print">
+      <button type="button" onclick="window.print()">Imprimir</button>
+      <button type="button" onclick="window.close()">Fechar</button>
+    </div>
+
+    {% if report %}
+      <header class="header">
+        <h1>Relatorio de Programacao de Atividades</h1>
+        <div class="meta">
+          Periodo: <strong>{{ report.periodo_label }}</strong>
+          <span style="margin-left:10px;">Gerado em {{ report.gerado_em|date:"d/m/Y H:i" }}</span>
+        </div>
+      </header>
+
+      {% if report.indicadores %}
+        <section class="section">
+          <h2>Indicadores de desempenho</h2>
+          <div class="cards">
+            {% for card in report.indicadores.cards %}
+              <div class="card">
+                <div class="label">{{ card.label }}</div>
+                <div class="value">{{ card.value }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if report.desempenho %}
+        <section class="section">
+          <h2>Desempenho das atividades</h2>
+          <table class="desempenho-table">
+            <thead>
+              <tr>
+                <th style="width: 12%;">Data</th>
+                <th style="width: 23%;">Atividade</th>
+                <th style="width: 40%;">Servidores</th>
+                <th style="width: 12%;">Veiculo</th>
+                <th style="width: 13%;">Status final</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in report.desempenho.rows %}
+                {% ifchanged row.data_programacao_label %}
+                  <tr class="date-group-start">
+                {% else %}
+                  <tr>
+                {% endifchanged %}
+                  <td>{{ row.data_programacao_label|default:"-" }}</td>
+                  <td>{{ row.titulo }}</td>
+                  <td>
+                    {% if row.servidores %}
+                      {{ row.servidores|join:", " }}
+                    {% else %}
+                      <span class="muted">-</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ row.veiculo|default:"-" }}</td>
+                  <td class="status-{{ row.status_final }}">{{ row.status_final_label }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="muted">Nenhuma atividade encontrada para o desempenho do periodo.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+      {% endif %}
+
+      {% if report.historico %}
+        <section class="section">
+          <h2>Historico de alteracoes da programacao</h2>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 14%;">Data/Hora</th>
+                <th style="width: 11%;">Data programada</th>
+                <th style="width: 12%;">Evento</th>
+                <th style="width: 20%;">Atividade</th>
+                <th style="width: 28%;">Descricao</th>
+                <th style="width: 15%;">Usuario</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in report.historico.entries %}
+                <tr>
+                  <td>{{ entry.criado_em|date:"d/m/Y H:i" }}</td>
+                  <td>{{ entry.data_programacao|date:"d/m/Y" }}</td>
+                  <td>{{ entry.get_evento_display }}</td>
+                  <td>{{ entry.titulo_item|default:"-" }}</td>
+                  <td>{{ entry.descricao }}</td>
+                  <td>{{ entry.usuario.get_short_name|default:entry.usuario.username|default:"-" }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="6" class="muted">Nenhuma alteracao registrada no periodo.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+      {% endif %}
+    {% else %}
+      <header class="header">
+        <h1>Relatorio de Programacao de Atividades</h1>
+      </header>
+      <p class="muted">Nenhum relatorio disponivel para impressao.</p>
+    {% endif %}
+  </div>
+
+  <script>
+    window.addEventListener("load", function () {
+      window.setTimeout(function () {
+        try { window.print(); } catch (_) {}
+      }, 120);
+    });
+  </script>
+</body>
+</html>

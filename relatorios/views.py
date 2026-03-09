@@ -5,6 +5,7 @@ from datetime import datetime
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 
 from .services.programacao_report_service import build_programacao_report
@@ -25,11 +26,13 @@ def relatorios_home_view(request):
 
 @login_required
 @require_GET
+@never_cache
 def relatorio_programacao_view(request):
     data_inicial_raw = (request.GET.get("data_inicial") or "").strip()
     data_final_raw = (request.GET.get("data_final") or "").strip()
     data_inicial = _parse_date(data_inicial_raw)
     data_final = _parse_date(data_final_raw)
+    is_print = request.GET.get("print", "").strip().lower() in {"1", "true", "yes", "on"}
 
     selected_sections = {
         "historico": request.GET.get("sec_historico", "1") not in {"0", "false", "off"},
@@ -61,5 +64,5 @@ def relatorio_programacao_view(request):
                 include_sections=selected_sections,
             )
 
-    return render(request, "relatorios/programacao.html", context)
-
+    template_name = "relatorios/programacao_print.html" if is_print else "relatorios/programacao.html"
+    return render(request, template_name, context)

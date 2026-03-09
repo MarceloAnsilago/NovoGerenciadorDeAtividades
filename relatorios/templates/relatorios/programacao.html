@@ -44,6 +44,44 @@
     .relatorio-section + .relatorio-section {
       margin-top: 1.5rem;
     }
+    .relatorio-print-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding-bottom: .9rem;
+      border-bottom: 2px solid #cfd6df;
+    }
+    .relatorio-print-title {
+      margin: 0;
+      font-size: 2rem;
+      line-height: 1.1;
+      color: #162033;
+    }
+    .relatorio-print-meta {
+      margin-top: .7rem;
+      font-size: 1rem;
+      color: #475569;
+    }
+    .relatorio-print-meta strong {
+      color: #162033;
+      font-weight: 700;
+    }
+    .relatorio-print-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 1rem;
+    }
+    .relatorio-desempenho-table tbody tr td {
+      border-bottom: 1px solid #d7dee8 !important;
+    }
+    .relatorio-desempenho-table tbody tr.date-group-start td {
+      border-top: 2px solid #495057 !important;
+    }
+    .relatorio-desempenho-table tbody tr:first-child td {
+      border-top: 2px solid #495057 !important;
+    }
     .relatorio-print-area .badge-status {
       display: inline;
       font-size: .74rem;
@@ -60,6 +98,19 @@
     .relatorio-print-area .badge-status.status-pendente { color: #212529; }
     .relatorio-print-area .badge-status.status-removida { color: #dc3545; }
     @media print {
+      .relatorios-form-card {
+        display: none !important;
+      }
+      .container.py-3 {
+        padding-top: 0 !important;
+      }
+      #relatorio-programacao-print-area {
+        margin-top: 0 !important;
+        box-shadow: none !important;
+      }
+      #relatorio-programacao-print-area .card-body {
+        padding-top: 0 !important;
+      }
       .relatorio-indicadores-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
         gap: 12px;
@@ -72,6 +123,27 @@
       }
       .relatorio-indicador-card .value {
         font-size: 1.6rem;
+      }
+      .relatorio-print-header {
+        margin-bottom: .85rem;
+        padding-bottom: .7rem;
+        border-bottom: 1.4pt solid #495057;
+      }
+      .relatorio-print-title {
+        font-size: 1.65rem;
+      }
+      .relatorio-print-meta {
+        font-size: .92rem;
+        margin-top: .45rem;
+      }
+      .relatorio-desempenho-table tbody tr td {
+        border-bottom: 0.6pt solid #d7dee8 !important;
+      }
+      .relatorio-desempenho-table tbody tr.date-group-start td {
+        border-top: 1.4pt solid #495057 !important;
+      }
+      .relatorio-desempenho-table tbody tr:first-child td {
+        border-top: 1.4pt solid #495057 !important;
       }
       .relatorio-print-area .badge-status {
         font-size: .7rem;
@@ -155,17 +227,25 @@
     <div id="relatorio-programacao-print-area" class="card border-0 shadow-sm mt-4 relatorio-print-area">
       <div class="card-body">
         <div class="container mt-3 report-container px-0">
-          <div class="d-flex justify-content-between align-items-center mb-3 no-print">
-            <h2 class="mb-0"><i class="bi bi-journal-text me-2"></i> Relatorio de Programacao de Atividades</h2>
+          <div class="relatorio-print-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1rem;padding-bottom:.9rem;border-bottom:2px solid #cfd6df;">
+            <div>
+              <h2 class="relatorio-print-title" style="margin:0;font-size:2rem;line-height:1.1;color:#162033;font-weight:700;">Relatorio de Programacao de Atividades</h2>
+              <div class="relatorio-print-meta" style="margin-top:.7rem;font-size:1rem;color:#475569;">
+                Periodo: <strong>{{ report.periodo_label }}</strong>
+                <span class="ms-2">Gerado em {{ report.gerado_em|date:"d/m/Y H:i" }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="relatorio-print-toolbar no-print">
             <div class="report-toolbar">
-              <button id="relatorio-programacao-btn-print" type="button" class="btn btn-outline-secondary btn-sm">
+              <button
+                type="button"
+                id="relatorio-programacao-btn-print"
+                class="btn btn-outline-secondary btn-sm"
+              >
                 <i class="bi bi-printer me-1"></i><span class="btn-label">Imprimir</span>
               </button>
             </div>
-          </div>
-          <div class="text-muted small mb-3">
-            Periodo: <strong>{{ report.periodo_label }}</strong>
-            <span class="ms-2">Gerado em {{ report.gerado_em|date:"d/m/Y H:i" }}</span>
           </div>
 
           {% if report.indicadores %}
@@ -186,7 +266,7 @@
             <section class="relatorio-section">
               <h5 class="fw-semibold mb-3">Desempenho das atividades</h5>
               <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0 programacao-semana-table">
+                <table class="table table-sm align-middle mb-0 programacao-semana-table relatorio-desempenho-table">
                   <thead class="table-light">
                     <tr>
                       <th>Data</th>
@@ -198,18 +278,33 @@
                   </thead>
                   <tbody>
                     {% for row in report.desempenho.rows %}
-                      <tr>
-                        <td>{{ row.data_programacao_label|default:"-" }}</td>
-                        <td>{{ row.titulo }}</td>
-                        <td>
-                          {% if row.servidores %}
-                            {{ row.servidores|join:", " }}
-                          {% else %}
-                            <span class="text-muted">-</span>
-                          {% endif %}
-                        </td>
-                        <td>{{ row.veiculo|default:"-" }}</td>
-                        <td><span class="badge-status status-{{ row.status_final }}">{{ row.status_final_label }}</span></td>
+                      {% ifchanged row.data_programacao_label %}
+                        <tr class="date-group-start">
+                          <td style="border-top:2px solid #495057;border-bottom:1px solid #d7dee8;">{{ row.data_programacao_label|default:"-" }}</td>
+                          <td style="border-top:2px solid #495057;border-bottom:1px solid #d7dee8;">{{ row.titulo }}</td>
+                          <td style="border-top:2px solid #495057;border-bottom:1px solid #d7dee8;">
+                            {% if row.servidores %}
+                              {{ row.servidores|join:", " }}
+                            {% else %}
+                              <span class="text-muted">-</span>
+                            {% endif %}
+                          </td>
+                          <td style="border-top:2px solid #495057;border-bottom:1px solid #d7dee8;">{{ row.veiculo|default:"-" }}</td>
+                          <td style="border-top:2px solid #495057;border-bottom:1px solid #d7dee8;"><span class="badge-status status-{{ row.status_final }}">{{ row.status_final_label }}</span></td>
+                      {% else %}
+                        <tr>
+                          <td style="border-bottom:1px solid #d7dee8;">{{ row.data_programacao_label|default:"-" }}</td>
+                          <td style="border-bottom:1px solid #d7dee8;">{{ row.titulo }}</td>
+                          <td style="border-bottom:1px solid #d7dee8;">
+                            {% if row.servidores %}
+                              {{ row.servidores|join:", " }}
+                            {% else %}
+                              <span class="text-muted">-</span>
+                            {% endif %}
+                          </td>
+                          <td style="border-bottom:1px solid #d7dee8;">{{ row.veiculo|default:"-" }}</td>
+                          <td style="border-bottom:1px solid #d7dee8;"><span class="badge-status status-{{ row.status_final }}">{{ row.status_final_label }}</span></td>
+                      {% endifchanged %}
                       </tr>
                     {% empty %}
                       <tr>
@@ -266,7 +361,6 @@
 
 {% block extra_js %}
   {{ block.super }}
-  {% include "relatorios/scripts/_print_helper.html" %}
   <script>
     (function () {
       function toIsoDate(date) {
@@ -316,6 +410,15 @@
           window.requestAnimationFrame(() => window.setTimeout(() => form.submit(), 60));
         });
       }
+
+      document.addEventListener("click", function (ev) {
+        const btn = ev.target.closest?.("#relatorio-programacao-btn-print");
+        if (!btn) return;
+        ev.preventDefault();
+        try {
+          window.print();
+        } catch (_) {}
+      });
     })();
   </script>
 {% endblock %}

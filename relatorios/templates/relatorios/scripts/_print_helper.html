@@ -1,102 +1,51 @@
 <script>
 (function () {
-  function collectStylesHtml() {
-    const seen = new Set();
-    const parts = [];
-    document.querySelectorAll('head style, head link[rel="stylesheet"]').forEach((el) => {
-      const html = el.outerHTML;
-      if (html && !seen.has(html)) {
-        seen.add(html);
-        parts.push(html);
-      }
-    });
-    return parts.join("\n");
-  }
+  function setPrintingState(btn, isPrinting) {
+    if (!btn) return;
 
-  function printArea(btn, targetId) {
-    if (!btn || btn.dataset.printing === "1") return;
-    const target = document.getElementById(targetId);
-    if (!target) return;
-    const html = target.outerHTML || "";
-    if (!html.trim()) return;
-
-    btn.dataset.printing = "1";
-    btn.disabled = true;
     const icon = btn.querySelector("i");
     const label = btn.querySelector(".btn-label");
-    const originalIconClass = icon ? icon.className : "";
-    const originalLabel = label ? label.textContent : "";
-    if (icon) {
-      icon.className = "";
-      icon.classList.add("me-1", "spinner-border", "spinner-border-sm");
+
+    if (isPrinting) {
+      btn.dataset.printing = "1";
+      btn.disabled = true;
+      if (icon) {
+        btn.dataset.originalIconClass = icon.className;
+        icon.className = "";
+        icon.classList.add("me-1", "spinner-border", "spinner-border-sm");
+      }
+      if (label) {
+        btn.dataset.originalLabel = label.textContent || "";
+        label.textContent = "Imprimindo...";
+      }
+      return;
     }
-    if (label) label.textContent = "Imprimindo...";
 
-    // Deixa o navegador pintar o estado de carregamento antes de bloquear com o print.
-    const startPrintFlow = () => {
-      const iframe = document.createElement("iframe");
-      Object.assign(iframe.style, {
-        position: "fixed",
-        width: "0",
-        height: "0",
-        opacity: "0",
-        pointerEvents: "none",
-      });
-      document.body.appendChild(iframe);
-
-      let cleaned = false;
-      const cleanup = () => {
-        if (cleaned) return;
-        cleaned = true;
-        delete btn.dataset.printing;
-        btn.disabled = false;
-        if (icon) icon.className = originalIconClass;
-        if (label) label.textContent = originalLabel || "Imprimir";
-        iframe.remove();
-      };
-
-      iframe.onload = () => {
-        try {
-          const win = iframe.contentWindow;
-          if (!win) return cleanup();
-          win.onafterprint = () => window.setTimeout(cleanup, 20);
-          win.focus();
-          window.setTimeout(() => {
-            try { win.print(); } catch (_) { cleanup(); }
-          }, 250);
-        } catch (_) {
-          cleanup();
-        }
-      };
-
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!doc) return cleanup();
-      doc.open();
-      doc.write(`<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Relatorio de Programacao</title>
-  ${collectStylesHtml()}
-  <style>
-    body{margin:0;padding:8px;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:11px;}
-    @page{size:A4 portrait;margin:8mm;}
-    .no-print{display:none!important;}
-  </style>
-</head>
-<body>${html}</body>
-</html>`);
-      doc.close();
-    };
-
-    window.requestAnimationFrame(() => window.setTimeout(startPrintFlow, 60));
+    delete btn.dataset.printing;
+    btn.disabled = false;
+    if (icon) icon.className = btn.dataset.originalIconClass || "bi bi-printer me-1";
+    if (label) label.textContent = btn.dataset.originalLabel || "Imprimir";
   }
 
   document.addEventListener("click", function (ev) {
     const btn = ev.target.closest?.("#relatorio-programacao-btn-print");
-    if (!btn) return;
+    if (!btn || btn.dataset.printing === "1") return;
+
     ev.preventDefault();
-    printArea(btn, "relatorio-programacao-print-area");
+    setPrintingState(btn, true);
+
+    const cleanup = () => {
+      window.setTimeout(() => setPrintingState(btn, false), 30);
+    };
+
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("print", "1");
+      window.open(url.toString(), "_blank", "noopener");
+      cleanup();
+    } catch (_) {
+      cleanup();
+    }
   }, true);
 })();
 </script>

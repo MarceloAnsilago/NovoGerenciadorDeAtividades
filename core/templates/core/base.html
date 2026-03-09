@@ -143,6 +143,17 @@
     /* esconder elementos marcados com .no-print apenas na impressão */
     @media print {
       .no-print { display: none !important; }
+      .navbar,
+      .sidebar {
+        display: none !important;
+      }
+      body {
+        padding-top: 0 !important;
+      }
+      .content {
+        margin-left: 0 !important;
+        padding: 0 !important;
+      }
     }
 
     /* tarja fixa topo (espaçamento do conteúdo é feito pelo padding-top do body) */
@@ -336,27 +347,27 @@
       </li>
 
     {% endwith %}
-    {% with ns=request.resolver_match.namespace app=request.resolver_match.app_name %}
-      <li class="nav-item">
-        <a class="nav-link {% if ns == 'relatorios' or app == 'relatorios' %}active{% endif %}"
-          href="{% url 'relatorios:programacao' %}"
-          data-bs-title="Relatorios"
-          aria-current="{% if ns == 'relatorios' or app == 'relatorios' %}page{% endif %}">
-          <i class="bi bi-journal-text"></i> <span>Relatorios</span>
-        </a>
-      </li>
-    {% endwith %}
     {% with mm_app=request.resolver_match.app_name mm_url=request.resolver_match.url_name %}
       <li class="nav-item">
         <a class="nav-link {% if mm_app == 'minhas_metas' and mm_url == 'nao-realizadas' %}active{% endif %}"
           href="{% url 'minhas_metas:nao-realizadas' %}"
-          data-bs-title="Não Realizadas"
+          data-bs-title="Não realizadas"
           aria-current="{% if mm_app == 'minhas_metas' and mm_url == 'nao-realizadas' %}page{% endif %}">
-          <i class="bi bi-slash-circle"></i> <span>Não Realizadas</span>
+          <i class="bi bi-slash-circle"></i> <span>Não realizadas</span>
         </a>
       </li>
     {% endwith %}
-
+    {% with ns=request.resolver_match.namespace app=request.resolver_match.app_name %}
+      <li class="nav-item">
+        <a class="nav-link {% if ns == 'relatorios' or app == 'relatorios' %}active{% endif %}"
+          href="{% url 'relatorios:programacao' %}"
+          data-bs-title="Relatórios"
+          aria-current="{% if ns == 'relatorios' or app == 'relatorios' %}page{% endif %}">
+          <i class="bi bi-journal-text"></i> <span>Relatórios</span>
+        </a>
+      </li>
+    {% endwith %}
+ 
     {% if request.user.is_superuser %}
       <li class="nav-item mt-3"><div class="nav-section-title">Administração</div></li>
 
