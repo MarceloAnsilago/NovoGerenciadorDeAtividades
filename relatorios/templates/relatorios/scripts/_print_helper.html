@@ -1,22 +1,14 @@
 <script>
 (function () {
   function collectStylesHtml() {
-    const selectors = [
-      "style#programar-styles",
-      "style[data-print-include]",
-      'link[rel="stylesheet"][href*="bootstrap"]',
-      'link[rel="stylesheet"][href*="bootstrap-icons"]',
-    ];
     const seen = new Set();
     const parts = [];
-    selectors.forEach((sel) => {
-      document.querySelectorAll(sel).forEach((el) => {
-        const html = el.outerHTML;
-        if (html && !seen.has(html)) {
-          seen.add(html);
-          parts.push(html);
-        }
-      });
+    document.querySelectorAll('head style, head link[rel="stylesheet"]').forEach((el) => {
+      const html = el.outerHTML;
+      if (html && !seen.has(html)) {
+        seen.add(html);
+        parts.push(html);
+      }
     });
     return parts.join("\n");
   }
@@ -30,44 +22,57 @@
 
     btn.dataset.printing = "1";
     btn.disabled = true;
+    const icon = btn.querySelector("i");
+    const label = btn.querySelector(".btn-label");
+    const originalIconClass = icon ? icon.className : "";
+    const originalLabel = label ? label.textContent : "";
+    if (icon) {
+      icon.className = "";
+      icon.classList.add("me-1", "spinner-border", "spinner-border-sm");
+    }
+    if (label) label.textContent = "Imprimindo...";
 
-    const iframe = document.createElement("iframe");
-    Object.assign(iframe.style, {
-      position: "fixed",
-      width: "0",
-      height: "0",
-      opacity: "0",
-      pointerEvents: "none",
-    });
-    document.body.appendChild(iframe);
+    // Deixa o navegador pintar o estado de carregamento antes de bloquear com o print.
+    const startPrintFlow = () => {
+      const iframe = document.createElement("iframe");
+      Object.assign(iframe.style, {
+        position: "fixed",
+        width: "0",
+        height: "0",
+        opacity: "0",
+        pointerEvents: "none",
+      });
+      document.body.appendChild(iframe);
 
-    let cleaned = false;
-    const cleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      delete btn.dataset.printing;
-      btn.disabled = false;
-      iframe.remove();
-    };
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        delete btn.dataset.printing;
+        btn.disabled = false;
+        if (icon) icon.className = originalIconClass;
+        if (label) label.textContent = originalLabel || "Imprimir";
+        iframe.remove();
+      };
 
-    iframe.onload = () => {
-      try {
-        const win = iframe.contentWindow;
-        if (!win) return cleanup();
-        win.onafterprint = () => window.setTimeout(cleanup, 20);
-        win.focus();
-        window.setTimeout(() => {
-          try { win.print(); } catch (_) { cleanup(); }
-        }, 250);
-      } catch (_) {
-        cleanup();
-      }
-    };
+      iframe.onload = () => {
+        try {
+          const win = iframe.contentWindow;
+          if (!win) return cleanup();
+          win.onafterprint = () => window.setTimeout(cleanup, 20);
+          win.focus();
+          window.setTimeout(() => {
+            try { win.print(); } catch (_) { cleanup(); }
+          }, 250);
+        } catch (_) {
+          cleanup();
+        }
+      };
 
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) return cleanup();
-    doc.open();
-    doc.write(`<!doctype html>
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) return cleanup();
+      doc.open();
+      doc.write(`<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -81,7 +86,10 @@
 </head>
 <body>${html}</body>
 </html>`);
-    doc.close();
+      doc.close();
+    };
+
+    window.requestAnimationFrame(() => window.setTimeout(startPrintFlow, 60));
   }
 
   document.addEventListener("click", function (ev) {
