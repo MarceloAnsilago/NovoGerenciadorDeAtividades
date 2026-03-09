@@ -30,6 +30,10 @@ def relatorios_home_view(request):
 def relatorio_programacao_view(request):
     data_inicial_raw = (request.GET.get("data_inicial") or "").strip()
     data_final_raw = (request.GET.get("data_final") or "").strip()
+    observacao_raw = (request.GET.get("observacao") or "")
+    observacao = str(observacao_raw).replace("\r\n", "\n").replace("\r", "\n").strip()
+    if len(observacao) > 2000:
+        observacao = observacao[:2000].rstrip()
     data_inicial = _parse_date(data_inicial_raw)
     data_final = _parse_date(data_final_raw)
     is_print = request.GET.get("print", "").strip().lower() in {"1", "true", "yes", "on"}
@@ -47,6 +51,7 @@ def relatorio_programacao_view(request):
         "selected_sections": selected_sections,
         "report": None,
         "form_error": "",
+        "observacao": observacao,
     }
 
     if data_inicial_raw or data_final_raw:

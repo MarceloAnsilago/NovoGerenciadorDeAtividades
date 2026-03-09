@@ -25,6 +25,7 @@ from programar.status import (
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
     PENDENTE,
+    is_auto_concluida_expediente,
     item_execucao_status_from_fields,
 )
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotAllowed
@@ -1438,11 +1439,40 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 # =============================================================================
 # Relatórios (JSON + Imprimível)
 # =============================================================================
+def _relatorio_observacao_from_request(request) -> str:
+    try:
+        raw = request.GET.get("observacao", "")
+    except Exception:
+        raw = ""
+    obs = str(raw or "")
+    obs = obs.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if len(obs) > 2000:
+        obs = obs[:2000].rstrip()
+    return obs
+
+
+def _render_relatorio_observacao_html(observacao: str) -> str:
+    obs = (observacao or "").strip()
+    if not obs:
+        return ""
+    safe = html.escape(obs).replace("\n", "<br>")
+    return f"""
+      <div class="mt-3 px-3 pb-3">
+        <div class="border rounded p-3 bg-light">
+          <div class="small text-uppercase text-muted fw-semibold mb-1">ObservaÃ§Ã£o</div>
+          <div class="small">{safe}</div>
+        </div>
+      </div>
+    """
+
+
 @login_required
 @require_GET
 def relatorios_parcial(request):
     start = request.GET.get("start", "")
     end = request.GET.get("end", "")
+    observacao = _relatorio_observacao_from_request(request)
+    observacao_html = _render_relatorio_observacao_html(observacao)
 
     # ORM primeiro: garante periodos por servidor de forma consistente no relatorio mensal.
     servidores = _fetch_plantonistas_via_orm(request, start, end)
@@ -1477,6 +1507,7 @@ def relatorios_parcial(request):
               <div class="mb-3">{plantonistas_html}</div>
               <hr class="my-3">
               {tabela_semana_html}
+              {observacao_html}
             </div>
           </div>
         </div>
@@ -1497,6 +1528,7 @@ def relatorios_parcial(request):
         <div id=\"relatorioPrintArea\" class=\"card border-0 shadow-sm\">
           <div class=\"card-body\">
             {tabela_semana_html}
+            {observacao_html}
           </div>
         </div>
         """
@@ -1508,6 +1540,8 @@ def relatorios_parcial(request):
 def print_relatorio_semana(request):
     start = request.GET.get("start", "")
     end = request.GET.get("end", "")
+    observacao = _relatorio_observacao_from_request(request)
+    observacao_html = _render_relatorio_observacao_html(observacao)
 
     # força ocultar justificativas neste modo de impressão
     try:
@@ -1561,6 +1595,7 @@ def print_relatorio_semana(request):
       <div class="card-body p-0">
         <div class="mb-3">{plantonistas_html}</div>
         <div>{tabela_semana_html}</div>
+        {observacao_html}
       </div>
     </div>
   </div>
@@ -1574,6 +1609,8 @@ def print_relatorio_semana(request):
 def print_relatorio_justificativas(request):
     start = request.GET.get("start", "")
     end = request.GET.get("end", "")
+    observacao = _relatorio_observacao_from_request(request)
+    observacao_html = _render_relatorio_observacao_html(observacao)
 
     # força modo somente justificativas via query flag
     try:
@@ -1621,6 +1658,7 @@ def print_relatorio_justificativas(request):
     <div class="card border-0 shadow-sm">
       <div class="card-body p-0">
         {tabela_semana_html}
+        {observacao_html}
       </div>
     </div>
   </div>
@@ -2090,22 +2128,40 @@ def programacao_do_dia_orm(request):
             nome = getattr(getattr(link, "servidor", None), "nome", "") or f"Servidor {sid}"
             serv_objs_by_item.setdefault(iid, []).append({"id": sid, "nome": nome})
 
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
+    today = timezone.localdate()
+
     itens: List[Dict[str, Any]] = []
     for it in itens_qs:
         meta_id = it["meta_id"]
         iid = int(it["id"])
-        concluido = bool(it.get("concluido"))
-        status_execucao = _item_execucao_status_from_fields(
-            concluido,
-            it.get("concluido_em"),
-            bool(it.get("nao_realizada_justificada")),
+        concluido_db = bool(it.get("concluido"))
+        concluido_em = it.get("concluido_em")
+        nao_realizada_justificada = bool(it.get("nao_realizada_justificada"))
+        auto_concluida_expediente = is_auto_concluida_expediente(
+            meta_id=meta_id,
+            meta_expediente_id=meta_expediente_id,
+            programacao_data=dia,
+            concluido=concluido_db,
+            concluido_em=concluido_em,
+            nao_realizada_justificada=nao_realizada_justificada,
+            today=today,
+        )
+        status_execucao = EXECUTADA if auto_concluida_expediente else _item_execucao_status_from_fields(
+            concluido_db,
+            concluido_em,
+            nao_realizada_justificada,
         )
         obj = {
             "id": iid,
             "meta_id": meta_id,
             "observacao": it.get("observacao") or "",
             "veiculo_id": it.get("veiculo_id"),
-            "concluido": concluido,
+            "concluido": bool(concluido_db or auto_concluida_expediente),
             "status_execucao": status_execucao,
             "servidores_ids": serv_ids_by_item.get(iid, []),
             "servidores": serv_objs_by_item.get(iid, []),

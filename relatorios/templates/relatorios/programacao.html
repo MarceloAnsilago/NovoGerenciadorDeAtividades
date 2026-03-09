@@ -210,6 +210,11 @@
             </div>
           </div>
         </div>
+        <div class="col-12">
+          <label for="id_observacao" class="form-label">Observação (opcional)</label>
+          <textarea id="id_observacao" name="observacao" class="form-control" rows="3" maxlength="2000">{{ observacao|default:'' }}</textarea>
+          <div class="form-text">Se preenchida, essa observação será impressa no final do relatório.</div>
+        </div>
         <div class="col-12 d-flex justify-content-end">
           <button type="submit" id="relatorio-programacao-btn-submit" class="btn btn-primary">
             <i class="bi bi-file-earmark-text me-1"></i><span class="btn-label">Gerar relatório</span>
@@ -350,6 +355,13 @@
                   </tbody>
                 </table>
               </div>
+            </section>
+          {% endif %}
+
+          {% if observacao %}
+            <section class="relatorio-section">
+              <h5 class="fw-semibold mb-3">Observação</h5>
+              <div class="border rounded p-3 bg-light">{{ observacao|linebreaksbr }}</div>
             </section>
           {% endif %}
         </div>

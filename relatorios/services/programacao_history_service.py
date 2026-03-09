@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
-from programar.status import item_execucao_label, item_execucao_status_from_fields
+from programar.status import EXECUTADA, is_auto_concluida_expediente, item_execucao_label, item_execucao_status_from_fields
 
 from relatorios.models import ProgramacaoHistorico
 
@@ -47,6 +49,12 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             )
 
     items_map: dict[int, dict[str, Any]] = {}
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
+    today = timezone.localdate()
     for item in itens:
         meta = getattr(item, "meta", None)
         atividade = getattr(meta, "atividade", None) if meta else None
@@ -56,10 +64,22 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             or getattr(atividade, "titulo", None)
             or ""
         )
-        status_execucao = item_execucao_status_from_fields(
-            bool(getattr(item, "concluido", False)),
-            getattr(item, "concluido_em", None),
-            bool(getattr(item, "nao_realizada_justificada", False)),
+        concluido_db = bool(getattr(item, "concluido", False))
+        concluido_em = getattr(item, "concluido_em", None)
+        nao_realizada_justificada = bool(getattr(item, "nao_realizada_justificada", False))
+        auto_concluida_expediente = is_auto_concluida_expediente(
+            meta_id=item.meta_id,
+            meta_expediente_id=meta_expediente_id,
+            programacao_data=data_ref,
+            concluido=concluido_db,
+            concluido_em=concluido_em,
+            nao_realizada_justificada=nao_realizada_justificada,
+            today=today,
+        )
+        status_execucao = EXECUTADA if auto_concluida_expediente else item_execucao_status_from_fields(
+            concluido_db,
+            concluido_em,
+            nao_realizada_justificada,
         )
         servidores = servidores_por_item.get(item.id, [])
         items_map[item.id] = {

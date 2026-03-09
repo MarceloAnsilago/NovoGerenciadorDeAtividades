@@ -144,6 +144,11 @@
 
     let url = `${NS.urls.relatorios}?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
     try{
+      let obs = String(document.getElementById('programar-observacao')?.value || '').trim();
+      if (obs.length > 2000) obs = obs.slice(0, 2000);
+      if (obs) url += `&observacao=${encodeURIComponent(obs)}`;
+    }catch(_e){}
+    try{
       const mode = String(NS.reportMode||'all').toLowerCase();
       if (mode === 'just-only') url += '&only_just=1';
       else if (mode === 'programacao-only') url += '&hide_just=1';

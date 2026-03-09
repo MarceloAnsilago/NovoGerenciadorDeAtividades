@@ -5,6 +5,7 @@ from typing import Any
 
 from django.db import transaction
 from django.db.models import Q
+from django.conf import settings
 from django.utils import timezone
 
 from metas.models import Meta
@@ -14,6 +15,7 @@ from programar.status import (
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
     PENDENTE,
+    is_auto_concluida_expediente,
     item_execucao_status_from_fields,
 )
 from servidores.models import Servidor
@@ -60,13 +62,32 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
             {"id": link.servidor_id, "nome": getattr(link.servidor, "nome", "")}
         )
 
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
+    today = timezone.localdate()
+
     out: list[dict[str, Any]] = []
     for item in itens:
         meta = getattr(item, "meta", None)
-        status_execucao = item_execucao_status_from_fields(
-            bool(item.concluido),
-            item.concluido_em,
-            bool(getattr(item, "nao_realizada_justificada", False)),
+        concluido_db = bool(item.concluido)
+        concluido_em = item.concluido_em
+        nao_realizada_justificada = bool(getattr(item, "nao_realizada_justificada", False))
+        auto_concluida_expediente = is_auto_concluida_expediente(
+            meta_id=item.meta_id,
+            meta_expediente_id=meta_expediente_id,
+            programacao_data=data_ref,
+            concluido=concluido_db,
+            concluido_em=concluido_em,
+            nao_realizada_justificada=nao_realizada_justificada,
+            today=today,
+        )
+        status_execucao = EXECUTADA if auto_concluida_expediente else item_execucao_status_from_fields(
+            concluido_db,
+            concluido_em,
+            nao_realizada_justificada,
         )
         out.append(
             {
@@ -75,7 +96,7 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
                 "titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", ""),
                 "observacao": item.observacao or "",
                 "veiculo_id": item.veiculo_id,
-                "concluido": bool(item.concluido),
+                "concluido": bool(concluido_db or auto_concluida_expediente),
                 "status_execucao": status_execucao,
                 "servidores": servidores_por_item.get(item.id, []),
             }
