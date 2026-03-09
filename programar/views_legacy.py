@@ -414,6 +414,11 @@ def salvar_programacao(request):
     veiculos_permitidos = set(
         Veiculo.objects.filter(unidade_id=unidade_id).values_list("id", flat=True)
     )
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
 
     with transaction.atomic():
         prog = (
@@ -458,6 +463,7 @@ def salvar_programacao(request):
                 continue
             if meta_id not in metas_permitidas:
                 continue
+            is_expediente = meta_expediente_id is not None and meta_id == meta_expediente_id
 
             obs = it.get("observacao") or ""
             raw_veiculo = it.get("veiculo_id")
@@ -500,8 +506,8 @@ def salvar_programacao(request):
                     continue
                 servidores_ids.append(sid_int)
 
-            # Ignora item vazio: sem servidores, sem veiculo e sem observacao.
-            if not servidores_ids and veiculo_id is None and not obs:
+            # Ignora item vazio (exceto expediente): sem servidores, sem veiculo e sem observacao.
+            if (not is_expediente) and (not servidores_ids) and veiculo_id is None and not obs:
                 continue
 
             if pi:
@@ -536,7 +542,11 @@ def salvar_programacao(request):
                 total_vinculos += len(bulk)
 
         # delete-orphans: remove itens que não vieram no payload
-        orfaos = [pi_id for pi_id in existentes.keys() if pi_id not in ids_payload]
+        orfaos = [
+            pi_id
+            for (pi_id, pi) in existentes.items()
+            if pi_id not in ids_payload and (meta_expediente_id is None or int(getattr(pi, "meta_id", 0) or 0) != meta_expediente_id)
+        ]
         if orfaos:
             ProgramacaoItemServidor.objects.filter(item_id__in=orfaos).delete()
             ProgramacaoItem.objects.filter(id__in=orfaos).delete()

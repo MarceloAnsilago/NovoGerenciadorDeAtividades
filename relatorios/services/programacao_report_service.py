@@ -4,14 +4,16 @@ from collections import defaultdict
 from datetime import date, datetime, time
 from typing import Any
 
+from django.conf import settings
 from django.utils import timezone
 
 from core.utils import get_unidade_atual_id
 from programar.models import ProgramacaoItem
-from programar.status import ITEM_STATUS_LABELS, PENDENTE
+from programar.status import EXECUTADA, ITEM_STATUS_LABELS, PENDENTE
 
 from relatorios.models import ProgramacaoHistorico
 from .programacao_history_service import snapshot_programacao_dia
+from veiculos.models import Veiculo
 
 
 def _dt_start(value: date):
@@ -32,6 +34,17 @@ def _status_label(status: str) -> str:
 
 def _normalize_snapshot(snapshot: dict[str, Any] | None) -> dict[str, Any]:
     return dict(snapshot or {})
+
+def _snapshot_veiculo_label(snapshot: dict[str, Any] | None) -> str:
+    snap = snapshot or {}
+    raw = str(snap.get("veiculo_label") or "").strip()
+    if raw:
+        return raw
+    nome = str(snap.get("veiculo_nome") or "").strip()
+    placa = str(snap.get("veiculo_placa") or "").strip()
+    if nome and placa:
+        return f"{nome} ({placa})"
+    return nome or placa
 
 
 def _current_items_in_period(unidade_id: int, data_inicial: date, data_final: date):
@@ -122,13 +135,32 @@ def _build_history_section(unidade_id: int, data_inicial: date, data_final: date
 def _build_performance_section(unidade_id: int, data_inicial: date, data_final: date) -> dict[str, Any]:
     by_item, start_dt, end_dt = _history_items_map(unidade_id, data_inicial, data_final)
     current_items = _current_items_in_period(unidade_id, data_inicial, data_final)
-    current_snapshots = {item.id: _snapshot_programacao_item(item) for item in current_items}
+    # Evita N chamadas repetidas por item (snapshot_programacao_dia consulta o dia inteiro).
+    current_snapshots: dict[int, dict[str, Any]] = {}
+    snapshots_by_day: dict[date, dict[int, dict[str, Any]]] = {}
+    for item in current_items:
+        data_ref = getattr(getattr(item, "programacao", None), "data", None)
+        if not data_ref:
+            current_snapshots[item.id] = {}
+            continue
+        if data_ref not in snapshots_by_day:
+            snapshots_by_day[data_ref] = snapshot_programacao_dia(unidade_id, data_ref).get("items", {}) or {}
+        current_snapshots[item.id] = snapshots_by_day[data_ref].get(item.id, {})
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
+    today = timezone.localdate()
 
     baseline: dict[int, dict[str, Any]] = {}
-    start_limit = start_dt.replace(hour=23, minute=59, second=59)
+    # Considera todo o período (inclusive atividades adicionadas após o 1º dia).
+    end_limit = end_dt
     for item in current_items:
-        if getattr(item, "criado_em", None) and item.criado_em <= start_limit:
-            baseline[item.id] = current_snapshots.get(item.id, {})
+        if getattr(item, "criado_em", None) and item.criado_em > end_limit:
+            # Item criado após o período não deve aparecer no desempenho do período.
+            continue
+        baseline[item.id] = current_snapshots.get(item.id, {})
 
     for item_id, entries in by_item.items():
         created_hint = None
@@ -142,7 +174,7 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
                         created_hint = timezone.make_aware(created_hint)
                 except Exception:
                     created_hint = None
-        if created_hint and created_hint > start_limit:
+        if created_hint and created_hint > end_limit:
             continue
         if item_id not in baseline:
             for entry in entries:
@@ -173,8 +205,38 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
             historico=by_item.get(item_id, []),
             end_dt=end_dt,
         )
+
+        if meta_expediente_id is not None and int(initial_snapshot.get("meta_id") or 0) == meta_expediente_id:
+            # Expediente administrativo deve ser "pendente" em datas futuras e "concluída" em datas atuais/passadas.
+            # Mesmo se o item foi removido por efeitos colaterais de salvar (ex.: limpar servidores), não exibe como removida.
+            if final_status == "removida":
+                raw_date = str(initial_snapshot.get("programacao_data") or "").strip()
+                try:
+                    prog_day = date.fromisoformat(raw_date) if raw_date else None
+                except ValueError:
+                    prog_day = None
+                final_status = EXECUTADA if (prog_day and prog_day <= today) else PENDENTE
+
         if final_status in counters:
             counters[final_status] += 1
+        # Resolve veículo: preferir label do snapshot; fallback via ORM (nome + placa).
+        veiculo_label = _snapshot_veiculo_label(final_snapshot) or _snapshot_veiculo_label(initial_snapshot)
+        if not veiculo_label:
+            veiculo_id = (final_snapshot or initial_snapshot).get("veiculo_id") or initial_snapshot.get("veiculo_id")
+            try:
+                veiculo_id_int = int(veiculo_id) if veiculo_id not in (None, "", "null") else None
+            except (TypeError, ValueError):
+                veiculo_id_int = None
+            if veiculo_id_int:
+                v = Veiculo.objects.filter(id=veiculo_id_int).values("nome", "placa").first()
+                if v:
+                    nome = str(v.get("nome") or "").strip()
+                    placa = str(v.get("placa") or "").strip()
+                    if nome and placa:
+                        veiculo_label = f"{nome} ({placa})"
+                    else:
+                        veiculo_label = nome or placa
+
         rows.append(
             {
                 "item_id": item_id,
@@ -186,11 +248,7 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
                 ),
                 "titulo": initial_snapshot.get("meta_titulo", "") or f"Item #{item_id}",
                 "servidores": [srv.get("nome", "") for srv in initial_snapshot.get("servidores", [])],
-                "veiculo": (
-                    (final_snapshot or initial_snapshot).get("veiculo_nome")
-                    or initial_snapshot.get("veiculo_nome")
-                    or "-"
-                ),
+                "veiculo": veiculo_label or "-",
                 "status_final": final_status,
                 "status_final_label": "Removida" if final_status == "removida" else _status_label(final_status),
             }

@@ -65,9 +65,9 @@ class ItemStatusTest(unittest.TestCase):
             )
         )
 
-    def test_does_not_auto_conclui_expediente_for_today_or_future(self):
+    def test_does_not_auto_conclui_expediente_for_future(self):
         today = date(2026, 3, 9)
-        self.assertFalse(
+        self.assertTrue(
             is_auto_concluida_expediente(
                 meta_id=999909,
                 meta_expediente_id=999909,

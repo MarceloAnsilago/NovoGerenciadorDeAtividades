@@ -50,7 +50,7 @@ def is_auto_concluida_expediente(
     """
     Regras de negócio:
     - "Expediente administrativo" (meta padrão) não é encerrado pelo usuário.
-    - Se estiver pendente e a data da programação já passou, considera como concluído.
+    - Se estiver pendente e a data da programação já chegou (ou passou), considera como concluído.
     """
     if not meta_expediente_id or meta_id is None:
         return False
@@ -67,7 +67,7 @@ def is_auto_concluida_expediente(
         return False
 
     ref_today = today or date.today()
-    return programacao_data < ref_today
+    return programacao_data <= ref_today
 
 
 def item_execucao_status_with_expediente_rule(

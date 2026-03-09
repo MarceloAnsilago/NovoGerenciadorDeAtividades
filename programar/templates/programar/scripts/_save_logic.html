@@ -109,8 +109,6 @@
     if (!meta_id) return;
 
     const servidores_ids = getServidoresIdsFrom(expediente);
-    if (!servidores_ids.length) return; // vazio => backend apaga (delete-orphan)
-
     const itemId  = Number(expediente.dataset.itemId || 0);
     const item = { meta_id, observacao: '', veiculo_id: null, servidores_ids };
     if (itemId) item.id = itemId;

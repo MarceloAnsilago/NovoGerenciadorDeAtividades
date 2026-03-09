@@ -82,6 +82,15 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             nao_realizada_justificada,
         )
         servidores = servidores_por_item.get(item.id, [])
+        veiculo_obj = getattr(item, "veiculo", None)
+        veiculo_nome = getattr(veiculo_obj, "nome", "") or ""
+        veiculo_placa = getattr(veiculo_obj, "placa", "") or ""
+        veiculo_label = ""
+        if veiculo_nome and veiculo_placa:
+            veiculo_label = f"{veiculo_nome} ({veiculo_placa})"
+        else:
+            veiculo_label = veiculo_nome or veiculo_placa
+
         items_map[item.id] = {
             "id": item.id,
             "programacao_id": prog.id,
@@ -91,7 +100,9 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             "meta_titulo": str(titulo or "").strip(),
             "observacao": item.observacao or "",
             "veiculo_id": item.veiculo_id,
-            "veiculo_nome": getattr(getattr(item, "veiculo", None), "nome", "") or "",
+            "veiculo_nome": veiculo_nome,
+            "veiculo_placa": veiculo_placa,
+            "veiculo_label": veiculo_label,
             "status_execucao": status_execucao,
             "servidores": servidores,
             "servidores_ids": [srv["id"] for srv in servidores],
