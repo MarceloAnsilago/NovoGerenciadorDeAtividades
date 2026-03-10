@@ -125,6 +125,26 @@
     .resumo-atividade-table th {
       background: #eef2f7;
     }
+    .resumo-atividade-table {
+      width: 100%;
+      table-layout: fixed;
+      font-size: 11px;
+    }
+    .resumo-atividade-table th,
+    .resumo-atividade-table td {
+      padding: 5px 6px;
+      line-height: 1.2;
+      text-align: left;
+      vertical-align: top;
+    }
+    .resumo-atividade-table th:nth-child(1) { width: 38%; }
+    .resumo-atividade-table th:nth-child(2) { width: 8%; text-align: right; }
+    .resumo-atividade-table th:nth-child(3) { width: 8%; text-align: right; }
+    .resumo-atividade-table th:nth-child(4) { width: 8%; text-align: right; }
+    .resumo-atividade-table th:nth-child(5) { width: 11%; text-align: right; }
+    .resumo-atividade-table th:nth-child(6) { width: 8%; text-align: right; }
+    .resumo-atividade-table th:nth-child(7) { width: 8%; text-align: right; }
+    .resumo-atividade-table th:nth-child(8) { width: 11%; text-align: right; }
     .observacao-box {
       border: 1px solid var(--line);
       border-radius: 10px;
@@ -227,12 +247,13 @@
                 <thead>
                   <tr>
                     <th>Atividade</th>
-                    <th style="width: 10%; text-align: right;">Programadas</th>
-                    <th style="width: 9%; text-align: right;">Concluídas</th>
-                    <th style="width: 11%; text-align: right;">Não realizadas</th>
-                    <th style="width: 15%; text-align: right;">Não realizadas (just.)</th>
-                    <th style="width: 9%; text-align: right;">Pendentes</th>
-                    <th style="width: 9%; text-align: right;">Removidas</th>
+                    <th style="text-align: right;">Prog.</th>
+                    <th style="text-align: right;">Conc.</th>
+                    <th style="text-align: right;">N.R.</th>
+                    <th style="text-align: right;">N.R.(J)</th>
+                    <th style="text-align: right;">Pend.</th>
+                    <th style="text-align: right;">Rem.</th>
+                    <th style="text-align: right;">Exec.%</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -245,6 +266,7 @@
                       <td style="text-align: right;">{{ r.nao_realizada_justificada }}</td>
                       <td style="text-align: right;">{{ r.pendente }}</td>
                       <td style="text-align: right;">{{ r.removida }}</td>
+                      <td style="text-align: right;">{{ r.execucao_percent }}%</td>
                     </tr>
                   {% endfor %}
                 </tbody>
