@@ -112,6 +112,19 @@
     .relatorio-resumo-table td.text-end {
       text-align: right !important;
     }
+    .relatorio-legenda-box {
+      border: 1px solid #d7dee8;
+      border-radius: .5rem;
+      background: #f8fafc;
+      padding: .65rem .85rem;
+      margin-bottom: .75rem;
+      color: #475569;
+      font-size: .9rem;
+      line-height: 1.4;
+    }
+    .relatorio-legenda-box strong {
+      color: #162033;
+    }
     @media print {
       @page {
         margin: 1.2cm 1cm;
@@ -371,6 +384,9 @@
               {% if report.desempenho.resumo_por_atividade %}
                 <div class="mt-3">
                   <h6 class="fw-semibold mb-2">Resumo por atividade</h6>
+                  <div class="relatorio-legenda-box">
+                    <strong>Legenda:</strong> N.R. = n&atilde;o realizada | N.R.(J) = n&atilde;o realizada e justificada
+                  </div>
                   <div class="table-responsive">
                     <table class="table table-sm align-middle mb-0 relatorio-resumo-table">
                       <thead class="table-light">

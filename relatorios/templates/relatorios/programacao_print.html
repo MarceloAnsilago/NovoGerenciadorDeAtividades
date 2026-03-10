@@ -145,6 +145,19 @@
     .resumo-atividade-table th:nth-child(6) { width: 8%; text-align: right; }
     .resumo-atividade-table th:nth-child(7) { width: 8%; text-align: right; }
     .resumo-atividade-table th:nth-child(8) { width: 11%; text-align: right; }
+    .legenda-box {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--card);
+      padding: 10px 12px;
+      margin: 0 0 10px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+    .legenda-box strong {
+      color: var(--text);
+    }
     .observacao-box {
       border: 1px solid var(--line);
       border-radius: 10px;
@@ -243,6 +256,9 @@
           {% if report.desempenho.resumo_por_atividade %}
             <div style="margin-top: 14px;">
               <h3 style="margin: 0 0 8px; font-size: 1.15rem;">Resumo por atividade</h3>
+              <div class="legenda-box">
+                <strong>Legenda:</strong> N.R. = n&atilde;o realizada | N.R.(J) = n&atilde;o realizada e justificada
+              </div>
               <table class="resumo-atividade-table">
                 <thead>
                   <tr>
