@@ -212,6 +212,38 @@
               {% endfor %}
             </tbody>
           </table>
+
+          {% if report.desempenho.resumo_por_atividade %}
+            <div style="margin-top: 14px;">
+              <h3 style="margin: 0 0 8px; font-size: 1.15rem;">Resumo por atividade</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Atividade</th>
+                    <th style="width: 10%; text-align: right;">Programadas</th>
+                    <th style="width: 9%; text-align: right;">Concluídas</th>
+                    <th style="width: 11%; text-align: right;">Não realizadas</th>
+                    <th style="width: 15%; text-align: right;">Não realizadas (just.)</th>
+                    <th style="width: 9%; text-align: right;">Pendentes</th>
+                    <th style="width: 9%; text-align: right;">Removidas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in report.desempenho.resumo_por_atividade %}
+                    <tr>
+                      <td>{{ r.titulo }}</td>
+                      <td style="text-align: right;">{{ r.total }}</td>
+                      <td style="text-align: right;">{{ r.executada }}</td>
+                      <td style="text-align: right;">{{ r.nao_realizada }}</td>
+                      <td style="text-align: right;">{{ r.nao_realizada_justificada }}</td>
+                      <td style="text-align: right;">{{ r.pendente }}</td>
+                      <td style="text-align: right;">{{ r.removida }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
         </section>
       {% endif %}
 

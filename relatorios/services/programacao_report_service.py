@@ -254,10 +254,26 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
             }
         )
 
+    resumo_by_titulo: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        titulo = str(row.get("titulo") or "").strip() or "-"
+        status_final = str(row.get("status_final") or "").strip()
+        if titulo not in resumo_by_titulo:
+            resumo_by_titulo[titulo] = {"titulo": titulo, "total": 0, **{key: 0 for key in counters.keys()}}
+        resumo_by_titulo[titulo]["total"] += 1
+        if status_final in counters:
+            resumo_by_titulo[titulo][status_final] += 1
+
+    resumo_por_atividade = sorted(
+        resumo_by_titulo.values(),
+        key=lambda r: (str(r.get("titulo") or "").casefold(), -int(r.get("total") or 0)),
+    )
+
     return {
         "rows": rows,
         "counters": counters,
         "total": len(rows),
+        "resumo_por_atividade": resumo_por_atividade,
     }
 
 
