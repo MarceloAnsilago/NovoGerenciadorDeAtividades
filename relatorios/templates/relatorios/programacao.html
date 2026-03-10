@@ -97,6 +97,10 @@
     .relatorio-print-area .badge-status.status-nao_realizada_justificada { color: #0b7285; }
     .relatorio-print-area .badge-status.status-pendente { color: #212529; }
     .relatorio-print-area .badge-status.status-removida { color: #dc3545; }
+    .relatorio-resumo-table th,
+    .relatorio-resumo-table td {
+      border: 1.2px solid #98a6b8 !important;
+    }
     @media print {
       .relatorios-form-card {
         display: none !important;
@@ -147,6 +151,10 @@
       }
       .relatorio-print-area .badge-status {
         font-size: .7rem;
+      }
+      .relatorio-resumo-table th,
+      .relatorio-resumo-table td {
+        border: 1.2pt solid #495057 !important;
       }
     }
     @media (max-width: 768px) {
@@ -324,7 +332,7 @@
                 <div class="mt-3">
                   <h6 class="fw-semibold mb-2">Resumo por atividade</h6>
                   <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-0 relatorio-resumo-table">
                       <thead class="table-light">
                         <tr>
                           <th>Atividade</th>

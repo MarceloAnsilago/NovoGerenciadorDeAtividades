@@ -118,6 +118,13 @@
     .status-nao_realizada_justificada { color: #0b7285; }
     .status-pendente { color: #212529; }
     .status-removida { color: #dc3545; }
+    .resumo-atividade-table th,
+    .resumo-atividade-table td {
+      border: 1pt solid var(--line-strong);
+    }
+    .resumo-atividade-table th {
+      background: #eef2f7;
+    }
     .observacao-box {
       border: 1px solid var(--line);
       border-radius: 10px;
@@ -216,7 +223,7 @@
           {% if report.desempenho.resumo_por_atividade %}
             <div style="margin-top: 14px;">
               <h3 style="margin: 0 0 8px; font-size: 1.15rem;">Resumo por atividade</h3>
-              <table>
+              <table class="resumo-atividade-table">
                 <thead>
                   <tr>
                     <th>Atividade</th>
