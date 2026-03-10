@@ -83,6 +83,20 @@ def _meta_status_info(meta):
     return "andamento", "Em andamento"
 
 
+def _secondary_activity_name(meta) -> str | None:
+    atividade = getattr(meta, "atividade", None)
+    atividade_nome = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
+    atividade_nome = (str(atividade_nome).strip() if atividade_nome else "")
+    if not atividade_nome:
+        return None
+
+    titulo_principal = getattr(meta, "display_titulo", None) or getattr(meta, "titulo", None)
+    titulo_principal = (str(titulo_principal).strip() if titulo_principal else "")
+    if titulo_principal and titulo_principal == atividade_nome:
+        return None
+    return atividade_nome
+
+
 def _item_execucao_info(item):
     status = item_execucao_status_from_fields(
         bool(getattr(item, "concluido", False)),
@@ -446,7 +460,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             "data": getattr(programacao, "data", None),
             "meta_id": getattr(meta, "id", None),
             "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem titulo)"),
-            "atividade_nome": getattr(getattr(meta, "atividade", None), "titulo", None),
+            "atividade_nome": _secondary_activity_name(meta),
             "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
             "servidores": servidores_por_item.get(item.id, []),
             "concluido": bool(getattr(item, "concluido", False)),
@@ -685,7 +699,7 @@ def nao_realizadas_view(request):
             "data": getattr(programacao, "data", None),
             "meta_id": getattr(meta, "id", None),
             "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem titulo)"),
-            "atividade_nome": getattr(getattr(meta, "atividade", None), "titulo", None),
+            "atividade_nome": _secondary_activity_name(meta),
             "servidores": servidores_por_item.get(item.id, []),
             "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
             "observacao": (getattr(item, "observacao", "") or "").strip(),
