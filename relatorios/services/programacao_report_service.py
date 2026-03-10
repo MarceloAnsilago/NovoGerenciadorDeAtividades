@@ -264,15 +264,20 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         if status_final in counters:
             resumo_by_titulo[titulo][status_final] += 1
 
-    resumo_por_atividade = sorted(
-        resumo_by_titulo.values(),
-        key=lambda r: (str(r.get("titulo") or "").casefold(), -int(r.get("total") or 0)),
-    )
+    resumo_por_atividade = list(resumo_by_titulo.values())
 
     for row in resumo_por_atividade:
         total = int(row.get("total") or 0)
         executada = int(row.get("executada") or 0)
         row["execucao_percent"] = int(round((executada * 100.0 / total), 0)) if total else 0
+
+    resumo_por_atividade.sort(
+        key=lambda r: (
+            int(r.get("execucao_percent") or 0),
+            str(r.get("titulo") or "").casefold(),
+            -int(r.get("total") or 0),
+        )
+    )
 
     return {
         "rows": rows,
