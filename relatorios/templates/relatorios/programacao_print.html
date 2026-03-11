@@ -158,6 +158,15 @@
     .legenda-box strong {
       color: var(--text);
     }
+    .nao-realizadas-table .group-row td {
+      background: #f8fafc;
+      border-top: 1.4pt solid var(--line-strong);
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+    .nao-realizadas-group-title {
+      font-weight: 700;
+    }
     .observacao-box {
       border: 1px solid var(--line);
       border-radius: 10px;
@@ -284,6 +293,54 @@
                       <td style="text-align: right;">{{ r.removida }}</td>
                       <td style="text-align: right;">{{ r.execucao_percent }}%</td>
                     </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+
+          {% if report.desempenho.nao_realizadas_grupos %}
+            <div style="margin-top: 14px;">
+              <h3 style="margin: 0 0 8px; font-size: 1.15rem;">Atividades n&atilde;o realizadas</h3>
+              <div class="muted" style="margin-bottom: 8px; font-size: 12px;">Agrupado por meta/atividade.</div>
+              <table class="nao-realizadas-table">
+                <thead>
+                  <tr>
+                    <th style="width: 12%;">Data</th>
+                    <th style="width: 27%;">Servidores</th>
+                    <th style="width: 14%;">Ve&iacute;culo</th>
+                    <th style="width: 30%;">Observa&ccedil;&atilde;o</th>
+                    <th style="width: 17%;">Marcada em</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for group in report.desempenho.nao_realizadas_grupos %}
+                    <tr class="group-row">
+                      <td colspan="5">
+                        <div class="nao-realizadas-group-title">{{ group.meta_titulo }}</div>
+                        {% if group.atividade_nome %}
+                          <div class="muted">Atividade: {{ group.atividade_nome }}</div>
+                        {% endif %}
+                        <div class="muted">
+                          {% if group.meta_id %}Meta #{{ group.meta_id }} | {% endif %}{{ group.total }} n&atilde;o realizada{{ group.total|pluralize }}
+                        </div>
+                      </td>
+                    </tr>
+                    {% for item in group.rows %}
+                      <tr>
+                        <td>{{ item.data|date:"d/m/Y" }}</td>
+                        <td>
+                          {% if item.servidores %}
+                            {{ item.servidores|join:", " }}
+                          {% else %}
+                            <span class="muted">-</span>
+                          {% endif %}
+                        </td>
+                        <td>{{ item.veiculo|default:"-" }}</td>
+                        <td>{{ item.observacao|default:"-" }}</td>
+                        <td>{{ item.concluido_em|date:"d/m/Y H:i" }}</td>
+                      </tr>
+                    {% endfor %}
                   {% endfor %}
                 </tbody>
               </table>

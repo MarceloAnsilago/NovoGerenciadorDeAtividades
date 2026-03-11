@@ -125,6 +125,21 @@
     .relatorio-legenda-box strong {
       color: #162033;
     }
+    .relatorio-nao-realizadas-table th,
+    .relatorio-nao-realizadas-table td {
+      border: 1px solid #d7dee8 !important;
+      vertical-align: top;
+    }
+    .relatorio-nao-realizadas-table .group-row td {
+      background: #f8fafc;
+      border-top: 2px solid #98a6b8 !important;
+      padding-top: .7rem;
+      padding-bottom: .7rem;
+    }
+    .relatorio-nao-realizadas-group-title {
+      font-weight: 600;
+      color: #162033;
+    }
     @media print {
       @page {
         margin: 1.2cm 1cm;
@@ -209,6 +224,9 @@
       .relatorio-resumo-table th:nth-child(6) { width: 8% !important; }
       .relatorio-resumo-table th:nth-child(7) { width: 8% !important; }
       .relatorio-resumo-table th:nth-child(8) { width: 11% !important; }
+      .relatorio-nao-realizadas-table .group-row td {
+        border-top: 1.4pt solid #495057 !important;
+      }
     }
     @media (max-width: 768px) {
       .relatorio-indicadores-grid {
@@ -413,6 +431,56 @@
                             <td class="text-end">{{ r.removida }}</td>
                             <td class="text-end">{{ r.execucao_percent }}%</td>
                           </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              {% endif %}
+
+              {% if report.desempenho.nao_realizadas_grupos %}
+                <div class="mt-4">
+                  <h6 class="fw-semibold mb-2">Atividades n&atilde;o realizadas</h6>
+                  <div class="text-muted small mb-2">Agrupado por meta/atividade.</div>
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0 relatorio-nao-realizadas-table">
+                      <thead class="table-light">
+                        <tr>
+                          <th style="width:110px;">Data</th>
+                          <th style="width:26%;">Servidores</th>
+                          <th style="width:140px;">Ve&iacute;culo</th>
+                          <th>Observa&ccedil;&atilde;o</th>
+                          <th style="width:150px;">Marcada em</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for group in report.desempenho.nao_realizadas_grupos %}
+                          <tr class="group-row">
+                            <td colspan="5">
+                              <div class="relatorio-nao-realizadas-group-title">{{ group.meta_titulo }}</div>
+                              {% if group.atividade_nome %}
+                                <div class="text-muted small">Atividade: {{ group.atividade_nome }}</div>
+                              {% endif %}
+                              <div class="text-muted small">
+                                {% if group.meta_id %}Meta #{{ group.meta_id }} | {% endif %}{{ group.total }} n&atilde;o realizada{{ group.total|pluralize }}
+                              </div>
+                            </td>
+                          </tr>
+                          {% for item in group.rows %}
+                            <tr>
+                              <td class="text-nowrap">{{ item.data|date:"d/m/Y" }}</td>
+                              <td>
+                                {% if item.servidores %}
+                                  {{ item.servidores|join:", " }}
+                                {% else %}
+                                  <span class="text-muted">-</span>
+                                {% endif %}
+                              </td>
+                              <td class="text-nowrap">{{ item.veiculo|default:"-" }}</td>
+                              <td>{{ item.observacao|default:"-" }}</td>
+                              <td class="text-nowrap">{{ item.concluido_em|date:"d/m/Y H:i" }}</td>
+                            </tr>
+                          {% endfor %}
                         {% endfor %}
                       </tbody>
                     </table>
