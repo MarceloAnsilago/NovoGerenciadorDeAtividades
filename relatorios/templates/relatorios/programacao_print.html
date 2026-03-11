@@ -164,6 +164,10 @@
       padding-top: 8px;
       padding-bottom: 8px;
     }
+    .nao-realizadas-table .nao-realizadas-group {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
     .nao-realizadas-group-title {
       font-weight: 700;
     }
@@ -313,8 +317,8 @@
                     <th style="width: 17%;">Marcada em</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {% for group in report.desempenho.nao_realizadas_grupos %}
+                {% for group in report.desempenho.nao_realizadas_grupos %}
+                  <tbody class="nao-realizadas-group">
                     <tr class="group-row">
                       <td colspan="5">
                         <div class="nao-realizadas-group-title">{{ group.meta_titulo }}</div>
@@ -341,8 +345,8 @@
                         <td>{{ item.concluido_em|date:"d/m/Y H:i" }}</td>
                       </tr>
                     {% endfor %}
-                  {% endfor %}
-                </tbody>
+                  </tbody>
+                {% endfor %}
               </table>
             </div>
           {% endif %}
