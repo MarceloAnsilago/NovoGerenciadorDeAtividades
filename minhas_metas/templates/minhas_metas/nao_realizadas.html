@@ -1,12 +1,17 @@
 {% extends "core/base.html" %}
 
-{% block title %}Atividades não realizadas{% endblock %}
+{% block title %}Atividades n&atilde;o realizadas{% endblock %}
+
+{% block extra_head %}
+  {{ block.super }}
+  {% include "programar/styles/_programacao_styles.html" %}
+{% endblock %}
 
 {% block content %}
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-      <h1 class="h4 mb-1">Atividades não realizadas</h1>
+      <h1 class="h4 mb-1">Atividades n&atilde;o realizadas</h1>
       <div class="text-muted small">
         Unidade: <strong>{{ unidade.nome }}</strong>
         {% if dt_start and dt_end %}
@@ -36,7 +41,7 @@
           {% endfor %}
         </ul>
       {% else %}
-        <div class="alert alert-info mb-0">Nenhuma atividade com status não realizada foi encontrada.</div>
+        <div class="alert alert-info mb-0">Nenhuma atividade com status n&atilde;o realizada foi encontrada.</div>
       {% endif %}
 
       {% if month_filters %}
@@ -50,7 +55,7 @@
                 <th style="width:140px;">Veiculo</th>
                 <th style="width:24%;">Observacao</th>
                 <th style="width:140px;">Marcada em</th>
-                <th style="width:140px;">Acoes</th>
+                <th style="width:250px;">Acoes</th>
               </tr>
             </thead>
             <tbody>
@@ -75,15 +80,28 @@
                 <td>{{ item.observacao|default:"-" }}</td>
                 <td class="text-nowrap">{{ item.concluido_em|date:"d/m/Y H:i" }}</td>
                 <td class="text-nowrap">
-                  <a class="btn btn-sm btn-outline-warning"
-                     href="{% url 'programar:concluir-item-form' item.item_id %}?next={{ request.get_full_path|urlencode }}&source=minhas-metas">
-                    Revisar status
-                  </a>
+                  <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-sm btn-outline-warning"
+                       href="{% url 'programar:concluir-item-form' item.item_id %}?next={{ request.get_full_path|urlencode }}&source=minhas-metas">
+                      Revisar status
+                    </a>
+                    {% if item.data %}
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-secondary js-abrir-programacao-item"
+                        data-date="{{ item.data|date:'Y-m-d' }}"
+                        data-meta-id="{{ item.meta_id }}"
+                        data-meta-title="{{ item.meta_titulo|escape }}"
+                        data-meta-description="{% if item.atividade_nome %}Atividade: {{ item.atividade_nome|escape }}{% endif %}">
+                        Abrir programacao
+                      </button>
+                    {% endif %}
+                  </div>
                 </td>
               </tr>
               {% empty %}
               <tr class="table-light">
-                <td colspan="7" class="text-center text-muted py-4">Nenhuma atividade não realizada no mês selecionado.</td>
+                <td colspan="7" class="text-center text-muted py-4">Nenhuma atividade n&atilde;o realizada no m&ecirc;s selecionado.</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -93,4 +111,135 @@
     </div>
   </div>
 </div>
+{% include "programar/partials/_modal_programacao.html" %}
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  {% include "programar/scripts/_urls_context.html" %}
+  {% include "programar/partials/_servidores_disponiveis_logic.html" %}
+  {% include "programar/scripts/_atividades_logic.html" %}
+  {% include "programar/scripts/_metas_logic.html" %}
+  {% include "programar/scripts/_modal_logic.html" %}
+  <script>
+    (function () {
+      let refreshPending = false;
+      let pendingSelection = null;
+
+      function parseIsoToDate(dateStr) {
+        const match = String(dateStr || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return null;
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const dt = new Date(year, month - 1, day, 12, 0, 0, 0);
+        return Number.isNaN(dt.getTime()) ? null : dt;
+      }
+
+      function formatModalLabel(dateStr) {
+        const dt = parseIsoToDate(dateStr);
+        if (!dt) return "";
+        const dateBR = dt.toLocaleDateString("pt-BR");
+        let weekday = dt.toLocaleDateString("pt-BR", { weekday: "long" });
+        if (weekday) weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+        return weekday ? `${weekday}, ${dateBR}` : dateBR;
+      }
+
+      function highlightCard(card) {
+        if (!card) return;
+        card.classList.add("border-warning");
+        try {
+          card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+        } catch (_err) {}
+        window.setTimeout(() => card.classList.remove("border-warning"), 1500);
+      }
+
+      function applyPendingSelection() {
+        if (!pendingSelection || pendingSelection.applied) return;
+
+        const inputDate = document.getElementById("programar-dataAtividade");
+        const modalDate = String(inputDate?.value || "").trim();
+        if (modalDate && modalDate !== pendingSelection.iso) return;
+
+        const ensureMetaCard = window.PROGRAMAR?.ensureMetaCard;
+        const container = document.getElementById("metaCardsContainer");
+        if (typeof ensureMetaCard !== "function" || !container) {
+          pendingSelection.attempts += 1;
+          if (pendingSelection.attempts < 20) {
+            window.setTimeout(applyPendingSelection, 150);
+          }
+          return;
+        }
+
+        const options = {};
+        if (pendingSelection.metaDescription) {
+          options.metaDescricao = pendingSelection.metaDescription;
+        }
+
+        const card = ensureMetaCard(
+          pendingSelection.metaId,
+          pendingSelection.metaTitle || `Meta #${pendingSelection.metaId}`,
+          options
+        );
+        if (!card) {
+          pendingSelection.attempts += 1;
+          if (pendingSelection.attempts < 20) {
+            window.setTimeout(applyPendingSelection, 150);
+          }
+          return;
+        }
+
+        pendingSelection.applied = true;
+        highlightCard(card);
+      }
+
+      document.addEventListener("click", function (ev) {
+        const btn = ev.target.closest(".js-abrir-programacao-item");
+        if (!btn) return;
+        ev.preventDefault();
+
+        const iso = String(btn.getAttribute("data-date") || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
+
+        pendingSelection = {
+          iso,
+          metaId: String(btn.getAttribute("data-meta-id") || "").trim(),
+          metaTitle: String(btn.getAttribute("data-meta-title") || "").trim(),
+          metaDescription: String(btn.getAttribute("data-meta-description") || "").trim(),
+          applied: false,
+          attempts: 0,
+        };
+
+        const label = formatModalLabel(iso);
+        window.PROGRAMAR?.openProgramarModal?.(iso, label);
+        window.setTimeout(applyPendingSelection, 0);
+      });
+
+      document.addEventListener("shown.bs.modal", function (ev) {
+        if (!ev.target || ev.target.id !== "programar-modalAtividade") return;
+        if (!pendingSelection || pendingSelection.applied) return;
+        window.setTimeout(applyPendingSelection, 100);
+      });
+
+      document.addEventListener("programar:prefilled", function () {
+        applyPendingSelection();
+      });
+
+      document.addEventListener("programar:saved", function () {
+        refreshPending = true;
+      });
+
+      document.addEventListener("programar:deleted", function () {
+        refreshPending = true;
+      });
+
+      document.addEventListener("hidden.bs.modal", function (ev) {
+        if (!ev.target || ev.target.id !== "programar-modalAtividade") return;
+        pendingSelection = null;
+        if (!refreshPending) return;
+        refreshPending = false;
+        window.location.reload();
+      });
+    })();
+  </script>
 {% endblock %}
