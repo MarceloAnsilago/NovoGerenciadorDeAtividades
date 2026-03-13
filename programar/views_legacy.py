@@ -192,6 +192,14 @@ def _build_remarcacao_opcoes(
     return opcoes
 
 
+def _is_nao_realizada_revisavel(item: ProgramacaoItem) -> bool:
+    return (
+        not bool(getattr(item, "concluido", False))
+        and getattr(item, "concluido_em", None) is not None
+        and not bool(getattr(item, "nao_realizada_justificada", False))
+    )
+
+
 @login_required
 @require_GET
 def calendario_view(request):
@@ -2467,13 +2475,21 @@ def concluir_item_form(request, item_id: int):
     meta = getattr(pi, "meta", None)
     programacao = pi.programacao
     remarcacao_opcoes = _build_remarcacao_opcoes(unidade_id=unidade_ctx_id, item=pi)
+    permite_revisar_como_remarcada = source_context == "minhas-metas" and _is_nao_realizada_revisavel(pi)
+    if permite_revisar_como_remarcada and not any(op.get("id") == pi.id for op in remarcacao_opcoes):
+        remarcacao_opcoes.insert(0, {
+            "id": pi.id,
+            "label": f"{remarcacao_origem_label(item_id=pi.id, programacao_data=getattr(programacao, 'data', None), veiculo_nome=getattr(getattr(pi, 'veiculo', None), 'nome', '') or '', veiculo_placa=getattr(getattr(pi, 'veiculo', None), 'placa', '') or '')} (esta atividade)",
+            "data": getattr(programacao, "data", None),
+            "observacao": getattr(pi, "observacao", "") or "",
+        })
     remarcado_de_current_id = _resolve_remarcado_de_id(
         unidade_id=unidade_ctx_id,
         meta_id=getattr(meta, "id", None),
         raw_value=getattr(pi, "remarcado_de_id", None),
         ignore_item_id=pi.id,
     )
-    permite_status_remarcado = bool(remarcacao_opcoes or remarcado_de_current_id)
+    permite_status_remarcado = bool(remarcacao_opcoes or remarcado_de_current_id or permite_revisar_como_remarcada)
 
     pendentes_qs = ProgramacaoItem.objects.none()
     pendentes_total = 0
@@ -2522,6 +2538,12 @@ def concluir_item_form(request, item_id: int):
             raw_value=request.POST.get("remarcado_de_id"),
             ignore_item_id=pi.id,
         )
+        if (
+            remarcado_de_selected_id is None
+            and permite_revisar_como_remarcada
+            and str(request.POST.get("remarcado_de_id") or "").strip() == str(pi.id)
+        ):
+            remarcado_de_selected_id = pi.id
         if remarcado_de_selected_id is None:
             remarcado_de_selected_id = remarcado_de_current_id
 
@@ -2663,7 +2685,7 @@ def concluir_item_form(request, item_id: int):
         "item_remarcado": bool(getattr(pi, "remarcado_de_id", None)),
         "permite_status_remarcado": permite_status_remarcado,
         "remarcacao_opcoes": remarcacao_opcoes,
-        "remarcado_de_selected_id": remarcado_de_current_id,
+        "remarcado_de_selected_id": remarcado_de_current_id or (pi.id if permite_revisar_como_remarcada else None),
         "next": safe_next_url(request, "/minhas-metas/"),
         "pendentes_total": pendentes_total,
         "pendentes_preview": pendentes_preview,

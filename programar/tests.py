@@ -224,3 +224,44 @@ class ConcluirItemFormTests(TestCase):
         self.assertEqual(item.remarcado_de_id, None)
         self.assertFalse(item.concluido)
         self.assertContains(response, "O status Remarcada e concluida so pode ser usado")
+
+    def test_exibe_status_remarcado_quando_revisao_vem_de_nao_realizadas(self):
+        item = self._criar_item(
+            data_ref=timezone.localdate(),
+            concluido=False,
+            concluido_em=timezone.now(),
+            nao_realizada_justificada=False,
+        )
+
+        response = self.client.get(
+            reverse("programar:concluir-item-form", args=[item.id]),
+            {"source": "minhas-metas"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="remarcada_concluida"')
+        self.assertContains(response, f'value="{item.id}" selected')
+
+    def test_permita_salvar_remarcada_quando_revisao_vem_de_nao_realizadas(self):
+        item = self._criar_item(
+            data_ref=timezone.localdate(),
+            concluido=False,
+            concluido_em=timezone.now(),
+            nao_realizada_justificada=False,
+        )
+
+        response = self.client.post(
+            reverse("programar:concluir-item-form", args=[item.id]),
+            {
+                "source": "minhas-metas",
+                "status_execucao": REMARCADA_CONCLUIDA,
+                "remarcado_de_id": str(item.id),
+                "observacoes": "Revisto em nao realizadas",
+            },
+            follow=False,
+        )
+
+        item.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(item.concluido)
+        self.assertEqual(item.remarcado_de_id, item.id)
