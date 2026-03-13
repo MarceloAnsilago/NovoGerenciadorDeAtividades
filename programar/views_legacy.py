@@ -114,6 +114,8 @@ def _resolve_remarcado_de_id(
         return None
     try:
         candidate_id = int(raw_value)
+        if candidate_id == -1:
+            return -1
     except (TypeError, ValueError):
         return None
     qs = ProgramacaoItem.objects.filter(
@@ -2523,7 +2525,7 @@ def concluir_item_form(request, item_id: int):
 
         if status_execucao in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA} and not obs_final:
             form_errors["observacoes"] = "Informe uma observacao para salvar este status."
-        if status_execucao == REMARCADA_CONCLUIDA and not remarcado_de_selected_id:
+        if status_execucao == REMARCADA_CONCLUIDA and not remarcado_de_selected_id and remarcacao_opcoes:
             form_errors["remarcado_de_id"] = "Selecione de qual atividade nao realizada esta conclusao foi remarcada."
 
         if form_errors:
@@ -2553,6 +2555,9 @@ def concluir_item_form(request, item_id: int):
                 "form_errors": form_errors,
             }
             return render(request, "minhas_metas/concluir_item.html", contexto)
+
+        if status_execucao == REMARCADA_CONCLUIDA and not remarcado_de_selected_id:
+            remarcado_de_selected_id = -1
 
         if (not ignorar_pendentes) and concluido_flag and pendentes_total > 0 and not confirmar_pendentes:
             # exige confirmacao explícita antes de concluir com pendencias

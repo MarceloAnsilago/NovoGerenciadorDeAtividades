@@ -108,39 +108,37 @@
                       <span class="text-muted small">Fecha esta programacao, mas deixa a meta em aberto para os meses seguintes.</span>
                     </label>
                   </div>
-                  {% if permite_status_remarcado %}
-                    <div class="form-check">
-                      <input class="form-check-input"
-                             type="radio"
-                             name="status_execucao"
-                             id="id_status_remarcada_concluida"
-                             value="remarcada_concluida"
-                             {% if status_current == 'remarcada_concluida' %}checked{% endif %}>
-                      <label class="form-check-label" for="id_status_remarcada_concluida">
-                        <span class="fw-semibold d-block">Remarcada e concluida</span>
-                        <span class="text-muted small">Fecha a atividade como concluida, mas preserva a identificacao de que ela veio de uma nao realizada anterior.</span>
-                      </label>
+                  <div class="form-check">
+                    <input class="form-check-input"
+                           type="radio"
+                           name="status_execucao"
+                           id="id_status_remarcada_concluida"
+                           value="remarcada_concluida"
+                           {% if status_current == 'remarcada_concluida' %}checked{% endif %}>
+                    <label class="form-check-label" for="id_status_remarcada_concluida">
+                      <span class="fw-semibold d-block">Remarcada e concluida</span>
+                      <span class="text-muted small">Fecha a atividade como concluida, mas preserva a identificacao de que ela veio de uma nao realizada anterior.</span>
+                    </label>
+                  </div>
+                  {% if remarcacao_opcoes %}
+                    <div class="ms-4">
+                      <label class="form-label small mb-1" for="id_remarcado_de_id">Origem da remarcacao</label>
+                      <select name="remarcado_de_id"
+                              id="id_remarcado_de_id"
+                              class="form-select form-select-sm{% if form_errors.remarcado_de_id %} is-invalid{% endif %}">
+                        <option value="">Selecione a atividade nao realizada</option>
+                        {% for opcao in remarcacao_opcoes %}
+                          <option value="{{ opcao.id }}" {% if remarcado_de_selected_id == opcao.id %}selected{% endif %}>
+                            {{ opcao.label }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                      {% if form_errors.remarcado_de_id %}
+                        <div class="invalid-feedback d-block">{{ form_errors.remarcado_de_id }}</div>
+                      {% else %}
+                        <div class="form-text">Escolha qual nao realizada esta sendo encerrada por esta conclusao.</div>
+                      {% endif %}
                     </div>
-                    {% if remarcacao_opcoes %}
-                      <div class="ms-4">
-                        <label class="form-label small mb-1" for="id_remarcado_de_id">Origem da remarcacao</label>
-                        <select name="remarcado_de_id"
-                                id="id_remarcado_de_id"
-                                class="form-select form-select-sm{% if form_errors.remarcado_de_id %} is-invalid{% endif %}">
-                          <option value="">Selecione a atividade nao realizada</option>
-                          {% for opcao in remarcacao_opcoes %}
-                            <option value="{{ opcao.id }}" {% if remarcado_de_selected_id == opcao.id %}selected{% endif %}>
-                              {{ opcao.label }}
-                            </option>
-                          {% endfor %}
-                        </select>
-                        {% if form_errors.remarcado_de_id %}
-                          <div class="invalid-feedback d-block">{{ form_errors.remarcado_de_id }}</div>
-                        {% else %}
-                          <div class="form-text">Escolha qual nao realizada esta sendo encerrada por esta conclusao.</div>
-                        {% endif %}
-                      </div>
-                    {% endif %}
                   {% endif %}
                   <div class="form-check">
                     <input class="form-check-input"
