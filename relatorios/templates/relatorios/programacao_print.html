@@ -258,7 +258,12 @@
                     {% endif %}
                   </td>
                   <td>{{ row.veiculo|default:"-" }}</td>
-                  <td class="status-{{ row.status_final }}">{{ row.status_final_label }}</td>
+                  <td class="status-{{ row.status_final }}">
+                    {{ row.status_final_label }}
+                    {% if row.remarcado_de_label %}
+                      <div class="muted" style="margin-top: 4px;">Substituiu: {{ row.remarcado_de_label }}</div>
+                    {% endif %}
+                  </td>
                 </tr>
               {% empty %}
                 <tr>

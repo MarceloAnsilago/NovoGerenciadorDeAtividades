@@ -69,6 +69,24 @@ def _parse_month_key(value: str | None) -> tuple[int, int] | None:
     return year, month
 
 
+def _build_programar_modal_context(unidade_id: int | None) -> dict[str, object]:
+    veiculos_json = "[]"
+    try:
+        if unidade_id:
+            veiculos_qs = (
+                Veiculo.objects.filter(unidade_id=unidade_id, ativo=True)
+                .order_by("nome")
+                .values("id", "nome", "placa")
+            )
+            veiculos_json = json.dumps(list(veiculos_qs))
+    except Exception:
+        veiculos_json = "[]"
+    return {
+        "META_EXPEDIENTE_ID": getattr(settings, "META_EXPEDIENTE_ID", None),
+        "VEICULOS_ATIVOS_JSON": veiculos_json,
+    }
+
+
 def _meta_status_info(meta):
     if not meta:
         return "andamento", "Em andamento"
@@ -593,18 +611,8 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         "metas_sem_programacao": metas_sem_programacao,
         "resumo_meta": resumo_meta,
     }
-    veiculos_json = "[]"
-    try:
-        veiculos_qs = (
-            Veiculo.objects.filter(unidade_id=unidade.id, ativo=True)
-            .order_by("nome")
-            .values("id", "nome", "placa")
-        )
-        veiculos_json = json.dumps(list(veiculos_qs))
-    except Exception:
-        veiculos_json = "[]"
+    contexto.update(_build_programar_modal_context(unidade.id))
     contexto["META_EXPEDIENTE_ID"] = expediente_meta_id
-    contexto["VEICULOS_ATIVOS_JSON"] = veiculos_json
     lista_base_url = reverse("minhas_metas:lista")
     query_string = request.GET.urlencode()
     contexto["back_to_metas_url"] = f"{lista_base_url}?{query_string}" if query_string else lista_base_url
@@ -723,6 +731,7 @@ def nao_realizadas_view(request):
         "dt_end": dt_end,
         "total_geral": itens_base.count(),
     }
+    contexto.update(_build_programar_modal_context(unidade.id))
     return render(request, "minhas_metas/nao_realizadas.html", contexto)
 
 

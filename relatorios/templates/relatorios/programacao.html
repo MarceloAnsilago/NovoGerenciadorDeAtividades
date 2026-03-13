@@ -380,7 +380,12 @@
                             {% endif %}
                           </td>
                           <td style="border-top:2px solid #495057;border-bottom:1px solid #d7dee8;">{{ row.veiculo|default:"-" }}</td>
-                          <td style="border-top:2px solid #495057;border-bottom:1px solid #d7dee8;"><span class="badge-status status-{{ row.status_final }}">{{ row.status_final_label }}</span></td>
+                          <td style="border-top:2px solid #495057;border-bottom:1px solid #d7dee8;">
+                            <span class="badge-status status-{{ row.status_final }}">{{ row.status_final_label }}</span>
+                            {% if row.remarcado_de_label %}
+                              <div class="text-muted small mt-1">Substituiu: {{ row.remarcado_de_label }}</div>
+                            {% endif %}
+                          </td>
                       {% else %}
                         <tr>
                           <td style="border-bottom:1px solid #d7dee8;">{{ row.data_programacao_label|default:"-" }}</td>
@@ -393,7 +398,12 @@
                             {% endif %}
                           </td>
                           <td style="border-bottom:1px solid #d7dee8;">{{ row.veiculo|default:"-" }}</td>
-                          <td style="border-bottom:1px solid #d7dee8;"><span class="badge-status status-{{ row.status_final }}">{{ row.status_final_label }}</span></td>
+                          <td style="border-bottom:1px solid #d7dee8;">
+                            <span class="badge-status status-{{ row.status_final }}">{{ row.status_final_label }}</span>
+                            {% if row.remarcado_de_label %}
+                              <div class="text-muted small mt-1">Substituiu: {{ row.remarcado_de_label }}</div>
+                            {% endif %}
+                          </td>
                       {% endifchanged %}
                       </tr>
                     {% empty %}

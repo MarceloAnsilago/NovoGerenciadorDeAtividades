@@ -40,6 +40,7 @@ from .services.dashboard_queries import (
     get_uso_veiculos,
     get_top_servidores,
 )
+from programar.status import remarcacao_origem_label
 # from .forms import UserProfileForm  # removido: não utilizado
 
 # Inicializa o modelo de usuário
@@ -1270,6 +1271,8 @@ def dashboard_servidor_view(request, servidor_id):
         "item__programacao__unidade",
         "item__meta__atividade__area",
         "item__veiculo",
+        "item__remarcado_de__programacao",
+        "item__remarcado_de__veiculo",
         "servidor__unidade",
         "servidor__cargo",
     ).filter(servidor_id=servidor.id)
@@ -1505,6 +1508,17 @@ def dashboard_servidor_view(request, servidor_id):
         )
         concluido_linha = bool(item.concluido) or auto_concluida_expediente
         remarcada_concluida_linha = bool(item.concluido) and bool(getattr(item, "remarcado_de_id", None))
+        remarcado_de = getattr(item, "remarcado_de", None)
+        remarcado_de_label = ""
+        if remarcada_concluida_linha and remarcado_de is not None:
+            origem_programacao = getattr(remarcado_de, "programacao", None)
+            origem_veiculo = getattr(remarcado_de, "veiculo", None)
+            remarcado_de_label = remarcacao_origem_label(
+                item_id=getattr(remarcado_de, "id", None),
+                programacao_data=getattr(origem_programacao, "data", None),
+                veiculo_nome=getattr(origem_veiculo, "nome", "") or "",
+                veiculo_placa=getattr(origem_veiculo, "placa", "") or "",
+            )
         recentes_rows.append(
             {
                 "data": programacao_data,
@@ -1514,6 +1528,7 @@ def dashboard_servidor_view(request, servidor_id):
                 "area": getattr(area, "nome", "") or "-",
                 "concluido": concluido_linha,
                 "remarcada_concluida": remarcada_concluida_linha,
+                "remarcado_de_label": remarcado_de_label,
                 "nao_realizada": (not concluido_linha) and bool(item.concluido_em),
                 "concluido_em": item.concluido_em,
                 "veiculo": getattr(veiculo, "placa", "") or "-",

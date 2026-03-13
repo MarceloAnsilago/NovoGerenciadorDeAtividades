@@ -1,7 +1,8 @@
+import json
 from datetime import date
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -9,6 +10,7 @@ from atividades.models import Area, Atividade
 from core.models import No
 from metas.models import Meta
 from programar.models import Programacao, ProgramacaoItem
+from veiculos.models import Veiculo
 
 
 class NaoRealizadasViewTests(TestCase):
@@ -57,3 +59,21 @@ class NaoRealizadasViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Fiscalizacao Reversa-Lojas Agropecuarias", count=1)
         self.assertNotContains(response, "Atividade: Fiscalizacao Reversa-Lojas Agropecuarias")
+
+    @override_settings(META_EXPEDIENTE_ID=321)
+    def test_nao_realizadas_inclui_contexto_do_modal_com_veiculos(self):
+        Veiculo.objects.create(
+            unidade=self.unidade,
+            nome="Caminhonete",
+            placa="ABC1D23",
+            ativo=True,
+        )
+
+        response = self.client.get(reverse("minhas_metas:nao-realizadas"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["META_EXPEDIENTE_ID"], 321)
+        veiculos = json.loads(response.context["VEICULOS_ATIVOS_JSON"])
+        self.assertEqual(len(veiculos), 1)
+        self.assertEqual(veiculos[0]["nome"], "Caminhonete")
+        self.assertEqual(veiculos[0]["placa"], "ABC1D23")

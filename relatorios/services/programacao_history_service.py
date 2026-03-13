@@ -8,7 +8,13 @@ from django.db import transaction
 from django.utils import timezone
 
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
-from programar.status import EXECUTADA, is_auto_concluida_expediente, item_execucao_label, item_execucao_status_from_fields
+from programar.status import (
+    EXECUTADA,
+    is_auto_concluida_expediente,
+    item_execucao_label,
+    item_execucao_status_from_fields,
+    remarcacao_origem_label,
+)
 
 from relatorios.models import ProgramacaoHistorico
 
@@ -32,7 +38,7 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
 
     itens = list(
         ProgramacaoItem.objects.filter(programacao_id=prog.id)
-        .select_related("meta", "meta__atividade", "veiculo")
+        .select_related("meta", "meta__atividade", "veiculo", "remarcado_de__programacao", "remarcado_de__veiculo")
         .order_by("id")
     )
     item_ids = [item.id for item in itens]
@@ -68,6 +74,7 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
         concluido_em = getattr(item, "concluido_em", None)
         nao_realizada_justificada = bool(getattr(item, "nao_realizada_justificada", False))
         remarcado_de_id = getattr(item, "remarcado_de_id", None)
+        remarcado_de = getattr(item, "remarcado_de", None)
         auto_concluida_expediente = is_auto_concluida_expediente(
             meta_id=item.meta_id,
             meta_expediente_id=meta_expediente_id,
@@ -92,6 +99,16 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             veiculo_label = f"{veiculo_nome} ({veiculo_placa})"
         else:
             veiculo_label = veiculo_nome or veiculo_placa
+        remarcado_de_label = ""
+        if remarcado_de_id and remarcado_de is not None:
+            origem_programacao = getattr(remarcado_de, "programacao", None)
+            origem_veiculo = getattr(remarcado_de, "veiculo", None)
+            remarcado_de_label = remarcacao_origem_label(
+                item_id=getattr(remarcado_de, "id", None),
+                programacao_data=getattr(origem_programacao, "data", None),
+                veiculo_nome=getattr(origem_veiculo, "nome", "") or "",
+                veiculo_placa=getattr(origem_veiculo, "placa", "") or "",
+            )
 
         items_map[item.id] = {
             "id": item.id,
@@ -103,6 +120,7 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             "observacao": item.observacao or "",
             "veiculo_id": item.veiculo_id,
             "remarcado_de_id": remarcado_de_id,
+            "remarcado_de_label": remarcado_de_label,
             "veiculo_nome": veiculo_nome,
             "veiculo_placa": veiculo_placa,
             "veiculo_label": veiculo_label,

@@ -535,7 +535,12 @@
             <td>{{ row.atividade }}</td>
             <td>{{ row.area }}</td>
             <td class="text-center">
-              {% if row.concluido %}
+              {% if row.remarcada_concluida %}
+                <span class="badge text-bg-primary">Remarcada e concluida</span>
+                {% if row.remarcado_de_label %}
+                  <div class="small text-muted mt-1">Substituiu: {{ row.remarcado_de_label }}</div>
+                {% endif %}
+              {% elif row.concluido %}
                 <span class="badge text-bg-success">Concluida</span>
               {% elif row.nao_realizada %}
                 <span class="badge text-bg-secondary">Não realizada</span>

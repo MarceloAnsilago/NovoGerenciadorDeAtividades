@@ -1,6 +1,15 @@
 import unittest
 from datetime import date, timedelta
 
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.urls import reverse
+from django.utils import timezone
+
+from atividades.models import Area, Atividade
+from core.models import No
+from metas.models import Meta
+from programar.models import Programacao, ProgramacaoItem
 from programar.status import (
     EXECUTADA,
     NAO_REALIZADA,
@@ -136,3 +145,82 @@ class ItemStatusTest(unittest.TestCase):
                 today=today,
             )
         )
+
+
+class ConcluirItemFormTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="tester_programar", password="123456")
+        self.unidade = No.objects.create(nome="ULSAV Teste", tipo="setor")
+        self.area = Area.objects.create(code="AREA_PROG", nome="Area Programar")
+        self.atividade = Atividade.objects.create(
+            titulo="Atividade de teste",
+            descricao="",
+            area=self.area,
+            unidade_origem=self.unidade,
+            criado_por=self.user,
+        )
+        self.meta = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=self.atividade,
+            titulo="Meta teste",
+            descricao="meta",
+            quantidade_alvo=2,
+            criado_por=self.user,
+        )
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["contexto_atual"] = self.unidade.id
+        session.save()
+
+    def _criar_item(self, *, data_ref, concluido=False, concluido_em=None, nao_realizada_justificada=False):
+        programacao = Programacao.objects.create(
+            data=data_ref,
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        return ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            concluido=concluido,
+            concluido_em=concluido_em,
+            nao_realizada_justificada=nao_realizada_justificada,
+        )
+
+    def test_oculta_status_remarcado_sem_item_nao_realizado_anterior(self):
+        item = self._criar_item(data_ref=timezone.localdate())
+
+        response = self.client.get(reverse("programar:concluir-item-form", args=[item.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'value="remarcada_concluida"')
+
+    def test_exibe_status_remarcado_quando_ha_item_nao_realizado_anterior(self):
+        item_origem = self._criar_item(
+            data_ref=timezone.localdate() - timedelta(days=1),
+            concluido=False,
+            concluido_em=timezone.now(),
+            nao_realizada_justificada=False,
+        )
+        item = self._criar_item(data_ref=timezone.localdate())
+
+        response = self.client.get(reverse("programar:concluir-item-form", args=[item.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="remarcada_concluida"')
+        self.assertContains(response, "Atividade substituida na meta")
+        self.assertNotContains(response, f'value="{item_origem.id}" selected')
+
+    def test_rejeita_status_remarcado_sem_item_nao_realizado_anterior(self):
+        item = self._criar_item(data_ref=timezone.localdate())
+
+        response = self.client.post(
+            reverse("programar:concluir-item-form", args=[item.id]),
+            {"status_execucao": REMARCADA_CONCLUIDA, "observacoes": ""},
+        )
+
+        item.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(item.remarcado_de_id, None)
+        self.assertFalse(item.concluido)
+        self.assertContains(response, "O status Remarcada e concluida so pode ser usado")

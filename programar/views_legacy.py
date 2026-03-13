@@ -28,6 +28,7 @@ from programar.status import (
     REMARCADA_CONCLUIDA,
     is_auto_concluida_expediente,
     item_execucao_status_from_fields,
+    remarcacao_origem_label,
 )
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotAllowed
 from django.views.decorators.http import require_GET, require_POST
@@ -175,10 +176,13 @@ def _build_remarcacao_opcoes(
             continue
         cand_prog = getattr(cand, "programacao", None)
         cand_data = getattr(cand_prog, "data", None)
-        veiculo = getattr(getattr(cand, "veiculo", None), "nome", "") or ""
-        label = f"{cand_data:%d/%m/%Y} - Item #{cand.id}"
-        if veiculo:
-            label += f" - {veiculo}"
+        cand_veiculo = getattr(cand, "veiculo", None)
+        label = remarcacao_origem_label(
+            item_id=cand.id,
+            programacao_data=cand_data,
+            veiculo_nome=getattr(cand_veiculo, "nome", "") or "",
+            veiculo_placa=getattr(cand_veiculo, "placa", "") or "",
+        )
         opcoes.append({
             "id": cand.id,
             "label": label,
@@ -2469,8 +2473,6 @@ def concluir_item_form(request, item_id: int):
         raw_value=getattr(pi, "remarcado_de_id", None),
         ignore_item_id=pi.id,
     )
-    if remarcado_de_current_id is None and remarcacao_opcoes:
-        remarcado_de_current_id = remarcacao_opcoes[0]["id"]
     permite_status_remarcado = bool(remarcacao_opcoes or remarcado_de_current_id)
 
     pendentes_qs = ProgramacaoItem.objects.none()
@@ -2525,12 +2527,19 @@ def concluir_item_form(request, item_id: int):
 
         if status_execucao in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA} and not obs_final:
             form_errors["observacoes"] = "Informe uma observacao para salvar este status."
+        if status_execucao == REMARCADA_CONCLUIDA and not permite_status_remarcado:
+            form_errors["status_execucao"] = (
+                "O status Remarcada e concluida so pode ser usado quando houver uma atividade "
+                "anterior marcada como nao realizada nesta meta."
+            )
         if status_execucao == REMARCADA_CONCLUIDA and not remarcado_de_selected_id and remarcacao_opcoes:
             form_errors["remarcado_de_id"] = "Selecione de qual atividade nao realizada esta conclusao foi remarcada."
 
         if form_errors:
             if form_errors.get("observacoes"):
                 messages.error(request, form_errors["observacoes"])
+            elif form_errors.get("status_execucao"):
+                messages.error(request, form_errors["status_execucao"])
             elif form_errors.get("remarcado_de_id"):
                 messages.error(request, form_errors["remarcado_de_id"])
             contexto = {

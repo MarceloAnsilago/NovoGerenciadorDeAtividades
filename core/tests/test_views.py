@@ -1,11 +1,17 @@
+from datetime import date
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
-from atividades.models import Atividade
+from atividades.models import Area, Atividade
 from core.models import No, UserProfile
 from core.utils import gerar_senha_provisoria, get_unidade_atual_id
+from metas.models import Meta
+from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
+from servidores.models import Servidor
 
 
 class RedefinirSenhaTests(TestCase):
@@ -193,3 +199,69 @@ class AssumirUnidadeSessionSyncTests(TestCase):
         self.assertNotIn("unidade_id", session)
         self.assertNotIn("contexto_atual", session)
         self.assertNotIn("contexto_nome", session)
+
+
+class DashboardServidorRemarcacaoTests(TestCase):
+    def setUp(self):
+        self.unidade = No.objects.create(nome="Unidade Dashboard")
+        self.user = get_user_model().objects.create_user(
+            username="dashboard_srv",
+            email="dashboard@example.com",
+            password="secret123",
+        )
+        UserProfile.objects.create(user=self.user, unidade=self.unidade, ativado=True)
+        self.area = Area.objects.create(code="AREA_DASH", nome="Area Dashboard")
+        self.atividade = Atividade.objects.create(
+            titulo="Fiscalizacao remarcada",
+            unidade_origem=self.unidade,
+            area=self.area,
+            criado_por=self.user,
+        )
+        self.meta = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=self.atividade,
+            titulo="Meta dashboard",
+            descricao="",
+            quantidade_alvo=2,
+            criado_por=self.user,
+        )
+        self.servidor = Servidor.objects.create(unidade=self.unidade, nome="Servidor Dashboard", ativo=True)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["contexto_atual"] = self.unidade.id
+        session.save()
+
+    def test_dashboard_servidor_exibe_origem_da_substituicao(self):
+        programacao_origem = Programacao.objects.create(
+            data=date(2026, 3, 10),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        item_origem = ProgramacaoItem.objects.create(
+            programacao=programacao_origem,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            nao_realizada_justificada=False,
+            observacao="Nao realizada base",
+        )
+        programacao_destino = Programacao.objects.create(
+            data=date(2026, 3, 12),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        item_destino = ProgramacaoItem.objects.create(
+            programacao=programacao_destino,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.now(),
+            remarcado_de=item_origem,
+            observacao="Executada em substituicao",
+        )
+        ProgramacaoItemServidor.objects.create(item=item_destino, servidor=self.servidor)
+
+        response = self.client.get(reverse("core:dashboard_servidor", args=[self.servidor.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Remarcada e concluida")
+        self.assertContains(response, f"Substituiu: 10/03/2026 - Item #{item_origem.id}")

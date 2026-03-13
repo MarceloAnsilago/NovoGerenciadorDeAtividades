@@ -130,3 +130,4 @@ class RelatorioProgramacaoTests(TestCase):
         self.assertEqual(resumo["Fiscalizacao de viveiros"]["remarcada_concluida"], 1)
         self.assertContains(response, "Remarcada e concluida")
         self.assertContains(response, "Atividades remarcadas e concluidas")
+        self.assertContains(response, f"Substituiu: 10/03/2026 - Item #{item_original.id}")

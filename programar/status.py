@@ -17,6 +17,29 @@ ITEM_STATUS_LABELS = {
 }
 
 
+def remarcacao_origem_label(
+    *,
+    item_id: int | None,
+    programacao_data: date | None,
+    veiculo_nome: str = "",
+    veiculo_placa: str = "",
+) -> str:
+    partes: list[str] = []
+    if programacao_data:
+        partes.append(programacao_data.strftime("%d/%m/%Y"))
+    if item_id:
+        partes.append(f"Item #{item_id}")
+
+    veiculo_nome = str(veiculo_nome or "").strip()
+    veiculo_placa = str(veiculo_placa or "").strip()
+    if veiculo_nome and veiculo_placa:
+        partes.append(f"{veiculo_nome} ({veiculo_placa})")
+    elif veiculo_nome or veiculo_placa:
+        partes.append(veiculo_nome or veiculo_placa)
+
+    return " - ".join(partes) if partes else "Origem da substituicao"
+
+
 def item_execucao_status_from_fields(
     concluido: bool,
     concluido_em,

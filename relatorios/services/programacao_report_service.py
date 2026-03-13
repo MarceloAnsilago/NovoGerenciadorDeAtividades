@@ -352,6 +352,7 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
                 "veiculo": veiculo_label or "-",
                 "status_final": final_status,
                 "status_final_label": "Removida" if final_status == "removida" else _status_label(final_status),
+                "remarcado_de_label": final_snapshot.get("remarcado_de_label", "") or initial_snapshot.get("remarcado_de_label", ""),
             }
         )
 
