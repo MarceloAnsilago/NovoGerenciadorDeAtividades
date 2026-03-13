@@ -704,14 +704,32 @@ def nao_realizadas_view(request):
             nome = getattr(getattr(link, "servidor", None), "nome", "") or f"Servidor {link.servidor_id}"
             servidores_por_item[link.item_id].append(nome)
 
+    item_revisao_por_origem: dict[int, ProgramacaoItem] = {}
+    if item_ids:
+        itens_revisao_qs = (
+            ProgramacaoItem.objects
+            .select_related("programacao")
+            .filter(
+                programacao__unidade_id=unidade.id,
+                remarcado_de_id__in=item_ids,
+            )
+            .order_by("-programacao__data", "-id")
+        )
+        for item_revisao in itens_revisao_qs:
+            origem_id = getattr(item_revisao, "remarcado_de_id", None)
+            if origem_id and origem_id not in item_revisao_por_origem:
+                item_revisao_por_origem[origem_id] = item_revisao
+
     nao_realizadas = []
     for item in itens_qs:
         meta = getattr(item, "meta", None)
         programacao = getattr(item, "programacao", None)
         if not meta or not programacao:
             continue
+        item_revisao = item_revisao_por_origem.get(item.id) or item
         nao_realizadas.append({
             "item_id": item.id,
+            "review_item_id": getattr(item_revisao, "id", item.id),
             "data": getattr(programacao, "data", None),
             "meta_id": getattr(meta, "id", None),
             "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem titulo)"),

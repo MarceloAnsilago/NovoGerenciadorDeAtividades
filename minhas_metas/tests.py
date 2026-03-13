@@ -77,3 +77,29 @@ class NaoRealizadasViewTests(TestCase):
         self.assertEqual(len(veiculos), 1)
         self.assertEqual(veiculos[0]["nome"], "Caminhonete")
         self.assertEqual(veiculos[0]["placa"], "ABC1D23")
+
+    def test_revisar_status_aponta_para_item_remarcado_mais_recente(self):
+        programacao_remarcada = Programacao.objects.create(
+            data=date(2026, 3, 12),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        item_remarcado = ProgramacaoItem.objects.create(
+            programacao=programacao_remarcada,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.now(),
+            remarcado_de=self.item,
+        )
+
+        response = self.client.get(reverse("minhas_metas:nao-realizadas"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            reverse("programar:concluir-item-form", args=[item_remarcado.id]),
+        )
+        self.assertNotContains(
+            response,
+            reverse("programar:concluir-item-form", args=[self.item.id]),
+        )

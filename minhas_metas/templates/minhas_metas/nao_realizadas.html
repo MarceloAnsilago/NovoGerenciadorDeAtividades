@@ -82,7 +82,7 @@
                 <td class="text-nowrap">
                   <div class="d-flex flex-wrap gap-2">
                     <a class="btn btn-sm btn-outline-warning"
-                       href="{% url 'programar:concluir-item-form' item.item_id %}?next={{ request.get_full_path|urlencode }}&source=minhas-metas">
+                       href="{% url 'programar:concluir-item-form' item.review_item_id|default:item.item_id %}?next={{ request.get_full_path|urlencode }}&source=minhas-metas">
                       Revisar status
                     </a>
                     {% if item.data %}
