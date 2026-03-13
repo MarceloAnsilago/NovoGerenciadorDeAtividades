@@ -342,7 +342,11 @@
                   const hints = (progStatusPayload && progStatusPayload.hints) || {};
                   let hint = "";
                   if (dsKey.includes("conclu")) {
-                    hint = (hints.concluidas && hints.concluidas[idx]) || "";
+                    if (dsKey.includes("remarc")) {
+                      hint = (hints.remarcadas_concluidas && hints.remarcadas_concluidas[idx]) || "";
+                    } else {
+                      hint = (hints.concluidas && hints.concluidas[idx]) || "";
+                    }
                   } else if (dsKey.includes("nao realiz")) {
                     hint = (hints.nao_realizadas && hints.nao_realizadas[idx]) || "";
                   } else if (dsKey.includes("penden")) {

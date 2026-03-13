@@ -8,6 +8,7 @@
   class="container-fluid py-3"
   id="dashboard-servidor-root"
   data-concluidas="{{ kpis.concluidas|default:0 }}"
+  data-remarcadas-concluidas="{{ kpis.remarcadas_concluidas|default:0 }}"
   data-nao-realizadas="{{ kpis.nao_realizadas|default:0 }}"
   data-pendentes="{{ kpis.pendentes|default:0 }}"
   data-expediente-total="{% if kpis.expediente_total is not None %}{{ kpis.expediente_total }}{% endif %}"
@@ -120,6 +121,14 @@
         <div class="card-body">
           <div class="text-muted text-uppercase small">Não realizadas</div>
           <div class="display-6 fw-bold text-secondary">{{ kpis.nao_realizadas }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Remarcadas e concluidas</div>
+          <div class="display-6 fw-bold text-primary">{{ kpis.remarcadas_concluidas }}</div>
         </div>
       </div>
     </div>
@@ -308,6 +317,7 @@
                 <th>Area</th>
                 <th class="text-end">Total</th>
                 <th class="text-end">Concluidas</th>
+                <th class="text-end">Remarc. concl.</th>
                 <th class="text-end">Não realizadas</th>
                 <th class="text-end">Pendentes</th>
                 <th class="text-end">Ultima data</th>
@@ -320,6 +330,7 @@
                 <td>{{ row.area }}</td>
                 <td class="text-end">{{ row.total }}</td>
                 <td class="text-end">{{ row.concluidas }}</td>
+                <td class="text-end">{{ row.remarcadas_concluidas }}</td>
                 <td class="text-end">{{ row.nao_realizadas }}</td>
                 <td class="text-end">{{ row.pendentes }}</td>
                 <td class="text-end">{{ row.ultima_data|date:"d/m/Y" }}</td>

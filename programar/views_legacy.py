@@ -25,6 +25,7 @@ from programar.status import (
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
     PENDENTE,
+    REMARCADA_CONCLUIDA,
     is_auto_concluida_expediente,
     item_execucao_status_from_fields,
 )
@@ -100,6 +101,89 @@ def _meta_ids_com_itens_abertos(
         .distinct()
     )
     return {int(meta_id) for meta_id in ids if meta_id}
+
+
+def _resolve_remarcado_de_id(
+    *,
+    unidade_id: int | None,
+    meta_id: int | None,
+    raw_value,
+    ignore_item_id: int | None = None,
+) -> int | None:
+    if not unidade_id or not meta_id or raw_value in (None, "", "null"):
+        return None
+    try:
+        candidate_id = int(raw_value)
+    except (TypeError, ValueError):
+        return None
+    qs = ProgramacaoItem.objects.filter(
+        id=candidate_id,
+        programacao__unidade_id=unidade_id,
+        meta_id=meta_id,
+        concluido=False,
+        concluido_em__isnull=False,
+        nao_realizada_justificada=False,
+    )
+    if ignore_item_id:
+        qs = qs.exclude(id=ignore_item_id)
+    return candidate_id if qs.exists() else None
+
+
+def _build_remarcacao_opcoes(
+    *,
+    unidade_id: int | None,
+    item: ProgramacaoItem,
+) -> list[dict[str, Any]]:
+    meta_id = getattr(item, "meta_id", None)
+    programacao = getattr(item, "programacao", None)
+    data_atual = getattr(programacao, "data", None)
+    if not unidade_id or not meta_id or not data_atual:
+        return []
+
+    candidatos_qs = (
+        ProgramacaoItem.objects
+        .select_related("programacao", "veiculo")
+        .filter(
+            meta_id=meta_id,
+            programacao__unidade_id=unidade_id,
+            concluido=False,
+            concluido_em__isnull=False,
+            nao_realizada_justificada=False,
+            programacao__data__lt=data_atual,
+        )
+        .exclude(pk=item.pk)
+        .order_by("-programacao__data", "-id")
+    )
+    candidatos = list(candidatos_qs)
+    if not candidatos:
+        return []
+
+    candidate_ids = [cand.id for cand in candidatos]
+    usados_ids = set(
+        ProgramacaoItem.objects
+        .filter(remarcado_de_id__in=candidate_ids)
+        .exclude(pk=item.pk)
+        .values_list("remarcado_de_id", flat=True)
+    )
+    current_source_id = getattr(item, "remarcado_de_id", None)
+
+    opcoes: list[dict[str, Any]] = []
+    for cand in candidatos:
+        if cand.id in usados_ids and cand.id != current_source_id:
+            continue
+        cand_prog = getattr(cand, "programacao", None)
+        cand_data = getattr(cand_prog, "data", None)
+        veiculo = getattr(getattr(cand, "veiculo", None), "nome", "") or ""
+        label = f"{cand_data:%d/%m/%Y} - Item #{cand.id}"
+        if veiculo:
+            label += f" - {veiculo}"
+        opcoes.append({
+            "id": cand.id,
+            "label": label,
+            "data": cand_data,
+            "observacao": getattr(cand, "observacao", "") or "",
+        })
+    return opcoes
 
 
 @login_required
@@ -377,14 +461,14 @@ def salvar_programacao(request):
     e remoção dos itens que não vierem no payload (delete-orphans).
 
     Payload esperado:
-      {
-        data: "YYYY-MM-DD",
-        observacao: "",
-        itens: [
-          { id?, meta_id, observacao, veiculo_id?, servidores_ids: [int,...] },
-          ...
-        ]
-      }
+        {
+          data: "YYYY-MM-DD",
+          observacao: "",
+          itens: [
+            { id?, meta_id, observacao, veiculo_id?, remarcado_de_id?, servidores_ids: [int,...] },
+            ...
+          ]
+        }
     """
     try:
         body = json.loads(request.body.decode("utf-8"))
@@ -489,7 +573,6 @@ def salvar_programacao(request):
             raw_item_id = it.get("id")
             item_id: int | None = None
             pi: ProgramacaoItem | None = None
-
             if raw_item_id not in (None, "", "null"):
                 try:
                     item_id = int(raw_item_id)
@@ -498,11 +581,18 @@ def salvar_programacao(request):
                 if item_id and item_id in existentes:
                     pi = existentes[item_id]
 
+            remarcado_de_id = _resolve_remarcado_de_id(
+                unidade_id=unidade_id,
+                meta_id=meta_id,
+                raw_value=it.get("remarcado_de_id"),
+                ignore_item_id=item_id,
+            )
+
             allowed_existing_ids = existentes_servidores_por_item.get(item_id or 0, set())
             servidores_ids: list[int] = []
             for sid_int in candidatos_servidores_ids:
                 if ativos_ids and sid_int not in ativos_ids and sid_int not in allowed_existing_ids:
-                    # Bloqueia novos vínculos com inativos, mas preserva vínculos históricos do próprio item.
+                    # Bloqueia novos vinculos com inativos, mas preserva vinculos historicos do proprio item.
                     continue
                 servidores_ids.append(sid_int)
 
@@ -515,6 +605,7 @@ def salvar_programacao(request):
                     meta_id=meta_id,
                     observacao=obs,
                     veiculo_id=veiculo_id,
+                    remarcado_de_id=remarcado_de_id if "remarcado_de_id" in it else getattr(pi, "remarcado_de_id", None),
                 )
             else:
                 pi = ProgramacaoItem.objects.create(
@@ -522,6 +613,7 @@ def salvar_programacao(request):
                     meta_id=meta_id,
                     observacao=obs,
                     veiculo_id=veiculo_id,
+                    remarcado_de_id=remarcado_de_id,
                     concluido=False,
                 )
                 item_id = pi.id
@@ -531,7 +623,7 @@ def salvar_programacao(request):
 
             ids_payload.add(item_id)
 
-            # substitui vínculos de servidores
+            # substitui vinculos de servidores
             ProgramacaoItemServidor.objects.filter(item_id=item_id).delete()
             if servidores_ids:
                 bulk = [
@@ -540,7 +632,6 @@ def salvar_programacao(request):
                 ]
                 ProgramacaoItemServidor.objects.bulk_create(bulk)
                 total_vinculos += len(bulk)
-
         # delete-orphans: remove itens que não vieram no payload
         orfaos = [
             pi_id
@@ -1770,6 +1861,7 @@ def events_feed(request):
                 bool(getattr(item, "concluido", False)),
                 getattr(item, "concluido_em", None),
                 bool(getattr(item, "nao_realizada_justificada", False)),
+                getattr(item, "remarcado_de_id", None),
             )
             key = (titulo, status_item)
             if key not in activity_counts[pid]:
@@ -2086,6 +2178,7 @@ def programacao_do_dia_orm(request):
             "meta_id",
             "observacao",
             "veiculo_id",
+            "remarcado_de_id",
             "concluido",
             "concluido_em",
             "nao_realizada_justificada",
@@ -2152,6 +2245,7 @@ def programacao_do_dia_orm(request):
         concluido_db = bool(it.get("concluido"))
         concluido_em = it.get("concluido_em")
         nao_realizada_justificada = bool(it.get("nao_realizada_justificada"))
+        remarcado_de_id = it.get("remarcado_de_id")
         auto_concluida_expediente = is_auto_concluida_expediente(
             meta_id=meta_id,
             meta_expediente_id=meta_expediente_id,
@@ -2165,12 +2259,14 @@ def programacao_do_dia_orm(request):
             concluido_db,
             concluido_em,
             nao_realizada_justificada,
+            remarcado_de_id,
         )
         obj = {
             "id": iid,
             "meta_id": meta_id,
             "observacao": it.get("observacao") or "",
             "veiculo_id": it.get("veiculo_id"),
+            "remarcado_de_id": remarcado_de_id,
             "concluido": bool(concluido_db or auto_concluida_expediente),
             "status_execucao": status_execucao,
             "servidores_ids": serv_ids_by_item.get(iid, []),
@@ -2311,6 +2407,7 @@ def _item_execucao_status(item: ProgramacaoItem) -> str:
         bool(getattr(item, "concluido", False)),
         getattr(item, "concluido_em", None),
         bool(getattr(item, "nao_realizada_justificada", False)),
+        getattr(item, "remarcado_de_id", None),
     )
 
 
@@ -2318,8 +2415,14 @@ def _item_execucao_status_from_fields(
     concluido: bool,
     concluido_em,
     nao_realizada_justificada: bool = False,
+    remarcado_de_id: int | None = None,
 ) -> str:
-    return item_execucao_status_from_fields(concluido, concluido_em, nao_realizada_justificada)
+    return item_execucao_status_from_fields(
+        concluido,
+        concluido_em,
+        nao_realizada_justificada,
+        remarcado_de_id,
+    )
 
 
 @login_required
@@ -2357,6 +2460,16 @@ def concluir_item_form(request, item_id: int):
 
     meta = getattr(pi, "meta", None)
     programacao = pi.programacao
+    remarcacao_opcoes = _build_remarcacao_opcoes(unidade_id=unidade_ctx_id, item=pi)
+    remarcado_de_current_id = _resolve_remarcado_de_id(
+        unidade_id=unidade_ctx_id,
+        meta_id=getattr(meta, "id", None),
+        raw_value=getattr(pi, "remarcado_de_id", None),
+        ignore_item_id=pi.id,
+    )
+    if remarcado_de_current_id is None and remarcacao_opcoes:
+        remarcado_de_current_id = remarcacao_opcoes[0]["id"]
+    permite_status_remarcado = bool(remarcacao_opcoes or remarcado_de_current_id)
 
     pendentes_qs = ProgramacaoItem.objects.none()
     pendentes_total = 0
@@ -2390,19 +2503,34 @@ def concluir_item_form(request, item_id: int):
     if request.method == "POST":
         form_errors: dict[str, str] = {}
         status_execucao = (request.POST.get("status_execucao") or "").strip().lower()
-        if status_execucao not in {EXECUTADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:
+        if status_execucao not in {EXECUTADA, REMARCADA_CONCLUIDA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:
             # Compatibilidade com payload legado (checkbox "realizado").
             realizado_raw = (request.POST.get("realizado") or "").strip().lower()
             status_execucao = EXECUTADA if realizado_raw in {"1", "true", "on", "sim"} else PENDENTE
 
-        concluido_flag = status_execucao == EXECUTADA
-        marcado_com_status = status_execucao in {EXECUTADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA}
+        concluido_flag = status_execucao in {EXECUTADA, REMARCADA_CONCLUIDA}
+        marcado_com_status = status_execucao in {EXECUTADA, REMARCADA_CONCLUIDA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA}
         obs_final = (request.POST.get("observacoes") or "").strip()
         confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
+        remarcado_de_selected_id = _resolve_remarcado_de_id(
+            unidade_id=unidade_ctx_id,
+            meta_id=getattr(meta, "id", None),
+            raw_value=request.POST.get("remarcado_de_id"),
+            ignore_item_id=pi.id,
+        )
+        if remarcado_de_selected_id is None:
+            remarcado_de_selected_id = remarcado_de_current_id
 
         if status_execucao in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA} and not obs_final:
             form_errors["observacoes"] = "Informe uma observacao para salvar este status."
-            messages.error(request, form_errors["observacoes"])
+        if status_execucao == REMARCADA_CONCLUIDA and not remarcado_de_selected_id:
+            form_errors["remarcado_de_id"] = "Selecione de qual atividade nao realizada esta conclusao foi remarcada."
+
+        if form_errors:
+            if form_errors.get("observacoes"):
+                messages.error(request, form_errors["observacoes"])
+            elif form_errors.get("remarcado_de_id"):
+                messages.error(request, form_errors["remarcado_de_id"])
             contexto = {
                 "item": pi,
                 "programacao": programacao,
@@ -2410,6 +2538,10 @@ def concluir_item_form(request, item_id: int):
                 "atividade": getattr(meta, "atividade", None),
                 "veiculo": getattr(pi, "veiculo", None),
                 "servidores": servidores,
+                "item_remarcado": bool(getattr(pi, "remarcado_de_id", None)),
+                "permite_status_remarcado": permite_status_remarcado,
+                "remarcacao_opcoes": remarcacao_opcoes,
+                "remarcado_de_selected_id": remarcado_de_selected_id,
                 "next": safe_next_url(request, "/minhas-metas/"),
                 "pendentes_total": pendentes_total,
                 "pendentes_preview": pendentes_preview,
@@ -2431,6 +2563,10 @@ def concluir_item_form(request, item_id: int):
                 "atividade": getattr(meta, "atividade", None),
                 "veiculo": getattr(pi, "veiculo", None),
                 "servidores": servidores,
+                "item_remarcado": bool(getattr(pi, "remarcado_de_id", None)),
+                "permite_status_remarcado": permite_status_remarcado,
+                "remarcacao_opcoes": remarcacao_opcoes,
+                "remarcado_de_selected_id": remarcado_de_selected_id,
                 "next": safe_next_url(request, "/minhas-metas/"),
                 "pendentes_total": pendentes_total,
                 "pendentes_preview": pendentes_preview,
@@ -2474,6 +2610,7 @@ def concluir_item_form(request, item_id: int):
                 concluido_em = None
                 concluido_por_id = None
             nao_realizada_justificada = status_execucao == NAO_REALIZADA_JUSTIFICADA
+            remarcado_de_update_id = remarcado_de_selected_id if status_execucao == REMARCADA_CONCLUIDA else None
 
             (
                 ProgramacaoItem.objects
@@ -2485,6 +2622,7 @@ def concluir_item_form(request, item_id: int):
                     nao_realizada_justificada=nao_realizada_justificada,
                     concluido_por_id=concluido_por_id,
                     observacao=obs_final,
+                    remarcado_de_id=remarcado_de_update_id,
                 )
             )
             after_snapshot = snapshot_programacao_dia(unidade_ctx_id, prog.data)
@@ -2508,6 +2646,10 @@ def concluir_item_form(request, item_id: int):
         "atividade": getattr(meta, "atividade", None),
         "veiculo": getattr(pi, "veiculo", None),
         "servidores": servidores,
+        "item_remarcado": bool(getattr(pi, "remarcado_de_id", None)),
+        "permite_status_remarcado": permite_status_remarcado,
+        "remarcacao_opcoes": remarcacao_opcoes,
+        "remarcado_de_selected_id": remarcado_de_current_id,
         "next": safe_next_url(request, "/minhas-metas/"),
         "pendentes_total": pendentes_total,
         "pendentes_preview": pendentes_preview,
@@ -2519,5 +2661,6 @@ def concluir_item_form(request, item_id: int):
         "form_errors": {},
     }
     return render(request, "minhas_metas/concluir_item.html", contexto)
+
 
 

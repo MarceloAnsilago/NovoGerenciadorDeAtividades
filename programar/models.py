@@ -51,6 +51,13 @@ class ProgramacaoItem(models.Model):
     concluido = models.BooleanField(default=False)
     concluido_em = models.DateTimeField(null=True, blank=True)
     nao_realizada_justificada = models.BooleanField(default=False)
+    remarcado_de = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
     criado_em = models.DateTimeField(default=timezone.now)
 
     concluido_por = models.ForeignKey(
@@ -82,6 +89,7 @@ class ProgramacaoItem(models.Model):
         indexes = [
             models.Index(fields=["meta"]),
             models.Index(fields=["programacao", "meta"]),
+            models.Index(fields=["remarcado_de"]),
         ]
 
     def __str__(self):

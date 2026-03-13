@@ -21,7 +21,8 @@
   <td>
     <div class="d-flex align-items-center gap-2">
       <span class="badge
-        {% if it.status_key == 'concluidas' %}bg-success-subtle text-success
+        {% if it.status_key == 'remarcadas_concluidas' %}bg-primary-subtle text-primary
+        {% elif it.status_key == 'concluidas' %}bg-success-subtle text-success
         {% elif it.status_key == 'nao_realizadas_justificadas' %}bg-info-subtle text-info-emphasis
         {% elif it.status_key == 'nao_realizadas' %}bg-warning-subtle text-warning-emphasis
         {% else %}bg-secondary-subtle text-secondary{% endif %}">
@@ -29,12 +30,15 @@
       </span>
 
       <a class="btn btn-sm
-        {% if it.status_key == 'concluidas' %}btn-success
+        {% if it.status_key == 'remarcadas_concluidas' %}btn-primary
+        {% elif it.status_key == 'concluidas' %}btn-success
         {% elif it.status_key == 'nao_realizadas_justificadas' %}btn-info
         {% elif it.status_key == 'nao_realizadas' %}btn-warning
         {% else %}btn-primary{% endif %}"
          href="{% url 'programar:concluir-item-form' it.item_id %}?next={{ request.get_full_path|urlencode }}&source=minhas-metas">
-        {% if it.status_key == 'concluidas' %}
+        {% if it.status_key == 'remarcadas_concluidas' %}
+          Remarcada e concluida
+        {% elif it.status_key == 'concluidas' %}
           Concluida
         {% elif it.status_key == 'nao_realizadas_justificadas' %}
           Nao realizada justificada

@@ -93,6 +93,7 @@
       line-height: 1.2;
     }
     .relatorio-print-area .badge-status.status-executada { color: #198754; }
+    .relatorio-print-area .badge-status.status-remarcada_concluida { color: #0d6efd; }
     .relatorio-print-area .badge-status.status-nao_realizada { color: #495057; }
     .relatorio-print-area .badge-status.status-nao_realizada_justificada { color: #0b7285; }
     .relatorio-print-area .badge-status.status-pendente { color: #212529; }
@@ -220,14 +221,15 @@
         width: 100% !important;
         font-size: 11px !important;
       }
-      .relatorio-resumo-table th:nth-child(1) { width: 38% !important; }
+      .relatorio-resumo-table th:nth-child(1) { width: 32% !important; }
       .relatorio-resumo-table th:nth-child(2) { width: 8% !important; }
       .relatorio-resumo-table th:nth-child(3) { width: 8% !important; }
-      .relatorio-resumo-table th:nth-child(4) { width: 8% !important; }
-      .relatorio-resumo-table th:nth-child(5) { width: 11% !important; }
-      .relatorio-resumo-table th:nth-child(6) { width: 8% !important; }
+      .relatorio-resumo-table th:nth-child(4) { width: 10% !important; }
+      .relatorio-resumo-table th:nth-child(5) { width: 8% !important; }
+      .relatorio-resumo-table th:nth-child(6) { width: 10% !important; }
       .relatorio-resumo-table th:nth-child(7) { width: 8% !important; }
-      .relatorio-resumo-table th:nth-child(8) { width: 11% !important; }
+      .relatorio-resumo-table th:nth-child(8) { width: 7% !important; }
+      .relatorio-resumo-table th:nth-child(9) { width: 9% !important; }
       .relatorio-nao-realizadas-table .group-row td {
         border-top: 1.4pt solid #495057 !important;
       }
@@ -407,7 +409,7 @@
                 <div class="mt-3">
                   <h6 class="fw-semibold mb-2">Resumo por atividade</h6>
                   <div class="relatorio-legenda-box">
-                    <strong>Legenda:</strong> N.R. = n&atilde;o realizada | N.R.(J) = n&atilde;o realizada e justificada | Rem. = removidas
+                    <strong>Legenda:</strong> Rem.+Conc. = remarcada e concluida | N.R. = n&atilde;o realizada | N.R.(J) = n&atilde;o realizada e justificada | Rem. = removidas
                   </div>
                   <div class="table-responsive">
                     <table class="table table-sm align-middle mb-0 relatorio-resumo-table">
@@ -416,6 +418,7 @@
                           <th>Atividade</th>
                           <th class="text-end">Prog.</th>
                           <th class="text-end">Conc.</th>
+                          <th class="text-end">Rem.+Conc.</th>
                           <th class="text-end">N.R.</th>
                           <th class="text-end">N.R.(J)</th>
                           <th class="text-end">Pend.</th>
@@ -429,6 +432,7 @@
                             <td>{{ r.titulo }}</td>
                             <td class="text-end">{{ r.total }}</td>
                             <td class="text-end">{{ r.executada }}</td>
+                            <td class="text-end">{{ r.remarcada_concluida }}</td>
                             <td class="text-end">{{ r.nao_realizada }}</td>
                             <td class="text-end">{{ r.nao_realizada_justificada }}</td>
                             <td class="text-end">{{ r.pendente }}</td>

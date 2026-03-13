@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from core.utils import get_unidade_atual_id
 from programar.models import ProgramacaoItem, ProgramacaoItemServidor
-from programar.status import EXECUTADA, ITEM_STATUS_LABELS, NAO_REALIZADA, PENDENTE
+from programar.status import EXECUTADA, ITEM_STATUS_LABELS, NAO_REALIZADA, PENDENTE, REMARCADA_CONCLUIDA
 
 from relatorios.models import ProgramacaoHistorico
 from .programacao_history_service import snapshot_programacao_dia
@@ -286,6 +286,7 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
     rows: list[dict[str, Any]] = []
     counters = {
         "executada": 0,
+        "remarcada_concluida": 0,
         "nao_realizada": 0,
         "nao_realizada_justificada": 0,
         "pendente": 0,
@@ -369,7 +370,8 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
     for row in resumo_por_atividade:
         total = int(row.get("total") or 0)
         executada = int(row.get("executada") or 0)
-        row["execucao_percent"] = int(round((executada * 100.0 / total), 0)) if total else 0
+        remarcada_concluida = int(row.get("remarcada_concluida") or 0)
+        row["execucao_percent"] = int(round(((executada + remarcada_concluida) * 100.0 / total), 0)) if total else 0
 
     resumo_por_atividade.sort(
         key=lambda r: (
@@ -424,7 +426,11 @@ def _build_indicators_section(
     return {
         "cards": [
             {"label": "Total de atividades programadas", "value": total_programadas},
-            {"label": "Atividades concluidas", "value": counters.get("executada", 0)},
+            {
+                "label": "Atividades concluidas",
+                "value": counters.get("executada", 0) + counters.get(REMARCADA_CONCLUIDA, 0),
+            },
+            {"label": "Atividades remarcadas e concluidas", "value": counters.get(REMARCADA_CONCLUIDA, 0)},
             {"label": "Atividades nao realizadas", "value": counters.get("nao_realizada", 0)},
             {"label": "Atividades nao realizadas justificadas", "value": counters.get("nao_realizada_justificada", 0)},
             {"label": "Atividades pendentes", "value": counters.get("pendente", 0)},

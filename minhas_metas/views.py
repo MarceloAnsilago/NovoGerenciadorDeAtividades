@@ -22,6 +22,7 @@ from programar.status import (
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
     PENDENTE,
+    REMARCADA_CONCLUIDA,
     EXECUTADA,
     item_execucao_status_from_fields,
 )
@@ -102,7 +103,10 @@ def _item_execucao_info(item):
         bool(getattr(item, "concluido", False)),
         getattr(item, "concluido_em", None),
         bool(getattr(item, "nao_realizada_justificada", False)),
+        getattr(item, "remarcado_de_id", None),
     )
+    if status == REMARCADA_CONCLUIDA:
+        return "remarcadas_concluidas", ITEM_STATUS_LABELS[REMARCADA_CONCLUIDA]
     if status == EXECUTADA:
         return "concluidas", ITEM_STATUS_LABELS[EXECUTADA]
     if status == NAO_REALIZADA_JUSTIFICADA:
@@ -184,7 +188,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
 
     status_param = request.GET.get("status")
     status_value = (status_param or "").lower()
-    if status_value not in {"concluidas", "pendentes", "nao_realizadas", "nao_realizadas_justificadas"}:
+    if status_value not in {"concluidas", "pendentes", "nao_realizadas", "nao_realizadas_justificadas", "remarcadas_concluidas"}:
         status_value = ""
 
     meta_status_cards_filter = (request.GET.get("meta_status") or "").strip().lower()
@@ -416,6 +420,8 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         itens_qs = itens_qs.filter(meta_id=meta_filter_id)
     if status_query_filter == "concluidas":
         itens_qs = itens_qs.filter(concluido=True)
+    elif status_query_filter == "remarcadas_concluidas":
+        itens_qs = itens_qs.filter(concluido=True, remarcado_de_id__isnull=False)
     elif status_query_filter == "nao_realizadas":
         itens_qs = itens_qs.filter(
             concluido=False,
@@ -496,6 +502,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         resumo_agg = resumo_qs.aggregate(
             total=Count("id"),
             concluidas=Count("id", filter=Q(concluido=True)),
+            remarcadas_concluidas=Count("id", filter=Q(concluido=True, remarcado_de_id__isnull=False)),
             nao_realizadas=Count(
                 "id",
                 filter=Q(
@@ -544,6 +551,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             "data_final": getattr(selected_meta, "data_limite", None),
             "em_andamento": int(resumo_agg.get("em_andamento") or 0),
             "concluidas": concluidas,
+            "remarcadas_concluidas": int(resumo_agg.get("remarcadas_concluidas") or 0),
             "nao_realizadas": int(resumo_agg.get("nao_realizadas") or 0),
             "nao_realizadas_justificadas": int(resumo_agg.get("nao_realizadas_justificadas") or 0),
             "em_programacao": total_programadas,

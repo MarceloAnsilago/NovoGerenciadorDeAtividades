@@ -418,7 +418,8 @@ def get_programacoes_status_mensal(
         .annotate(mes=TruncMonth("programacao__data"))
         .values("mes")
         .annotate(
-            concluidas=Count("id", filter=Q(concluido=True)),
+            concluidas=Count("id", filter=Q(concluido=True, remarcado_de__isnull=True)),
+            remarcadas_concluidas=Count("id", filter=Q(concluido=True, remarcado_de__isnull=False)),
             nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
             pendentes=Count("id", filter=Q(concluido=False, concluido_em__isnull=True)),
         )
@@ -426,6 +427,7 @@ def get_programacoes_status_mensal(
     )
 
     concluidas_map = {}
+    remarcadas_concluidas_map = {}
     nao_realizadas_map = {}
     pendentes_map = {}
     for item in qs:
@@ -433,28 +435,32 @@ def get_programacoes_status_mensal(
         if mes_key is None:
             continue
         concluidas_map[mes_key] = item.get("concluidas", 0)
+        remarcadas_concluidas_map[mes_key] = item.get("remarcadas_concluidas", 0)
         nao_realizadas_map[mes_key] = item.get("nao_realizadas", 0)
         pendentes_map[mes_key] = item.get("pendentes", 0)
 
     labels = []
     concluidas_data = []
+    remarcadas_concluidas_data = []
     nao_realizadas_data = []
     pendentes_data = []
 
     for month_start in months:
         labels.append(_format_month_label_pt(month_start))
         concluidas_data.append(concluidas_map.get(month_start, 0))
+        remarcadas_concluidas_data.append(remarcadas_concluidas_map.get(month_start, 0))
         nao_realizadas_data.append(nao_realizadas_map.get(month_start, 0))
         pendentes_data.append(pendentes_map.get(month_start, 0))
 
     # --- Hints por mes com a atividade (titulo) mais frequente por status ---
     hints_concluidas_map = {}
+    hints_remarcadas_concluidas_map = {}
     hints_nao_realizadas_map = {}
     hints_pendentes_map = {}
     detalhe_qs = (
         base_qs
         .annotate(mes=TruncMonth("programacao__data"))
-        .values("mes", "concluido", "concluido_em", "meta__atividade__titulo")
+        .values("mes", "concluido", "concluido_em", "remarcado_de_id", "meta__atividade__titulo")
         .annotate(total=Count("id"))
         .order_by("mes", "-total")
     )
@@ -464,7 +470,12 @@ def get_programacoes_status_mensal(
         if mes_key is None:
             continue
         titulo = row.get("meta__atividade__titulo") or "Outros"
-        if row.get("concluido"):
+        if row.get("concluido") and row.get("remarcado_de_id"):
+            cur = hints_remarcadas_concluidas_map.get(mes_key) or []
+            if titulo not in cur:
+                cur.append(titulo)
+                hints_remarcadas_concluidas_map[mes_key] = cur[:3]
+        elif row.get("concluido"):
             cur = hints_concluidas_map.get(mes_key) or []
             if titulo not in cur:
                 cur.append(titulo)
@@ -481,6 +492,7 @@ def get_programacoes_status_mensal(
                 hints_pendentes_map[mes_key] = cur[:3]
 
     hints_concluidas = [", ".join(hints_concluidas_map.get(m, [])) for m in months]
+    hints_remarcadas_concluidas = [", ".join(hints_remarcadas_concluidas_map.get(m, [])) for m in months]
     hints_nao_realizadas = [", ".join(hints_nao_realizadas_map.get(m, [])) for m in months]
     hints_pendentes = [", ".join(hints_pendentes_map.get(m, [])) for m in months]
 
@@ -491,6 +503,11 @@ def get_programacoes_status_mensal(
                 "label": "Concluídas",
                 "backgroundColor": "#198754",
                 "data": concluidas_data,
+            },
+            {
+                "label": "Remarcadas e concluidas",
+                "backgroundColor": "#0d6efd",
+                "data": remarcadas_concluidas_data,
             },
             {
                 "label": "Não realizadas",
@@ -505,6 +522,7 @@ def get_programacoes_status_mensal(
         ],
         "hints": {
             "concluidas": hints_concluidas,
+            "remarcadas_concluidas": hints_remarcadas_concluidas,
             "nao_realizadas": hints_nao_realizadas,
             "pendentes": hints_pendentes,
         },

@@ -58,6 +58,15 @@
             {% if source %}<input type="hidden" name="source" value="{{ source }}">{% endif %}
 
             {% with status_current=request.POST.status_execucao|default:status_execucao_current|default:'pendente' %}
+              {% if item_remarcado %}
+                <div class="alert alert-info py-2 mb-0">
+                  Este item foi criado como remarcacao de uma atividade nao realizada. Ao concluir, ele sera exibido como <strong>Remarcada e concluida</strong>.
+                </div>
+              {% elif permite_status_remarcado %}
+                <div class="alert alert-info py-2 mb-0">
+                  Esta meta possui atividade anterior marcada como <strong>Nao realizada</strong>. Se esta entrega corresponde a essa remarcacao, use o status <strong>Remarcada e concluida</strong>.
+                </div>
+              {% endif %}
               <div>
                 <label class="form-label d-block">Status da execucao</label>
                 <div class="vstack gap-2">
@@ -82,7 +91,9 @@
                            {% if status_current == 'executada' %}checked{% endif %}>
                     <label class="form-check-label" for="id_status_executada">
                       <span class="fw-semibold d-block">Concluida</span>
-                      <span class="text-muted small">Fecha a atividade como executada e conta no progresso normal da meta.</span>
+                      <span class="text-muted small">
+                        Fecha a atividade como executada e conta no progresso normal da meta.
+                      </span>
                     </label>
                   </div>
                   <div class="form-check">
@@ -97,6 +108,40 @@
                       <span class="text-muted small">Fecha esta programacao, mas deixa a meta em aberto para os meses seguintes.</span>
                     </label>
                   </div>
+                  {% if permite_status_remarcado %}
+                    <div class="form-check">
+                      <input class="form-check-input"
+                             type="radio"
+                             name="status_execucao"
+                             id="id_status_remarcada_concluida"
+                             value="remarcada_concluida"
+                             {% if status_current == 'remarcada_concluida' %}checked{% endif %}>
+                      <label class="form-check-label" for="id_status_remarcada_concluida">
+                        <span class="fw-semibold d-block">Remarcada e concluida</span>
+                        <span class="text-muted small">Fecha a atividade como concluida, mas preserva a identificacao de que ela veio de uma nao realizada anterior.</span>
+                      </label>
+                    </div>
+                    {% if remarcacao_opcoes %}
+                      <div class="ms-4">
+                        <label class="form-label small mb-1" for="id_remarcado_de_id">Origem da remarcacao</label>
+                        <select name="remarcado_de_id"
+                                id="id_remarcado_de_id"
+                                class="form-select form-select-sm{% if form_errors.remarcado_de_id %} is-invalid{% endif %}">
+                          <option value="">Selecione a atividade nao realizada</option>
+                          {% for opcao in remarcacao_opcoes %}
+                            <option value="{{ opcao.id }}" {% if remarcado_de_selected_id == opcao.id %}selected{% endif %}>
+                              {{ opcao.label }}
+                            </option>
+                          {% endfor %}
+                        </select>
+                        {% if form_errors.remarcado_de_id %}
+                          <div class="invalid-feedback d-block">{{ form_errors.remarcado_de_id }}</div>
+                        {% else %}
+                          <div class="form-text">Escolha qual nao realizada esta sendo encerrada por esta conclusao.</div>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  {% endif %}
                   <div class="form-check">
                     <input class="form-check-input"
                            type="radio"
@@ -175,6 +220,7 @@
 
       <div class="small text-muted mt-2">
         Ao salvar: voce pode manter <em>pendente</em>, marcar como <em>concluida</em>
+        {% if permite_status_remarcado %}ou <em>remarcada e concluida</em>{% endif %},
         ou registrar como <em>nao realizada</em> / <em>nao realizada justificada</em>, mantendo a observacao vinculada ao item.
       </div>
       <div class="alert alert-info mt-2 mb-0 py-2 small">

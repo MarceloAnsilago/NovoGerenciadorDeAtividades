@@ -15,6 +15,7 @@ from programar.status import (
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
     PENDENTE,
+    REMARCADA_CONCLUIDA,
     is_auto_concluida_expediente,
     item_execucao_status_from_fields,
 )
@@ -75,6 +76,7 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
         concluido_db = bool(item.concluido)
         concluido_em = item.concluido_em
         nao_realizada_justificada = bool(getattr(item, "nao_realizada_justificada", False))
+        remarcado_de_id = getattr(item, "remarcado_de_id", None)
         auto_concluida_expediente = is_auto_concluida_expediente(
             meta_id=item.meta_id,
             meta_expediente_id=meta_expediente_id,
@@ -88,6 +90,7 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
             concluido_db,
             concluido_em,
             nao_realizada_justificada,
+            remarcado_de_id,
         )
         out.append(
             {
@@ -96,6 +99,7 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
                 "titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", ""),
                 "observacao": item.observacao or "",
                 "veiculo_id": item.veiculo_id,
+                "remarcado_de_id": remarcado_de_id,
                 "concluido": bool(concluido_db or auto_concluida_expediente),
                 "status_execucao": status_execucao,
                 "servidores": servidores_por_item.get(item.id, []),
@@ -217,10 +221,10 @@ def concluir_item(
             .get(pk=item_id, programacao__unidade_id=unidade_id)
         )
         status = (status_execucao or "").strip().lower()
-        if status not in {EXECUTADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:
+        if status not in {EXECUTADA, REMARCADA_CONCLUIDA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:
             status = EXECUTADA if realizada else PENDENTE
 
-        if status == EXECUTADA:
+        if status in {EXECUTADA, REMARCADA_CONCLUIDA}:
             item.concluido = True
             item.concluido_em = timezone.now()
             item.nao_realizada_justificada = False

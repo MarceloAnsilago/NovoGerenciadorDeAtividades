@@ -93,12 +93,14 @@
   function extractItem(card){
     const meta_id = Number(card.dataset.metaId);
     const itemId  = Number(card.dataset.itemId || 0);
+    const remarcadoDeId = Number(card.dataset.remarcadoDeId || 0);
     const drop = card.querySelector('.meta-dropzone') || card;
     const servidores_ids = getServidoresIdsFrom(drop);
     const observacao = (card.querySelector('textarea[name="observacao"]')?.value || '').trim();
     const veiculo_id = extractVeiculoId(card);
     const out = { meta_id, observacao, veiculo_id, servidores_ids };
     if (itemId) out.id = itemId;
+    if (remarcadoDeId) out.remarcado_de_id = remarcadoDeId;
     return out;
   }
 

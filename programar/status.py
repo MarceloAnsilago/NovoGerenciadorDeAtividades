@@ -6,12 +6,14 @@ EXECUTADA = "executada"
 PENDENTE = "pendente"
 NAO_REALIZADA = "nao_realizada"
 NAO_REALIZADA_JUSTIFICADA = "nao_realizada_justificada"
+REMARCADA_CONCLUIDA = "remarcada_concluida"
 
 ITEM_STATUS_LABELS = {
     EXECUTADA: "Concluida",
     PENDENTE: "Pendente",
     NAO_REALIZADA: "Nao realizada",
     NAO_REALIZADA_JUSTIFICADA: "Nao realizada justificada",
+    REMARCADA_CONCLUIDA: "Remarcada e concluida",
 }
 
 
@@ -19,8 +21,11 @@ def item_execucao_status_from_fields(
     concluido: bool,
     concluido_em,
     nao_realizada_justificada: bool = False,
+    remarcado_de_id: int | None = None,
 ) -> str:
     if concluido:
+        if remarcado_de_id:
+            return REMARCADA_CONCLUIDA
         return EXECUTADA
     if nao_realizada_justificada:
         return NAO_REALIZADA_JUSTIFICADA
@@ -78,9 +83,15 @@ def item_execucao_status_with_expediente_rule(
     concluido: bool,
     concluido_em,
     nao_realizada_justificada: bool = False,
+    remarcado_de_id: int | None = None,
     today: date | None = None,
 ) -> str:
-    status = item_execucao_status_from_fields(concluido, concluido_em, nao_realizada_justificada)
+    status = item_execucao_status_from_fields(
+        concluido,
+        concluido_em,
+        nao_realizada_justificada,
+        remarcado_de_id,
+    )
     if is_auto_concluida_expediente(
         meta_id=meta_id,
         meta_expediente_id=meta_expediente_id,

@@ -67,6 +67,7 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
         concluido_db = bool(getattr(item, "concluido", False))
         concluido_em = getattr(item, "concluido_em", None)
         nao_realizada_justificada = bool(getattr(item, "nao_realizada_justificada", False))
+        remarcado_de_id = getattr(item, "remarcado_de_id", None)
         auto_concluida_expediente = is_auto_concluida_expediente(
             meta_id=item.meta_id,
             meta_expediente_id=meta_expediente_id,
@@ -80,6 +81,7 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             concluido_db,
             concluido_em,
             nao_realizada_justificada,
+            remarcado_de_id,
         )
         servidores = servidores_por_item.get(item.id, [])
         veiculo_obj = getattr(item, "veiculo", None)
@@ -100,6 +102,7 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             "meta_titulo": str(titulo or "").strip(),
             "observacao": item.observacao or "",
             "veiculo_id": item.veiculo_id,
+            "remarcado_de_id": remarcado_de_id,
             "veiculo_nome": veiculo_nome,
             "veiculo_placa": veiculo_placa,
             "veiculo_label": veiculo_label,

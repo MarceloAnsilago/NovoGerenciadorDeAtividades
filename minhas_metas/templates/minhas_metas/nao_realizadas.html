@@ -89,6 +89,7 @@
                       <button
                         type="button"
                         class="btn btn-sm btn-outline-secondary js-abrir-programacao-item"
+                        data-item-id="{{ item.item_id }}"
                         data-date="{{ item.data|date:'Y-m-d' }}"
                         data-meta-id="{{ item.meta_id }}"
                         data-meta-title="{{ item.meta_titulo|escape }}"
@@ -175,11 +176,26 @@
         if (pendingSelection.metaDescription) {
           options.metaDescricao = pendingSelection.metaDescription;
         }
+        if (pendingSelection.originalItemId) {
+          options.remarcadoDeId = pendingSelection.originalItemId;
+        }
+
+        const existingSameOrigin = container.querySelector(
+          `[data-remarcado-de-id="${pendingSelection.originalItemId}"]`
+        );
+        if (existingSameOrigin) {
+          pendingSelection.applied = true;
+          highlightCard(existingSameOrigin);
+          return;
+        }
 
         const card = ensureMetaCard(
           pendingSelection.metaId,
           pendingSelection.metaTitle || `Meta #${pendingSelection.metaId}`,
-          options
+          {
+            ...options,
+            forceNew: true,
+          }
         );
         if (!card) {
           pendingSelection.attempts += 1;
@@ -203,6 +219,7 @@
 
         pendingSelection = {
           iso,
+          originalItemId: String(btn.getAttribute("data-item-id") || "").trim(),
           metaId: String(btn.getAttribute("data-meta-id") || "").trim(),
           metaTitle: String(btn.getAttribute("data-meta-title") || "").trim(),
           metaDescription: String(btn.getAttribute("data-meta-description") || "").trim(),

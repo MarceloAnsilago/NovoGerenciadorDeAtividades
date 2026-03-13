@@ -232,14 +232,15 @@ document.addEventListener('DOMContentLoaded', function(){
         lineEl.className = 'programar-event-line';
         if (hasActivityStatus && line && typeof line === "object") {
           const statusLine = String(line.status || (line.concluido ? "executada" : "pendente"));
-          const done = statusLine === "executada";
+          const rescheduledDone = statusLine === "remarcada_concluida";
+          const done = rescheduledDone || statusLine === "executada";
           const justified = statusLine === "nao_realizada_justificada";
           const notExecuted = statusLine === "nao_realizada";
           const iconName = done
-            ? "bi-check-circle-fill"
+            ? (rescheduledDone ? "bi-arrow-repeat" : "bi-check-circle-fill")
             : (justified ? "bi-shield-check" : (notExecuted ? "bi-slash-circle-fill" : "bi-x-circle-fill"));
           const iconClass = done
-            ? "is-done"
+            ? (rescheduledDone ? "is-justified" : "is-done")
             : (justified ? "is-justified" : (notExecuted ? "is-not-executed" : "is-pending"));
           const icon = document.createElement('i');
           icon.className = `bi ${iconName} programar-event-line-icon ${iconClass}`;

@@ -6,6 +6,7 @@ from programar.status import (
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
     PENDENTE,
+    REMARCADA_CONCLUIDA,
     is_auto_concluida_expediente,
     item_execucao_status_from_fields,
     item_permanece_aberto,
@@ -36,6 +37,15 @@ class ItemStatusTest(unittest.TestCase):
             nao_realizada_justificada=False,
         )
         self.assertEqual(status, EXECUTADA)
+
+    def test_resolve_status_for_rescheduled_completed_item(self):
+        status = item_execucao_status_from_fields(
+            concluido=True,
+            concluido_em=object(),
+            nao_realizada_justificada=False,
+            remarcado_de_id=10,
+        )
+        self.assertEqual(status, REMARCADA_CONCLUIDA)
 
     def test_resolve_status_for_pending_item(self):
         status = item_execucao_status_from_fields(

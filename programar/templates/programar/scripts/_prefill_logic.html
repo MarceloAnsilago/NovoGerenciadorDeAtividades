@@ -167,6 +167,7 @@
     cards.forEach(card => {
       if (options.keepCards) {
         delete card.dataset.itemId;
+        delete card.dataset.remarcadoDeId;
         window.PROGRAMAR?.syncMetaConclusionLink?.(card);
         const drop = card.querySelector('.meta-dropzone') || card;
         if (drop) drop.innerHTML = '';
@@ -277,6 +278,11 @@
       card.dataset.itemId = String(it.id);
     } else {
       delete card.dataset.itemId;
+    }
+    if (it.remarcado_de_id) {
+      card.dataset.remarcadoDeId = String(it.remarcado_de_id);
+    } else {
+      delete card.dataset.remarcadoDeId;
     }
     const statusExecucao = String(it.status_execucao || (it.concluido ? "executada" : "pendente")).trim().toLowerCase();
     card.dataset.statusExecucao = statusExecucao;

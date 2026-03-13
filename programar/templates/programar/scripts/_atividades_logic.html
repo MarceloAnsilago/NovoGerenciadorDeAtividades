@@ -30,6 +30,11 @@
   function getCardExecStatus(card) {
     if (!card) return "pendente";
     const raw = String(card.dataset.statusExecucao || "").trim().toLowerCase();
+    if (
+      raw === "remarcada_concluida" ||
+      raw === "remarcada-concluida" ||
+      raw === "remarcada e concluida"
+    ) return "remarcada_concluida";
     if (raw === "executada" || raw === "concluida") return "executada";
     if (
       raw === "nao_realizada_justificada" ||
@@ -50,10 +55,14 @@
       "btn-outline-secondary",
       "btn-secondary",
       "btn-info",
+      "btn-primary",
       "is-not-executed",
-      "is-justified"
+      "is-justified",
+      "is-rescheduled"
     );
-    if (execStatus === "executada") {
+    if (execStatus === "remarcada_concluida") {
+      link.classList.add("btn-primary", "is-rescheduled");
+    } else if (execStatus === "executada") {
       link.classList.add("btn-success");
     } else if (execStatus === "nao_realizada_justificada") {
       link.classList.add("btn-info", "is-justified");
@@ -65,17 +74,20 @@
     const icon = link.querySelector("i");
     if (icon) {
       icon.classList.toggle("bi-check2-square", execStatus === "pendente");
+      icon.classList.toggle("bi-arrow-repeat", execStatus === "remarcada_concluida");
       icon.classList.toggle("bi-check-circle", execStatus === "executada");
       icon.classList.toggle("bi-x-circle", execStatus === "nao_realizada");
       icon.classList.toggle("bi-shield-check", execStatus === "nao_realizada_justificada");
     }
-    const label = execStatus === "executada"
+    const label = execStatus === "remarcada_concluida"
+      ? "Atividade remarcada e concluida em Minhas Metas"
+      : (execStatus === "executada"
       ? "Atividade concluida em Minhas Metas"
       : (execStatus === "nao_realizada_justificada"
         ? "Atividade nao realizada justificada em Minhas Metas"
       : (execStatus === "nao_realizada"
         ? "Atividade nao realizada em Minhas Metas"
-        : "Concluir item em Minhas Metas"));
+        : "Concluir item em Minhas Metas")));
     link.title = label;
     link.setAttribute("aria-label", label);
   }
@@ -180,16 +192,26 @@ function syncConclusionLink(card) {
 
     const forceNew = Boolean(options && options.forceNew);
     const metaDescription = String(options?.metaDescricao || "").trim();
+    const remarcadoDeId = String(options?.remarcadoDeId || "").trim();
     const safeMetaTitle = escapeHtml(metaTitle || "");
     const safeMetaDescription = escapeHtml(metaDescription);
 
     if (!forceNew) {
-      const existing = cont.querySelector(`[data-meta-id="${metaId}"]`);
+      let existing = null;
+      if (remarcadoDeId) {
+        existing = cont.querySelector(`[data-meta-id="${metaId}"][data-remarcado-de-id="${remarcadoDeId}"]`);
+      }
+      if (!existing) {
+        existing = cont.querySelector(`[data-meta-id="${metaId}"]`);
+      }
       if (existing) {
         const descEl = existing.querySelector(".meta-description");
         if (descEl && metaDescription) {
           descEl.textContent = metaDescription;
           descEl.classList.remove("d-none");
+        }
+        if (remarcadoDeId) {
+          existing.dataset.remarcadoDeId = remarcadoDeId;
         }
         tryAddVeiculosOptions(existing.querySelector("select.card-veiculos"));
         syncObsIndicator(existing);
@@ -203,6 +225,9 @@ function syncConclusionLink(card) {
     const card = document.createElement("div");
     card.className = "card shadow-sm servidor-cardbox";
     card.dataset.metaId = metaId;
+    if (remarcadoDeId) {
+      card.dataset.remarcadoDeId = remarcadoDeId;
+    }
     card.style.minWidth = "340px";
     card.style.maxWidth = "370px";
 

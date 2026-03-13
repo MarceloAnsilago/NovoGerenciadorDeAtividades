@@ -114,6 +114,7 @@
       border-top: 2px solid var(--line-strong);
     }
     .status-executada { color: #198754; }
+    .status-remarcada_concluida { color: #0d6efd; }
     .status-nao_realizada { color: #495057; }
     .status-nao_realizada_justificada { color: #0b7285; }
     .status-pendente { color: #212529; }
@@ -137,14 +138,15 @@
       text-align: left;
       vertical-align: top;
     }
-    .resumo-atividade-table th:nth-child(1) { width: 38%; }
+    .resumo-atividade-table th:nth-child(1) { width: 32%; }
     .resumo-atividade-table th:nth-child(2) { width: 8%; text-align: right; }
     .resumo-atividade-table th:nth-child(3) { width: 8%; text-align: right; }
-    .resumo-atividade-table th:nth-child(4) { width: 8%; text-align: right; }
-    .resumo-atividade-table th:nth-child(5) { width: 11%; text-align: right; }
-    .resumo-atividade-table th:nth-child(6) { width: 8%; text-align: right; }
+    .resumo-atividade-table th:nth-child(4) { width: 10%; text-align: right; }
+    .resumo-atividade-table th:nth-child(5) { width: 8%; text-align: right; }
+    .resumo-atividade-table th:nth-child(6) { width: 10%; text-align: right; }
     .resumo-atividade-table th:nth-child(7) { width: 8%; text-align: right; }
-    .resumo-atividade-table th:nth-child(8) { width: 11%; text-align: right; }
+    .resumo-atividade-table th:nth-child(8) { width: 7%; text-align: right; }
+    .resumo-atividade-table th:nth-child(9) { width: 9%; text-align: right; }
     .legenda-box {
       border: 1px solid var(--line);
       border-radius: 10px;
@@ -270,7 +272,7 @@
             <div style="margin-top: 14px;">
               <h3 style="margin: 0 0 8px; font-size: 1.15rem;">Resumo por atividade</h3>
               <div class="legenda-box">
-                <strong>Legenda:</strong> N.R. = n&atilde;o realizada | N.R.(J) = n&atilde;o realizada e justificada | Rem. = removidas
+                <strong>Legenda:</strong> Rem.+Conc. = remarcada e concluida | N.R. = n&atilde;o realizada | N.R.(J) = n&atilde;o realizada e justificada | Rem. = removidas
               </div>
               <table class="resumo-atividade-table">
                 <thead>
@@ -278,6 +280,7 @@
                     <th>Atividade</th>
                     <th style="text-align: right;">Prog.</th>
                     <th style="text-align: right;">Conc.</th>
+                    <th style="text-align: right;">Rem.+Conc.</th>
                     <th style="text-align: right;">N.R.</th>
                     <th style="text-align: right;">N.R.(J)</th>
                     <th style="text-align: right;">Pend.</th>
@@ -291,6 +294,7 @@
                       <td>{{ r.titulo }}</td>
                       <td style="text-align: right;">{{ r.total }}</td>
                       <td style="text-align: right;">{{ r.executada }}</td>
+                      <td style="text-align: right;">{{ r.remarcada_concluida }}</td>
                       <td style="text-align: right;">{{ r.nao_realizada }}</td>
                       <td style="text-align: right;">{{ r.nao_realizada_justificada }}</td>
                       <td style="text-align: right;">{{ r.pendente }}</td>

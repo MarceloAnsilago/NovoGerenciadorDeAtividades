@@ -90,3 +90,43 @@ class RelatorioProgramacaoTests(TestCase):
         self.assertContains(response, "Primeira nao realizada")
         self.assertContains(response, "Segunda nao realizada")
         self.assertNotContains(response, "Atividade: Fiscalizacao de viveiros")
+
+    def test_relatorio_destaca_remarcada_e_concluida(self):
+        item_original = ProgramacaoItem.objects.create(
+            programacao=self.programacao_1,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            nao_realizada_justificada=False,
+            observacao="Original nao realizada",
+        )
+        programacao_3 = Programacao.objects.create(
+            data=date(2026, 3, 12),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao_3,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.now(),
+            remarcado_de=item_original,
+            observacao="Remarcada e concluida",
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_desempenho": "1",
+                "sec_indicadores": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        report = response.context["report"]
+        resumo = {row["titulo"]: row for row in report["desempenho"]["resumo_por_atividade"]}
+        self.assertEqual(resumo["Fiscalizacao de viveiros"]["remarcada_concluida"], 1)
+        self.assertContains(response, "Remarcada e concluida")
+        self.assertContains(response, "Atividades remarcadas e concluidas")
