@@ -59,6 +59,7 @@ class NaoRealizadasViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Fiscalizacao Reversa-Lojas Agropecuarias", count=1)
         self.assertNotContains(response, "Atividade: Fiscalizacao Reversa-Lojas Agropecuarias")
+        self.assertContains(response, f"Item #{self.item.id}")
 
     @override_settings(META_EXPEDIENTE_ID=321)
     def test_nao_realizadas_inclui_contexto_do_modal_com_veiculos(self):
