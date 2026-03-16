@@ -21,7 +21,7 @@
               <th><i class="bi bi-person-badge me-1"></i> Servidor</th>
               <th><i class="bi bi-building me-1"></i> Unidade</th>
               <th class="text-center"><i class="bi bi-activity me-1"></i> Status</th>
-              <th class="text-end"><i class="bi bi-tools me-1"></i> Acoes</th>
+              <th class="text-end"><i class="bi bi-tools me-1"></i> Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -41,7 +41,7 @@
                   {% if s.tem_descanso_ativo %}
                     <span class="badge bg-warning text-dark">Em descanso</span>
                   {% else %}
-                    <span class="badge bg-success">Disponivel</span>
+                    <span class="badge bg-success">Disponível</span>
                   {% endif %}
                 </td>
                 <td class="text-end">
@@ -72,11 +72,11 @@
         <i class="bi bi-calendar-week text-primary fs-4"></i>
         <div>
           <strong>Descansos cadastrados</strong>
-          <div class="text-muted small">Use as abas para filtrar por mes e selecione o ano.</div>
+          <div class="text-muted small">Use as abas para filtrar por mês e selecione o ano.</div>
         </div>
       </div>
       <a href="{% url 'descanso:relatorio_mapa' %}?ano={{ ano }}" class="btn btn-outline-dark btn-sm">
-        <i class="bi bi-calendar3"></i> Mapa de ferias/descanso
+        <i class="bi bi-calendar3"></i> Mapa de férias/descanso
       </a>
     </div>
     <div class="card-body">
@@ -129,10 +129,10 @@
             <tr>
               <th>Servidor</th>
               <th>Tipo</th>
-              <th>Periodo</th>
-              <th class="text-center">Situacao</th>
-              <th>Observacoes</th>
-              <th class="text-end">Acoes</th>
+              <th>Período</th>
+              <th class="text-center">Situação</th>
+              <th>Observações</th>
+              <th class="text-end">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -179,7 +179,7 @@
         <i class="bi bi-calendar-event text-primary fs-4"></i>
         <div>
           <strong>Feriados</strong>
-          <div class="text-muted small">Abra o calendario para planejar os feriados.</div>
+          <div class="text-muted small">Abra o calendário para planejar os feriados.</div>
         </div>
       </div>
       <a href="{% url 'descanso:feriados' %}" class="btn btn-outline-primary btn-sm">
@@ -198,7 +198,7 @@
                     <div class="card-body d-flex align-items-center justify-content-between gap-2">
                       <div>
                         <div class="fw-semibold">{{ cadastro.descricao }}</div>
-                        <div class="text-muted small">Clique para abrir o calendario deste cadastro.</div>
+                        <div class="text-muted small">Clique para abrir o calendário deste cadastro.</div>
                       </div>
                       <div class="d-flex gap-2">
                         <a
