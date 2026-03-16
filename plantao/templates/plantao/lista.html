@@ -3,25 +3,25 @@
 {% block content %}
 <div class="container py-3">
   <div class="mb-3">
-    <h2 class="m-0"><i class="bi bi-calendar3"></i> Plantoes</h2>
+    <h2 class="m-0"><i class="bi bi-calendar3"></i> Plantões</h2>
   </div>
 
   <div class="card shadow-sm mb-4">
     <div class="card-body">
       <p class="text-muted small mb-3">
-        Selecione a data inicial e final do periodo que deseja cadastrar o plantao.
+        Selecione a data inicial e final do período que deseja cadastrar o plantão.
       </p>
       {% if conflito_abort %}
         <div class="alert alert-danger mb-3">
-          <strong><i class="bi bi-exclamation-triangle-fill"></i> Conflito de plantao</strong>
+          <strong><i class="bi bi-exclamation-triangle-fill"></i> Conflito de plantão</strong>
           <p class="mb-2 mt-2">
-            Ja existe(m) plantao(oes) que conflitam com o periodo selecionado
+            Já existe(m) plantão(ões) que conflitam com o período selecionado
             (<strong>{{ data_inicial|date:"d/m/Y" }} a {{ data_final|date:"d/m/Y" }}</strong>).
           </p>
 
           {% if plantoes_conflitantes %}
             <div class="mb-2">
-              <strong>Periodos conflitantes:</strong>
+              <strong>Períodos conflitantes:</strong>
               <ul class="mb-0">
                 {% for p in plantoes_conflitantes %}
                   <li>{{ p.inicio|date:"d/m/Y" }} a {{ p.fim|date:"d/m/Y" }}</li>
@@ -31,7 +31,7 @@
           {% endif %}
 
           <p class="mb-0">
-            Altere o periodo antes de tentar salvar ou use a secao de plantoes salvos abaixo.
+            Altere o período antes de tentar salvar ou use a seção de plantões salvos abaixo.
           </p>
         </div>
       {% endif %}
@@ -53,13 +53,13 @@
 
   {% if not conflito_abort %}
     <div class="card shadow-sm mb-4">
-      <div class="card-header bg-light"><strong><i class="bi bi-calendar-range"></i> Descansos no periodo</strong></div>
+      <div class="card-header bg-light"><strong><i class="bi bi-calendar-range"></i> Descansos no período</strong></div>
       <div class="card-body">
         {% if data_inicial and data_final %}
           {% if servidores_com_descanso %}
             {% include "partials/_descanso_por_servidor_table.html" with servidores_com_descanso=servidores_com_descanso only %}
           {% else %}
-            <p class="text-muted mb-0">Nenhum servidor em descanso no periodo informado.</p>
+            <p class="text-muted mb-0">Nenhum servidor em descanso no período informado.</p>
           {% endif %}
         {% else %}
           <p class="text-muted mb-0">Selecione a data inicial e final e clique em <strong>Filtrar</strong>.</p>
@@ -71,8 +71,8 @@
   {% if not conflito_abort and data_inicial and data_final %}
     <div class="card shadow-sm mb-4">
       <div class="card-header bg-light d-flex justify-content-between align-items-center">
-        <strong><i class="bi bi-people"></i> Montar escala do plantao (por grupos)</strong>
-        <div class="small text-muted"><i class="bi bi-person-fill-slash"></i> Excluidos (descanso integral): {{ bloqueados|length }}</div>
+        <strong><i class="bi bi-people"></i> Montar escala do plantão (por grupos)</strong>
+        <div class="small text-muted"><i class="bi bi-person-fill-slash"></i> Excluídos (descanso integral): {{ bloqueados|length }}</div>
       </div>
       <div class="card-body">
         <form id="form-escala" method="post" action="{% url 'plantao:lista_plantao' %}">
@@ -81,7 +81,7 @@
           <input type="hidden" name="data_final" value="{{ data_final }}">
 
           <div class="alert alert-info py-2 small">
-            <strong>Dica:</strong> para adicionar um servidor ao grupo da semana, selecione-o na coluna <em>Disponiveis</em> e depois clique em <strong>Adicionar -&gt;</strong> no cartao do grupo correspondente.
+            <strong>Dica:</strong> para adicionar um servidor ao grupo da semana, selecione-o na coluna <em>Disponíveis</em> e depois clique em <strong>Adicionar -&gt;</strong> no cartão do grupo correspondente.
           </div>
 
           {% include "partials/escala_grupos.html" %}
@@ -100,7 +100,7 @@
 
   <div class="card shadow-sm mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-      <strong><i class="bi bi-list-ul"></i> Plantoes salvos</strong>
+      <strong><i class="bi bi-list-ul"></i> Plantões salvos</strong>
       <a href="{% url 'plantao:lista_plantao' %}" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
       </a>
@@ -157,11 +157,11 @@
                     <thead class="table-light">
                       <tr>
                         <th>Nome</th>
-                        <th>Inicio</th>
+                        <th>Início</th>
                         <th>Fim</th>
                         <th>Criado por</th>
                         <th>Criado em</th>
-                        <th class="text-end">Acoes</th>
+                        <th class="text-end">Ações</th>
                       </tr>
                     </thead>
                     <tbody class="plantoes-tbody">
@@ -203,7 +203,7 @@
             {% endfor %}
           </div>
         {% else %}
-          <p class="text-muted px-3 pb-3 pt-1 mb-0">Nenhum plantao salvo para o filtro atual.</p>
+          <p class="text-muted px-3 pb-3 pt-1 mb-0">Nenhum plantão salvo para o filtro atual.</p>
         {% endif %}
       </div>
     </div>
@@ -299,7 +299,7 @@
       ev.preventDefault();
       const pk = btnDel.getAttribute('data-pk');
       if (!pk) return;
-      if (!confirm('Confirma exclusao deste plantao? Esta acao nao podera ser desfeita.')) return;
+      if (!confirm('Confirma exclusão deste plantão? Esta ação não poderá ser desfeita.')) return;
 
       if (!btnDel.dataset.origHtml) btnDel.dataset.origHtml = btnDel.innerHTML;
       const origHtml = btnDel.dataset.origHtml;
@@ -335,7 +335,7 @@
           alert(message);
         }
       } catch (err) {
-        alert('Erro de comunicacao ao tentar excluir.');
+        alert('Erro de comunicação ao tentar excluir.');
       } finally {
         btnDel.disabled = false;
         btnDel.innerHTML = origHtml;
@@ -348,7 +348,7 @@
   btnPrint?.addEventListener('click', (ev) => {
     ev.preventDefault();
     if (!currentPlantaoPk) {
-      alert('Nenhum plantao carregado para imprimir.');
+      alert('Nenhum plantão carregado para imprimir.');
       return;
     }
 

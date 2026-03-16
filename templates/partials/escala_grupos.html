@@ -1,4 +1,4 @@
-{# partials/escala_grupos.html - substitua o arquivo inteiro por esse #}
+{# partials/escala_grupos.html #}
 <div class="row g-3">
   <!-- Disponíveis -->
   <div class="col-md-8">
@@ -18,11 +18,11 @@
       {% endfor %}
     </select>
     <div class="btn-group mt-2">
-      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addToGroupSelected()">Adicionar →</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="excludeSelected()">Remover →</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addToGroupSelected()">Adicionar &rarr;</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="excludeSelected()">Remover &rarr;</button>
     </div>
     <small class="form-text text-muted">
-      Selecione à esquerda e use “Adicionar →” para enviar ao grupo focado (ou ao primeiro).
+      Selecione à esquerda e use "Adicionar &rarr;" para enviar ao grupo focado (ou ao primeiro).
     </small>
   </div>
 
@@ -37,7 +37,7 @@
       {% endfor %}
     </select>
     <div class="btn-group mt-2">
-      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="restoreExcluded()">← Restaurar</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="restoreExcluded()">&larr; Restaurar</button>
     </div>
     <small class="form-text text-muted">
       Excluídos não podem ser adicionados aos grupos.
@@ -57,7 +57,7 @@
             <span>
               <i class="bi bi-people"></i>
               Grupo {{ g.index }}
-              <small class="text-muted">— {{ ini|date:"d/m/Y" }} a {{ fim|date:"d/m/Y" }}</small>
+              <small class="text-muted">&mdash; {{ ini|date:"d/m/Y" }} a {{ fim|date:"d/m/Y" }}</small>
             </span>
             <small id="counter-grupo-{{ g.index }}" class="text-muted">
               {{ g.servidores|length }}{% if g.limite %}/{{ g.limite }}{% endif %}
@@ -85,10 +85,10 @@
 
             <!-- Ações -->
             <div class="btn-group mt-auto">
-              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addToGroup('grupo-{{ g.index }}')">Adicionar →</button>
-              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="removeFromGroup('grupo-{{ g.index }}')">← Remover</button>
-              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="moveOption('grupo-{{ g.index }}',-1)">↑</button>
-              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="moveOption('grupo-{{ g.index }}',1)">↓</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addToGroup('grupo-{{ g.index }}')">Adicionar &rarr;</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="removeFromGroup('grupo-{{ g.index }}')">&larr; Remover</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="moveOption('grupo-{{ g.index }}',-1)">&uarr;</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="moveOption('grupo-{{ g.index }}',1)">&darr;</button>
             </div>
           </div> {# .card-body #}
         </div> {# .card #}
