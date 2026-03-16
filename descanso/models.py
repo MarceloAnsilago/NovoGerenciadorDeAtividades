@@ -11,10 +11,10 @@ from core.models import No as Unidade
 class Descanso(models.Model):
     class Tipo(models.TextChoices):
         RECESSO = "RECESSO", "Recesso"
-        FERIAS = "FERIAS", "Ferias"
-        LICENCA = "LICENCA", "Licenca"
-        DIARIAS = "DIARIAS", "Diarias"
-        FOLGA_COMP = "FOLGA_COMP", "Folga compensatoria"
+        FERIAS = "FERIAS", "Férias"
+        LICENCA = "LICENCA", "Licença"
+        DIARIAS = "DIARIAS", "Diárias"
+        FOLGA_COMP = "FOLGA_COMP", "Folga compensatória"
         AFASTAMENTO = "AFASTAMENTO", "Afastamento"
         ATESTADO = "ATESTADO", "Atestado"
 
