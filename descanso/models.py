@@ -15,6 +15,7 @@ class Descanso(models.Model):
         LICENCA = "LICENCA", "Licença"
         DIARIAS = "DIARIAS", "Diárias"
         FOLGA_COMP = "FOLGA_COMP", "Folga compensatória"
+        FOLGA_ELEITORAL = "FOLGA_ELEITORAL", "Folga eleitoral"
         AFASTAMENTO = "AFASTAMENTO", "Afastamento"
         ATESTADO = "ATESTADO", "Atestado"
 

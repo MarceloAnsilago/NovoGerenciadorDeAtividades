@@ -50,7 +50,7 @@
 
       <div class="row g-2 mb-3">
         <div class="col-lg-3 col-md-6">
-          <label class="form-label mb-1">Periodo</label>
+          <label class="form-label mb-1">Período</label>
           <div class="d-flex gap-2">
             <input type="date" id="filtroMetasInicio" class="form-control form-control-sm">
             <input type="date" id="filtroMetasFim" class="form-control form-control-sm">
@@ -61,13 +61,13 @@
           <select id="filtroMetasStatus" class="form-select form-select-sm">
             <option value="">Todos</option>
             <option value="andamento" selected>Em andamento</option>
-            <option value="concluida">Concluidas</option>
+            <option value="concluida">Concluídas</option>
             <option value="atrasada">Atrasadas</option>
             <option value="encerrada">Encerradas</option>
           </select>
         </div>
         <div class="col-lg-3 col-md-6">
-          <label class="form-label mb-1">Area</label>
+          <label class="form-label mb-1">Área</label>
           <select id="filtroMetasArea" class="form-select form-select-sm">
             <option value="">Todas</option>
             {% for area_obj in areas %}
@@ -91,9 +91,9 @@
                 <th class="text-center">Meta (alvo)</th>
                 <th class="text-center">Programadas</th>
                 <th>Realizado</th>
-                <th>% Execucao</th>
+                <th>% Execução</th>
                 <th>Status</th>
-                <th class="text-end">Acoes</th>
+                <th class="text-end">Ações</th>
               </tr>
             </thead>
             <tbody id="tabelaMetasBody">
@@ -134,7 +134,7 @@
 
         <div class="col-md-5">
           <label class="form-label mb-0">Buscar</label>
-          <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Titulo ou descricao">
+          <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Título ou descrição">
         </div>
 
         <div class="col-md-3 d-flex align-items-end justify-content-end gap-2">
@@ -151,10 +151,10 @@
       <table class="table table-hover align-middle">
         <thead>
           <tr>
-            <th><i class="bi bi-card-text me-1"></i> Titulo</th>
-            <th>Descricao</th>
-            <th>Area</th>
-            <th class="text-end">Acoes</th>
+            <th><i class="bi bi-card-text me-1"></i> Título</th>
+            <th>Descrição</th>
+            <th>Área</th>
+            <th class="text-end">Ações</th>
           </tr>
         </thead>
         <tbody>
