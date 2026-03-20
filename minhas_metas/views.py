@@ -26,6 +26,7 @@ from programar.status import (
     EXECUTADA,
     item_execucao_status_from_fields,
 )
+from relatorios.services.non_performed_service import build_non_performed_groups
 from veiculos.models import Veiculo
 
 MONTH_NAMES_PT = (
@@ -67,6 +68,12 @@ def _parse_month_key(value: str | None) -> tuple[int, int] | None:
     if year < 1 or month < 1 or month > 12:
         return None
     return year, month
+
+
+def _format_period_label(data_inicial: date | None, data_final: date | None) -> str:
+    if not data_inicial or not data_final:
+        return ""
+    return f"{data_inicial.strftime('%d/%m/%Y')} -> {data_final.strftime('%d/%m/%Y')}"
 
 
 def _build_programar_modal_context(unidade_id: int | None) -> dict[str, object]:
@@ -677,6 +684,8 @@ def nao_realizadas_view(request):
         elif month_filters:
             selected_month_key = str(month_filters[0]["key"])
 
+    is_print = request.GET.get("print", "").strip().lower() in {"1", "true", "yes", "on"}
+
     dt_start = None
     dt_end = None
     itens_qs = itens_base
@@ -740,17 +749,34 @@ def nao_realizadas_view(request):
             "concluido_em": getattr(item, "concluido_em", None),
         })
 
+    nao_realizadas_grupos = []
+    if dt_start and dt_end:
+        nao_realizadas_grupos = build_non_performed_groups(
+            unidade_id=unidade.id,
+            data_inicial=dt_start,
+            data_final=dt_end,
+        )
+
+    print_query = request.GET.copy()
+    if selected_month_key:
+        print_query["month"] = selected_month_key
+    print_query["print"] = "1"
+
     contexto = {
         "unidade": unidade,
         "nao_realizadas": nao_realizadas,
+        "nao_realizadas_grupos": nao_realizadas_grupos,
         "month_filters": month_filters,
         "selected_month_key": selected_month_key,
         "dt_start": dt_start,
         "dt_end": dt_end,
+        "periodo_label": _format_period_label(dt_start, dt_end),
         "total_geral": itens_base.count(),
+        "print_url": f"{reverse('minhas_metas:nao-realizadas')}?{print_query.urlencode()}",
     }
     contexto.update(_build_programar_modal_context(unidade.id))
-    return render(request, "minhas_metas/nao_realizadas.html", contexto)
+    template_name = "minhas_metas/nao_realizadas_print.html" if is_print else "minhas_metas/nao_realizadas.html"
+    return render(request, template_name, contexto)
 
 
 @login_required

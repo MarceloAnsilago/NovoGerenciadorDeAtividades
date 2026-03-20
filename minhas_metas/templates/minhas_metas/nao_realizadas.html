@@ -20,9 +20,16 @@
         | Total geral: <strong>{{ total_geral }}</strong>
       </div>
     </div>
-    <a href="{% url 'minhas_metas:lista' %}" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i> Voltar para Minhas Metas
-    </a>
+    <div class="d-flex flex-wrap gap-2">
+      {% if selected_month_key %}
+        <a href="{{ print_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-printer"></i> Imprimir
+        </a>
+      {% endif %}
+      <a href="{% url 'minhas_metas:lista' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar para Minhas Metas
+      </a>
+    </div>
   </div>
 
   <div class="card border-0 shadow-sm">

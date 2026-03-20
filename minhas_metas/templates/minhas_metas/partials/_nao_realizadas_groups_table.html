@@ -1,0 +1,41 @@
+<table class="nao-realizadas-table">
+  <thead>
+    <tr>
+      <th style="width: 12%;">Data</th>
+      <th style="width: 27%;">Servidores</th>
+      <th style="width: 14%;">Veiculo</th>
+      <th style="width: 30%;">Observacao</th>
+      <th style="width: 17%;">Marcada em</th>
+    </tr>
+  </thead>
+  {% for group in nao_realizadas_grupos %}
+    <tbody class="nao-realizadas-group">
+      <tr class="group-row">
+        <td colspan="5">
+          <div class="nao-realizadas-group-title">{{ group.meta_titulo }}</div>
+          {% if group.atividade_nome %}
+            <div class="muted">Atividade: {{ group.atividade_nome }}</div>
+          {% endif %}
+          <div class="muted">
+            {% if group.meta_id %}Meta #{{ group.meta_id }} | {% endif %}{{ group.total }} nao realizada{{ group.total|pluralize }}
+          </div>
+        </td>
+      </tr>
+      {% for item in group.rows %}
+        <tr>
+          <td>{{ item.data|date:"d/m/Y" }}</td>
+          <td>
+            {% if item.servidores %}
+              {{ item.servidores|join:", " }}
+            {% else %}
+              <span class="muted">-</span>
+            {% endif %}
+          </td>
+          <td>{{ item.veiculo|default:"-" }}</td>
+          <td>{{ item.observacao|default:"-" }}</td>
+          <td>{{ item.concluido_em|date:"d/m/Y H:i" }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  {% endfor %}
+</table>

@@ -104,3 +104,19 @@ class NaoRealizadasViewTests(TestCase):
             response,
             reverse("programar:concluir-item-form", args=[self.item.id]),
         )
+
+    def test_print_renderiza_pagina_agrupada_do_mes(self):
+        response = self.client.get(
+            reverse("minhas_metas:nao-realizadas"),
+            {"month": "2026-03", "print": "1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "minhas_metas/nao_realizadas_print.html")
+        self.assertContains(response, "Atividades nao realizadas no periodo selecionado")
+        self.assertContains(response, self.meta.display_titulo)
+        self.assertContains(response, "Periodo:")
+
+        grupos = response.context["nao_realizadas_grupos"]
+        self.assertEqual(len(grupos), 1)
+        self.assertEqual(grupos[0]["meta_id"], self.meta.id)
