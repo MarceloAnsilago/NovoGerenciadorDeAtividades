@@ -761,6 +761,12 @@ def nao_realizadas_view(request):
     if selected_month_key:
         print_query["month"] = selected_month_key
     print_query["print"] = "1"
+    back_query = request.GET.copy()
+    if "print" in back_query:
+        del back_query["print"]
+    back_url = reverse("minhas_metas:nao-realizadas")
+    if back_query:
+        back_url = f"{back_url}?{back_query.urlencode()}"
 
     contexto = {
         "unidade": unidade,
@@ -773,6 +779,7 @@ def nao_realizadas_view(request):
         "periodo_label": _format_period_label(dt_start, dt_end),
         "total_geral": itens_base.count(),
         "print_url": f"{reverse('minhas_metas:nao-realizadas')}?{print_query.urlencode()}",
+        "back_url": back_url,
     }
     contexto.update(_build_programar_modal_context(unidade.id))
     template_name = "minhas_metas/nao_realizadas_print.html" if is_print else "minhas_metas/nao_realizadas.html"
