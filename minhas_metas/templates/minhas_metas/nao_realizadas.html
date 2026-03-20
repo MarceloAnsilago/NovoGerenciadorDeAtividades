@@ -21,14 +21,14 @@
       </div>
     </div>
     <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'minhas_metas:lista' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar para Minhas Metas
+      </a>
       {% if selected_month_key %}
         <a href="{{ print_url }}" class="btn btn-sm btn-outline-secondary">
           <i class="bi bi-printer"></i> Imprimir
         </a>
       {% endif %}
-      <a href="{% url 'minhas_metas:lista' %}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> Voltar para Minhas Metas
-      </a>
     </div>
   </div>
 
