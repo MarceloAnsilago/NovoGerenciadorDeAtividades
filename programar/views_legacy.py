@@ -2548,14 +2548,14 @@ def concluir_item_form(request, item_id: int):
             remarcado_de_selected_id = remarcado_de_current_id
 
         if status_execucao in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA} and not obs_final:
-            form_errors["observacoes"] = "Informe uma observacao para salvar este status."
+            form_errors["observacoes"] = "Informe uma observação para salvar este status."
         if status_execucao == REMARCADA_CONCLUIDA and not permite_status_remarcado:
             form_errors["status_execucao"] = (
-                "O status Remarcada e concluida so pode ser usado quando houver uma atividade "
-                "anterior marcada como nao realizada nesta meta."
+                "O status Remarcada e concluída só pode ser usado quando houver uma atividade "
+                "anterior marcada como não realizada nesta meta."
             )
         if status_execucao == REMARCADA_CONCLUIDA and not remarcado_de_selected_id and remarcacao_opcoes:
-            form_errors["remarcado_de_id"] = "Selecione de qual atividade nao realizada esta conclusao foi remarcada."
+            form_errors["remarcado_de_id"] = "Selecione de qual atividade não realizada esta conclusão foi remarcada."
 
         if form_errors:
             if form_errors.get("observacoes"):

@@ -1,12 +1,12 @@
 {% extends "core/base.html" %}
 {% load i18n %}
 
-{% block title %}Concluir item da programacao{% endblock %}
+{% block title %}Concluir item da programação{% endblock %}
 
 {% block content %}
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Concluir item da programacao</h1>
+    <h1 class="h4 mb-0">Concluir item da programação</h1>
     <a href="{{ next|default:'/minhas-metas/' }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-arrow-left"></i> Voltar
     </a>
@@ -30,7 +30,7 @@
               <dd class="col-sm-8">{{ atividade.titulo }}</dd>
             {% endif %}
 
-            <dt class="col-sm-4">Veiculo</dt>
+            <dt class="col-sm-4">Veículo</dt>
             <dd class="col-sm-8">
               {% if veiculo %}{{ veiculo.nome }} - {{ veiculo.placa }}{% else %}<span class="text-muted">-</span>{% endif %}
             </dd>
@@ -60,15 +60,15 @@
             {% with status_current=request.POST.status_execucao|default:status_execucao_current|default:'pendente' %}
               {% if item_remarcado %}
                 <div class="alert alert-info py-2 mb-0">
-                  Este item foi criado como remarcacao de uma atividade nao realizada. Ao concluir, ele sera exibido como <strong>Remarcada e concluida</strong>.
+                  Este item foi criado como remarcação de uma atividade não realizada. Ao concluir, ele será exibido como <strong>Remarcada e concluída</strong>.
                 </div>
               {% elif permite_status_remarcado %}
                 <div class="alert alert-info py-2 mb-0">
-                  Esta meta possui atividade anterior marcada como <strong>Nao realizada</strong>. Se esta entrega corresponde a essa remarcacao, use o status <strong>Remarcada e concluida</strong>.
+                  Esta meta possui atividade anterior marcada como <strong>Não realizada</strong>. Se esta entrega corresponde a essa remarcação, use o status <strong>Remarcada e concluída</strong>.
                 </div>
               {% endif %}
               <div>
-                <label class="form-label d-block">Status da execucao</label>
+                <label class="form-label d-block">Status da execução</label>
                 {% if form_errors.status_execucao %}
                   <div class="text-danger small mb-2">{{ form_errors.status_execucao }}</div>
                 {% endif %}
@@ -82,7 +82,7 @@
                            {% if status_current == 'pendente' %}checked{% endif %}>
                     <label class="form-check-label" for="id_status_pendente">
                       <span class="fw-semibold d-block">Pendente</span>
-                      <span class="text-muted small">Mantem a atividade aberta para continuar no acompanhamento.</span>
+                      <span class="text-muted small">Mantém a atividade aberta para continuar no acompanhamento.</span>
                     </label>
                   </div>
                   <div class="form-check">
@@ -93,7 +93,7 @@
                            value="executada"
                            {% if status_current == 'executada' %}checked{% endif %}>
                     <label class="form-check-label" for="id_status_executada">
-                      <span class="fw-semibold d-block">Concluida</span>
+                      <span class="fw-semibold d-block">Concluída</span>
                       <span class="text-muted small">
                         Fecha a atividade como executada e conta no progresso normal da meta.
                       </span>
@@ -107,8 +107,8 @@
                            value="nao_realizada"
                            {% if status_current == 'nao_realizada' %}checked{% endif %}>
                     <label class="form-check-label" for="id_status_nao_realizada">
-                      <span class="fw-semibold d-block">Nao realizada</span>
-                      <span class="text-muted small">Fecha esta programacao, mas deixa a meta em aberto para os meses seguintes.</span>
+                      <span class="fw-semibold d-block">Não realizada</span>
+                      <span class="text-muted small">Fecha esta programação, mas deixa a meta em aberto para os meses seguintes.</span>
                     </label>
                   </div>
                   {% if permite_status_remarcado %}
@@ -120,18 +120,18 @@
                              value="remarcada_concluida"
                              {% if status_current == 'remarcada_concluida' %}checked{% endif %}>
                       <label class="form-check-label" for="id_status_remarcada_concluida">
-                        <span class="fw-semibold d-block">Remarcada e concluida</span>
-                        <span class="text-muted small">Fecha a atividade como concluida, mas preserva a identificacao de que ela veio de uma nao realizada anterior.</span>
+                        <span class="fw-semibold d-block">Remarcada e concluída</span>
+                        <span class="text-muted small">Fecha a atividade como concluída, mas preserva a identificação de que ela veio de uma não realizada anterior.</span>
                       </label>
                     </div>
                   {% endif %}
                   {% if permite_status_remarcado and remarcacao_opcoes %}
                     <div class="ms-4">
-                      <label class="form-label small mb-1" for="id_remarcado_de_id">Atividade substituida na meta</label>
+                      <label class="form-label small mb-1" for="id_remarcado_de_id">Atividade substituída na meta</label>
                       <select name="remarcado_de_id"
                               id="id_remarcado_de_id"
                               class="form-select form-select-sm{% if form_errors.remarcado_de_id %} is-invalid{% endif %}">
-                        <option value="">Selecione qual nao realizada foi substituida</option>
+                        <option value="">Selecione qual não realizada foi substituída</option>
                         {% for opcao in remarcacao_opcoes %}
                           <option value="{{ opcao.id }}" {% if remarcado_de_selected_id == opcao.id %}selected{% endif %}>
                             {{ opcao.label }}
@@ -141,7 +141,7 @@
                       {% if form_errors.remarcado_de_id %}
                         <div class="invalid-feedback d-block">{{ form_errors.remarcado_de_id }}</div>
                       {% else %}
-                        <div class="form-text">Escolha explicitamente qual atividade nao realizada desta meta esta sendo substituida por esta conclusao.</div>
+                        <div class="form-text">Escolha explicitamente qual atividade não realizada desta meta está sendo substituída por esta conclusão.</div>
                       {% endif %}
                     </div>
                   {% endif %}
@@ -153,8 +153,8 @@
                            value="nao_realizada_justificada"
                            {% if status_current == 'nao_realizada_justificada' %}checked{% endif %}>
                     <label class="form-check-label" for="id_status_nao_realizada_justificada">
-                      <span class="fw-semibold d-block">Nao realizada justificada</span>
-                      <span class="text-muted small">Encerra a atividade sem contar como concluida e sem levar a meta para os proximos meses.</span>
+                      <span class="fw-semibold d-block">Não realizada justificada</span>
+                      <span class="text-muted small">Encerra a atividade sem contar como concluída e sem levar a meta para os próximos meses.</span>
                     </label>
                   </div>
                 </div>
@@ -162,28 +162,28 @@
             {% endwith %}
 
             <div>
-              <label class="form-label">Observacoes</label>
+              <label class="form-label">Observações</label>
               <textarea name="observacoes"
                         rows="3"
                         class="form-control{% if form_errors.observacoes %} is-invalid{% endif %}"
-                        placeholder="Descreva justificativas, ocorrencias, etc.">{{ request.POST.observacoes|default:item.observacao }}</textarea>
+                        placeholder="Descreva justificativas, ocorrências, etc.">{{ request.POST.observacoes|default:item.observacao }}</textarea>
               {% if form_errors.observacoes %}
                 <div class="invalid-feedback d-block">{{ form_errors.observacoes }}</div>
               {% else %}
-                <div class="form-text">Obrigatoria quando o status for Nao realizada ou Nao realizada justificada.</div>
+                <div class="form-text">Obrigatória quando o status for Não realizada ou Não realizada justificada.</div>
               {% endif %}
             </div>
 
             {% if pendentes_total %}
               <div class="alert alert-warning mb-0">
-                <strong>Atencao:</strong> existem {{ pendentes_total }} atividade{{ pendentes_total|pluralize }} desta meta ainda pendente{{ pendentes_total|pluralize }}.
+                <strong>Atenção:</strong> existem {{ pendentes_total }} atividade{{ pendentes_total|pluralize }} desta meta ainda pendente{{ pendentes_total|pluralize }}.
                 {% if pendentes_preview %}
                   <ul class="mt-2 mb-0 ps-3">
                     {% for pend in pendentes_preview %}
                       <li>
                         {% if pend.data %}{{ pend.data|date:"d/m/Y" }}{% else %}Sem data{% endif %}
                         - Item #{{ pend.id }}
-                        {% if pend.veiculo %}(Veiculo: {{ pend.veiculo }}){% endif %}
+                        {% if pend.veiculo %}(Veículo: {{ pend.veiculo }}){% endif %}
                       </li>
                     {% endfor %}
                     {% if pendentes_tem_mais %}
@@ -192,9 +192,9 @@
                   </ul>
                 {% endif %}
                 <p class="mt-2 mb-0 small">
-                  Para marcar este item como concluida mesmo assim, confirme a opcao abaixo.
+                  Para marcar este item como concluída mesmo assim, confirme a opção abaixo.
                   {% if pendentes_confirmacao_obrigatoria %}
-                    <span class="text-danger fw-semibold">Selecione a confirmacao para prosseguir.</span>
+                    <span class="text-danger fw-semibold">Selecione a confirmação para prosseguir.</span>
                   {% endif %}
                 </p>
               </div>
@@ -222,13 +222,13 @@
       </div>
 
       <div class="small text-muted mt-2">
-        Ao salvar: voce pode manter <em>pendente</em>, marcar como <em>concluida</em>
-        {% if permite_status_remarcado %}ou <em>remarcada e concluida</em>{% endif %},
-        ou registrar como <em>nao realizada</em> / <em>nao realizada justificada</em>, mantendo a observacao vinculada ao item.
+        Ao salvar: você pode manter <em>pendente</em>, marcar como <em>concluída</em>
+        {% if permite_status_remarcado %}ou <em>remarcada e concluída</em>{% endif %},
+        ou registrar como <em>não realizada</em> / <em>não realizada justificada</em>, mantendo a observação vinculada ao item.
       </div>
       <div class="alert alert-info mt-2 mb-0 py-2 small">
         <i class="bi bi-info-circle me-1"></i>
-        Se todas as atividades desta meta estiverem concluidas, encerre a meta em <strong>Metas</strong>.
+        Se todas as atividades desta meta estiverem concluídas, encerre a meta em <strong>Metas</strong>.
         {% if meta and meta.id %}
           <a href="{% url 'metas:encerrar-meta' meta.id %}" class="alert-link ms-1">Ir para encerrar meta</a>.
         {% endif %}

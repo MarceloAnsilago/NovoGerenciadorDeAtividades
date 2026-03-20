@@ -208,7 +208,7 @@ class ConcluirItemFormTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'value="remarcada_concluida"')
-        self.assertContains(response, "Atividade substituida na meta")
+        self.assertContains(response, "Atividade substituída na meta")
         self.assertNotContains(response, f'value="{item_origem.id}" selected')
 
     def test_rejeita_status_remarcado_sem_item_nao_realizado_anterior(self):
@@ -223,7 +223,7 @@ class ConcluirItemFormTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(item.remarcado_de_id, None)
         self.assertFalse(item.concluido)
-        self.assertContains(response, "O status Remarcada e concluida so pode ser usado")
+        self.assertContains(response, "O status Remarcada e concluída só pode ser usado")
 
     def test_exibe_status_remarcado_quando_revisao_vem_de_nao_realizadas(self):
         item = self._criar_item(
