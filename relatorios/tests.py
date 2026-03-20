@@ -131,4 +131,5 @@ class RelatorioProgramacaoTests(TestCase):
         self.assertContains(response, "Remarcada e concluida")
         self.assertContains(response, "Atividades remarcadas e concluidas")
         self.assertContains(response, "Remarc.")
+        self.assertContains(response, "Remov.")
         self.assertContains(response, f"Substituiu: 10/03/2026 - Item #{item_original.id}")
