@@ -33,6 +33,30 @@ class DashboardViewTest(TestCase):
         self.assertTemplateUsed(response, "core/dashboard.html")
 
 
+class DashboardBundleEndpointTest(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="bundle_user", password="secret123")
+        self.root = No.objects.create(nome="Bundle", tipo="setor")
+        UserProfile.objects.create(user=self.user, unidade=self.root)
+
+    def test_dashboard_bundle_returns_expected_sections(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("core:dashboard_bundle"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertIn("kpis", payload)
+        self.assertIn("metasPorUnidade", payload)
+        self.assertIn("atividadesPorArea", payload)
+        self.assertIn("progressoMensal", payload)
+        self.assertIn("programacoesStatus", payload)
+        self.assertIn("plantaoHeatmap", payload)
+        self.assertIn("usoVeiculos", payload)
+        self.assertIn("topServidores", payload)
+
+
 class DashboardMetasPorUnidadeTest(TestCase):
     def setUp(self):
         User = get_user_model()

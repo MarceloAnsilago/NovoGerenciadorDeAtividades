@@ -129,7 +129,7 @@ def _base_programacao_items(unidade_ids=None):
 def get_dashboard_activity_filters(user, *, unidade_ids=None) -> dict:
     qs = (
         _filter_by_unidades(
-            ProgramacaoItem.objects.select_related("programacao"),
+            ProgramacaoItem.objects.all(),
             unidade_ids,
             "programacao__unidade_id",
         )
@@ -164,9 +164,14 @@ def get_dashboard_activity_filters(user, *, unidade_ids=None) -> dict:
 
 def get_dashboard_kpis(user, unidade_ids=None) -> dict:
     metas = _filter_by_unidades(Meta.objects.all(), unidade_ids, "alocacoes__unidade_id").distinct()
-    total_metas = metas.count()
-    metas_ativas = metas.filter(encerrada=False).count()
-    metas_concluidas = metas.filter(encerrada=True).count()
+    metas_summary = metas.aggregate(
+        total=Count("pk", distinct=True),
+        ativas=Count("pk", filter=Q(encerrada=False), distinct=True),
+        concluidas=Count("pk", filter=Q(encerrada=True), distinct=True),
+    )
+    total_metas = int(metas_summary.get("total") or 0)
+    metas_ativas = int(metas_summary.get("ativas") or 0)
+    metas_concluidas = int(metas_summary.get("concluidas") or 0)
 
     programacoes = _filter_by_unidades(
         ProgramacaoItem.objects.all(),

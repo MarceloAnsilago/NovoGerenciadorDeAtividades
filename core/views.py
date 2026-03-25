@@ -1,4 +1,5 @@
 from collections import defaultdict
+import hashlib
 import json
 import calendar
 from datetime import date
@@ -17,6 +18,7 @@ from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.models import Group
 from django.utils import timezone
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.views.generic import TemplateView
 from django.urls import reverse
@@ -492,6 +494,141 @@ def nos_renomear(request, pk):
     no.nome = novo_nome
     no.save()
     return JsonResponse({'status': 'ok'})
+
+
+DASHBOARD_CACHE_TTL = 60
+
+
+def _dashboard_scope_key(unidade_scope):
+    if unidade_scope is None:
+        return None
+    return sorted({int(unidade_id) for unidade_id in unidade_scope})
+
+
+def _dashboard_cache_key(name, *, unidade_scope=None, start_value=None, end_value=None, extra=None):
+    payload = {
+        "name": name,
+        "scope": _dashboard_scope_key(unidade_scope),
+        "inicio": start_value or "",
+        "fim": end_value or "",
+        "extra": extra or {},
+    }
+    digest = hashlib.sha1(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    ).hexdigest()
+    return f"dashboard:v2:{name}:{digest}"
+
+
+def _dashboard_cached(name, builder, *, unidade_scope=None, start_value=None, end_value=None, extra=None):
+    cache_key = _dashboard_cache_key(
+        name,
+        unidade_scope=unidade_scope,
+        start_value=start_value,
+        end_value=end_value,
+        extra=extra,
+    )
+    cached_value = cache.get(cache_key)
+    if cached_value is not None:
+        return cached_value
+    value = builder()
+    cache.set(cache_key, value, DASHBOARD_CACHE_TTL)
+    return value
+
+
+def _dashboard_range_inputs(request):
+    start_value = request.GET.get("inicio") or request.GET.get("start")
+    end_value = request.GET.get("fim") or request.GET.get("end")
+    return start_value, end_value
+
+
+def _dashboard_bundle_payload(request, *, unidade_scope, start_value=None, end_value=None, top_limit=50):
+    start_date, end_date = _dashboard_period_range(start_value, end_value)
+    return {
+        "kpis": _dashboard_cached(
+            "kpis",
+            lambda: get_dashboard_kpis(request.user, unidade_ids=unidade_scope),
+            unidade_scope=unidade_scope,
+        ),
+        "metasPorUnidade": _dashboard_cached(
+            "metas_por_unidade",
+            lambda: get_metas_por_unidade(request.user, unidade_ids=unidade_scope),
+            unidade_scope=unidade_scope,
+        ),
+        "atividadesPorArea": _dashboard_cached(
+            "atividades_por_area",
+            lambda: get_atividades_por_area(
+                request.user,
+                unidade_ids=unidade_scope,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+            unidade_scope=unidade_scope,
+            start_value=start_value,
+            end_value=end_value,
+        ),
+        "progressoMensal": _dashboard_cached(
+            "progresso_mensal",
+            lambda: get_progresso_mensal(
+                request.user,
+                unidade_ids=unidade_scope,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+            unidade_scope=unidade_scope,
+            start_value=start_value,
+            end_value=end_value,
+        ),
+        "programacoesStatus": _dashboard_cached(
+            "programacoes_status_mensal",
+            lambda: get_programacoes_status_mensal(
+                request.user,
+                unidade_ids=unidade_scope,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+            unidade_scope=unidade_scope,
+            start_value=start_value,
+            end_value=end_value,
+        ),
+        "plantaoHeatmap": _dashboard_cached(
+            "plantao_heatmap",
+            lambda: get_plantao_heatmap(
+                request.user,
+                unidade_ids=unidade_scope,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+            unidade_scope=unidade_scope,
+            start_value=start_value,
+            end_value=end_value,
+        ),
+        "usoVeiculos": _dashboard_cached(
+            "uso_veiculos",
+            lambda: get_uso_veiculos(
+                request.user,
+                unidade_ids=unidade_scope,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+            unidade_scope=unidade_scope,
+            start_value=start_value,
+            end_value=end_value,
+        ),
+        "topServidores": _dashboard_cached(
+            "top_servidores",
+            lambda: get_top_servidores(
+                request.user,
+                unidade_ids=unidade_scope,
+                limit=top_limit,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+            unidade_scope=unidade_scope,
+            start_value=start_value,
+            end_value=end_value,
+            extra={"limit": int(top_limit)},
+        ),
+    }
 
 
 @require_POST
@@ -1061,12 +1198,15 @@ class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 @login_required
 def dashboard_view(request):
     unidade_scope = get_unidade_scope_ids(request)
-    filters = get_dashboard_activity_filters(request.user, unidade_ids=unidade_scope)
+    filters = _dashboard_cached(
+        "activity_filters",
+        lambda: get_dashboard_activity_filters(request.user, unidade_ids=unidade_scope),
+        unidade_scope=unidade_scope,
+    )
     years = filters.get("years") or []
     months_by_year = filters.get("months_by_year") or {}
     min_month_value, max_month_value = _extract_month_bounds(months_by_year)
-    start_param = request.GET.get("inicio") or request.GET.get("start")
-    end_param = request.GET.get("fim") or request.GET.get("end")
+    start_param, end_param = _dashboard_range_inputs(request)
     start_value = start_param if _parse_month_value(start_param) else min_month_value
     end_value = end_param if _parse_month_value(end_param) else max_month_value
 
@@ -1074,6 +1214,13 @@ def dashboard_view(request):
     hierarchy_summary = None
 
     if unidade:
+        def cached_kpis(unidade_ids):
+            return _dashboard_cached(
+                "kpis",
+                lambda: get_dashboard_kpis(request.user, unidade_ids=unidade_ids),
+                unidade_scope=unidade_ids,
+            )
+
         def collect_ids(root_id: int) -> list[int]:
             collected = {root_id}
             frontier = [root_id]
@@ -1086,7 +1233,7 @@ def dashboard_view(request):
                 frontier = child_ids
             return list(collected)
 
-        current_metrics = get_dashboard_kpis(request.user, unidade_ids=[unidade.id])
+        current_metrics = cached_kpis([unidade.id])
 
         children_rows = []
         all_children_ids: set[int] = set()
@@ -1097,16 +1244,16 @@ def dashboard_view(request):
                 {
                     "id": child.id,
                     "nome": child.nome,
-                    "metrics": get_dashboard_kpis(request.user, unidade_ids=child_branch_ids),
+                    "metrics": cached_kpis(child_branch_ids),
                 }
             )
 
         aggregate_ids = collect_ids(unidade.id)
-        aggregate_metrics = get_dashboard_kpis(request.user, unidade_ids=aggregate_ids)
+        aggregate_metrics = cached_kpis(aggregate_ids)
         children_aggregate = None
         if all_children_ids:
             children_ids_list = sorted(all_children_ids)
-            children_aggregate = get_dashboard_kpis(request.user, unidade_ids=children_ids_list)
+            children_aggregate = cached_kpis(children_ids_list)
 
         hierarchy_summary = {
             "current": {
@@ -1136,7 +1283,25 @@ def dashboard_view(request):
 @require_GET
 def dashboard_kpis(request):
     unidade_scope = get_unidade_scope_ids(request)
-    data = get_dashboard_kpis(request.user, unidade_ids=unidade_scope)
+    data = _dashboard_cached(
+        "kpis",
+        lambda: get_dashboard_kpis(request.user, unidade_ids=unidade_scope),
+        unidade_scope=unidade_scope,
+    )
+    return JsonResponse(data)
+
+
+@login_required
+@require_GET
+def dashboard_bundle(request):
+    unidade_scope = get_unidade_scope_ids(request)
+    start_value, end_value = _dashboard_range_inputs(request)
+    data = _dashboard_bundle_payload(
+        request,
+        unidade_scope=unidade_scope,
+        start_value=start_value,
+        end_value=end_value,
+    )
     return JsonResponse(data)
 
 
@@ -1144,7 +1309,11 @@ def dashboard_kpis(request):
 @require_GET
 def dashboard_metas_por_unidade(request):
     unidade_scope = get_unidade_scope_ids(request)
-    data = get_metas_por_unidade(request.user, unidade_ids=unidade_scope)
+    data = _dashboard_cached(
+        "metas_por_unidade",
+        lambda: get_metas_por_unidade(request.user, unidade_ids=unidade_scope),
+        unidade_scope=unidade_scope,
+    )
     return JsonResponse(data)
 
 
@@ -1152,14 +1321,19 @@ def dashboard_metas_por_unidade(request):
 @require_GET
 def dashboard_atividades_por_area(request):
     unidade_scope = get_unidade_scope_ids(request)
-    start_value = request.GET.get("inicio") or request.GET.get("start")
-    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_value, end_value = _dashboard_range_inputs(request)
     start_date, end_date = _dashboard_period_range(start_value, end_value)
-    data = get_atividades_por_area(
-        request.user,
-        unidade_ids=unidade_scope,
-        start_date=start_date,
-        end_date=end_date,
+    data = _dashboard_cached(
+        "atividades_por_area",
+        lambda: get_atividades_por_area(
+            request.user,
+            unidade_ids=unidade_scope,
+            start_date=start_date,
+            end_date=end_date,
+        ),
+        unidade_scope=unidade_scope,
+        start_value=start_value,
+        end_value=end_value,
     )
     return JsonResponse(data)
 
@@ -1168,14 +1342,19 @@ def dashboard_atividades_por_area(request):
 @require_GET
 def dashboard_progresso_mensal(request):
     unidade_scope = get_unidade_scope_ids(request)
-    start_value = request.GET.get("inicio") or request.GET.get("start")
-    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_value, end_value = _dashboard_range_inputs(request)
     start_date, end_date = _dashboard_period_range(start_value, end_value)
-    data = get_progresso_mensal(
-        request.user,
-        unidade_ids=unidade_scope,
-        start_date=start_date,
-        end_date=end_date,
+    data = _dashboard_cached(
+        "progresso_mensal",
+        lambda: get_progresso_mensal(
+            request.user,
+            unidade_ids=unidade_scope,
+            start_date=start_date,
+            end_date=end_date,
+        ),
+        unidade_scope=unidade_scope,
+        start_value=start_value,
+        end_value=end_value,
     )
     return JsonResponse(data)
 
@@ -1184,14 +1363,19 @@ def dashboard_progresso_mensal(request):
 @require_GET
 def dashboard_programacoes_status_mensal(request):
     unidade_scope = get_unidade_scope_ids(request)
-    start_value = request.GET.get("inicio") or request.GET.get("start")
-    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_value, end_value = _dashboard_range_inputs(request)
     start_date, end_date = _dashboard_period_range(start_value, end_value)
-    data = get_programacoes_status_mensal(
-        request.user,
-        unidade_ids=unidade_scope,
-        start_date=start_date,
-        end_date=end_date,
+    data = _dashboard_cached(
+        "programacoes_status_mensal",
+        lambda: get_programacoes_status_mensal(
+            request.user,
+            unidade_ids=unidade_scope,
+            start_date=start_date,
+            end_date=end_date,
+        ),
+        unidade_scope=unidade_scope,
+        start_value=start_value,
+        end_value=end_value,
     )
     return JsonResponse(data)
 
@@ -1200,14 +1384,19 @@ def dashboard_programacoes_status_mensal(request):
 @require_GET
 def dashboard_plantao_heatmap(request):
     unidade_scope = get_unidade_scope_ids(request)
-    start_value = request.GET.get("inicio") or request.GET.get("start")
-    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_value, end_value = _dashboard_range_inputs(request)
     start_date, end_date = _dashboard_period_range(start_value, end_value)
-    data = get_plantao_heatmap(
-        request.user,
-        unidade_ids=unidade_scope,
-        start_date=start_date,
-        end_date=end_date,
+    data = _dashboard_cached(
+        "plantao_heatmap",
+        lambda: get_plantao_heatmap(
+            request.user,
+            unidade_ids=unidade_scope,
+            start_date=start_date,
+            end_date=end_date,
+        ),
+        unidade_scope=unidade_scope,
+        start_value=start_value,
+        end_value=end_value,
     )
     return JsonResponse(data)
 
@@ -1216,14 +1405,19 @@ def dashboard_plantao_heatmap(request):
 @require_GET
 def dashboard_uso_veiculos(request):
     unidade_scope = get_unidade_scope_ids(request)
-    start_value = request.GET.get("inicio") or request.GET.get("start")
-    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_value, end_value = _dashboard_range_inputs(request)
     start_date, end_date = _dashboard_period_range(start_value, end_value)
-    data = get_uso_veiculos(
-        request.user,
-        unidade_ids=unidade_scope,
-        start_date=start_date,
-        end_date=end_date,
+    data = _dashboard_cached(
+        "uso_veiculos",
+        lambda: get_uso_veiculos(
+            request.user,
+            unidade_ids=unidade_scope,
+            start_date=start_date,
+            end_date=end_date,
+        ),
+        unidade_scope=unidade_scope,
+        start_value=start_value,
+        end_value=end_value,
     )
     return JsonResponse(data)
 
@@ -1237,15 +1431,21 @@ def dashboard_top_servidores(request):
         limit = 50
     limit = max(1, min(limit, 200))
     unidade_scope = get_unidade_scope_ids(request)
-    start_value = request.GET.get("inicio") or request.GET.get("start")
-    end_value = request.GET.get("fim") or request.GET.get("end")
+    start_value, end_value = _dashboard_range_inputs(request)
     start_date, end_date = _dashboard_period_range(start_value, end_value)
-    data = get_top_servidores(
-        request.user,
-        unidade_ids=unidade_scope,
-        limit=limit,
-        start_date=start_date,
-        end_date=end_date,
+    data = _dashboard_cached(
+        "top_servidores",
+        lambda: get_top_servidores(
+            request.user,
+            unidade_ids=unidade_scope,
+            limit=limit,
+            start_date=start_date,
+            end_date=end_date,
+        ),
+        unidade_scope=unidade_scope,
+        start_value=start_value,
+        end_value=end_value,
+        extra={"limit": limit},
     )
     return JsonResponse(data)
 

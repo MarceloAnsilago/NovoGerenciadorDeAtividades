@@ -248,11 +248,13 @@
   }
 
   async function refreshDashboard() {
-    updateKpis(await fetchJson(buildEndpoint(endpoints.kpis)));
+    const bundlePayload = endpoints.bundle ? await fetchJson(buildEndpoint(endpoints.bundle)) : null;
+
+    updateKpis(bundlePayload?.kpis || await fetchJson(buildEndpoint(endpoints.kpis)));
 
     renderChart(
       "chartMetasUnidade",
-      await fetchJson(buildEndpoint(endpoints.metasPorUnidade)),
+      bundlePayload?.metasPorUnidade || await fetchJson(buildEndpoint(endpoints.metasPorUnidade)),
       {
         type: "bar",
         options: {
@@ -271,7 +273,8 @@
       }
     );
 
-    const atividadesAreaPayload = await fetchJson(buildEndpoint(endpoints.atividadesPorArea));
+    const atividadesAreaPayload =
+      bundlePayload?.atividadesPorArea || await fetchJson(buildEndpoint(endpoints.atividadesPorArea));
     renderChart(
       "chartAtividadesArea",
       atividadesAreaPayload,
@@ -298,7 +301,7 @@
 
     renderChart(
       "chartProgressoMensal",
-      await fetchJson(buildEndpoint(endpoints.progressoMensal)),
+      bundlePayload?.progressoMensal || await fetchJson(buildEndpoint(endpoints.progressoMensal)),
       {
         type: "line",
         options: {
@@ -316,7 +319,8 @@
       }
     );
 
-    const progStatusPayload = await fetchJson(buildEndpoint(endpoints.programacoesStatus));
+    const progStatusPayload =
+      bundlePayload?.programacoesStatus || await fetchJson(buildEndpoint(endpoints.programacoesStatus));
     renderChart(
       "chartProgramacoesStatus",
       progStatusPayload,
@@ -371,7 +375,7 @@
 
     renderChart(
       "chartUsoVeiculos",
-      await fetchJson(buildEndpoint(endpoints.usoVeiculos)),
+      bundlePayload?.usoVeiculos || await fetchJson(buildEndpoint(endpoints.usoVeiculos)),
       {
         type: "bar",
         options: {
@@ -391,7 +395,8 @@
       }
     );
 
-    const topServPayload = await fetchJson(buildEndpoint(endpoints.topServidores));
+    const topServPayload =
+      bundlePayload?.topServidores || await fetchJson(buildEndpoint(endpoints.topServidores));
     const hasStack = (topServPayload?.datasets || []).length > 1;
     const topHints = topServPayload?.hints || [];
     const topServidorIds = topServPayload?.servidor_ids || [];
@@ -449,7 +454,7 @@
 
     renderChart(
       "chartPlantaoSemanal",
-      await fetchJson(buildEndpoint(endpoints.plantaoHeatmap)),
+      bundlePayload?.plantaoHeatmap || await fetchJson(buildEndpoint(endpoints.plantaoHeatmap)),
       {
         type: "bar",
         options: {

@@ -16,6 +16,11 @@ urlpatterns = [
         name="dashboard_kpis",
     ),
     path(
+        "api/dashboard/bundle/",
+        views.dashboard_bundle,
+        name="dashboard_bundle",
+    ),
+    path(
         "api/dashboard/metas_por_unidade/",
         views.dashboard_metas_por_unidade,
         name="dashboard_metas_por_unidade",
