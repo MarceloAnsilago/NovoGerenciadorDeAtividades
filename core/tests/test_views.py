@@ -183,6 +183,22 @@ class AssumirUnidadeSessionSyncTests(TestCase):
         self.assertEqual(session.get("contexto", {}).get("id"), self.u2.id)
         self.assertEqual(get_unidade_atual_id(response.wsgi_request), self.u2.id)
 
+    def test_assumir_unidade_permite_trocar_para_irma_sem_voltar_contexto(self):
+        session = self.client.session
+        session["contexto"] = {"tipo": "unidade", "id": self.u1.id}
+        session["unidade_id"] = self.u1.id
+        session["contexto_atual"] = self.u1.id
+        session["contexto_nome"] = self.u1.nome
+        session.save()
+
+        response = self.client.get(reverse("core:assumir_unidade", args=[self.u2.id]), follow=False)
+
+        self.assertEqual(response.status_code, 302)
+
+        session = self.client.session
+        self.assertEqual(session.get("contexto_atual"), self.u2.id)
+        self.assertEqual(session.get("contexto_nome"), self.u2.nome)
+
     def test_voltar_contexto_limpa_chaves_de_sessao(self):
         session = self.client.session
         session["contexto"] = {"tipo": "unidade", "id": self.u2.id}

@@ -1113,7 +1113,18 @@ def logout_view(request):
 def assumir_unidade(request, unidade_id=None, id=None):
     pk = unidade_id or id
     if not request.user.is_superuser:
-        allowed_ids = get_unidade_scope_ids(request, include_descendants=True) or []
+        perfil = getattr(request.user, "userprofile", None)
+        root_unidade_id = getattr(perfil, "unidade_id", None)
+        if not root_unidade_id:
+            raise PermissionDenied("Usuario sem unidade raiz definida.")
+
+        allowed_ids = {int(root_unidade_id)}
+        frontier = [int(root_unidade_id)]
+        while frontier:
+            child_ids = list(No.objects.filter(parent_id__in=frontier).values_list("id", flat=True))
+            frontier = [int(uid) for uid in child_ids if int(uid) not in allowed_ids]
+            allowed_ids.update(frontier)
+
         if int(pk) not in {int(uid) for uid in allowed_ids}:
             raise PermissionDenied("Unidade fora do escopo permitido.")
     unidade = get_object_or_404(No, pk=pk)
