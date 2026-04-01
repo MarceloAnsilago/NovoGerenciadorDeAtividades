@@ -1528,39 +1528,59 @@ def dashboard_servidor_view(request, servidor_id):
     q_remarcada_concluida_dashboard = Q(item__concluido=True, item__remarcado_de__isnull=False)
     q_concluida_dashboard = Q(item__concluido=True) | q_auto_concluida_expediente
     q_pendente_dashboard = q_pendente_base & ~q_auto_concluida_expediente
+    q_nao_realizada_dashboard = Q(item__concluido=False, item__concluido_em__isnull=False)
+    q_observacao_preenchida = ~Q(item__observacao__isnull=True) & ~Q(item__observacao__exact="")
+    summary_aggregates = {
+        "total_alocacoes": Count("id"),
+        "concluidas": Count("id", filter=q_concluida_dashboard),
+        "remarcadas_concluidas": Count("id", filter=q_remarcada_concluida_dashboard),
+        "nao_realizadas": Count("id", filter=q_nao_realizada_dashboard),
+        "pendentes": Count("id", filter=q_pendente_dashboard),
+        "metas_distintas": Count("item__meta_id", distinct=True),
+        "atividades_distintas": Count(
+            "item__meta__atividade_id",
+            filter=Q(item__meta__atividade_id__isnull=False),
+            distinct=True,
+        ),
+        "dias_programados": Count("item__programacao__data", distinct=True),
+        "unidades_atuacao": Count("item__programacao__unidade_id", distinct=True),
+        "veiculos_usados": Count(
+            "item__veiculo_id",
+            filter=Q(item__veiculo_id__isnull=False),
+            distinct=True,
+        ),
+        "com_observacao": Count("id", filter=q_observacao_preenchida),
+        "primeira_data": Min("item__programacao__data"),
+        "ultima_data": Max("item__programacao__data"),
+    }
+    if meta_expediente_id:
+        summary_aggregates["expediente_total"] = Count("id", filter=Q(item__meta_id=meta_expediente_id))
 
-    total_alocacoes = period_qs.count()
-    concluidas = period_qs.filter(q_concluida_dashboard).count()
-    remarcadas_concluidas = period_qs.filter(q_remarcada_concluida_dashboard).count()
-    nao_realizadas = period_qs.filter(item__concluido=False, item__concluido_em__isnull=False).count()
-    pendentes = period_qs.filter(q_pendente_dashboard).count()
+    summary = period_qs.aggregate(**summary_aggregates)
+
+    total_alocacoes = int(summary.get("total_alocacoes") or 0)
+    concluidas = int(summary.get("concluidas") or 0)
+    remarcadas_concluidas = int(summary.get("remarcadas_concluidas") or 0)
+    nao_realizadas = int(summary.get("nao_realizadas") or 0)
+    pendentes = int(summary.get("pendentes") or 0)
     taxa_conclusao = round((concluidas / total_alocacoes) * 100, 2) if total_alocacoes else 0.0
 
-    metas_distintas = period_qs.values("item__meta_id").distinct().count()
-    atividades_distintas = (
-        period_qs.exclude(item__meta__atividade_id__isnull=True)
-        .values("item__meta__atividade_id")
-        .distinct()
-        .count()
-    )
-    dias_programados = period_qs.values("item__programacao__data").distinct().count()
-    unidades_atuacao = period_qs.values("item__programacao__unidade_id").distinct().count()
-    veiculos_usados = period_qs.exclude(item__veiculo_id__isnull=True).values("item__veiculo_id").distinct().count()
-    com_observacao = (
-        period_qs.exclude(item__observacao__isnull=True)
-        .exclude(item__observacao__exact="")
-        .count()
-    )
+    metas_distintas = int(summary.get("metas_distintas") or 0)
+    atividades_distintas = int(summary.get("atividades_distintas") or 0)
+    dias_programados = int(summary.get("dias_programados") or 0)
+    unidades_atuacao = int(summary.get("unidades_atuacao") or 0)
+    veiculos_usados = int(summary.get("veiculos_usados") or 0)
+    com_observacao = int(summary.get("com_observacao") or 0)
 
-    extremos = period_qs.aggregate(
-        primeira_data=Min("item__programacao__data"),
-        ultima_data=Max("item__programacao__data"),
-    )
+    extremos = {
+        "primeira_data": summary.get("primeira_data"),
+        "ultima_data": summary.get("ultima_data"),
+    }
 
     expediente_total = None
     campo_total = None
     if meta_expediente_id:
-        expediente_total = period_qs.filter(item__meta_id=meta_expediente_id).count()
+        expediente_total = int(summary.get("expediente_total") or 0)
         campo_total = max(total_alocacoes - expediente_total, 0)
 
     area_rows = []
@@ -1618,7 +1638,7 @@ def dashboard_servidor_view(request, servidor_id):
             total=Count("id"),
             concluidas=Count("id", filter=Q(item__concluido=True, item__remarcado_de__isnull=True) | q_auto_concluida_expediente),
             remarcadas_concluidas=Count("id", filter=q_remarcada_concluida_dashboard),
-            nao_realizadas=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=False)),
+            nao_realizadas=Count("id", filter=q_nao_realizada_dashboard),
             pendentes=Count("id", filter=q_pendente_dashboard),
             ultima_data=Max("item__programacao__data"),
         )
@@ -1650,7 +1670,7 @@ def dashboard_servidor_view(request, servidor_id):
             total=Count("id"),
             concluidas=Count("id", filter=Q(item__concluido=True, item__remarcado_de__isnull=True) | q_auto_concluida_expediente),
             remarcadas_concluidas=Count("id", filter=q_remarcada_concluida_dashboard),
-            nao_realizadas=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=False)),
+            nao_realizadas=Count("id", filter=q_nao_realizada_dashboard),
             pendentes=Count("id", filter=q_pendente_dashboard),
             ultima_data=Max("item__programacao__data"),
         )
@@ -1679,7 +1699,7 @@ def dashboard_servidor_view(request, servidor_id):
             total=Count("id"),
             concluidas=Count("id", filter=Q(item__concluido=True, item__remarcado_de__isnull=True) | q_auto_concluida_expediente),
             remarcadas_concluidas=Count("id", filter=q_remarcada_concluida_dashboard),
-            nao_realizadas=Count("id", filter=Q(item__concluido=False, item__concluido_em__isnull=False)),
+            nao_realizadas=Count("id", filter=q_nao_realizada_dashboard),
             pendentes=Count("id", filter=q_pendente_dashboard),
         )
         .order_by("mes")

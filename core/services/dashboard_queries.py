@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from typing import List
 
 from django.conf import settings
-from django.db.models import Count, Sum, Q, IntegerField, Value
+from django.db.models import Count, Sum, Q, IntegerField, Value, Exists, OuterRef
 from django.db.models.functions import Coalesce, TruncMonth, TruncWeek, ExtractYear, ExtractMonth
 from django.utils import timezone
 
@@ -120,7 +120,11 @@ def _base_programacao_items(unidade_ids=None):
 
     if unidade_ids is not None:
         if unidade_ids:
-            base_qs = base_qs.filter(meta__alocacoes__unidade_id__in=unidade_ids)
+            meta_scope_qs = MetaAlocacao.objects.filter(
+                meta_id=OuterRef("meta_id"),
+                unidade_id__in=unidade_ids,
+            )
+            base_qs = base_qs.annotate(_meta_scope_match=Exists(meta_scope_qs)).filter(_meta_scope_match=True)
         else:
             base_qs = base_qs.none()
     return base_qs
@@ -670,7 +674,7 @@ def get_top_servidores(
             .order_by("-campo", "servidor__nome", "servidor_id")
         )
 
-    qs = qs[:limit]
+    qs = list(qs[:limit])
 
     labels: list[str] = []
     servidor_ids: list[int] = []
@@ -689,9 +693,10 @@ def get_top_servidores(
     # monta dicas com atividades de campo (top 3 por servidor)
     detail_map: dict[int, list[tuple[str, int]]] = {}
     campo_exists = meta_expediente_id is not None
-    if campo_exists:
+    if campo_exists and servidor_ids:
         detalhes_qs = (
             base_qs.exclude(item__meta_id=meta_expediente_id)
+            .filter(servidor_id__in=servidor_ids)
             .values("servidor_id", "item__meta__titulo")
             .annotate(total=Count("id"))
             .order_by("servidor_id", "-total", "item__meta__titulo")

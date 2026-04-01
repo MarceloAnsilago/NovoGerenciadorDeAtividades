@@ -4,7 +4,6 @@
 {% block extra_head %}
   {% include "programar/styles/_programacao_styles.html" %}
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <script>
     // marca técnica para guards/diagnóstico
     document.addEventListener('DOMContentLoaded', () => {
@@ -26,7 +25,7 @@
 
 {% block extra_js %}
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales-all.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.8/locales/pt-br.global.min.js"></script>
 
   {% include "programar/scripts/_urls_context.html" %}
   {% include "programar/scripts/_print_helper.html" %}

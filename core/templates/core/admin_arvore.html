@@ -3,6 +3,10 @@
 
 {% block title %}Administrador - Estrutura{% endblock %}
 
+{% block extra_head %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/themes/default/style.min.css" rel="stylesheet" />
+{% endblock %}
+
 {% block content %}
   <h3>Gerenciar Estrutura</h3>
 
@@ -85,7 +89,6 @@
 {% block extra_js %}
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/jstree.min.js"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/themes/default/style.min.css" rel="stylesheet" />
 
 <script>
   const URLS = {

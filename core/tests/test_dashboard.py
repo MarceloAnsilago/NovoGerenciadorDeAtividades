@@ -11,8 +11,10 @@ from core.services.dashboard_queries import (
     get_metas_por_unidade,
     get_atividades_por_area,
     get_progresso_mensal,
+    get_programacoes_status_mensal,
 )
 from metas.models import Meta, MetaAlocacao, ProgressoMeta
+from programar.models import Programacao, ProgramacaoItem
 from servidores.models import Servidor
 from atividades.models import Area, Atividade
 
@@ -125,17 +127,76 @@ class DashboardMetasPorUnidadeTest(TestCase):
         self.assertEqual(empty["servidores_ativos"], 0)
 
     def test_atividades_por_area_respects_scope(self):
-        Atividade.objects.create(
+        atividade_child = Atividade.objects.create(
             titulo="Atividade A",
             area=self.animal_area,
             unidade_origem=self.child,
             criado_por=self.user,
         )
-        Atividade.objects.create(
+        atividade_other = Atividade.objects.create(
             titulo="Atividade B",
             area=self.vegetal_area,
             unidade_origem=self.other,
             criado_por=self.user,
+        )
+
+        meta_child = Meta.objects.create(
+            unidade_criadora=self.root,
+            atividade=atividade_child,
+            titulo="Meta A",
+            descricao="",
+            quantidade_alvo=1,
+            criado_por=self.user,
+        )
+        MetaAlocacao.objects.create(
+            meta=meta_child,
+            unidade=self.child,
+            quantidade_alocada=1,
+            atribuida_por=self.user,
+        )
+        # A mesma meta alocada em mais de uma unidade do escopo nao pode duplicar os itens.
+        MetaAlocacao.objects.create(
+            meta=meta_child,
+            unidade=self.other,
+            quantidade_alocada=1,
+            atribuida_por=self.user,
+        )
+
+        meta_other = Meta.objects.create(
+            unidade_criadora=self.root,
+            atividade=atividade_other,
+            titulo="Meta B",
+            descricao="",
+            quantidade_alvo=1,
+            criado_por=self.user,
+        )
+        MetaAlocacao.objects.create(
+            meta=meta_other,
+            unidade=self.other,
+            quantidade_alocada=1,
+            atribuida_por=self.user,
+        )
+
+        programacao_child = Programacao.objects.create(
+            data=date(2026, 2, 5),
+            unidade=self.child,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao_child,
+            meta=meta_child,
+            concluido=True,
+        )
+
+        programacao_other = Programacao.objects.create(
+            data=date(2026, 2, 7),
+            unidade=self.other,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao_other,
+            meta=meta_other,
+            concluido=False,
         )
 
         result = get_atividades_por_area(self.user, unidade_ids=[self.child.id, self.other.id])
@@ -148,6 +209,59 @@ class DashboardMetasPorUnidadeTest(TestCase):
 
         empty = get_atividades_por_area(self.user, unidade_ids=[])
         self.assertEqual(empty["datasets"][0]["data"], [])
+
+    def test_programacoes_status_mensal_does_not_duplicate_items_for_multi_allocated_meta(self):
+        atividade = Atividade.objects.create(
+            titulo="Atividade Status",
+            area=self.animal_area,
+            unidade_origem=self.child,
+            criado_por=self.user,
+        )
+        meta = Meta.objects.create(
+            unidade_criadora=self.root,
+            atividade=atividade,
+            titulo="Meta Status",
+            descricao="",
+            quantidade_alvo=1,
+            criado_por=self.user,
+        )
+        MetaAlocacao.objects.create(
+            meta=meta,
+            unidade=self.child,
+            quantidade_alocada=1,
+            atribuida_por=self.user,
+        )
+        MetaAlocacao.objects.create(
+            meta=meta,
+            unidade=self.other,
+            quantidade_alocada=1,
+            atribuida_por=self.user,
+        )
+
+        programacao = Programacao.objects.create(
+            data=date(2026, 2, 10),
+            unidade=self.child,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=meta,
+            concluido=True,
+        )
+
+        result = get_programacoes_status_mensal(
+            self.user,
+            unidade_ids=[self.child.id, self.other.id],
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 2, 28),
+        )
+
+        self.assertEqual(result["labels"], ["Fev/2026"])
+        datasets = {dataset["label"]: dataset["data"] for dataset in result["datasets"]}
+        self.assertEqual(datasets["ConcluÃ­das"], [1])
+        self.assertEqual(datasets["Remarcadas e concluidas"], [0])
+        self.assertEqual(datasets["NÃ£o realizadas"], [0])
+        self.assertEqual(datasets["Pendentes"], [0])
 
 
 class DashboardProgressoMensalTest(TestCase):

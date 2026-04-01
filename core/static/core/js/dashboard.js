@@ -9,8 +9,11 @@
   const startInput = document.getElementById("dashboardStartMonth");
   const endInput = document.getElementById("dashboardEndMonth");
   const currentMonthBtn = document.getElementById("dashboardCurrentMonthBtn");
+  let refreshTimer = null;
+  let activeRequestController = null;
+  let latestRefreshToken = 0;
 
-  async function fetchJson(url) {
+  async function fetchJson(url, { signal } = {}) {
     if (!url) {
       return null;
     }
@@ -18,12 +21,16 @@
       const response = await fetch(url, {
         credentials: "same-origin",
         headers: { "X-Requested-With": "XMLHttpRequest" },
+        signal,
       });
       if (!response.ok) {
         throw new Error(`Erro ao buscar ${url}: ${response.status}`);
       }
       return await response.json();
     } catch (error) {
+      if (error.name === "AbortError") {
+        throw error;
+      }
       console.error(error);
       return null;
     }
@@ -247,231 +254,280 @@
     await refreshDashboard();
   }
 
+  function scheduleRefresh(delay = 180) {
+    if (refreshTimer) {
+      window.clearTimeout(refreshTimer);
+    }
+    refreshTimer = window.setTimeout(() => {
+      refreshTimer = null;
+      refreshDashboard();
+    }, delay);
+  }
+
   async function refreshDashboard() {
-    const bundlePayload = endpoints.bundle ? await fetchJson(buildEndpoint(endpoints.bundle)) : null;
+    const refreshToken = ++latestRefreshToken;
+    if (activeRequestController) {
+      activeRequestController.abort();
+    }
+    const controller = new AbortController();
+    activeRequestController = controller;
+    const { signal } = controller;
 
-    updateKpis(bundlePayload?.kpis || await fetchJson(buildEndpoint(endpoints.kpis)));
+    try {
+      const bundlePayload = endpoints.bundle ? await fetchJson(buildEndpoint(endpoints.bundle), { signal }) : null;
+      if (signal.aborted || refreshToken !== latestRefreshToken) {
+        return;
+      }
 
-    renderChart(
-      "chartMetasUnidade",
-      bundlePayload?.metasPorUnidade || await fetchJson(buildEndpoint(endpoints.metasPorUnidade)),
-      {
-        type: "bar",
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: { precision: 0 },
+      updateKpis(bundlePayload?.kpis || await fetchJson(buildEndpoint(endpoints.kpis), { signal }));
+      if (signal.aborted || refreshToken !== latestRefreshToken) {
+        return;
+      }
+
+      renderChart(
+        "chartMetasUnidade",
+        bundlePayload?.metasPorUnidade || await fetchJson(buildEndpoint(endpoints.metasPorUnidade), { signal }),
+        {
+          type: "bar",
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { precision: 0 },
+              },
             },
           },
-        },
-      }
-    );
+        }
+      );
 
-    const atividadesAreaPayload =
-      bundlePayload?.atividadesPorArea || await fetchJson(buildEndpoint(endpoints.atividadesPorArea));
-    renderChart(
-      "chartAtividadesArea",
-      atividadesAreaPayload,
-      {
-        type: "doughnut",
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: "bottom" },
-          },
-          onClick: (evt, elements) => {
-            if (!elements || !elements.length) return;
-            const idx = elements[0].index;
-            const codes = (atividadesAreaPayload && atividadesAreaPayload.codes) || [];
-            const code = codes[idx];
-            const base = "/metas/";
-            const url = code ? `${base}?area=${encodeURIComponent(code)}&status=ativas` : `${base}?status=ativas`;
-            window.location.href = url;
-          },
-        },
+      const atividadesAreaPayload =
+        bundlePayload?.atividadesPorArea || await fetchJson(buildEndpoint(endpoints.atividadesPorArea), { signal });
+      if (signal.aborted || refreshToken !== latestRefreshToken) {
+        return;
       }
-    );
-
-    renderChart(
-      "chartProgressoMensal",
-      bundlePayload?.progressoMensal || await fetchJson(buildEndpoint(endpoints.progressoMensal)),
-      {
-        type: "line",
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: "bottom" },
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
+      renderChart(
+        "chartAtividadesArea",
+        atividadesAreaPayload,
+        {
+          type: "doughnut",
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: "bottom" },
+            },
+            onClick: (evt, elements) => {
+              if (!elements || !elements.length) return;
+              const idx = elements[0].index;
+              const codes = (atividadesAreaPayload && atividadesAreaPayload.codes) || [];
+              const code = codes[idx];
+              const base = "/metas/";
+              const url = code ? `${base}?area=${encodeURIComponent(code)}&status=ativas` : `${base}?status=ativas`;
+              window.location.href = url;
             },
           },
-        },
-      }
-    );
+        }
+      );
 
-    const progStatusPayload =
-      bundlePayload?.programacoesStatus || await fetchJson(buildEndpoint(endpoints.programacoesStatus));
-    renderChart(
-      "chartProgramacoesStatus",
-      progStatusPayload,
-      {
-        type: "bar",
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: "bottom" },
-            tooltip: {
-              callbacks: {
-                label(context) {
-                  const dsLabel = context.dataset?.label || "";
-                  const value = context.parsed?.y ?? context.parsed ?? 0;
-                  return `${dsLabel}: ${value}`;
-                },
-                footer(items) {
-                  if (!items || !items.length) return "";
-                  const idx = items[0].dataIndex;
-                  const dsLabel = items[0].dataset?.label || "";
-                  const dsKey = normalizeText(dsLabel);
-                  const hints = (progStatusPayload && progStatusPayload.hints) || {};
-                  let hint = "";
-                  if (dsKey.includes("conclu")) {
-                    if (dsKey.includes("remarc")) {
-                      hint = (hints.remarcadas_concluidas && hints.remarcadas_concluidas[idx]) || "";
-                    } else {
-                      hint = (hints.concluidas && hints.concluidas[idx]) || "";
+      renderChart(
+        "chartProgressoMensal",
+        bundlePayload?.progressoMensal || await fetchJson(buildEndpoint(endpoints.progressoMensal), { signal }),
+        {
+          type: "line",
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: "bottom" },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+              },
+            },
+          },
+        }
+      );
+      if (signal.aborted || refreshToken !== latestRefreshToken) {
+        return;
+      }
+
+      const progStatusPayload =
+        bundlePayload?.programacoesStatus || await fetchJson(buildEndpoint(endpoints.programacoesStatus), { signal });
+      if (signal.aborted || refreshToken !== latestRefreshToken) {
+        return;
+      }
+      renderChart(
+        "chartProgramacoesStatus",
+        progStatusPayload,
+        {
+          type: "bar",
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: "bottom" },
+              tooltip: {
+                callbacks: {
+                  label(context) {
+                    const dsLabel = context.dataset?.label || "";
+                    const value = context.parsed?.y ?? context.parsed ?? 0;
+                    return `${dsLabel}: ${value}`;
+                  },
+                  footer(items) {
+                    if (!items || !items.length) return "";
+                    const idx = items[0].dataIndex;
+                    const dsLabel = items[0].dataset?.label || "";
+                    const dsKey = normalizeText(dsLabel);
+                    const hints = (progStatusPayload && progStatusPayload.hints) || {};
+                    let hint = "";
+                    if (dsKey.includes("conclu")) {
+                      if (dsKey.includes("remarc")) {
+                        hint = (hints.remarcadas_concluidas && hints.remarcadas_concluidas[idx]) || "";
+                      } else {
+                        hint = (hints.concluidas && hints.concluidas[idx]) || "";
+                      }
+                    } else if (dsKey.includes("nao realiz")) {
+                      hint = (hints.nao_realizadas && hints.nao_realizadas[idx]) || "";
+                    } else if (dsKey.includes("penden")) {
+                      hint = (hints.pendentes && hints.pendentes[idx]) || "";
                     }
-                  } else if (dsKey.includes("nao realiz")) {
-                    hint = (hints.nao_realizadas && hints.nao_realizadas[idx]) || "";
-                  } else if (dsKey.includes("penden")) {
-                    hint = (hints.pendentes && hints.pendentes[idx]) || "";
-                  }
-                  return hint ? `Atividade: ${hint}` : "";
+                    return hint ? `Atividade: ${hint}` : "";
+                  },
                 },
               },
             },
-          },
-          scales: {
-            x: { stacked: true },
-            y: {
-              stacked: true,
-              beginAtZero: true,
-              ticks: { precision: 0 },
-            },
-          },
-        },
-      }
-    );
-
-    renderChart(
-      "chartUsoVeiculos",
-      bundlePayload?.usoVeiculos || await fetchJson(buildEndpoint(endpoints.usoVeiculos)),
-      {
-        type: "bar",
-        options: {
-          indexAxis: "y",
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-          },
-          scales: {
-            x: {
-              beginAtZero: true,
-              ticks: { precision: 0 },
-            },
-          },
-        },
-      }
-    );
-
-    const topServPayload =
-      bundlePayload?.topServidores || await fetchJson(buildEndpoint(endpoints.topServidores));
-    const hasStack = (topServPayload?.datasets || []).length > 1;
-    const topHints = topServPayload?.hints || [];
-    const topServidorIds = topServPayload?.servidor_ids || [];
-    renderChart(
-      "chartTopServidores",
-      topServPayload,
-      {
-        type: "bar",
-        options: {
-          indexAxis: "y",
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: hasStack },
-            tooltip: {
-              callbacks: {
-                label(context) {
-                  const dsLabel = context.dataset?.label || "";
-                  const value = context.parsed?.x ?? context.parsed ?? 0;
-                  return `${dsLabel}: ${value}`;
-                },
-                footer(items) {
-                  if (!items || !items.length) return "";
-                  const idx = items[0].dataIndex;
-                  const hint = topHints[idx];
-                  return hint ? hint : "";
-                },
+            scales: {
+              x: { stacked: true },
+              y: {
+                stacked: true,
+                beginAtZero: true,
+                ticks: { precision: 0 },
               },
             },
           },
-          onClick: (event, elements, chart) => {
-            const idx = resolveTopServidorIndex(event, elements, chart);
-            if (idx < 0) {
-              return;
-            }
-            const servidorId = topServidorIds[idx];
-            if (!servidorId) {
-              return;
-            }
-            navigateToServidorDashboard(servidorId);
-          },
-          scales: {
-            x: {
-              beginAtZero: true,
-              ticks: { precision: 0 },
-              stacked: hasStack,
-            },
-            y: {
-              stacked: hasStack,
-            },
-          },
-        },
-      }
-    );
+        }
+      );
 
-    renderChart(
-      "chartPlantaoSemanal",
-      bundlePayload?.plantaoHeatmap || await fetchJson(buildEndpoint(endpoints.plantaoHeatmap)),
-      {
-        type: "bar",
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: { precision: 0 },
+      renderChart(
+        "chartUsoVeiculos",
+        bundlePayload?.usoVeiculos || await fetchJson(buildEndpoint(endpoints.usoVeiculos), { signal }),
+        {
+          type: "bar",
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                ticks: { precision: 0 },
+              },
             },
           },
-        },
+        }
+      );
+      if (signal.aborted || refreshToken !== latestRefreshToken) {
+        return;
       }
-    );
+
+      const topServPayload =
+        bundlePayload?.topServidores || await fetchJson(buildEndpoint(endpoints.topServidores), { signal });
+      if (signal.aborted || refreshToken !== latestRefreshToken) {
+        return;
+      }
+      const hasStack = (topServPayload?.datasets || []).length > 1;
+      const topHints = topServPayload?.hints || [];
+      const topServidorIds = topServPayload?.servidor_ids || [];
+      renderChart(
+        "chartTopServidores",
+        topServPayload,
+        {
+          type: "bar",
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: hasStack },
+              tooltip: {
+                callbacks: {
+                  label(context) {
+                    const dsLabel = context.dataset?.label || "";
+                    const value = context.parsed?.x ?? context.parsed ?? 0;
+                    return `${dsLabel}: ${value}`;
+                  },
+                  footer(items) {
+                    if (!items || !items.length) return "";
+                    const idx = items[0].dataIndex;
+                    const hint = topHints[idx];
+                    return hint ? hint : "";
+                  },
+                },
+              },
+            },
+            onClick: (event, elements, chart) => {
+              const idx = resolveTopServidorIndex(event, elements, chart);
+              if (idx < 0) {
+                return;
+              }
+              const servidorId = topServidorIds[idx];
+              if (!servidorId) {
+                return;
+              }
+              navigateToServidorDashboard(servidorId);
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                ticks: { precision: 0 },
+                stacked: hasStack,
+              },
+              y: {
+                stacked: hasStack,
+              },
+            },
+          },
+        }
+      );
+
+      renderChart(
+        "chartPlantaoSemanal",
+        bundlePayload?.plantaoHeatmap || await fetchJson(buildEndpoint(endpoints.plantaoHeatmap), { signal }),
+        {
+          type: "bar",
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { precision: 0 },
+              },
+            },
+          },
+        }
+      );
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error(error);
+      }
+    } finally {
+      if (activeRequestController === controller) {
+        activeRequestController = null;
+      }
+    }
   }
 
   async function init() {
@@ -491,7 +547,7 @@
       startInput.addEventListener("change", () => {
         normalizeRange();
         syncUrlParams();
-        refreshDashboard();
+        scheduleRefresh();
       });
     }
 
@@ -499,7 +555,7 @@
       endInput.addEventListener("change", () => {
         normalizeRange();
         syncUrlParams();
-        refreshDashboard();
+        scheduleRefresh();
       });
     }
 

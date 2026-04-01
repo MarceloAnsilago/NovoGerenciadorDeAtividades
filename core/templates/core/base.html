@@ -168,12 +168,7 @@
     #global-messages-wrapper .container { pointer-events: auto; }
   </style>
 
-  {% block extra_head %}
-    {% if request.resolver_match.url_name == 'admin_arvore' %}
-      <!-- jsTree CSS -->
-      <link href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/themes/default/style.min.css" rel="stylesheet" />
-    {% endif %}
-  {% endblock %}
+  {% block extra_head %}{% endblock %}
 </head>
 
 <body>
@@ -438,46 +433,7 @@
   });
 </script>
 
-{% block extra_js %}
-  {% if request.resolver_match.url_name == 'admin_arvore' %}
-    <!-- jsTree JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.12/jstree.min.js"></script>
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        $('#jstree').jstree({
-          'core': {
-            'data': { 'url': '/core/nos/', 'dataType': 'json' },
-            'check_callback': true,
-            'themes': { 'variant': 'large' }
-          },
-          'plugins': ['contextmenu', 'dnd', 'types', 'wholerow']
-        })
-        .on('create_node.jstree', function (e, data) {
-          $.post('/core/nos/criar/', {
-            nome: data.node.text,
-            parent: data.node.parent !== "#" ? data.node.parent : "",
-            csrfmiddlewaretoken: '{{ csrf_token }}'
-          }, function (res) {
-            $('#jstree').jstree(true).set_id(data.node, res.id);
-          });
-        })
-        .on('rename_node.jstree', function (e, data) {
-          $.post(`/core/nos/renomear/${data.node.id}/`, {
-            nome: data.text, csrfmiddlewaretoken: '{{ csrf_token }}'
-          });
-        })
-        .on('move_node.jstree', function (e, data) {
-          $.post(`/core/nos/mover/${data.node.id}/`, {
-            parent: data.parent !== "#" ? data.parent : "", csrfmiddlewaretoken: '{{ csrf_token }}'
-          });
-        })
-        .on('delete_node.jstree', function (e, data) {
-          $.post(`/core/nos/deletar/${data.node.id}/`, { csrfmiddlewaretoken: '{{ csrf_token }}' });
-        });
-      });
-    </script>
-  {% endif %}
-{% endblock %}
+{% block extra_js %}{% endblock %}
 
 {% block scripts %}{% endblock %}
 </body>
