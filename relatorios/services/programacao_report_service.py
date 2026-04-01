@@ -82,35 +82,23 @@ def _snapshot_programacao_item(item: ProgramacaoItem) -> dict[str, Any]:
     return snapshot_programacao_dia(item.programacao.unidade_id, item.programacao.data)["items"].get(item.id, {})
 
 
-def _resolve_state_at_end(
+def _resolve_latest_state(
     *,
     current_snapshot: dict[str, Any] | None,
     historico: list[ProgramacaoHistorico],
-    end_dt,
 ) -> tuple[str, dict[str, Any]]:
     current = _normalize_snapshot(current_snapshot)
-    ate_fim = [entry for entry in historico if entry.criado_em <= end_dt]
-    apos_fim = [entry for entry in historico if entry.criado_em > end_dt]
+    if current:
+        return current.get("status_execucao", PENDENTE), current
 
-    if ate_fim:
-        ultimo = ate_fim[-1]
+    if historico:
+        ultimo = historico[-1]
         if ultimo.evento in {
             ProgramacaoHistorico.EVENTO_ATIVIDADE_REMOVIDA,
             ProgramacaoHistorico.EVENTO_PROGRAMACAO_EXCLUIDA,
         }:
             return "removida", _normalize_snapshot(ultimo.snapshot_antes)
         return ultimo.status_depois or (ultimo.snapshot_depois or {}).get("status_execucao", PENDENTE), _normalize_snapshot(ultimo.snapshot_depois)
-
-    if apos_fim:
-        primeiro = apos_fim[0]
-        snap_antes = _normalize_snapshot(primeiro.snapshot_antes)
-        if snap_antes:
-            return snap_antes.get("status_execucao", PENDENTE), snap_antes
-        if primeiro.evento == ProgramacaoHistorico.EVENTO_ATIVIDADE_CRIADA:
-            return "nao_existia", {}
-
-    if current:
-        return current.get("status_execucao", PENDENTE), current
 
     return "removida", {}
 
@@ -202,10 +190,9 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
             pair[0],
         ),
     ):
-        final_status, final_snapshot = _resolve_state_at_end(
+        final_status, final_snapshot = _resolve_latest_state(
             current_snapshot=current_snapshots.get(item_id),
             historico=by_item.get(item_id, []),
-            end_dt=end_dt,
         )
 
         if meta_expediente_id is not None and int(initial_snapshot.get("meta_id") or 0) == meta_expediente_id:

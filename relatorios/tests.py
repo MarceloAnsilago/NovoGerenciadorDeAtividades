@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -9,6 +9,8 @@ from atividades.models import Area, Atividade
 from core.models import No
 from metas.models import Meta
 from programar.models import Programacao, ProgramacaoItem
+from programar.status import EXECUTADA, PENDENTE
+from relatorios.models import ProgramacaoHistorico
 
 
 class RelatorioProgramacaoTests(TestCase):
@@ -133,3 +135,111 @@ class RelatorioProgramacaoTests(TestCase):
         self.assertContains(response, "Remarc.")
         self.assertContains(response, "Remov.")
         self.assertContains(response, f"Substituiu: 10/03/2026 - Item #{item_original.id}")
+
+    def test_relatorio_considera_status_final_mesmo_quando_conclusao_ocorre_apos_periodo(self):
+        item = ProgramacaoItem.objects.create(
+            programacao=self.programacao_2,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.make_aware(datetime(2026, 4, 1, 9, 30)),
+            nao_realizada_justificada=False,
+            observacao="Concluida apos fechamento do mes",
+        )
+
+        snapshot_antes = {
+            "id": item.id,
+            "programacao_id": self.programacao_2.id,
+            "programacao_data": "2026-03-11",
+            "meta_id": self.meta.id,
+            "meta_titulo": "Fiscalizacao de viveiros",
+            "status_execucao": PENDENTE,
+            "servidores": [],
+        }
+        snapshot_depois = {
+            **snapshot_antes,
+            "status_execucao": EXECUTADA,
+        }
+        historico = ProgramacaoHistorico.objects.create(
+            unidade=self.unidade,
+            usuario=self.user,
+            meta=self.meta,
+            data_programacao=self.programacao_2.data,
+            programacao_id=self.programacao_2.id,
+            item_id=item.id,
+            evento=ProgramacaoHistorico.EVENTO_STATUS_ALTERADO,
+            origem="teste",
+            titulo_item="Fiscalizacao de viveiros",
+            descricao="Status alterado depois do periodo filtrado.",
+            status_antes=PENDENTE,
+            status_depois=EXECUTADA,
+            snapshot_antes=snapshot_antes,
+            snapshot_depois=snapshot_depois,
+        )
+        ProgramacaoHistorico.objects.filter(pk=historico.pk).update(
+            criado_em=timezone.make_aware(datetime(2026, 4, 1, 9, 31))
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_desempenho": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        report = response.context["report"]
+        row = next(report_row for report_row in report["desempenho"]["rows"] if report_row["item_id"] == item.id)
+        self.assertEqual(row["status_final"], EXECUTADA)
+        resumo = {report_row["titulo"]: report_row for report_row in report["desempenho"]["resumo_por_atividade"]}
+        self.assertEqual(resumo["Fiscalizacao de viveiros"]["executada"], 1)
+
+    def test_relatorio_prefere_estado_atual_quando_historico_do_item_ativo_esta_desatualizado(self):
+        item = ProgramacaoItem.objects.create(
+            programacao=self.programacao_2,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.make_aware(datetime(2026, 3, 31, 17, 19)),
+            nao_realizada_justificada=False,
+            observacao="Historico nao recebeu a mudanca de status",
+        )
+
+        ProgramacaoHistorico.objects.create(
+            unidade=self.unidade,
+            usuario=self.user,
+            meta=self.meta,
+            data_programacao=self.programacao_2.data,
+            programacao_id=self.programacao_2.id,
+            item_id=item.id,
+            evento=ProgramacaoHistorico.EVENTO_ATIVIDADE_CRIADA,
+            origem="teste",
+            titulo_item="Fiscalizacao de viveiros",
+            descricao="Item criado como pendente.",
+            status_antes="",
+            status_depois=PENDENTE,
+            snapshot_antes={},
+            snapshot_depois={
+                "id": item.id,
+                "programacao_id": self.programacao_2.id,
+                "programacao_data": "2026-03-11",
+                "meta_id": self.meta.id,
+                "meta_titulo": "Fiscalizacao de viveiros",
+                "status_execucao": PENDENTE,
+                "servidores": [],
+            },
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_desempenho": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        report = response.context["report"]
+        row = next(report_row for report_row in report["desempenho"]["rows"] if report_row["item_id"] == item.id)
+        self.assertEqual(row["status_final"], EXECUTADA)
