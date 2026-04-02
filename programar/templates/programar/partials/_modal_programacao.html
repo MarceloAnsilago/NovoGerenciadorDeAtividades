@@ -76,19 +76,3 @@
     </div>
   </div>
 </div>
-
-<script>
-(function(){
-  const refresh = () => {
-    try {
-      const handler = window.PROGRAMAR?.refreshCalendarEvents;
-      if (typeof handler === 'function') handler();
-    } catch (_err) {}
-  };
-
-  document.addEventListener('hidden.bs.modal', function (ev) {
-    if (!ev.target || ev.target.id !== 'programar-modalAtividade') return;
-    refresh();
-  });
-})();
-</script>

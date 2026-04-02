@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from atividades.models import Area, Atividade
 from core.models import No
-from metas.models import Meta
+from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from programar.models import Programacao, ProgramacaoItem
 from programar.status import (
     EXECUTADA,
@@ -265,3 +265,69 @@ class ConcluirItemFormTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(item.concluido)
         self.assertEqual(item.remarcado_de_id, item.id)
+
+
+class MetasDisponiveisApiTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="tester_programar_api", password="123456")
+        self.unidade = No.objects.create(nome="ULSAV API", tipo="setor")
+        self.area = Area.objects.create(code="AREA_API", nome="Area API")
+        self.atividade = Atividade.objects.create(
+            titulo="Atividade API",
+            descricao="",
+            area=self.area,
+            unidade_origem=self.unidade,
+            criado_por=self.user,
+        )
+        self.meta = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=self.atividade,
+            titulo="Meta API",
+            descricao="meta api",
+            quantidade_alvo=5,
+            criado_por=self.user,
+            data_limite=timezone.localdate() + timedelta(days=10),
+        )
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["contexto_atual"] = self.unidade.id
+        session.save()
+
+    def test_metas_disponiveis_agrega_alocacoes_e_progresso_sem_perder_dados(self):
+        raiz = MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=2,
+            atribuida_por=self.user,
+        )
+        filha = MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=3,
+            parent=raiz,
+            atribuida_por=self.user,
+        )
+        ProgressoMeta.objects.create(
+            alocacao=raiz,
+            quantidade=1,
+            registrado_por=self.user,
+        )
+        ProgressoMeta.objects.create(
+            alocacao=filha,
+            quantidade=2,
+            registrado_por=self.user,
+        )
+
+        response = self.client.get(
+            reverse("programar:metas_disponiveis"),
+            {"data": timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload["metas"]), 1)
+        meta_payload = payload["metas"][0]
+        self.assertEqual(meta_payload["id"], self.meta.id)
+        self.assertEqual(meta_payload["alocado_unidade"], 5)
+        self.assertEqual(meta_payload["executado_unidade"], 3)

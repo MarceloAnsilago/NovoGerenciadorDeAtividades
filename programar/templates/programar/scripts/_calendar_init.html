@@ -321,10 +321,15 @@ document.addEventListener('DOMContentLoaded', function(){
   });
   calendar.render();
   NS.calendar = calendar;
+  let refreshTimer = 0;
 
   function refreshCalendarEvents() {
     if (!calendar || typeof calendar.refetchEvents !== 'function') return;
-    calendar.refetchEvents();
+    if (refreshTimer) return;
+    refreshTimer = window.setTimeout(() => {
+      refreshTimer = 0;
+      calendar.refetchEvents();
+    }, 50);
   }
   NS.refreshCalendarEvents = refreshCalendarEvents;
   document.addEventListener('programar:saved', refreshCalendarEvents);

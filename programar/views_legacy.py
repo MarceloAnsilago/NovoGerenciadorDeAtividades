@@ -1970,6 +1970,7 @@ def metas_disponiveis(request):
     qs = (
         MetaAlocacao.objects
         .select_related("meta", "meta__atividade")
+        .annotate(executado_total=Sum("progresso__quantidade"))
         .filter(unidade_id=unidade_id)
         .order_by("meta__data_limite", "meta__titulo")
     )
@@ -2026,10 +2027,7 @@ def metas_disponiveis(request):
                 ),
             }
         bucket[mid]["alocado_unidade"] += int(getattr(al, "quantidade_alocada", 0) or 0)
-        try:
-            prog_sum = al.progresso.aggregate(total=Sum("quantidade")).get("total") or 0
-        except Exception:
-            prog_sum = 0
+        prog_sum = getattr(al, "executado_total", 0) or 0
         bucket[mid]["executado_unidade"] += int(prog_sum)
         bucket[mid].setdefault("programadas_total", 0)
 

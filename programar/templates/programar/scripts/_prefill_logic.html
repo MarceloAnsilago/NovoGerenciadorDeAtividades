@@ -27,13 +27,6 @@
     return String(document.getElementById("programar-dataAtividade")?.value || "").trim();
   }
 
-  function resolveCurrentPrefillDate() {
-    const active = getModalSelectedDate();
-    if (isISODate(active)) return active;
-    const last = String(NS._lastPrefill?.date || "").trim();
-    return isISODate(last) ? last : "";
-  }
-
   function isStalePrefill(runId, requestedDate) {
     if (NS._prefillRunId !== runId) return true;
     const activeDate = getModalSelectedDate();
@@ -193,124 +186,139 @@
     const requestedDate = String(dateStr || "").trim();
     const urlBase = NS.urls?.programacaoDia;
     if (!urlBase || !isISODate(requestedDate)) return;
+    if (NS._prefillPendingDate === requestedDate && NS._prefillPendingPromise) {
+      return NS._prefillPendingPromise;
+    }
     const runId = (Number(NS._prefillRunId) || 0) + 1;
     NS._prefillRunId = runId;
-
-    // containers base
-    try { await waitFor(() => document.getElementById('metaCardsContainer') && document.getElementById('servidoresLivres')); } catch {}
-    if (isStalePrefill(runId, requestedDate)) return;
-
-    // busca programao do dia
-    const url = new URL(urlBase, window.location.origin);
-    url.searchParams.set('data', requestedDate);
-
-    let itens = [];
-    try{
-      const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
-      if (!resp.ok) return;
-      const data = await resp.json().catch(()=> ({}));
-      itens = Array.isArray(data?.itens) ? data.itens : [];
-    }catch{ return; }
-    if (isStalePrefill(runId, requestedDate)) return;
-
-    NS._lastPrefill = { date: requestedDate, itens };
-
-    // sempre limpa
-    resetAllocations({ skipExpediente: itens.length === 0 });
-    if (isStalePrefill(runId, requestedDate)) return;
-
-    // por padro, permite semear; caso venham itens, bloqueia
-    NS._allowExpedienteFromLivres = itens.length === 0;
-    NS._hasPrefilledExpediente    = false;
-
-    if (!itens.length){
-      // nada salvo  apenas atualiza contadores e sai (loader poder semear expediente)
-      (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
-      try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
-      NS._obsDirty = false;
-      document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: requestedDate, count: 0 }}));
-      return;
-    }
-
-    await waitForMetasGridReady();
-    if (isStalePrefill(runId, requestedDate)) return;
-
-    const expEl = document.getElementById('expedienteAdmin');
-    const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
-
-    const ordered = [...itens].sort((a, b) => {
-      const av = a?.veiculo_id != null;
-      const bv = b?.veiculo_id != null;
-      if (av !== bv) return av ? 1 : -1;
-      return (b?.id || 0) - (a?.id || 0);
-    });
-
-    for (const it of ordered){
-      // Expediente administrativo: CLONA chips do catlogo
-      if (expId && Number(it.meta_id) === expId){
-      const nomesExp = new Map((it.servidores || []).map(s => [String(s.id), s.nome]));
-      if (expEl){
-        expEl.setAttribute('data-lock', '1');   // travado contra semeadura do loader
-        if (it.id) expEl.dataset.itemId = String(it.id);
-        (it.servidores_ids || []).forEach(sid => ensureChipIn(expEl, sid, nomesExp.get(String(sid))));
-        NS._hasPrefilledExpediente = true;
-      }
-      continue;
-    }
-
-    // Demais metas
-    const metaInfo = metaInfoFromGrid(it.meta_id, it.titulo);
-    const title = metaInfo.title;
-    let card = null;
-    if (it.id) {
-      card = document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"][data-item-id="${it.id}"]`);
-    }
-    if (!card) {
-      const existingCount = document.querySelectorAll(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`).length;
-      const opts = existingCount > 0
-        ? { forceNew: true, metaDescricao: metaInfo.descricao }
-        : { metaDescricao: metaInfo.descricao };
-      card = NS.ensureMetaCard?.(String(it.meta_id), title, opts) || document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`);
-    }
-    if (!card) continue;
-
-    if (it.id) {
-      card.dataset.itemId = String(it.id);
-    } else {
-      delete card.dataset.itemId;
-    }
-    if (it.remarcado_de_id) {
-      card.dataset.remarcadoDeId = String(it.remarcado_de_id);
-    } else {
-      delete card.dataset.remarcadoDeId;
-    }
-    const statusExecucao = String(it.status_execucao || (it.concluido ? "executada" : "pendente")).trim().toLowerCase();
-    card.dataset.statusExecucao = statusExecucao;
-    card.dataset.concluido = it.concluido ? "true" : "false";
-    window.PROGRAMAR?.syncMetaConclusionLink?.(card);
-
-    const ta = card.querySelector('textarea[name="observacao"]');
-    if (ta) ta.value = it.observacao || '';
-    window.PROGRAMAR?.syncObsIndicator?.(card);
-
-    const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
-    if (sel && it.veiculo_id != null) {
-      if (sel.tagName === 'SELECT') sel.value = String(it.veiculo_id);
-      else sel.dataset.veiculoId = String(it.veiculo_id);
-    }
-
-      const drop = card.querySelector('.meta-dropzone') || card;
-      const nomes = new Map((it.servidores || []).map(s => [String(s.id), s.nome]));
-      (it.servidores_ids || []).forEach(sid => ensureChipIn(drop, sid, nomes.get(String(sid))));
+    const requestPromise = (async () => {
+      // containers base
+      try { await waitFor(() => document.getElementById('metaCardsContainer') && document.getElementById('servidoresLivres')); } catch {}
       if (isStalePrefill(runId, requestedDate)) return;
-  }
 
-    if (isStalePrefill(runId, requestedDate)) return;
-    try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
-    (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
-    NS._obsDirty = false;
-    document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: requestedDate, count: itens.length }}));
-    if (DEBUG) console.debug('[prefill] aplicado', itens.length, 'itens');
+      // busca programao do dia
+      const url = new URL(urlBase, window.location.origin);
+      url.searchParams.set('data', requestedDate);
+
+      let itens = [];
+      try{
+        const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+        if (!resp.ok) return;
+        const data = await resp.json().catch(()=> ({}));
+        itens = Array.isArray(data?.itens) ? data.itens : [];
+      }catch{ return; }
+      if (isStalePrefill(runId, requestedDate)) return;
+
+      NS._lastPrefill = { date: requestedDate, itens };
+
+      // sempre limpa
+      resetAllocations({ skipExpediente: itens.length === 0 });
+      if (isStalePrefill(runId, requestedDate)) return;
+
+      // por padro, permite semear; caso venham itens, bloqueia
+      NS._allowExpedienteFromLivres = itens.length === 0;
+      NS._hasPrefilledExpediente    = false;
+
+      if (!itens.length){
+        // nada salvo  apenas atualiza contadores e sai (loader poder semear expediente)
+        (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
+        try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
+        NS._obsDirty = false;
+        document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: requestedDate, count: 0 }}));
+        return;
+      }
+
+      await waitForMetasGridReady();
+      if (isStalePrefill(runId, requestedDate)) return;
+
+      const expEl = document.getElementById('expedienteAdmin');
+      const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
+
+      const ordered = [...itens].sort((a, b) => {
+        const av = a?.veiculo_id != null;
+        const bv = b?.veiculo_id != null;
+        if (av !== bv) return av ? 1 : -1;
+        return (b?.id || 0) - (a?.id || 0);
+      });
+
+      for (const it of ordered){
+        // Expediente administrativo: CLONA chips do catlogo
+        if (expId && Number(it.meta_id) === expId){
+        const nomesExp = new Map((it.servidores || []).map(s => [String(s.id), s.nome]));
+        if (expEl){
+          expEl.setAttribute('data-lock', '1');   // travado contra semeadura do loader
+          if (it.id) expEl.dataset.itemId = String(it.id);
+          (it.servidores_ids || []).forEach(sid => ensureChipIn(expEl, sid, nomesExp.get(String(sid))));
+          NS._hasPrefilledExpediente = true;
+        }
+        continue;
+      }
+
+      // Demais metas
+      const metaInfo = metaInfoFromGrid(it.meta_id, it.titulo);
+      const title = metaInfo.title;
+      let card = null;
+      if (it.id) {
+        card = document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"][data-item-id="${it.id}"]`);
+      }
+      if (!card) {
+        const existingCount = document.querySelectorAll(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`).length;
+        const opts = existingCount > 0
+          ? { forceNew: true, metaDescricao: metaInfo.descricao }
+          : { metaDescricao: metaInfo.descricao };
+        card = NS.ensureMetaCard?.(String(it.meta_id), title, opts) || document.querySelector(`#metaCardsContainer [data-meta-id="${it.meta_id}"]`);
+      }
+      if (!card) continue;
+
+      if (it.id) {
+        card.dataset.itemId = String(it.id);
+      } else {
+        delete card.dataset.itemId;
+      }
+      if (it.remarcado_de_id) {
+        card.dataset.remarcadoDeId = String(it.remarcado_de_id);
+      } else {
+        delete card.dataset.remarcadoDeId;
+      }
+      const statusExecucao = String(it.status_execucao || (it.concluido ? "executada" : "pendente")).trim().toLowerCase();
+      card.dataset.statusExecucao = statusExecucao;
+      card.dataset.concluido = it.concluido ? "true" : "false";
+      window.PROGRAMAR?.syncMetaConclusionLink?.(card);
+
+      const ta = card.querySelector('textarea[name="observacao"]');
+      if (ta) ta.value = it.observacao || '';
+      window.PROGRAMAR?.syncObsIndicator?.(card);
+
+      const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');
+      if (sel && it.veiculo_id != null) {
+        if (sel.tagName === 'SELECT') sel.value = String(it.veiculo_id);
+        else sel.dataset.veiculoId = String(it.veiculo_id);
+      }
+
+        const drop = card.querySelector('.meta-dropzone') || card;
+        const nomes = new Map((it.servidores || []).map(s => [String(s.id), s.nome]));
+        (it.servidores_ids || []).forEach(sid => ensureChipIn(drop, sid, nomes.get(String(sid))));
+        if (isStalePrefill(runId, requestedDate)) return;
+    }
+
+      if (isStalePrefill(runId, requestedDate)) return;
+      try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
+      (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
+      NS._obsDirty = false;
+      document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: requestedDate, count: itens.length }}));
+      if (DEBUG) console.debug('[prefill] aplicado', itens.length, 'itens');
+    })();
+
+    NS._prefillPendingDate = requestedDate;
+    NS._prefillPendingPromise = requestPromise;
+    try {
+      return await requestPromise;
+    } finally {
+      if (NS._prefillPendingPromise === requestPromise) {
+        NS._prefillPendingPromise = null;
+        NS._prefillPendingDate = "";
+      }
+    }
   };
 
   // reaplica assim que o catlogo terminar de carregar

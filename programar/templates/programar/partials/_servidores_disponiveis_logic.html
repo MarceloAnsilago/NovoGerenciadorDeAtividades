@@ -138,6 +138,9 @@
   // ================== FETCH + APLICAR ==================
   async function loadServidoresDisponiveis(iso, options = {}){
     const opts = { ...DEFAULTS, ...options };
+    if (NS._servidoresPendingIso === iso && NS._servidoresPendingPromise) {
+      return NS._servidoresPendingPromise;
+    }
     const requestId = (Number(NS._servidoresRequestId) || 0) + 1;
     NS._servidoresRequestId = requestId;
     const isStaleRequest = () => requestId !== NS._servidoresRequestId;
@@ -166,14 +169,14 @@
       setBadgeFor(target, 0, opts.badgeSelector);
     }
 
-    try {
+    const requestPromise = (async () => {
       const url = new URL(urlBase, window.location.origin);
       url.searchParams.set('data', iso);
       const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-      if (isStaleRequest()) return { livres: [], impedidos: [], plantao: [] };
+      if (isStaleRequest()) return { livres: [], impedidos: [], feriados: [], plantao: [] };
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const json = await resp.json();
-      if (isStaleRequest()) return { livres: [], impedidos: [], plantao: [] };
+      if (isStaleRequest()) return { livres: [], impedidos: [], feriados: [], plantao: [] };
 
    
       let livres = Array.isArray(json.livres) ? json.livres : [];
@@ -190,6 +193,7 @@
 
       // snapshot para recalcular expediente sem novo fetch
       NS._lastLivres = Array.isArray(livres) ? livres.slice() : [];
+      NS._lastServerStatusPayload = { iso, livres: NS._lastLivres.slice(), impedidos, feriados, plantao };
 
       // Remove da pool quem já está alocado nos cards (se habilitado)
       if (opts.excludeAllocated) {
@@ -309,12 +313,19 @@
       updateBadges(opts);
 
       document.dispatchEvent(new CustomEvent('programar:servidoresLoaded', {
-        detail: { iso, livres, impedidos, plantao }
+        detail: { iso, livres, impedidos, feriados, plantao }
       }));
 
-      return { livres, impedidos, plantao };
+      return { livres, impedidos, feriados, plantao };
+    })();
+
+    NS._servidoresPendingIso = iso;
+    NS._servidoresPendingPromise = requestPromise;
+
+    try {
+      return await requestPromise;
     } catch (err) {
-      if (isStaleRequest()) return { livres: [], impedidos: [], plantao: [] };
+      if (isStaleRequest()) return { livres: [], impedidos: [], feriados: [], plantao: [] };
       console.error('[programar] Falha ao carregar servidores:', err);
       if (target) {
         target.replaceChildren();
@@ -324,7 +335,12 @@
         target.appendChild(error);
         target.classList.remove('is-loading');
       }
-      return { livres: [], impedidos: [], plantao: [] };
+      return { livres: [], impedidos: [], feriados: [], plantao: [] };
+    } finally {
+      if (NS._servidoresPendingPromise === requestPromise) {
+        NS._servidoresPendingPromise = null;
+        NS._servidoresPendingIso = null;
+      }
     }
   }
 
@@ -364,6 +380,7 @@
     const now = new Date();
     const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const iso = hidden?.value || hidden?.getAttribute?.('data-programar-data') || todayLocal;
+    if (NS._servidoresPendingIso === iso || NS._lastServerStatusPayload?.iso === iso) return;
 
     // Autopreencher só se ainda não houve prefill/salvamento
     const wantAuto = (document.body.dataset.progLoaded === '1') ? false : true;
