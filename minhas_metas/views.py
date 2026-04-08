@@ -137,7 +137,7 @@ def _item_execucao_info(item):
     if status == NAO_REALIZADA_JUSTIFICADA:
         return "nao_realizadas_justificadas", "Não realizada justificada"
     if status == NAO_REALIZADA:
-        return "nao_realizadas", "Não realizada"
+        return "nao_realizadas", ITEM_STATUS_LABELS[NAO_REALIZADA]
     return "pendentes", ITEM_STATUS_LABELS[PENDENTE]
 
 

@@ -27,6 +27,13 @@
     return String(document.getElementById("programar-dataAtividade")?.value || "").trim();
   }
 
+  function resolveCurrentPrefillDate() {
+    const active = getModalSelectedDate();
+    if (isISODate(active)) return active;
+    const last = String(NS._lastPrefill?.date || "").trim();
+    return isISODate(last) ? last : "";
+  }
+
   function isStalePrefill(runId, requestedDate) {
     if (NS._prefillRunId !== runId) return true;
     const activeDate = getModalSelectedDate();

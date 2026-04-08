@@ -24,7 +24,15 @@
   } catch (_err) {
     NS.veiculosAtivos = [];
   }
-  NS.metaExpedienteId = Number("{{ META_EXPEDIENTE_ID|default_if_none:'null'|default:'null' }}") || null;
+})();
+</script>
+
+<script>
+(function () {
+  window.PROGRAMAR = window.PROGRAMAR || {};
+  if (window.PROGRAMAR._impedidosContextBound) return;
+  window.PROGRAMAR._impedidosContextBound = true;
+  PROGRAMAR.metaExpedienteId = Number("{{ META_EXPEDIENTE_ID|default_if_none:'null'|default:'null' }}") || null;
 })();
 </script>
 <script>
@@ -34,15 +42,6 @@
   const countEl = () => document.getElementById('programar-impedidos-mes-count');
   const emptyEl = () => document.getElementById('programar-impedidos-mes-empty');
   const labelEl = () => document.getElementById('programar-impedidos-mes-label');
-
-  function escapeHtml(s) {
-    return String(s ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
-  }
 
   function formatMesLabel(ym) {
     if (!/^\d{4}-\d{2}$/.test(String(ym || ''))) return '';
@@ -154,4 +153,3 @@
   NS.carregarImpedidosMes = carregarImpedidosMes;
 })();
 </script>
-

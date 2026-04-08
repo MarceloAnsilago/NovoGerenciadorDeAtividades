@@ -11,7 +11,7 @@ REMARCADA_CONCLUIDA = "remarcada_concluida"
 ITEM_STATUS_LABELS = {
     EXECUTADA: "Concluida",
     PENDENTE: "Pendente",
-    NAO_REALIZADA: "Nao realizada",
+    NAO_REALIZADA: "Não realizada - mas continua em aberto",
     NAO_REALIZADA_JUSTIFICADA: "Nao realizada justificada",
     REMARCADA_CONCLUIDA: "Remarcada e concluida",
 }

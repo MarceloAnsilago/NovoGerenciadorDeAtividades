@@ -17,6 +17,7 @@ from programar.status import (
     PENDENTE,
     REMARCADA_CONCLUIDA,
     is_auto_concluida_expediente,
+    item_execucao_label,
     item_execucao_status_from_fields,
     item_permanece_aberto,
 )
@@ -69,6 +70,12 @@ class ItemStatusTest(unittest.TestCase):
 
     def test_regular_non_execution_keeps_item_open(self):
         self.assertTrue(item_permanece_aberto(concluido=False, nao_realizada_justificada=False))
+
+    def test_non_execution_label_indicates_item_remains_open(self):
+        self.assertEqual(
+            item_execucao_label(NAO_REALIZADA),
+            "Não realizada - mas continua em aberto",
+        )
 
     def test_auto_conclui_expediente_when_past_and_pending(self):
         today = date(2026, 3, 9)
