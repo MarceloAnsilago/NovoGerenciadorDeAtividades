@@ -109,11 +109,15 @@ def _meta_ids_com_itens_abertos(
 def _resolve_remarcado_de_id(
     *,
     unidade_id: int | None,
-    meta_id: int | None,
+    meta_id: int | None = None,
+    meta_ids: set[int] | None = None,
     raw_value,
     ignore_item_id: int | None = None,
 ) -> int | None:
-    if not unidade_id or not meta_id or raw_value in (None, "", "null"):
+    resolved_meta_ids = {int(mid) for mid in (meta_ids or set()) if mid}
+    if not resolved_meta_ids and meta_id:
+        resolved_meta_ids.add(int(meta_id))
+    if not unidade_id or not resolved_meta_ids or raw_value in (None, "", "null"):
         return None
     try:
         candidate_id = int(raw_value)
@@ -124,7 +128,7 @@ def _resolve_remarcado_de_id(
     qs = ProgramacaoItem.objects.filter(
         id=candidate_id,
         programacao__unidade_id=unidade_id,
-        meta_id=meta_id,
+        meta_id__in=resolved_meta_ids,
         concluido=False,
         concluido_em__isnull=False,
         cancelada=False,
@@ -135,22 +139,76 @@ def _resolve_remarcado_de_id(
     return candidate_id if qs.exists() else None
 
 
+def _build_remarcacao_meta_ids(
+    *,
+    unidade_id: int | None,
+    item: ProgramacaoItem,
+) -> set[int]:
+    meta_id = getattr(item, "meta_id", None)
+    if not meta_id:
+        return set()
+
+    meta_ids = {int(meta_id)}
+    if not unidade_id:
+        return meta_ids
+
+    meta = getattr(item, "meta", None)
+    atividade_id = getattr(meta, "atividade_id", None)
+    titulo_meta = (getattr(meta, "titulo", None) or "").strip()
+    if not atividade_id and not titulo_meta:
+        return meta_ids
+
+    # Expande a busca apenas quando a meta atual foi encerrada ou quando nao
+    # ha nenhuma origem elegivel dentro da propria meta.
+    precisa_expandir = bool(getattr(meta, "encerrada", False))
+    if not precisa_expandir:
+        possui_origem_na_mesma_meta = ProgramacaoItem.objects.filter(
+            programacao__unidade_id=unidade_id,
+            meta_id=meta_id,
+            concluido=False,
+            concluido_em__isnull=False,
+            cancelada=False,
+            nao_realizada_justificada=False,
+        ).exclude(pk=getattr(item, "pk", None)).exists()
+        precisa_expandir = not possui_origem_na_mesma_meta
+    if not precisa_expandir:
+        return meta_ids
+
+    metas_equivalentes = Meta.objects.filter(
+        Q(unidade_criadora_id=unidade_id) | Q(alocacoes__unidade_id=unidade_id)
+    )
+    if atividade_id:
+        metas_equivalentes = metas_equivalentes.filter(atividade_id=atividade_id)
+    else:
+        metas_equivalentes = metas_equivalentes.filter(titulo__iexact=titulo_meta)
+
+    meta_ids.update(
+        int(mid)
+        for mid in metas_equivalentes.values_list("id", flat=True).distinct()
+        if mid
+    )
+    return meta_ids
+
+
 def _build_remarcacao_opcoes(
     *,
     unidade_id: int | None,
     item: ProgramacaoItem,
+    meta_ids: set[int] | None = None,
 ) -> list[dict[str, Any]]:
-    meta_id = getattr(item, "meta_id", None)
     programacao = getattr(item, "programacao", None)
     data_atual = getattr(programacao, "data", None)
-    if not unidade_id or not meta_id or not data_atual:
+    resolved_meta_ids = {int(mid) for mid in (meta_ids or set()) if mid}
+    if not resolved_meta_ids:
+        resolved_meta_ids = _build_remarcacao_meta_ids(unidade_id=unidade_id, item=item)
+    if not unidade_id or not resolved_meta_ids or not data_atual:
         return []
 
     candidatos_qs = (
         ProgramacaoItem.objects
         .select_related("programacao", "veiculo")
         .filter(
-            meta_id=meta_id,
+            meta_id__in=resolved_meta_ids,
             programacao__unidade_id=unidade_id,
             concluido=False,
             concluido_em__isnull=False,
@@ -2493,7 +2551,12 @@ def concluir_item_form(request, item_id: int):
 
     meta = getattr(pi, "meta", None)
     programacao = pi.programacao
-    remarcacao_opcoes = _build_remarcacao_opcoes(unidade_id=unidade_ctx_id, item=pi)
+    remarcacao_meta_ids = _build_remarcacao_meta_ids(unidade_id=unidade_ctx_id, item=pi)
+    remarcacao_opcoes = _build_remarcacao_opcoes(
+        unidade_id=unidade_ctx_id,
+        item=pi,
+        meta_ids=remarcacao_meta_ids,
+    )
     permite_revisar_como_remarcada = source_context == "minhas-metas" and _is_nao_realizada_revisavel(pi)
     if permite_revisar_como_remarcada and not any(op.get("id") == pi.id for op in remarcacao_opcoes):
         remarcacao_opcoes.insert(0, {
@@ -2504,7 +2567,7 @@ def concluir_item_form(request, item_id: int):
         })
     remarcado_de_current_id = _resolve_remarcado_de_id(
         unidade_id=unidade_ctx_id,
-        meta_id=getattr(meta, "id", None),
+        meta_ids=remarcacao_meta_ids,
         raw_value=getattr(pi, "remarcado_de_id", None),
         ignore_item_id=pi.id,
     )
@@ -2555,7 +2618,7 @@ def concluir_item_form(request, item_id: int):
         confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
         remarcado_de_selected_id = _resolve_remarcado_de_id(
             unidade_id=unidade_ctx_id,
-            meta_id=getattr(meta, "id", None),
+            meta_ids=remarcacao_meta_ids,
             raw_value=request.POST.get("remarcado_de_id"),
             ignore_item_id=pi.id,
         )

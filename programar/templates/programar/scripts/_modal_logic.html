@@ -66,6 +66,7 @@
       selectedActivitiesSeparator.textContent = buildSelectedActivitiesLabel(dateStr, labelText);
     }
     if (saveBtn) saveBtn.disabled = true;
+    NS.metaStatusSelected = "andamento";
 
     if (isISODate(dateStr)) {
       document.dispatchEvent(

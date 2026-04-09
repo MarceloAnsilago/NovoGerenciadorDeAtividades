@@ -238,7 +238,7 @@
       const cards = Array.from(metasGrid.querySelectorAll(".meta-card"));
       const statusSelect = document.getElementById("metasStatusSelect");
       if (typeof NS.metaStatusSelected !== "string") {
-        NS.metaStatusSelected = "";
+        NS.metaStatusSelected = "andamento";
       }
       if (statusSelect) {
         const normalizedSelected = normalizeStatusFilter(NS.metaStatusSelected);
