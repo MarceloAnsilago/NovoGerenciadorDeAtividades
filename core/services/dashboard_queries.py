@@ -429,7 +429,8 @@ def get_programacoes_status_mensal(
         .annotate(
             concluidas=Count("id", filter=Q(concluido=True, remarcado_de__isnull=True)),
             remarcadas_concluidas=Count("id", filter=Q(concluido=True, remarcado_de__isnull=False)),
-            nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
+            canceladas=Count("id", filter=Q(cancelada=True)),
+            nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False, cancelada=False)),
             pendentes=Count("id", filter=Q(concluido=False, concluido_em__isnull=True)),
         )
         .order_by("mes")
@@ -437,6 +438,7 @@ def get_programacoes_status_mensal(
 
     concluidas_map = {}
     remarcadas_concluidas_map = {}
+    canceladas_map = {}
     nao_realizadas_map = {}
     pendentes_map = {}
     for item in qs:
@@ -445,12 +447,14 @@ def get_programacoes_status_mensal(
             continue
         concluidas_map[mes_key] = item.get("concluidas", 0)
         remarcadas_concluidas_map[mes_key] = item.get("remarcadas_concluidas", 0)
+        canceladas_map[mes_key] = item.get("canceladas", 0)
         nao_realizadas_map[mes_key] = item.get("nao_realizadas", 0)
         pendentes_map[mes_key] = item.get("pendentes", 0)
 
     labels = []
     concluidas_data = []
     remarcadas_concluidas_data = []
+    canceladas_data = []
     nao_realizadas_data = []
     pendentes_data = []
 
@@ -458,18 +462,20 @@ def get_programacoes_status_mensal(
         labels.append(_format_month_label_pt(month_start))
         concluidas_data.append(concluidas_map.get(month_start, 0))
         remarcadas_concluidas_data.append(remarcadas_concluidas_map.get(month_start, 0))
+        canceladas_data.append(canceladas_map.get(month_start, 0))
         nao_realizadas_data.append(nao_realizadas_map.get(month_start, 0))
         pendentes_data.append(pendentes_map.get(month_start, 0))
 
     # --- Hints por mes com a atividade (titulo) mais frequente por status ---
     hints_concluidas_map = {}
     hints_remarcadas_concluidas_map = {}
+    hints_canceladas_map = {}
     hints_nao_realizadas_map = {}
     hints_pendentes_map = {}
     detalhe_qs = (
         base_qs
         .annotate(mes=TruncMonth("programacao__data"))
-        .values("mes", "concluido", "concluido_em", "remarcado_de_id", "meta__atividade__titulo")
+        .values("mes", "concluido", "concluido_em", "cancelada", "remarcado_de_id", "meta__atividade__titulo")
         .annotate(total=Count("id"))
         .order_by("mes", "-total")
     )
@@ -489,6 +495,11 @@ def get_programacoes_status_mensal(
             if titulo not in cur:
                 cur.append(titulo)
                 hints_concluidas_map[mes_key] = cur[:3]
+        elif row.get("cancelada"):
+            cur = hints_canceladas_map.get(mes_key) or []
+            if titulo not in cur:
+                cur.append(titulo)
+                hints_canceladas_map[mes_key] = cur[:3]
         elif row.get("concluido_em") is not None:
             cur = hints_nao_realizadas_map.get(mes_key) or []
             if titulo not in cur:
@@ -502,6 +513,7 @@ def get_programacoes_status_mensal(
 
     hints_concluidas = [", ".join(hints_concluidas_map.get(m, [])) for m in months]
     hints_remarcadas_concluidas = [", ".join(hints_remarcadas_concluidas_map.get(m, [])) for m in months]
+    hints_canceladas = [", ".join(hints_canceladas_map.get(m, [])) for m in months]
     hints_nao_realizadas = [", ".join(hints_nao_realizadas_map.get(m, [])) for m in months]
     hints_pendentes = [", ".join(hints_pendentes_map.get(m, [])) for m in months]
 
@@ -519,6 +531,11 @@ def get_programacoes_status_mensal(
                 "data": remarcadas_concluidas_data,
             },
             {
+                "label": "Canceladas",
+                "backgroundColor": "#495057",
+                "data": canceladas_data,
+            },
+            {
                 "label": "Não realizadas",
                 "backgroundColor": "#6c757d",
                 "data": nao_realizadas_data,
@@ -532,6 +549,7 @@ def get_programacoes_status_mensal(
         "hints": {
             "concluidas": hints_concluidas,
             "remarcadas_concluidas": hints_remarcadas_concluidas,
+            "canceladas": hints_canceladas,
             "nao_realizadas": hints_nao_realizadas,
             "pendentes": hints_pendentes,
         },

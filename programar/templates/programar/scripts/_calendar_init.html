@@ -38,8 +38,11 @@ document.addEventListener('DOMContentLoaded', function(){
       .programar-event-count-badge.is-not-executed{background:#f1f3f5;border-color:#ced4da;color:#343a40;}
       .programar-event-count-badge.is-pending{background:#fdecef;border-color:#f5c2c7;color:#842029;}
       .programar-event-count-badge.is-overdue{background:#ffe1bf;border-color:#ffb977;color:#7a2f00;}
+      .programar-event-count-badge.is-cancelled{background:#e9ecef;border-color:#ced4da;color:#212529;}
       .programar-event-status.is-done{background:#e8f2ff;border-color:#bcd8ff;color:#0b4f9c;}
       .programar-event-status.is-done .programar-event-count{color:#0b4f9c;}
+      .programar-event-status.is-cancelled{background:#e9ecef;border-color:#ced4da;color:#212529;}
+      .programar-event-status.is-cancelled .programar-event-count{color:#212529;}
       .programar-event-status.is-not-executed{background:#f1f3f5;border-color:#ced4da;color:#343a40;}
       .programar-event-status.is-not-executed .programar-event-count{color:#343a40;}
       .programar-event-status.is-partial{background:#f1f7eb;border-color:#d5e8b8;color:#3d5c1f;}
@@ -55,8 +58,10 @@ document.addEventListener('DOMContentLoaded', function(){
       .programar-event-line-icon.is-justified{color:#0c5460;}
       .programar-event-line-icon.is-not-executed{color:#495057;}
       .programar-event-line-icon.is-pending{color:#842029;}
+      .programar-event-line-icon.is-cancelled{color:#212529;}
       .prog-event-card{border:1px solid #d8e6fb;background:#f7f9fd;border-radius:.65rem;box-shadow:0 1px 4px rgba(15,23,42,.05);}
       .prog-event-card.is-done{background:#eef6ff;border-color:#c6defc;}
+      .prog-event-card.is-cancelled{background:#f1f3f5;border-color:#ced4da;}
       .prog-event-card.is-not-executed{background:#f8f9fa;border-color:#dee2e6;}
       .prog-event-card.is-partial{background:#f7faf2;border-color:#dfecc9;}
       .prog-event-card.is-pending{background:#fff4f5;border-color:#f5c2c7;}
@@ -97,23 +102,26 @@ document.addEventListener('DOMContentLoaded', function(){
   function computeStatus(props, startRef){
     const total = Number(props?.total_programadas || 0);
     const concluidas = Number(props?.total_concluidas || 0);
+    const canceladas = Number(props?.total_canceladas || 0);
     const naoRealizadas = Number(props?.total_nao_realizadas || 0);
     const pendentesBase = Number(props?.total_pendentes);
     const pendentes = Number.isFinite(pendentesBase)
       ? Math.max(pendentesBase, 0)
-      : Math.max(total - concluidas - naoRealizadas, 0);
-    const done = total > 0 && concluidas >= total;
+      : Math.max(total - concluidas - canceladas - naoRealizadas, 0);
+    const cancelled = total > 0 && canceladas >= total;
+    const done = total > 0 && (concluidas + canceladas) >= total && !cancelled;
     const notExecuted = total > 0 && naoRealizadas >= total;
-    const partial = !done && !notExecuted && (concluidas > 0 || naoRealizadas > 0);
+    const partial = !done && !cancelled && !notExecuted && (concluidas > 0 || canceladas > 0 || naoRealizadas > 0);
     const dayIso = toIsoDate(startRef);
     const todayIso = toIsoDate(new Date());
     const overdue = pendentes > 0 && !!dayIso && dayIso < todayIso;
     return {
       key: overdue
         ? "overdue"
-        : (done ? "done" : (notExecuted ? "not-executed" : (partial ? "partial" : "pending"))),
+        : (cancelled ? "cancelled" : (done ? "done" : (notExecuted ? "not-executed" : (partial ? "partial" : "pending")))),
       total,
       concluidas,
+      canceladas,
       naoRealizadas,
       pendentes,
     };
@@ -195,6 +203,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
       const statusCfg = {
         done: { label: 'Concluida' },
+        cancelled: { label: 'Cancelada' },
         "not-executed": { label: 'Não realizada - mas continua em aberto' },
         partial: { label: 'Em andamento' },
         pending: { label: 'Pendente' },
@@ -208,10 +217,10 @@ document.addEventListener('DOMContentLoaded', function(){
       statusEl.className = `programar-event-status is-${status.key}`;
       const countClass = status.key === "done"
         ? "done"
-        : (status.key === "not-executed" ? "not-executed" : (status.key === "overdue" ? "overdue" : "pending"));
+        : (status.key === "cancelled" ? "cancelled" : (status.key === "not-executed" ? "not-executed" : (status.key === "overdue" ? "overdue" : "pending")));
       const countValue = status.key === "done"
         ? status.total
-        : (status.key === "not-executed" ? status.naoRealizadas : status.pendentes);
+        : (status.key === "cancelled" ? status.canceladas : (status.key === "not-executed" ? status.naoRealizadas : status.pendentes));
       const countsHtml = (status.key === "partial")
         ? ""
         : `
@@ -234,14 +243,15 @@ document.addEventListener('DOMContentLoaded', function(){
           const statusLine = String(line.status || (line.concluido ? "executada" : "pendente"));
           const rescheduledDone = statusLine === "remarcada_concluida";
           const done = rescheduledDone || statusLine === "executada";
+          const cancelled = statusLine === "cancelada";
           const justified = statusLine === "nao_realizada_justificada";
           const notExecuted = statusLine === "nao_realizada";
           const iconName = done
             ? (rescheduledDone ? "bi-arrow-repeat" : "bi-check-circle-fill")
-            : (justified ? "bi-shield-check" : (notExecuted ? "bi-slash-circle-fill" : "bi-x-circle-fill"));
+            : (cancelled ? "bi-ban-fill" : (justified ? "bi-shield-check" : (notExecuted ? "bi-slash-circle-fill" : "bi-x-circle-fill")));
           const iconClass = done
             ? (rescheduledDone ? "is-justified" : "is-done")
-            : (justified ? "is-justified" : (notExecuted ? "is-not-executed" : "is-pending"));
+            : (cancelled ? "is-cancelled" : (justified ? "is-justified" : (notExecuted ? "is-not-executed" : "is-pending")));
           const icon = document.createElement('i');
           icon.className = `bi ${iconName} programar-event-line-icon ${iconClass}`;
           lineEl.appendChild(icon);

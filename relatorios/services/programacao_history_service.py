@@ -72,6 +72,7 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
         )
         concluido_db = bool(getattr(item, "concluido", False))
         concluido_em = getattr(item, "concluido_em", None)
+        cancelada = bool(getattr(item, "cancelada", False))
         nao_realizada_justificada = bool(getattr(item, "nao_realizada_justificada", False))
         remarcado_de_id = getattr(item, "remarcado_de_id", None)
         remarcado_de = getattr(item, "remarcado_de", None)
@@ -81,12 +82,14 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             programacao_data=data_ref,
             concluido=concluido_db,
             concluido_em=concluido_em,
+            cancelada=cancelada,
             nao_realizada_justificada=nao_realizada_justificada,
             today=today,
         )
         status_execucao = EXECUTADA if auto_concluida_expediente else item_execucao_status_from_fields(
             concluido_db,
             concluido_em,
+            cancelada,
             nao_realizada_justificada,
             remarcado_de_id,
         )
@@ -119,6 +122,7 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             "meta_titulo": str(titulo or "").strip(),
             "observacao": item.observacao or "",
             "veiculo_id": item.veiculo_id,
+            "cancelada": cancelada,
             "remarcado_de_id": remarcado_de_id,
             "remarcado_de_label": remarcado_de_label,
             "veiculo_nome": veiculo_nome,

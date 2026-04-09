@@ -103,6 +103,18 @@
                     <input class="form-check-input"
                            type="radio"
                            name="status_execucao"
+                           id="id_status_cancelada"
+                           value="cancelada"
+                           {% if status_current == 'cancelada' %}checked{% endif %}>
+                    <label class="form-check-label" for="id_status_cancelada">
+                      <span class="fw-semibold d-block">Cancelada</span>
+                      <span class="text-muted small">Encerra esta programacao como cancelada sem contar como conclusao da meta.</span>
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input"
+                           type="radio"
+                           name="status_execucao"
                            id="id_status_nao_realizada"
                            value="nao_realizada"
                            {% if status_current == 'nao_realizada' %}checked{% endif %}>
@@ -170,7 +182,7 @@
               {% if form_errors.observacoes %}
                 <div class="invalid-feedback d-block">{{ form_errors.observacoes }}</div>
               {% else %}
-                <div class="form-text">Obrigatória quando o status for Não realizada ou Não realizada justificada.</div>
+                <div class="form-text">Obrigatória quando o status for Cancelada, Não realizada ou Não realizada justificada.</div>
               {% endif %}
             </div>
 
@@ -223,6 +235,7 @@
 
       <div class="small text-muted mt-2">
         Ao salvar: você pode manter <em>pendente</em>, marcar como <em>concluída</em>
+        ou <em>cancelada</em>
         {% if permite_status_remarcado %}ou <em>remarcada e concluída</em>{% endif %},
         ou registrar como <em>não realizada</em> / <em>não realizada justificada</em>, mantendo a observação vinculada ao item.
       </div>

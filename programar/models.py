@@ -50,6 +50,7 @@ class ProgramacaoItem(models.Model):
     observacao = models.TextField(default="", blank=True)
     concluido = models.BooleanField(default=False)
     concluido_em = models.DateTimeField(null=True, blank=True)
+    cancelada = models.BooleanField(default=False)
     nao_realizada_justificada = models.BooleanField(default=False)
     remarcado_de = models.ForeignKey(
         "self",

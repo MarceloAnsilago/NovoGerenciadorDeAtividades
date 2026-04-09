@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from core.utils import get_unidade_atual_id
 from programar.models import ProgramacaoItem
-from programar.status import EXECUTADA, ITEM_STATUS_LABELS, PENDENTE, REMARCADA_CONCLUIDA
+from programar.status import CANCELADA, EXECUTADA, ITEM_STATUS_LABELS, PENDENTE, REMARCADA_CONCLUIDA
 
 from relatorios.models import ProgramacaoHistorico
 from .programacao_history_service import snapshot_programacao_dia
@@ -176,6 +176,7 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
     counters = {
         "executada": 0,
         "remarcada_concluida": 0,
+        CANCELADA: 0,
         "nao_realizada": 0,
         "nao_realizada_justificada": 0,
         "pendente": 0,
@@ -323,6 +324,7 @@ def _build_indicators_section(
                 "label": "Atividades concluidas",
                 "value": counters.get("executada", 0) + counters.get(REMARCADA_CONCLUIDA, 0),
             },
+            {"label": "Atividades canceladas", "value": counters.get(CANCELADA, 0)},
             {"label": "Atividades remarcadas e concluidas", "value": counters.get(REMARCADA_CONCLUIDA, 0)},
             {"label": "Atividades nao realizadas", "value": counters.get("nao_realizada", 0)},
             {"label": "Atividades nao realizadas justificadas", "value": counters.get("nao_realizada_justificada", 0)},

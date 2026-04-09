@@ -36,6 +36,7 @@
       raw === "remarcada e concluida"
     ) return "remarcada_concluida";
     if (raw === "executada" || raw === "concluida") return "executada";
+    if (raw === "cancelada" || raw === "cancelado") return "cancelada";
     if (
       raw === "nao_realizada_justificada" ||
       raw === "nao-realizada-justificada" ||
@@ -56,14 +57,18 @@
       "btn-secondary",
       "btn-info",
       "btn-primary",
+      "btn-dark",
       "is-not-executed",
       "is-justified",
-      "is-rescheduled"
+      "is-rescheduled",
+      "is-cancelled"
     );
     if (execStatus === "remarcada_concluida") {
       link.classList.add("btn-primary", "is-rescheduled");
     } else if (execStatus === "executada") {
       link.classList.add("btn-success");
+    } else if (execStatus === "cancelada") {
+      link.classList.add("btn-dark", "is-cancelled");
     } else if (execStatus === "nao_realizada_justificada") {
       link.classList.add("btn-info", "is-justified");
     } else if (execStatus === "nao_realizada") {
@@ -76,6 +81,7 @@
       icon.classList.toggle("bi-check2-square", execStatus === "pendente");
       icon.classList.toggle("bi-arrow-repeat", execStatus === "remarcada_concluida");
       icon.classList.toggle("bi-check-circle", execStatus === "executada");
+      icon.classList.toggle("bi-ban", execStatus === "cancelada");
       icon.classList.toggle("bi-x-circle", execStatus === "nao_realizada");
       icon.classList.toggle("bi-shield-check", execStatus === "nao_realizada_justificada");
     }
@@ -83,11 +89,13 @@
       ? "Atividade remarcada e concluida em Minhas Metas"
       : (execStatus === "executada"
       ? "Atividade concluida em Minhas Metas"
+      : (execStatus === "cancelada"
+        ? "Atividade cancelada em Minhas Metas"
       : (execStatus === "nao_realizada_justificada"
         ? "Atividade nao realizada justificada em Minhas Metas"
       : (execStatus === "nao_realizada"
         ? "Atividade não realizada, mas continua em aberto em Minhas Metas"
-        : "Concluir item em Minhas Metas")));
+        : "Concluir item em Minhas Metas"))));
     link.title = label;
     link.setAttribute("aria-label", label);
   }

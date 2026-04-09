@@ -392,6 +392,8 @@
                       } else {
                         hint = (hints.concluidas && hints.concluidas[idx]) || "";
                       }
+                    } else if (dsKey.includes("cancel")) {
+                      hint = (hints.canceladas && hints.canceladas[idx]) || "";
                     } else if (dsKey.includes("nao realiz")) {
                       hint = (hints.nao_realizadas && hints.nao_realizadas[idx]) || "";
                     } else if (dsKey.includes("penden")) {

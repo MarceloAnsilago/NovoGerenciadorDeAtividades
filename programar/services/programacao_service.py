@@ -11,6 +11,7 @@ from django.utils import timezone
 from metas.models import Meta
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from programar.status import (
+    CANCELADA,
     EXECUTADA,
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
@@ -75,6 +76,7 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
         meta = getattr(item, "meta", None)
         concluido_db = bool(item.concluido)
         concluido_em = item.concluido_em
+        cancelada = bool(getattr(item, "cancelada", False))
         nao_realizada_justificada = bool(getattr(item, "nao_realizada_justificada", False))
         remarcado_de_id = getattr(item, "remarcado_de_id", None)
         auto_concluida_expediente = is_auto_concluida_expediente(
@@ -83,12 +85,14 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
             programacao_data=data_ref,
             concluido=concluido_db,
             concluido_em=concluido_em,
+            cancelada=cancelada,
             nao_realizada_justificada=nao_realizada_justificada,
             today=today,
         )
         status_execucao = EXECUTADA if auto_concluida_expediente else item_execucao_status_from_fields(
             concluido_db,
             concluido_em,
+            cancelada,
             nao_realizada_justificada,
             remarcado_de_id,
         )
@@ -182,6 +186,7 @@ def salvar_programacao(unidade_id: int, data_ref: date, payload: dict[str, Any],
                     observacao=(raw.get("observacao") or ""),
                     veiculo_id=veiculo_id,
                     concluido=False,
+                    cancelada=False,
                 )
 
             ids_payload.add(item.id)
@@ -221,32 +226,45 @@ def concluir_item(
             .get(pk=item_id, programacao__unidade_id=unidade_id)
         )
         status = (status_execucao or "").strip().lower()
-        if status not in {EXECUTADA, REMARCADA_CONCLUIDA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:
+        if status not in {EXECUTADA, REMARCADA_CONCLUIDA, CANCELADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:
             status = EXECUTADA if realizada else PENDENTE
+        observacao_final = (observacao or "").strip()
+        if status == CANCELADA and not observacao_final:
+            raise ValueError("Informe uma justificativa para cancelar a atividade.")
 
         if status in {EXECUTADA, REMARCADA_CONCLUIDA}:
             item.concluido = True
             item.concluido_em = timezone.now()
+            item.cancelada = False
+            item.nao_realizada_justificada = False
+            item.concluido_por_id = getattr(user, "id", None)
+        elif status == CANCELADA:
+            item.concluido = False
+            item.concluido_em = timezone.now()
+            item.cancelada = True
             item.nao_realizada_justificada = False
             item.concluido_por_id = getattr(user, "id", None)
         elif status in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA}:
             item.concluido = False
             item.concluido_em = timezone.now()
+            item.cancelada = False
             item.nao_realizada_justificada = status == NAO_REALIZADA_JUSTIFICADA
             item.concluido_por_id = getattr(user, "id", None)
         else:
             item.concluido = False
             item.concluido_em = None
+            item.cancelada = False
             item.nao_realizada_justificada = False
             item.concluido_por_id = None
 
         if observacao is not None:
-            item.observacao = (observacao or "").strip()
+            item.observacao = observacao_final
 
         item.save(
             update_fields=[
                 "concluido",
                 "concluido_em",
+                "cancelada",
                 "nao_realizada_justificada",
                 "concluido_por_id",
                 "observacao",

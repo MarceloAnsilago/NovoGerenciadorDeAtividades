@@ -9,24 +9,30 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunSQL(
             sql="""
-ALTER TABLE programar_atividades_programacaoitem
-ADD COLUMN IF NOT EXISTS remarcado_de_id bigint NULL;
-
-CREATE INDEX IF NOT EXISTS idx_progitem_remarcado_de
-ON programar_atividades_programacaoitem (remarcado_de_id);
-
 DO $$
 BEGIN
-    IF NOT EXISTS (
+    IF EXISTS (
         SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'fk_progitem_remarcado_de'
+        FROM pg_class
+        WHERE relname = 'programar_atividades_programacaoitem'
     ) THEN
         ALTER TABLE programar_atividades_programacaoitem
-        ADD CONSTRAINT fk_progitem_remarcado_de
-        FOREIGN KEY (remarcado_de_id)
-        REFERENCES programar_atividades_programacaoitem(id)
-        ON DELETE SET NULL;
+        ADD COLUMN IF NOT EXISTS remarcado_de_id bigint NULL;
+
+        CREATE INDEX IF NOT EXISTS idx_progitem_remarcado_de
+        ON programar_atividades_programacaoitem (remarcado_de_id);
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'fk_progitem_remarcado_de'
+        ) THEN
+            ALTER TABLE programar_atividades_programacaoitem
+            ADD CONSTRAINT fk_progitem_remarcado_de
+            FOREIGN KEY (remarcado_de_id)
+            REFERENCES programar_atividades_programacaoitem(id)
+            ON DELETE SET NULL;
+        END IF;
     END IF;
 END $$;
             """,

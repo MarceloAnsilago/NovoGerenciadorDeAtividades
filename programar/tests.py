@@ -11,6 +11,7 @@ from core.models import No
 from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from programar.models import Programacao, ProgramacaoItem
 from programar.status import (
+    CANCELADA,
     EXECUTADA,
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
@@ -65,11 +66,23 @@ class ItemStatusTest(unittest.TestCase):
         )
         self.assertEqual(status, PENDENTE)
 
+    def test_resolve_status_for_cancelled_item(self):
+        status = item_execucao_status_from_fields(
+            concluido=False,
+            concluido_em=object(),
+            cancelada=True,
+            nao_realizada_justificada=False,
+        )
+        self.assertEqual(status, CANCELADA)
+
     def test_justified_item_does_not_remain_open(self):
         self.assertFalse(item_permanece_aberto(concluido=False, nao_realizada_justificada=True))
 
     def test_regular_non_execution_keeps_item_open(self):
         self.assertTrue(item_permanece_aberto(concluido=False, nao_realizada_justificada=False))
+
+    def test_cancelled_item_does_not_remain_open(self):
+        self.assertFalse(item_permanece_aberto(concluido=False, cancelada=True, concluido_em=object()))
 
     def test_non_execution_label_indicates_item_remains_open(self):
         self.assertEqual(
@@ -180,7 +193,7 @@ class ConcluirItemFormTests(TestCase):
         session["contexto_atual"] = self.unidade.id
         session.save()
 
-    def _criar_item(self, *, data_ref, concluido=False, concluido_em=None, nao_realizada_justificada=False):
+    def _criar_item(self, *, data_ref, concluido=False, concluido_em=None, cancelada=False, nao_realizada_justificada=False):
         programacao = Programacao.objects.create(
             data=data_ref,
             unidade=self.unidade,
@@ -191,6 +204,7 @@ class ConcluirItemFormTests(TestCase):
             meta=self.meta,
             concluido=concluido,
             concluido_em=concluido_em,
+            cancelada=cancelada,
             nao_realizada_justificada=nao_realizada_justificada,
         )
 
@@ -272,6 +286,41 @@ class ConcluirItemFormTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(item.concluido)
         self.assertEqual(item.remarcado_de_id, item.id)
+
+    def test_exibe_status_cancelada_no_formulario(self):
+        item = self._criar_item(data_ref=timezone.localdate())
+
+        response = self.client.get(reverse("programar:concluir-item-form", args=[item.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="cancelada"')
+
+    def test_rejeita_status_cancelada_sem_justificativa(self):
+        item = self._criar_item(data_ref=timezone.localdate())
+
+        response = self.client.post(
+            reverse("programar:concluir-item-form", args=[item.id]),
+            {"status_execucao": CANCELADA, "observacoes": ""},
+        )
+
+        item.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(item.cancelada)
+        self.assertContains(response, "Informe uma observa")
+
+    def test_salva_status_cancelada_com_justificativa(self):
+        item = self._criar_item(data_ref=timezone.localdate())
+
+        response = self.client.post(
+            reverse("programar:concluir-item-form", args=[item.id]),
+            {"status_execucao": CANCELADA, "observacoes": "Atividade cancelada pela chefia."},
+            follow=False,
+        )
+
+        item.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(item.concluido)
+        self.assertTrue(item.cancelada)
 
 
 class MetasDisponiveisApiTests(TestCase):

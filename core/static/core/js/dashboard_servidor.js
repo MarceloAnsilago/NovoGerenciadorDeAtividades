@@ -65,16 +65,17 @@
 
   function renderStatusChart() {
     const concluidas = parseNumber(root.dataset.concluidas);
+    const canceladas = parseNumber(root.dataset.canceladas);
     const naoRealizadas = parseNumber(root.dataset.naoRealizadas);
     const pendentes = parseNumber(root.dataset.pendentes);
     createOrUpdateChart("chartServidorStatus", {
       type: "doughnut",
       data: {
-        labels: ["Concluidas", "Não realizadas", "Pendentes"],
+        labels: ["Concluidas", "Canceladas", "Não realizadas", "Pendentes"],
         datasets: [
           {
-            data: [concluidas, naoRealizadas, pendentes],
-            backgroundColor: ["#198754", "#6c757d", "#dc3545"],
+            data: [concluidas, canceladas, naoRealizadas, pendentes],
+            backgroundColor: ["#198754", "#495057", "#6c757d", "#dc3545"],
             borderWidth: 0,
           },
         ],
@@ -145,6 +146,7 @@
     const rows = normalizeRows(readJsonScript("dashboard-servidor-mensal-rows", []));
     const labels = rows.map((row) => String(row.mes || "-"));
     const concluidas = rows.map((row) => parseNumber(row.concluidas));
+    const canceladas = rows.map((row) => parseNumber(row.canceladas));
     const naoRealizadas = rows.map((row) => parseNumber(row.nao_realizadas));
     const pendentes = rows.map((row) => parseNumber(row.pendentes));
     const totais = rows.map((row) => parseNumber(row.total));
@@ -168,6 +170,13 @@
             label: "Não realizadas",
             data: isEmpty ? [0] : naoRealizadas,
             backgroundColor: "#6c757d",
+            stack: "status",
+          },
+          {
+            type: "bar",
+            label: "Canceladas",
+            data: isEmpty ? [0] : canceladas,
+            backgroundColor: "#495057",
             stack: "status",
           },
           {
@@ -246,6 +255,7 @@
     const topRows = takeTop(rows, 10);
     const labels = topRows.map((row) => truncateLabel(row[labelKey], 44));
     const concluidas = topRows.map((row) => parseNumber(row.concluidas));
+    const canceladas = topRows.map((row) => parseNumber(row.canceladas));
     const naoRealizadas = topRows.map((row) => parseNumber(row.nao_realizadas));
     const pendentes = topRows.map((row) => parseNumber(row.pendentes));
     const fallback = withFallback(labels, topRows.map((row) => parseNumber(row.total)), fallbackLabel);
@@ -266,6 +276,12 @@
             label: "Não realizadas",
             data: isEmpty ? [0] : naoRealizadas,
             backgroundColor: "#6c757d",
+            stack: "status",
+          },
+          {
+            label: "Canceladas",
+            data: isEmpty ? [0] : canceladas,
+            backgroundColor: "#495057",
             stack: "status",
           },
           {

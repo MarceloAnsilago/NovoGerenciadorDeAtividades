@@ -33,6 +33,7 @@ def build_non_performed_groups(*, unidade_id: int, data_inicial: date, data_fina
             programacao__data__lte=data_final,
             concluido=False,
             concluido_em__isnull=False,
+            cancelada=False,
             nao_realizada_justificada=False,
         )
         .order_by("meta__titulo", "meta_id", "-programacao__data", "-id")

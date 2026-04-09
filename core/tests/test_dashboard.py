@@ -4,6 +4,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from core.models import No, UserProfile
 from core.services.dashboard_queries import (
@@ -260,8 +261,55 @@ class DashboardMetasPorUnidadeTest(TestCase):
         datasets = {dataset["label"]: dataset["data"] for dataset in result["datasets"]}
         self.assertEqual(datasets["ConcluÃ­das"], [1])
         self.assertEqual(datasets["Remarcadas e concluidas"], [0])
+        self.assertEqual(datasets["Canceladas"], [0])
         self.assertEqual(datasets["NÃ£o realizadas"], [0])
         self.assertEqual(datasets["Pendentes"], [0])
+
+    def test_programacoes_status_mensal_separates_cancelled_items(self):
+        atividade = Atividade.objects.create(
+            titulo="Atividade Cancelada",
+            area=self.animal_area,
+            unidade_origem=self.child,
+            criado_por=self.user,
+        )
+        meta = Meta.objects.create(
+            unidade_criadora=self.root,
+            atividade=atividade,
+            titulo="Meta Cancelada",
+            descricao="",
+            quantidade_alvo=1,
+            criado_por=self.user,
+        )
+        MetaAlocacao.objects.create(
+            meta=meta,
+            unidade=self.child,
+            quantidade_alocada=1,
+            atribuida_por=self.user,
+        )
+
+        programacao = Programacao.objects.create(
+            data=date(2026, 2, 14),
+            unidade=self.child,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            cancelada=True,
+        )
+
+        result = get_programacoes_status_mensal(
+            self.user,
+            unidade_ids=[self.child.id],
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 2, 28),
+        )
+
+        datasets = {dataset["label"]: dataset["data"] for dataset in result["datasets"]}
+        self.assertEqual(datasets["Canceladas"], [1])
+        self.assertEqual(datasets["NÃ£o realizadas"], [0])
 
 
 class DashboardProgressoMensalTest(TestCase):

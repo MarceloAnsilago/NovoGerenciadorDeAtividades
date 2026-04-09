@@ -1528,12 +1528,14 @@ def dashboard_servidor_view(request, servidor_id):
     q_remarcada_concluida_dashboard = Q(item__concluido=True, item__remarcado_de__isnull=False)
     q_concluida_dashboard = Q(item__concluido=True) | q_auto_concluida_expediente
     q_pendente_dashboard = q_pendente_base & ~q_auto_concluida_expediente
-    q_nao_realizada_dashboard = Q(item__concluido=False, item__concluido_em__isnull=False)
+    q_cancelada_dashboard = Q(item__cancelada=True)
+    q_nao_realizada_dashboard = Q(item__concluido=False, item__concluido_em__isnull=False, item__cancelada=False)
     q_observacao_preenchida = ~Q(item__observacao__isnull=True) & ~Q(item__observacao__exact="")
     summary_aggregates = {
         "total_alocacoes": Count("id"),
         "concluidas": Count("id", filter=q_concluida_dashboard),
         "remarcadas_concluidas": Count("id", filter=q_remarcada_concluida_dashboard),
+        "canceladas": Count("id", filter=q_cancelada_dashboard),
         "nao_realizadas": Count("id", filter=q_nao_realizada_dashboard),
         "pendentes": Count("id", filter=q_pendente_dashboard),
         "metas_distintas": Count("item__meta_id", distinct=True),
@@ -1561,6 +1563,7 @@ def dashboard_servidor_view(request, servidor_id):
     total_alocacoes = int(summary.get("total_alocacoes") or 0)
     concluidas = int(summary.get("concluidas") or 0)
     remarcadas_concluidas = int(summary.get("remarcadas_concluidas") or 0)
+    canceladas = int(summary.get("canceladas") or 0)
     nao_realizadas = int(summary.get("nao_realizadas") or 0)
     pendentes = int(summary.get("pendentes") or 0)
     taxa_conclusao = round((concluidas / total_alocacoes) * 100, 2) if total_alocacoes else 0.0
@@ -1638,6 +1641,7 @@ def dashboard_servidor_view(request, servidor_id):
             total=Count("id"),
             concluidas=Count("id", filter=Q(item__concluido=True, item__remarcado_de__isnull=True) | q_auto_concluida_expediente),
             remarcadas_concluidas=Count("id", filter=q_remarcada_concluida_dashboard),
+            canceladas=Count("id", filter=q_cancelada_dashboard),
             nao_realizadas=Count("id", filter=q_nao_realizada_dashboard),
             pendentes=Count("id", filter=q_pendente_dashboard),
             ultima_data=Max("item__programacao__data"),
@@ -1652,6 +1656,7 @@ def dashboard_servidor_view(request, servidor_id):
                 "total": int(row.get("total") or 0),
                 "concluidas": int(row.get("concluidas") or 0),
                 "remarcadas_concluidas": int(row.get("remarcadas_concluidas") or 0),
+                "canceladas": int(row.get("canceladas") or 0),
                 "nao_realizadas": int(row.get("nao_realizadas") or 0),
                 "pendentes": int(row.get("pendentes") or 0),
                 "ultima_data": row.get("ultima_data"),
@@ -1670,6 +1675,7 @@ def dashboard_servidor_view(request, servidor_id):
             total=Count("id"),
             concluidas=Count("id", filter=Q(item__concluido=True, item__remarcado_de__isnull=True) | q_auto_concluida_expediente),
             remarcadas_concluidas=Count("id", filter=q_remarcada_concluida_dashboard),
+            canceladas=Count("id", filter=q_cancelada_dashboard),
             nao_realizadas=Count("id", filter=q_nao_realizada_dashboard),
             pendentes=Count("id", filter=q_pendente_dashboard),
             ultima_data=Max("item__programacao__data"),
@@ -1685,6 +1691,7 @@ def dashboard_servidor_view(request, servidor_id):
                 "total": int(row.get("total") or 0),
                 "concluidas": int(row.get("concluidas") or 0),
                 "remarcadas_concluidas": int(row.get("remarcadas_concluidas") or 0),
+                "canceladas": int(row.get("canceladas") or 0),
                 "nao_realizadas": int(row.get("nao_realizadas") or 0),
                 "pendentes": int(row.get("pendentes") or 0),
                 "ultima_data": row.get("ultima_data"),
@@ -1699,6 +1706,7 @@ def dashboard_servidor_view(request, servidor_id):
             total=Count("id"),
             concluidas=Count("id", filter=Q(item__concluido=True, item__remarcado_de__isnull=True) | q_auto_concluida_expediente),
             remarcadas_concluidas=Count("id", filter=q_remarcada_concluida_dashboard),
+            canceladas=Count("id", filter=q_cancelada_dashboard),
             nao_realizadas=Count("id", filter=q_nao_realizada_dashboard),
             pendentes=Count("id", filter=q_pendente_dashboard),
         )
@@ -1713,6 +1721,7 @@ def dashboard_servidor_view(request, servidor_id):
                 "total": int(row.get("total") or 0),
                 "concluidas": int(row.get("concluidas") or 0),
                 "remarcadas_concluidas": int(row.get("remarcadas_concluidas") or 0),
+                "canceladas": int(row.get("canceladas") or 0),
                 "nao_realizadas": int(row.get("nao_realizadas") or 0),
                 "pendentes": int(row.get("pendentes") or 0),
             }
@@ -1738,6 +1747,7 @@ def dashboard_servidor_view(request, servidor_id):
             and programacao_data < hoje
         )
         concluido_linha = bool(item.concluido) or auto_concluida_expediente
+        cancelada_linha = bool(getattr(item, "cancelada", False))
         remarcada_concluida_linha = bool(item.concluido) and bool(getattr(item, "remarcado_de_id", None))
         remarcado_de = getattr(item, "remarcado_de", None)
         remarcado_de_label = ""
@@ -1758,9 +1768,10 @@ def dashboard_servidor_view(request, servidor_id):
                 "atividade": getattr(atividade, "titulo", "") or "-",
                 "area": getattr(area, "nome", "") or "-",
                 "concluido": concluido_linha,
+                "cancelada": cancelada_linha,
                 "remarcada_concluida": remarcada_concluida_linha,
                 "remarcado_de_label": remarcado_de_label,
-                "nao_realizada": (not concluido_linha) and bool(item.concluido_em),
+                "nao_realizada": (not concluido_linha) and (not cancelada_linha) and bool(item.concluido_em),
                 "concluido_em": item.concluido_em,
                 "veiculo": getattr(veiculo, "placa", "") or "-",
                 "observacao": (item.observacao or "").strip(),
@@ -1794,6 +1805,7 @@ def dashboard_servidor_view(request, servidor_id):
             "total_alocacoes": total_alocacoes,
             "concluidas": concluidas,
             "remarcadas_concluidas": remarcadas_concluidas,
+            "canceladas": canceladas,
             "nao_realizadas": nao_realizadas,
             "pendentes": pendentes,
             "taxa_conclusao": taxa_conclusao,

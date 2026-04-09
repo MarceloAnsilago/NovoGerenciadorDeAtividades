@@ -21,6 +21,7 @@ from servidores.models import Servidor
 from descanso.models import Descanso, Feriado
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from programar.status import (
+    CANCELADA,
     EXECUTADA,
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
@@ -86,6 +87,7 @@ def _meta_ids_com_itens_abertos(
         .filter(
             programacao__unidade_id=unidade_id,
             concluido=False,
+            cancelada=False,
             nao_realizada_justificada=False,
             meta_id__isnull=False,
         )
@@ -125,6 +127,7 @@ def _resolve_remarcado_de_id(
         meta_id=meta_id,
         concluido=False,
         concluido_em__isnull=False,
+        cancelada=False,
         nao_realizada_justificada=False,
     )
     if ignore_item_id:
@@ -151,6 +154,7 @@ def _build_remarcacao_opcoes(
             programacao__unidade_id=unidade_id,
             concluido=False,
             concluido_em__isnull=False,
+            cancelada=False,
             nao_realizada_justificada=False,
             programacao__data__lt=data_atual,
         )
@@ -1812,7 +1816,7 @@ def events_feed(request):
     programacoes = list(qs.values("id", "data", "concluida"))
     prog_ids = [p["id"] for p in programacoes]
     counts: Dict[int, Dict[str, int]] = {
-        pid: {"total": 0, "concluidas": 0, "nao_realizadas": 0}
+        pid: {"total": 0, "concluidas": 0, "canceladas": 0, "nao_realizadas": 0}
         for pid in prog_ids
     }
     metas_por_programacao: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
@@ -1831,7 +1835,8 @@ def events_feed(request):
             .annotate(
                 total=Count("id"),
                 concluidas=Count("id", filter=Q(concluido=True)),
-                nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False)),
+                canceladas=Count("id", filter=Q(cancelada=True)),
+                nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False, cancelada=False)),
             )
         )
         for row in itens_stats:
@@ -1840,6 +1845,7 @@ def events_feed(request):
                 counts[pid] = {
                     "total": int(row.get("total") or 0),
                     "concluidas": int(row.get("concluidas") or 0),
+                    "canceladas": int(row.get("canceladas") or 0),
                     "nao_realizadas": int(row.get("nao_realizadas") or 0),
                 }
         title_counts: Dict[int, Dict[str, int]] = {pid: {} for pid in prog_ids}
@@ -1874,6 +1880,7 @@ def events_feed(request):
             status_item = _item_execucao_status_from_fields(
                 bool(getattr(item, "concluido", False)),
                 getattr(item, "concluido_em", None),
+                bool(getattr(item, "cancelada", False)),
                 bool(getattr(item, "nao_realizada_justificada", False)),
                 getattr(item, "remarcado_de_id", None),
             )
@@ -1900,21 +1907,23 @@ def events_feed(request):
     data = []
     for prog in programacoes:
         pid = prog["id"]
-        contadores = counts.get(pid, {"total": 0, "concluidas": 0, "nao_realizadas": 0})
+        contadores = counts.get(pid, {"total": 0, "concluidas": 0, "canceladas": 0, "nao_realizadas": 0})
         total = contadores["total"]
         if total == 0:
             continue
         concluidas = contadores["concluidas"]
+        canceladas = contadores.get("canceladas", 0)
         nao_realizadas = contadores.get("nao_realizadas", 0)
-        pendentes = max(total - concluidas - nao_realizadas, 0)
+        pendentes = max(total - concluidas - canceladas - nao_realizadas, 0)
 
         nome_atividades = metas_por_programacao.get(pid) or []
         nome_titulo = "; ".join(nome_atividades) if nome_atividades else ""
         total_label = f"{total} atividade{'s' if total != 1 else ''}"
         concluidas_label = f"{concluidas} concluida{'s' if concluidas != 1 else ''}"
+        canceladas_label = f"{canceladas} cancelada{'s' if canceladas != 1 else ''}"
         nao_realizadas_label = f"{nao_realizadas} não realizada{'s' if nao_realizadas != 1 else ''}"
         pendentes_label = f"{pendentes} pendente{'s' if pendentes != 1 else ''}"
-        title = nome_titulo or f"({total_label} | {concluidas_label} | {nao_realizadas_label} | {pendentes_label})"
+        title = nome_titulo or f"({total_label} | {concluidas_label} | {canceladas_label} | {nao_realizadas_label} | {pendentes_label})"
         if prog.get("concluida"):
             title = "[Concluída] " + title
 
@@ -1927,6 +1936,7 @@ def events_feed(request):
             "extendedProps": {
                 "total_programadas": total,
                 "total_concluidas": concluidas,
+                "total_canceladas": canceladas,
                 "total_nao_realizadas": nao_realizadas,
                 "total_pendentes": pendentes,
                 "nomes_atividades": nome_atividades,
@@ -2116,6 +2126,7 @@ def metas_disponiveis(request):
                     filter=Q(
                         concluido=False,
                         concluido_em__isnull=False,
+                        cancelada=False,
                         nao_realizada_justificada=False,
                         programacao__data__lt=reference_month_start,
                         meta__data_limite__isnull=False,
@@ -2193,6 +2204,7 @@ def programacao_do_dia_orm(request):
             "remarcado_de_id",
             "concluido",
             "concluido_em",
+            "cancelada",
             "nao_realizada_justificada",
         )
     )
@@ -2256,6 +2268,7 @@ def programacao_do_dia_orm(request):
         iid = int(it["id"])
         concluido_db = bool(it.get("concluido"))
         concluido_em = it.get("concluido_em")
+        cancelada = bool(it.get("cancelada"))
         nao_realizada_justificada = bool(it.get("nao_realizada_justificada"))
         remarcado_de_id = it.get("remarcado_de_id")
         auto_concluida_expediente = is_auto_concluida_expediente(
@@ -2264,12 +2277,14 @@ def programacao_do_dia_orm(request):
             programacao_data=dia,
             concluido=concluido_db,
             concluido_em=concluido_em,
+            cancelada=cancelada,
             nao_realizada_justificada=nao_realizada_justificada,
             today=today,
         )
         status_execucao = EXECUTADA if auto_concluida_expediente else _item_execucao_status_from_fields(
             concluido_db,
             concluido_em,
+            cancelada,
             nao_realizada_justificada,
             remarcado_de_id,
         )
@@ -2278,6 +2293,7 @@ def programacao_do_dia_orm(request):
             "meta_id": meta_id,
             "observacao": it.get("observacao") or "",
             "veiculo_id": it.get("veiculo_id"),
+            "cancelada": cancelada,
             "remarcado_de_id": remarcado_de_id,
             "concluido": bool(concluido_db or auto_concluida_expediente),
             "status_execucao": status_execucao,
@@ -2391,15 +2407,17 @@ def marcar_item_realizada(request, item_id: int):
         if realizada:
             pi.concluido = True
             pi.concluido_em = timezone.now()
+            pi.cancelada = False
             pi.nao_realizada_justificada = False
             pi.concluido_por_id = getattr(request.user, "id", None)
         else:
             # No toggle rapido, "desmarcar" volta para pendente.
             pi.concluido = False
             pi.concluido_em = None
+            pi.cancelada = False
             pi.nao_realizada_justificada = False
             pi.concluido_por_id = None
-        pi.save(update_fields=["concluido", "concluido_em", "nao_realizada_justificada", "concluido_por_id"])
+        pi.save(update_fields=["concluido", "concluido_em", "cancelada", "nao_realizada_justificada", "concluido_por_id"])
         after_snapshot = snapshot_programacao_dia(unidade_id, data_ref) if data_ref else None
         if data_ref:
             record_programacao_day_diff_after_commit(
@@ -2418,6 +2436,7 @@ def _item_execucao_status(item: ProgramacaoItem) -> str:
     return _item_execucao_status_from_fields(
         bool(getattr(item, "concluido", False)),
         getattr(item, "concluido_em", None),
+        bool(getattr(item, "cancelada", False)),
         bool(getattr(item, "nao_realizada_justificada", False)),
         getattr(item, "remarcado_de_id", None),
     )
@@ -2426,12 +2445,14 @@ def _item_execucao_status(item: ProgramacaoItem) -> str:
 def _item_execucao_status_from_fields(
     concluido: bool,
     concluido_em,
+    cancelada: bool = False,
     nao_realizada_justificada: bool = False,
     remarcado_de_id: int | None = None,
 ) -> str:
     return item_execucao_status_from_fields(
         concluido,
         concluido_em,
+        cancelada,
         nao_realizada_justificada,
         remarcado_de_id,
     )
@@ -2501,6 +2522,7 @@ def concluir_item_form(request, item_id: int):
                 meta_id=meta.id,
                 programacao__unidade_id=unidade_ctx_id,
                 concluido=False,
+                cancelada=False,
                 concluido_em__isnull=True,
             )
             .exclude(pk=pi.id)
@@ -2521,13 +2543,14 @@ def concluir_item_form(request, item_id: int):
     if request.method == "POST":
         form_errors: dict[str, str] = {}
         status_execucao = (request.POST.get("status_execucao") or "").strip().lower()
-        if status_execucao not in {EXECUTADA, REMARCADA_CONCLUIDA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:
+        if status_execucao not in {EXECUTADA, REMARCADA_CONCLUIDA, CANCELADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:
             # Compatibilidade com payload legado (checkbox "realizado").
             realizado_raw = (request.POST.get("realizado") or "").strip().lower()
             status_execucao = EXECUTADA if realizado_raw in {"1", "true", "on", "sim"} else PENDENTE
 
         concluido_flag = status_execucao in {EXECUTADA, REMARCADA_CONCLUIDA}
-        marcado_com_status = status_execucao in {EXECUTADA, REMARCADA_CONCLUIDA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA}
+        cancelada_flag = status_execucao == CANCELADA
+        marcado_com_status = status_execucao in {EXECUTADA, REMARCADA_CONCLUIDA, CANCELADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA}
         obs_final = (request.POST.get("observacoes") or "").strip()
         confirmar_pendentes = (request.POST.get("confirmar_pendentes") or "").strip() == "1"
         remarcado_de_selected_id = _resolve_remarcado_de_id(
@@ -2545,7 +2568,7 @@ def concluir_item_form(request, item_id: int):
         if remarcado_de_selected_id is None:
             remarcado_de_selected_id = remarcado_de_current_id
 
-        if status_execucao in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA} and not obs_final:
+        if status_execucao in {CANCELADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA} and not obs_final:
             form_errors["observacoes"] = "Informe uma observação para salvar este status."
         if status_execucao == REMARCADA_CONCLUIDA and not permite_status_remarcado:
             form_errors["status_execucao"] = (
@@ -2643,6 +2666,7 @@ def concluir_item_form(request, item_id: int):
             else:
                 concluido_em = None
                 concluido_por_id = None
+            cancelada_update = cancelada_flag
             nao_realizada_justificada = status_execucao == NAO_REALIZADA_JUSTIFICADA
             remarcado_de_update_id = remarcado_de_selected_id if status_execucao == REMARCADA_CONCLUIDA else None
 
@@ -2653,6 +2677,7 @@ def concluir_item_form(request, item_id: int):
                 .update(
                     concluido=concluido_flag,
                     concluido_em=concluido_em,
+                    cancelada=cancelada_update,
                     nao_realizada_justificada=nao_realizada_justificada,
                     concluido_por_id=concluido_por_id,
                     observacao=obs_final,

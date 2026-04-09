@@ -9,7 +9,7 @@ from atividades.models import Area, Atividade
 from core.models import No
 from metas.models import Meta
 from programar.models import Programacao, ProgramacaoItem
-from programar.status import EXECUTADA, PENDENTE
+from programar.status import CANCELADA, EXECUTADA, PENDENTE
 from relatorios.models import ProgramacaoHistorico
 
 
@@ -243,3 +243,33 @@ class RelatorioProgramacaoTests(TestCase):
         report = response.context["report"]
         row = next(report_row for report_row in report["desempenho"]["rows"] if report_row["item_id"] == item.id)
         self.assertEqual(row["status_final"], EXECUTADA)
+
+    def test_relatorio_exibe_cancelada_em_desempenho_e_resumo(self):
+        item = ProgramacaoItem.objects.create(
+            programacao=self.programacao_2,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            cancelada=True,
+            observacao="Agenda suspensa",
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_desempenho": "1",
+                "sec_indicadores": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        report = response.context["report"]
+        row = next(report_row for report_row in report["desempenho"]["rows"] if report_row["item_id"] == item.id)
+        self.assertEqual(row["status_final"], CANCELADA)
+        resumo = {report_row["titulo"]: report_row for report_row in report["desempenho"]["resumo_por_atividade"]}
+        self.assertEqual(resumo["Fiscalizacao de viveiros"]["cancelada"], 1)
+        indicadores = {card["label"]: card["value"] for card in report["indicadores"]["cards"]}
+        self.assertEqual(indicadores["Atividades canceladas"], 1)
+        self.assertContains(response, "Cancelada")

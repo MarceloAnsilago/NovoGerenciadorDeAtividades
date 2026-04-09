@@ -120,3 +120,12 @@ class NaoRealizadasViewTests(TestCase):
         grupos = response.context["nao_realizadas_grupos"]
         self.assertEqual(len(grupos), 1)
         self.assertEqual(grupos[0]["meta_id"], self.meta.id)
+
+    def test_nao_realizadas_exclui_itens_cancelados(self):
+        self.item.cancelada = True
+        self.item.save(update_fields=["cancelada"])
+
+        response = self.client.get(reverse("minhas_metas:nao-realizadas"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nenhuma atividade")

@@ -18,6 +18,7 @@ from core.utils import get_unidade_atual
 from metas.models import MetaAlocacao
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from programar.status import (
+    CANCELADA,
     ITEM_STATUS_LABELS,
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
@@ -127,6 +128,7 @@ def _item_execucao_info(item):
     status = item_execucao_status_from_fields(
         bool(getattr(item, "concluido", False)),
         getattr(item, "concluido_em", None),
+        bool(getattr(item, "cancelada", False)),
         bool(getattr(item, "nao_realizada_justificada", False)),
         getattr(item, "remarcado_de_id", None),
     )
@@ -134,6 +136,8 @@ def _item_execucao_info(item):
         return "remarcadas_concluidas", ITEM_STATUS_LABELS[REMARCADA_CONCLUIDA]
     if status == EXECUTADA:
         return "concluidas", ITEM_STATUS_LABELS[EXECUTADA]
+    if status == CANCELADA:
+        return "canceladas", ITEM_STATUS_LABELS[CANCELADA]
     if status == NAO_REALIZADA_JUSTIFICADA:
         return "nao_realizadas_justificadas", "Não realizada justificada"
     if status == NAO_REALIZADA:
@@ -153,6 +157,7 @@ def _meta_ids_com_itens_abertos(
         .filter(
             programacao__unidade_id=unidade_id,
             concluido=False,
+            cancelada=False,
             nao_realizada_justificada=False,
             meta_id__isnull=False,
         )
@@ -213,7 +218,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
 
     status_param = request.GET.get("status")
     status_value = (status_param or "").lower()
-    if status_value not in {"concluidas", "pendentes", "nao_realizadas", "nao_realizadas_justificadas", "remarcadas_concluidas"}:
+    if status_value not in {"concluidas", "canceladas", "pendentes", "nao_realizadas", "nao_realizadas_justificadas", "remarcadas_concluidas"}:
         status_value = ""
 
     meta_status_cards_filter = (request.GET.get("meta_status") or "").strip().lower()
@@ -257,6 +262,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
                     filter=Q(
                         concluido=False,
                         concluido_em__isnull=False,
+                        cancelada=False,
                         nao_realizada_justificada=False,
                         programacao__data__lt=status_month_start,
                         meta__data_limite__isnull=False,
@@ -447,16 +453,20 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
         itens_qs = itens_qs.filter(concluido=True)
     elif status_query_filter == "remarcadas_concluidas":
         itens_qs = itens_qs.filter(concluido=True, remarcado_de_id__isnull=False)
+    elif status_query_filter == "canceladas":
+        itens_qs = itens_qs.filter(cancelada=True)
     elif status_query_filter == "nao_realizadas":
         itens_qs = itens_qs.filter(
             concluido=False,
             concluido_em__isnull=False,
+            cancelada=False,
             nao_realizada_justificada=False,
         )
     elif status_query_filter == "nao_realizadas_justificadas":
         itens_qs = itens_qs.filter(
             concluido=False,
             concluido_em__isnull=False,
+            cancelada=False,
             nao_realizada_justificada=True,
         )
     elif status_query_filter == "pendentes":
@@ -528,11 +538,13 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             total=Count("id"),
             concluidas=Count("id", filter=Q(concluido=True)),
             remarcadas_concluidas=Count("id", filter=Q(concluido=True, remarcado_de_id__isnull=False)),
+            canceladas=Count("id", filter=Q(cancelada=True)),
             nao_realizadas=Count(
                 "id",
                 filter=Q(
                     concluido=False,
                     concluido_em__isnull=False,
+                    cancelada=False,
                     nao_realizada_justificada=False,
                 ),
             ),
@@ -541,6 +553,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
                 filter=Q(
                     concluido=False,
                     concluido_em__isnull=False,
+                    cancelada=False,
                     nao_realizada_justificada=True,
                 ),
             ),
@@ -577,6 +590,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             "em_andamento": int(resumo_agg.get("em_andamento") or 0),
             "concluidas": concluidas,
             "remarcadas_concluidas": int(resumo_agg.get("remarcadas_concluidas") or 0),
+            "canceladas": int(resumo_agg.get("canceladas") or 0),
             "nao_realizadas": int(resumo_agg.get("nao_realizadas") or 0),
             "nao_realizadas_justificadas": int(resumo_agg.get("nao_realizadas_justificadas") or 0),
             "em_programacao": total_programadas,
@@ -644,6 +658,7 @@ def nao_realizadas_view(request):
             programacao__unidade_id=unidade.id,
             concluido=False,
             concluido_em__isnull=False,
+            cancelada=False,
             nao_realizada_justificada=False,
         )
         .order_by("-programacao__data", "-id")
