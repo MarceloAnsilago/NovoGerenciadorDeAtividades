@@ -115,9 +115,26 @@ function syncConclusionLink(card) {
       } else if (!/\d+/.test(href.slice(-1))) {
         href = href.replace(/$/, `/${itemId}`);
       }
-      const next = encodeURIComponent("/minhas-metas/");
-      const query = `?source=minhas-metas&next=${next}`;
-      link.href = href + query;
+      const selectedDate = String(document.getElementById("programar-dataAtividade")?.value || "").trim();
+      const programarBase = window.PROGRAMAR?.urls?.calendario || "/programar/";
+      let next = "/minhas-metas/";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+        try {
+          const nextUrl = new URL(programarBase, window.location.origin);
+          nextUrl.searchParams.set("selected_date", selectedDate);
+          nextUrl.searchParams.set("open_modal", "1");
+          next = `${nextUrl.pathname}${nextUrl.search}`;
+        } catch (_err) {}
+      }
+      try {
+        const targetUrl = new URL(href, window.location.origin);
+        targetUrl.searchParams.set("source", "minhas-metas");
+        targetUrl.searchParams.set("next", next);
+        link.href = `${targetUrl.pathname}${targetUrl.search}`;
+      } catch (_err) {
+        const nextEncoded = encodeURIComponent(next);
+        link.href = `${href}?source=minhas-metas&next=${nextEncoded}`;
+      }
       link.classList.remove("d-none");
       link.setAttribute("aria-disabled", "false");
     } else {

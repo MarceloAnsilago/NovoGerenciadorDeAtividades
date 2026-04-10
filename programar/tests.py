@@ -322,6 +322,26 @@ class ConcluirItemFormTests(TestCase):
         self.assertFalse(item.concluido)
         self.assertTrue(item.cancelada)
 
+    def test_redireciona_para_programar_com_data_se_next_for_informado(self):
+        item = self._criar_item(data_ref=date(2026, 3, 15))
+        next_url = f"{reverse('programar:calendario')}?selected_date=2026-03-15&open_modal=1"
+
+        response = self.client.post(
+            reverse("programar:concluir-item-form", args=[item.id]),
+            {
+                "source": "minhas-metas",
+                "status_execucao": EXECUTADA,
+                "observacoes": "",
+                "next": next_url,
+            },
+            follow=False,
+        )
+
+        item.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(item.concluido)
+        self.assertEqual(response["Location"], next_url)
+
 
 class MetasDisponiveisApiTests(TestCase):
     def setUp(self):

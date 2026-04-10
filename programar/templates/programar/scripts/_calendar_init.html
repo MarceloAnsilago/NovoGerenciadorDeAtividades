@@ -99,6 +99,19 @@ document.addEventListener('DOMContentLoaded', function(){
     return `${yyyy}-${mm}-${dd}`;
   }
 
+  function parseIsoDateLocal(value) {
+    const raw = String(value || "").trim();
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+    const dt = new Date(year, month - 1, day, 12, 0, 0, 0);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt;
+  }
+
   function computeStatus(props, startRef){
     const total = Number(props?.total_programadas || 0);
     const concluidas = Number(props?.total_concluidas || 0);
@@ -331,6 +344,32 @@ document.addEventListener('DOMContentLoaded', function(){
   });
   calendar.render();
   NS.calendar = calendar;
+
+  (function consumeReturnToProgramarModal() {
+    const params = new URLSearchParams(window.location.search || "");
+    const selectedDate = String(params.get("selected_date") || "").trim();
+    const shouldOpenModal = ["1", "true", "yes", "sim"].includes(
+      String(params.get("open_modal") || "").trim().toLowerCase()
+    );
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) return;
+
+    const selectedDateObj = parseIsoDateLocal(selectedDate);
+    if (selectedDateObj && typeof calendar.gotoDate === "function") {
+      calendar.gotoDate(selectedDateObj);
+    }
+    if (shouldOpenModal && selectedDateObj && typeof NS.openProgramarModal === "function") {
+      window.setTimeout(() => {
+        NS.openProgramarModal(selectedDate, formatModalLabel(selectedDateObj));
+      }, 80);
+    }
+
+    params.delete("selected_date");
+    params.delete("open_modal");
+    const cleanedQuery = params.toString();
+    const cleanedUrl = `${window.location.pathname}${cleanedQuery ? `?${cleanedQuery}` : ""}${window.location.hash || ""}`;
+    window.history.replaceState({}, document.title, cleanedUrl);
+  })();
+
   let refreshTimer = 0;
 
   function refreshCalendarEvents() {

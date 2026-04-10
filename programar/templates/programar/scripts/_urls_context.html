@@ -3,6 +3,7 @@
 (function () {
   const NS = (window.PROGRAMAR = window.PROGRAMAR || {});
   NS.urls = {
+    calendario:     "{% url 'programar:calendario' %}",
     eventsFeed:     "{% url 'programar:events_feed' %}",
     feriadosFeed:   "{% url 'descanso:feriados_feed' %}",
     feriadosPage:   "{% url 'descanso:feriados' %}",
