@@ -32,6 +32,13 @@
         {% endif %}
 
         <div class="row g-3">
+          <div class="col-12">
+            {% if meta.is_auto_alocacao %}
+              <div class="alert alert-info mb-0">
+                Esta meta usa alocacao automatica. Ao alterar a quantidade alvo, a alocacao da unidade criadora sera sincronizada automaticamente.
+              </div>
+            {% endif %}
+          </div>
           <div class="col-md-6">
             <label class="form-label mb-1">Metas alocadas</label>
             <div class="border rounded px-3 py-2 bg-light fw-semibold">

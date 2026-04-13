@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum, Count
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 from core.utils.security import safe_next_url
 
@@ -20,6 +20,11 @@ from atividades.models import Area, Atividade
 from .models import Meta, MetaAlocacao, ProgressoMeta
 from programar.models import ProgramacaoItem
 from .forms import MetaForm
+from .services import (
+    meta_deve_iniciar_automatica,
+    sincronizar_meta_auto,
+    unidade_tem_filhos,
+)
 from django.http import HttpResponseForbidden
 from django.views.decorators.http import require_http_methods
 from django.db.models.functions import ExtractYear
@@ -38,6 +43,14 @@ MONTH_NAMES_PT = (
     "Novembro",
     "Dezembro",
 )
+
+
+def _set_meta_distribution_flags(meta_obj):
+    if not meta_obj:
+        return
+    has_children = unidade_tem_filhos(getattr(meta_obj, "unidade_criadora", None))
+    setattr(meta_obj, "unidade_criadora_tem_filhos", has_children)
+    setattr(meta_obj, "pode_abrir_distribuicao", (not meta_obj.is_auto_alocacao) or has_children)
 
 
 def _build_month_filters(alocacoes):
@@ -146,6 +159,7 @@ def _prepare_metas_context(request, *, emit_messages=False):
         metas_sem_aloc = metas_sem_aloc.filter(encerrada=True)
 
     for meta_obj in metas_sem_aloc:
+        _set_meta_distribution_flags(meta_obj)
         alocacoes.append(
             SimpleNamespace(
                 id=None,
@@ -194,6 +208,7 @@ def _prepare_metas_context(request, *, emit_messages=False):
         prog_total = prog_count_map.get(getattr(aloc, "meta_id", None), 0)
         setattr(aloc, "programadas_total", prog_total)
         if getattr(aloc, "meta", None):
+            _set_meta_distribution_flags(aloc.meta)
             setattr(aloc.meta, "programadas_total", prog_total)
 
     # anos disponíveis pelas datas limite
@@ -350,6 +365,8 @@ def definir_meta_view(request, atividade_id):
     if ano_selecionado:
         metas_atividade = metas_atividade.filter(data_limite__year=ano_selecionado)
     metas_atividade = list(metas_atividade)
+    for meta_obj in metas_atividade:
+        _set_meta_distribution_flags(meta_obj)
     if status_selecionado == "concluida":
         metas_atividade = [m for m in metas_atividade if m.concluida]
     elif status_selecionado == "atrasada":
@@ -364,6 +381,30 @@ def definir_meta_view(request, atividade_id):
             return redirect("metas:definir-meta", atividade_id=atividade_id)
         form = MetaForm(request.POST)
         if form.is_valid():
+            with transaction.atomic():
+                meta = form.save(commit=False)
+                meta.atividade = atividade
+                if unidade and hasattr(meta, "unidade_criadora_id"):
+                    meta.unidade_criadora = unidade
+                if hasattr(meta, "criado_por_id"):
+                    meta.criado_por = request.user
+                meta.modo_alocacao = (
+                    Meta.MODO_ALOCACAO_AUTO
+                    if meta_deve_iniciar_automatica(unidade)
+                    else Meta.MODO_ALOCACAO_MANUAL
+                )
+                meta.save()
+
+                if meta.is_auto_alocacao:
+                    sincronizar_meta_auto(meta, user=request.user)
+                    messages.success(
+                        request,
+                        "Meta criada e atribuida automaticamente para a unidade atual.",
+                    )
+                    return redirect("metas:definir-meta", atividade_id=atividade.id)
+
+            messages.success(request, "Meta criada com sucesso. Agora atribua as unidades responsÃ¡veis.")
+            return redirect("metas:atribuir-meta", meta_id=meta.id)
             meta = form.save(commit=False)
             # garanta os campos de vínculo:
             meta.atividade = atividade
@@ -413,6 +454,13 @@ def atribuir_meta_view(request, meta_id):
     if not request.user.is_superuser and meta.unidade_criadora_id != unidade.id:
         messages.warning(request, "Você não tem permissão para atribuir esta meta.")
         return redirect("metas:metas-unidade")
+    if meta.is_auto_alocacao and not unidade_tem_filhos(meta.unidade_criadora):
+        messages.info(
+            request,
+            "Esta meta estÃ¡ em alocaÃ§Ã£o automÃ¡tica. Edite a quantidade na prÃ³pria meta.",
+        )
+        return redirect("metas:metas-unidade")
+    _set_meta_distribution_flags(meta)
 
     # montar grupos: filhos diretos da unidade atual (ex.: supervisores -> unidades)
     grupos = []
@@ -516,6 +564,7 @@ def atribuir_meta_view(request, meta_id):
             })
         # aplicar alterações (criar/atualizar/deletar) em transação
         created = updated = deleted = 0
+        switched_to_manual = False
         with transaction.atomic():
             for u in unidades_atribuiveis:
                 sub = submitted_values.get(u.id, {"qty": 0, "obs": ""})
@@ -544,10 +593,26 @@ def atribuir_meta_view(request, meta_id):
                         existing.delete()
                         deleted += 1
 
+            if meta.is_auto_alocacao:
+                has_extra_alocacoes = (
+                    meta.alocacoes.exclude(
+                        unidade_id=meta.unidade_criadora_id,
+                        parent__isnull=True,
+                    ).exists()
+                )
+                if has_extra_alocacoes:
+                    meta.modo_alocacao = Meta.MODO_ALOCACAO_MANUAL
+                    meta.save(update_fields=["modo_alocacao"])
+                    switched_to_manual = True
+                else:
+                    sincronizar_meta_auto(meta, user=request.user)
+
         msg_parts = []
         if created: msg_parts.append(f"{created} criada(s)")
         if updated: msg_parts.append(f"{updated} atualizada(s)")
         if deleted: msg_parts.append(f"{deleted} removida(s)")
+        if switched_to_manual:
+            msg_parts.append("meta convertida para distribuicao manual")
         if msg_parts:
             messages.success(request, "Alocações: " + ", ".join(msg_parts) + ".")
         else:
@@ -579,6 +644,7 @@ def atribuir_meta_view(request, meta_id):
     return render(request, "metas/atribuir_meta.html", {
         "meta": meta,
         "unidade": unidade,
+        "unidade_atual": unidade,
         "grupos_with_data": grupos_with_data,
         "meta_info": meta_info,
         "restante": restante,
@@ -612,10 +678,14 @@ def editar_meta_view(request, meta_id):
     if meta.encerrada:
         messages.warning(request, "Esta meta já foi encerrada e não pode ser editada.")
         return redirect(next_url)
+    _set_meta_distribution_flags(meta)
 
     # info somente leitura
     meta_alocado_total = meta.alocado_total or 0
-    meta_programadas_total = ProgramacaoItem.objects.filter(meta=meta).count()
+    if ProgramacaoItem._meta.db_table in connection.introspection.table_names():
+        meta_programadas_total = ProgramacaoItem.objects.filter(meta=meta).count()
+    else:
+        meta_programadas_total = 0
 
     def _build_form(data=None):
         f = MetaForm(data=data, instance=meta)
@@ -631,6 +701,17 @@ def editar_meta_view(request, meta_id):
     if request.method == "POST":
         form = _build_form(request.POST)
         if form.is_valid():
+            try:
+                with transaction.atomic():
+                    meta = form.save()
+                    if meta.is_auto_alocacao:
+                        sincronizar_meta_auto(meta, user=request.user)
+            except ValueError as exc:
+                form.add_error(None, str(exc))
+                messages.error(request, "Nao foi possivel sincronizar a alocacao automatica desta meta.")
+            else:
+                messages.success(request, "Meta atualizada com sucesso.")
+                return redirect(next_url)
             form.save()
             messages.success(request, "Meta atualizada com sucesso.")
             return redirect(next_url)

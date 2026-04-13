@@ -149,9 +149,14 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
-                    <a href="{% url 'metas:atribuir-meta' m.id %}" class="btn btn-sm btn-outline-primary" title="Atribuir">
-                      <i class="bi bi-list-check"></i> Atribuir Meta / Editar
-                    </a>
+                    {% if m.pode_abrir_distribuicao %}
+                      <a href="{% url 'metas:atribuir-meta' m.id %}" class="btn btn-sm btn-outline-primary" title="Atribuir">
+                        <i class="bi bi-list-check"></i>
+                        {% if m.is_auto_alocacao %}Distribuir agora{% else %}Atribuir Meta / Editar{% endif %}
+                      </a>
+                    {% else %}
+                      <span class="badge bg-light text-dark border">Alocacao automatica</span>
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}

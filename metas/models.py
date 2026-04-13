@@ -11,6 +11,13 @@ from core.models import No as Unidade  # assume que core estÃ¡ correto e importÃ
 
 
 class Meta(models.Model):
+    MODO_ALOCACAO_AUTO = "auto"
+    MODO_ALOCACAO_MANUAL = "manual"
+    MODO_ALOCACAO_CHOICES = (
+        (MODO_ALOCACAO_AUTO, "Automatica"),
+        (MODO_ALOCACAO_MANUAL, "Manual"),
+    )
+
     unidade_criadora = models.ForeignKey(
         Unidade, on_delete=models.PROTECT, related_name="metas_criadas"
     )
@@ -29,6 +36,11 @@ class Meta(models.Model):
     criado_por = models.ForeignKey(User, on_delete=models.PROTECT, related_name="metas_criadas_por")
     criado_em = models.DateTimeField(auto_now_add=True)
     encerrada = models.BooleanField(default=False)
+    modo_alocacao = models.CharField(
+        max_length=16,
+        choices=MODO_ALOCACAO_CHOICES,
+        default=MODO_ALOCACAO_MANUAL,
+    )
 
     class Meta:
         ordering = ["-criado_em"]
@@ -105,6 +117,10 @@ class Meta(models.Model):
     @property
     def concluida(self) -> bool:
         return self.encerrada or (self.quantidade_alvo and self.realizado_total >= self.quantidade_alvo)
+
+    @property
+    def is_auto_alocacao(self) -> bool:
+        return self.modo_alocacao == self.MODO_ALOCACAO_AUTO
 
 
 class MetaAlocacao(models.Model):

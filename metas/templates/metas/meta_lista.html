@@ -123,10 +123,15 @@
                       <i class="bi bi-flag"></i> Encerrar
                     </a>
                   {% endif %}
-                  <a href="{% url 'metas:atribuir-meta' aloc.meta.id %}"
-                     class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-arrow-left-right"></i> Atribuir / Redistribuir / Editar
-                  </a>
+                  {% if aloc.meta.pode_abrir_distribuicao %}
+                    <a href="{% url 'metas:atribuir-meta' aloc.meta.id %}"
+                       class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-arrow-left-right"></i>
+                      {% if aloc.meta.is_auto_alocacao %}Distribuir agora{% else %}Atribuir / Redistribuir / Editar{% endif %}
+                    </a>
+                  {% else %}
+                    <span class="badge bg-light text-dark border">Alocacao automatica</span>
+                  {% endif %}
                     </div>
                   {% else %}
                     <span class="text-muted small">Sem acoes disponiveis</span>

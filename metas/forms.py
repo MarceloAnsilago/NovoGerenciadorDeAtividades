@@ -1,8 +1,10 @@
 # metas/forms.py
 from django import forms
+from django.db import connection
 from django.utils import timezone
 
 from .models import Meta, MetaAlocacao
+from .services import meta_auto_pode_ser_sincronizada
 
 
 class MetaForm(forms.ModelForm):
@@ -65,15 +67,32 @@ class MetaForm(forms.ModelForm):
             try:
                 from programar.models import ProgramacaoItem  # import local para evitar custo global
 
-                programadas_total = ProgramacaoItem.objects.filter(meta_id=instance.id).count()
+                if ProgramacaoItem._meta.db_table in connection.introspection.table_names():
+                    programadas_total = ProgramacaoItem.objects.filter(meta_id=instance.id).count()
             except Exception:
                 programadas_total = 0
 
             alocado_total = instance.alocado_total or 0
+            realizado_total = instance.realizado_total or 0
 
             old_qty = getattr(instance, "quantidade_alvo", 0) or 0
             is_decrease = new_qty < old_qty
-            if is_decrease and (new_qty < alocado_total or new_qty < programadas_total):
+            auto_sync = instance.is_auto_alocacao and meta_auto_pode_ser_sincronizada(instance)
+
+            if is_decrease and auto_sync and (new_qty < realizado_total or new_qty < programadas_total):
+                parts = []
+                if new_qty < realizado_total:
+                    parts.append(f"total realizado ({realizado_total})")
+                if new_qty < programadas_total:
+                    parts.append(f"{programadas_total} atividade(s) programada(s)")
+                joined = " e ".join(parts) if len(parts) > 1 else parts[0]
+                self.add_error(
+                    "quantidade_alvo",
+                    (
+                        f"Nao e possivel reduzir a meta automatica para {new_qty} porque ficaria abaixo de {joined}."
+                    ),
+                )
+            elif is_decrease and not auto_sync and (new_qty < alocado_total or new_qty < programadas_total):
                 parts = []
                 if new_qty < alocado_total:
                     parts.append(f"total alocado ({alocado_total})")
