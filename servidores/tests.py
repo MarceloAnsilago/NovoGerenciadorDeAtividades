@@ -69,4 +69,4 @@ class ServidorExclusaoTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("servidores:excluir", args=[liberado.pk]))
-        self.assertContains(response, "Vinculos: 1 descanso")
+        self.assertContains(response, "Nao e possivel excluir. Vinculos: 1 descanso")
