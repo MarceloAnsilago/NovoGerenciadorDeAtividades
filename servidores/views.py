@@ -1,8 +1,9 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connections, router, transaction
 from django.db.models import Q
+from django.db.models.deletion import ProtectedError, RestrictedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from core.utils import _get_unidade_atual  # seu util
@@ -11,9 +12,93 @@ from .forms import CargoForm, ServidorForm
 from .models import Cargo, Servidor
 
 
+SERVIDOR_DEPENDENCY_LABELS = {
+    "descanso.descanso": ("descanso", "descansos"),
+    "plantao.semanaservidor": ("plantao", "plantoes"),
+    "programar.programacaoitemservidor": ("atividade", "atividades"),
+}
+
+
 def _get_safe_next(request):
     candidate = safe_next_url(request, "")
     return candidate if candidate != "" else ""
+
+
+def _get_servidor_db_context(servidor):
+    using = servidor._state.db or router.db_for_write(type(servidor), instance=servidor) or "default"
+    existing_tables = set(connections[using].introspection.table_names())
+    return using, existing_tables
+
+
+def _summarize_servidor_dependencies(rows):
+    if not rows:
+        return ""
+
+    chunks = []
+    for row in rows[:2]:
+        label = row["singular"] if row["count"] == 1 else row["plural"]
+        chunks.append(f'{row["count"]} {label}')
+
+    remaining = sum(row["count"] for row in rows[2:])
+    if remaining:
+        suffix = "outro registro" if remaining == 1 else "outros registros"
+        chunks.append(f"+{remaining} {suffix}")
+
+    return ", ".join(chunks)
+
+
+def _get_servidor_dependency_rows(servidor, *, using=None, existing_tables=None):
+    if using is None or existing_tables is None:
+        using, existing_tables = _get_servidor_db_context(servidor)
+
+    rows = []
+    for rel in servidor._meta.get_fields(include_hidden=True):
+        if not getattr(rel, "is_relation", False):
+            continue
+        if not getattr(rel, "auto_created", False):
+            continue
+        if getattr(rel, "concrete", False):
+            continue
+
+        related_model = getattr(rel, "related_model", None)
+        if related_model is None:
+            continue
+        if related_model._meta.db_table not in existing_tables:
+            continue
+
+        field = getattr(rel, "field", None)
+        lookup_name = getattr(field, "name", None)
+        if not lookup_name:
+            continue
+
+        count = related_model._default_manager.using(using).filter(**{lookup_name: servidor.pk}).count()
+        if not count:
+            continue
+
+        singular, plural = SERVIDOR_DEPENDENCY_LABELS.get(
+            related_model._meta.label_lower,
+            (str(related_model._meta.verbose_name), str(related_model._meta.verbose_name_plural)),
+        )
+        rows.append(
+            {
+                "model": related_model._meta.label_lower,
+                "count": count,
+                "singular": singular,
+                "plural": plural,
+            }
+        )
+
+    rows.sort(key=lambda item: item["plural"])
+    return rows
+
+
+def _get_servidor_delete_status(servidor, *, using=None, existing_tables=None):
+    rows = _get_servidor_dependency_rows(servidor, using=using, existing_tables=existing_tables)
+    return {
+        "can_delete": len(rows) == 0,
+        "rows": rows,
+        "summary": _summarize_servidor_dependencies(rows),
+    }
 
 
 @login_required
@@ -89,6 +174,13 @@ def lista(request):
 
     paginator = Paginator(qs, 12)
     page_obj = paginator.get_page(request.GET.get("page"))
+    inactive_page_items = [servidor for servidor in page_obj.object_list if not servidor.ativo]
+    if inactive_page_items:
+        using, existing_tables = _get_servidor_db_context(inactive_page_items[0])
+        for servidor in inactive_page_items:
+            delete_status = _get_servidor_delete_status(servidor, using=using, existing_tables=existing_tables)
+            servidor.pode_excluir = delete_status["can_delete"]
+            servidor.resumo_bloqueios_exclusao = delete_status["summary"]
     context = {"form": form, "servidores": page_obj.object_list, "page_obj": page_obj,
                "unidade": unidade, "q": q, "status": status}
     return render(request, "servidores/lista.html", context)
@@ -154,6 +246,44 @@ def ativar(request, pk):
         messages.success(request, f"Servidor {serv.nome} ativado.")
     else:
         messages.info(request, f"Servidor {serv.nome} já está ativo.")
+    return redirect(_get_safe_next(request) or "servidores:lista")
+
+
+@login_required
+@require_POST
+def excluir(request, pk):
+    unidade = _get_unidade_atual(request)
+    if unidade:
+        serv = get_object_or_404(Servidor, pk=pk, unidade=unidade)
+    elif request.user.is_superuser:
+        serv = get_object_or_404(Servidor, pk=pk)
+    else:
+        messages.warning(request, "Selecione uma unidade para alterar servidores.")
+        return redirect("servidores:lista")
+
+    if serv.ativo:
+        messages.error(request, "Inative o servidor antes de exclui-lo.")
+        return redirect(_get_safe_next(request) or "servidores:lista")
+
+    using, existing_tables = _get_servidor_db_context(serv)
+    delete_status = _get_servidor_delete_status(serv, using=using, existing_tables=existing_tables)
+    if not delete_status["can_delete"]:
+        summary = delete_status["summary"] or "outros vinculos"
+        messages.error(request, f"Nao e possivel excluir {serv.nome}: existem vinculos com {summary}.")
+        return redirect(_get_safe_next(request) or "servidores:lista")
+
+    nome = serv.nome
+    try:
+        with transaction.atomic():
+            deleted = Servidor.objects.using(using).filter(pk=serv.pk)._raw_delete(using)
+            if not deleted:
+                messages.warning(request, f"Servidor {nome} nao foi encontrado para exclusao.")
+                return redirect(_get_safe_next(request) or "servidores:lista")
+    except (IntegrityError, ProtectedError, RestrictedError):
+        messages.error(request, f"Nao foi possivel excluir {nome} porque surgiram vinculos protegidos.")
+        return redirect(_get_safe_next(request) or "servidores:lista")
+
+    messages.success(request, f"Servidor {nome} excluido com sucesso.")
     return redirect(_get_safe_next(request) or "servidores:lista")
 
 

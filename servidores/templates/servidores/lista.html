@@ -193,6 +193,23 @@
                         <i class="bi bi-check-circle"></i> Ativar
                       </button>
                     </form>
+                    {% if s.pode_excluir %}
+                      <form method="post" action="{% url 'servidores:excluir' s.id %}" class="d-inline servidor-action-form"
+                            onsubmit="return confirm('Excluir este servidor em definitivo?');">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit" title="Excluir {{ s.nome }}" aria-label="Excluir">
+                          <i class="bi bi-trash"></i> Excluir
+                        </button>
+                      </form>
+                    {% else %}
+                      <button class="btn btn-sm btn-outline-secondary" type="button" disabled title="Ha vinculos que impedem a exclusao">
+                        <i class="bi bi-lock"></i> Excluir
+                      </button>
+                      {% if s.resumo_bloqueios_exclusao %}
+                        <div class="small text-muted mt-1">Vinculos: {{ s.resumo_bloqueios_exclusao }}</div>
+                      {% endif %}
+                    {% endif %}
                   {% endif %}
                 </td>
               </tr>
