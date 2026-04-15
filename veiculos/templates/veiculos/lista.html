@@ -24,7 +24,7 @@
       <strong><i class="bi bi-truck me-1"></i> Cadastrar Veículo</strong>
     </div>
     <div class="card-body">
-      <form method="post" novalidate>
+      <form method="post" id="veiculo-create-form" novalidate>
         {% csrf_token %}
         {% if form.errors %}
   <div class="alert alert-danger">
@@ -51,6 +51,40 @@
     </div>
   </div>
 
+  <div class="modal fade" id="confirmSalvarVeiculoModal" tabindex="-1" aria-labelledby="confirmSalvarVeiculoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmSalvarVeiculoLabel">
+            <i class="bi bi-truck me-1"></i> Confirmar cadastro
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">Revise os dados antes de salvar o novo veiculo.</p>
+          <dl class="row mb-0 small">
+            <dt class="col-sm-4">Veiculo</dt>
+            <dd class="col-sm-8" data-confirm-field="nome">-</dd>
+
+            <dt class="col-sm-4">Placa</dt>
+            <dd class="col-sm-8" data-confirm-field="placa">-</dd>
+
+            <dt class="col-sm-4">Status</dt>
+            <dd class="col-sm-8" data-confirm-field="ativo">-</dd>
+          </dl>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="cancelSalvarVeiculo">
+            Cancelar
+          </button>
+          <button type="button" class="btn btn-primary" id="confirmSalvarVeiculo">
+            <i class="bi bi-save me-1"></i> Confirmar e salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="card shadow-sm">
     <div class="card-header bg-light">
       <strong><i class="bi bi-list-ul me-1"></i> Lista de Veículos</strong>
@@ -67,6 +101,54 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+  const createForm = document.getElementById('veiculo-create-form');
+  const confirmModalEl = document.getElementById('confirmSalvarVeiculoModal');
+  const confirmButton = document.getElementById('confirmSalvarVeiculo');
+  const cancelButton = document.getElementById('cancelSalvarVeiculo');
+  let cadastroConfirmado = false;
+
+  function getFieldValue(form, name) {
+    const field = form.querySelector(`[name="${name}"]`);
+    if (!field) return '';
+    if (field.type === 'checkbox') {
+      return field.checked ? 'Ativo' : 'Inativo';
+    }
+    return field.value.trim();
+  }
+
+  function setConfirmValue(name, value) {
+    const target = confirmModalEl?.querySelector(`[data-confirm-field="${name}"]`);
+    if (target) target.textContent = value || '-';
+  }
+
+  function preencherResumoCadastro() {
+    setConfirmValue('nome', getFieldValue(createForm, 'nome'));
+    setConfirmValue('placa', getFieldValue(createForm, 'placa'));
+    setConfirmValue('ativo', getFieldValue(createForm, 'ativo'));
+  }
+
+  if (createForm && confirmModalEl && confirmButton) {
+    const confirmModal = new bootstrap.Modal(confirmModalEl);
+
+    createForm.addEventListener('submit', function (event) {
+      if (cadastroConfirmado) return;
+      event.preventDefault();
+      preencherResumoCadastro();
+      confirmModal.show();
+    });
+
+    confirmModalEl.addEventListener('shown.bs.modal', function () {
+      cancelButton?.focus();
+    });
+
+    confirmButton.addEventListener('click', function () {
+      cadastroConfirmado = true;
+      confirmButton.disabled = true;
+      confirmButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Salvando...';
+      createForm.submit();
+    });
+  }
+
   document.querySelectorAll('.veiculo-action-form').forEach(form => {
     form.addEventListener('submit', function (e) {
       const btn = form.querySelector('button[type="submit"]');

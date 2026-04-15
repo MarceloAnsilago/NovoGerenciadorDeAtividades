@@ -21,7 +21,7 @@
       <strong><i class="bi bi-list-task me-1"></i> Cadastrar Atividade</strong>
     </div>
     <div class="card-body">
-      <form method="post" novalidate>
+      <form method="post" id="atividade-create-form" novalidate>
         {% csrf_token %}
 
         {% if form.errors %}
@@ -50,6 +50,43 @@
     </div>
   </div>
 
+  <div class="modal fade" id="confirmSalvarAtividadeModal" tabindex="-1" aria-labelledby="confirmSalvarAtividadeLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmSalvarAtividadeLabel">
+            <i class="bi bi-list-task me-1"></i> Confirmar cadastro
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">Revise os dados antes de salvar a nova atividade.</p>
+          <dl class="row mb-0 small">
+            <dt class="col-sm-4">Titulo</dt>
+            <dd class="col-sm-8" data-confirm-field="titulo">-</dd>
+
+            <dt class="col-sm-4">Area</dt>
+            <dd class="col-sm-8" data-confirm-field="area">-</dd>
+
+            <dt class="col-sm-4">Status</dt>
+            <dd class="col-sm-8" data-confirm-field="ativo">-</dd>
+
+            <dt class="col-sm-4">Descricao</dt>
+            <dd class="col-sm-8" data-confirm-field="descricao">-</dd>
+          </dl>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="cancelSalvarAtividade">
+            Cancelar
+          </button>
+          <button type="button" class="btn btn-primary" id="confirmSalvarAtividade">
+            <i class="bi bi-save me-1"></i> Confirmar e salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Card: Lista -->
   <div class="card shadow-sm">
     <div class="card-header bg-light">
@@ -63,4 +100,62 @@
   </div>
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const createForm = document.getElementById('atividade-create-form');
+  const confirmModalEl = document.getElementById('confirmSalvarAtividadeModal');
+  const confirmButton = document.getElementById('confirmSalvarAtividade');
+  const cancelButton = document.getElementById('cancelSalvarAtividade');
+  let cadastroConfirmado = false;
+
+  function getFieldValue(form, name) {
+    const field = form.querySelector(`[name="${name}"]`);
+    if (!field) return '';
+    if (field.tagName === 'SELECT') {
+      return field.selectedOptions[0]?.textContent?.trim() || '';
+    }
+    if (field.type === 'checkbox') {
+      return field.checked ? 'Ativa' : 'Inativa';
+    }
+    return field.value.trim();
+  }
+
+  function setConfirmValue(name, value) {
+    const target = confirmModalEl?.querySelector(`[data-confirm-field="${name}"]`);
+    if (target) target.textContent = value || '-';
+  }
+
+  function preencherResumoCadastro() {
+    setConfirmValue('titulo', getFieldValue(createForm, 'titulo'));
+    setConfirmValue('area', getFieldValue(createForm, 'area'));
+    setConfirmValue('ativo', getFieldValue(createForm, 'ativo'));
+    setConfirmValue('descricao', getFieldValue(createForm, 'descricao'));
+  }
+
+  if (createForm && confirmModalEl && confirmButton) {
+    const confirmModal = new bootstrap.Modal(confirmModalEl);
+
+    createForm.addEventListener('submit', function (event) {
+      if (cadastroConfirmado) return;
+      event.preventDefault();
+      preencherResumoCadastro();
+      confirmModal.show();
+    });
+
+    confirmModalEl.addEventListener('shown.bs.modal', function () {
+      cancelButton?.focus();
+    });
+
+    confirmButton.addEventListener('click', function () {
+      cadastroConfirmado = true;
+      confirmButton.disabled = true;
+      confirmButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Salvando...';
+      createForm.submit();
+    });
+  }
+});
+</script>
 {% endblock %}
