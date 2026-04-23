@@ -28,9 +28,10 @@ document.addEventListener('DOMContentLoaded', function(){
     const style = document.createElement('style');
     style.id = 'programar-calendar-event-styles';
     style.textContent = `
-      .programar-event{display:flex;flex-direction:column;gap:.35rem;color:#1f2937;}
-      .programar-event-status{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:700;padding:.3rem .55rem;border-radius:.6rem;line-height:1.2;border:1px solid #c8d9f0;background:#edf3ff;color:#0b4f9c;}
+      .programar-event{display:flex;flex-direction:column;gap:.35rem;color:#1f2937;min-width:0;}
+      .programar-event-status{display:flex;align-items:flex-start;flex-wrap:wrap;gap:.25rem .35rem;width:100%;max-width:100%;box-sizing:border-box;font-size:.8rem;font-weight:700;padding:.3rem .55rem;border-radius:.6rem;line-height:1.2;border:1px solid #c8d9f0;background:#edf3ff;color:#0b4f9c;}
       .programar-event-status i{font-size:.95rem;}
+      .programar-event-status > span:first-child{min-width:0;white-space:normal;overflow-wrap:anywhere;}
       .programar-event-status .programar-event-count{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums;color:#0b4f9c;}
       .programar-event-counts{margin-left:auto;display:inline-flex;align-items:center;gap:.35rem;font-variant-numeric:tabular-nums;}
       .programar-event-count-badge{display:inline-flex;align-items:center;gap:.25rem;padding:.1rem .4rem;border-radius:.45rem;font-size:.72rem;font-weight:700;border:1px solid transparent;}
