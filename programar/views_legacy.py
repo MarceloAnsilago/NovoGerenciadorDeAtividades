@@ -1241,6 +1241,12 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             "</div>"
         )
 
+    def _veiculo_html(label: str) -> str:
+        label = (label or "").strip()
+        if not label:
+            return "-"
+        return html.escape(label).replace(" (", "<br>(")
+
     tem_algum = False
 
     # acumula para relatório por servidor
@@ -1358,7 +1364,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + dia_td
                     + "<td class='atividade-cell'><em>Feriado</em></td>"
                     + f"<td>{desc_lines}</td>"
-                    + "<td class='veiculo-cell text-nowrap'>-</td>"
+                    + "<td class='veiculo-cell'>-</td>"
                     + "<td class='realizada-cell'>-</td>"
                     + "</tr>"
                 )
@@ -1369,7 +1375,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + dia_td
                     + "<td class='atividade-cell'><em>Expediente administrativo</em></td>"
                     + f"<td>{_srv_list_html(b['servidores'], with_boxes=False, inline=True)}</td>"
-                    + "<td class='veiculo-cell text-nowrap'>-</td>"
+                    + "<td class='veiculo-cell'>-</td>"
                     + "<td class='realizada-cell'>-</td>"
                     + "</tr>"
                 )
@@ -1401,7 +1407,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + dia_td
                     + f"<td class='atividade-cell'><div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
                     + f"<td>{_srv_list_html(b['servidores'], with_boxes=True, inline=False)}{meta_desc_html}</td>"
-                    + f"<td class='veiculo-cell text-nowrap'>{html.escape(b['veiculo'])}</td>"
+                    + f"<td class='veiculo-cell'>{_veiculo_html(b['veiculo'])}</td>"
                     + f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
                     + "</tr>"
                 )
@@ -1419,7 +1425,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + dia_td
                     + "<td class='atividade-cell'><em>Impedidos</em></td>"
                     + f"<td>{imp_lines}</td>"
-                    + "<td class='veiculo-cell text-nowrap'>-</td>"
+                    + "<td class='veiculo-cell'>-</td>"
                     + "<td class='realizada-cell'>-</td>"
                     + "</tr>"
                 )
@@ -1439,6 +1445,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table .feriado-desc{ color:#842029; font-weight:600; }"
         ".programacao-semana-table tbody td.veiculo-cell{"
         "  text-align:center !important; vertical-align:middle !important;"
+        "  white-space:normal !important; overflow-wrap:anywhere; word-break:normal;"
         "}"
         ".programacao-semana-table tbody tr:not(.day-end) > td{"
         "  border-bottom: 1px solid #d7dee8 !important;"
