@@ -342,6 +342,129 @@ class ConcluirItemFormTests(TestCase):
         self.assertTrue(item.concluido)
         self.assertEqual(response["Location"], next_url)
 
+    def test_nao_exibe_confirmacao_ao_abrir_formulario_com_meta_concluida(self):
+        item = self._criar_item(data_ref=date(2026, 5, 5))
+        alocacao = MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=2,
+            atribuida_por=self.user,
+        )
+        ProgressoMeta.objects.create(
+            alocacao=alocacao,
+            quantidade=2,
+            registrado_por=self.user,
+        )
+        next_url = f"{reverse('programar:calendario')}?selected_date=2026-05-05&open_modal=1"
+
+        response = self.client.get(
+            reverse("programar:concluir-item-form", args=[item.id]),
+            {"source": "minhas-metas", "next": next_url},
+        )
+
+        item.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(item.concluido)
+        self.assertNotContains(response, "Esta meta já foi concluída. Deseja encerrar a meta?")
+
+    def test_exibe_confirmacao_apos_salvar_conclusao_quando_meta_esta_concluida(self):
+        item = self._criar_item(data_ref=date(2026, 5, 5))
+        alocacao = MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=2,
+            atribuida_por=self.user,
+        )
+        ProgressoMeta.objects.create(
+            alocacao=alocacao,
+            quantidade=2,
+            registrado_por=self.user,
+        )
+        next_url = f"{reverse('programar:calendario')}?selected_date=2026-05-05&open_modal=1"
+
+        response = self.client.post(
+            reverse("programar:concluir-item-form", args=[item.id]),
+            {
+                "source": "minhas-metas",
+                "next": next_url,
+                "status_execucao": EXECUTADA,
+                "observacoes": "",
+            },
+        )
+
+        item.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(item.concluido)
+        self.assertContains(response, "Esta meta já foi concluída. Deseja encerrar a meta?")
+        self.assertContains(response, "selected_date=2026-05-05")
+        self.assertContains(response, "open_modal=1")
+        self.assertContains(response, reverse("metas:encerrar-meta", args=[self.meta.id]))
+
+    def test_exibe_confirmacao_apos_salvar_nao_realizada_justificada_quando_meta_esta_concluida(self):
+        item = self._criar_item(data_ref=date(2026, 5, 5))
+        alocacao = MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=2,
+            atribuida_por=self.user,
+        )
+        ProgressoMeta.objects.create(
+            alocacao=alocacao,
+            quantidade=2,
+            registrado_por=self.user,
+        )
+        next_url = f"{reverse('programar:calendario')}?selected_date=2026-05-05&open_modal=1"
+
+        response = self.client.post(
+            reverse("programar:concluir-item-form", args=[item.id]),
+            {
+                "source": "minhas-metas",
+                "next": next_url,
+                "status_execucao": NAO_REALIZADA_JUSTIFICADA,
+                "observacoes": "Justificada pela chefia.",
+            },
+        )
+
+        item.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(item.concluido)
+        self.assertTrue(item.nao_realizada_justificada)
+        self.assertContains(response, "Esta meta já foi concluída. Deseja encerrar a meta?")
+
+    def test_encerrar_meta_retorna_para_next_original_do_fluxo_minhas_metas(self):
+        item = self._criar_item(data_ref=date(2026, 5, 5))
+        alocacao = MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=2,
+            atribuida_por=self.user,
+        )
+        ProgressoMeta.objects.create(
+            alocacao=alocacao,
+            quantidade=2,
+            registrado_por=self.user,
+        )
+        next_url = f"{reverse('programar:calendario')}?selected_date=2026-05-05&open_modal=1"
+
+        response = self.client.post(
+            reverse("metas:encerrar-meta", args=[self.meta.id]),
+            {
+                "next": "/metas/atividades/",
+                "source": "minhas-metas",
+                "flow_next": next_url,
+                "encerrar_agora": "1",
+                "confirmar_pendentes": "1",
+            },
+            follow=False,
+        )
+
+        self.meta.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], next_url)
+        self.assertTrue(self.meta.encerrada)
+        self.assertFalse(item.concluido)
+
 
 class MetasDisponiveisApiTests(TestCase):
     def setUp(self):

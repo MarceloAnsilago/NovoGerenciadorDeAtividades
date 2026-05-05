@@ -1,0 +1,64 @@
+{% extends "core/base.html" %}
+
+{% block title %}Confirmar encerramento da meta{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="modal fade"
+       id="confirmarEncerrarMetaModal"
+       tabindex="-1"
+       aria-labelledby="confirmarEncerrarMetaModalLabel"
+       aria-modal="true"
+       role="dialog">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmarEncerrarMetaModalLabel">Confirmar encerramento</h5>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0">Esta meta já foi concluída. Deseja encerrar a meta?</p>
+        </div>
+        <div class="modal-footer">
+          <a href="{{ next }}" class="btn btn-light" data-confirmar-meta-nao>Não</a>
+          <a href="{{ encerrar_url }}" class="btn btn-primary">Sim</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <noscript>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <p>Esta meta já foi concluída. Deseja encerrar a meta?</p>
+        <div class="d-flex justify-content-end gap-2">
+          <a href="{{ next }}" class="btn btn-light">Não</a>
+          <a href="{{ encerrar_url }}" class="btn btn-primary">Sim</a>
+        </div>
+      </div>
+    </div>
+  </noscript>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var modalEl = document.getElementById("confirmarEncerrarMetaModal");
+    var backUrl = "{{ next|escapejs }}";
+    if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) {
+      if (modalEl) {
+        modalEl.classList.add("show");
+        modalEl.style.display = "block";
+        modalEl.removeAttribute("aria-hidden");
+      }
+      return;
+    }
+    var modal = new window.bootstrap.Modal(modalEl, {
+      backdrop: "static",
+      keyboard: false
+    });
+    modal.show();
+    modalEl.addEventListener("hidden.bs.modal", function () {
+      window.location.href = backUrl;
+    });
+  });
+</script>
+{% endblock %}

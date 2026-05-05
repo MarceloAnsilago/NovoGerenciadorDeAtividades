@@ -94,6 +94,8 @@
   <form method="post" class="vstack gap-4">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ next_url }}">
+    {% if flow_source %}<input type="hidden" name="source" value="{{ flow_source }}">{% endif %}
+    {% if flow_next_url %}<input type="hidden" name="flow_next" value="{{ flow_next_url }}">{% endif %}
 
     {% if inconsistencias %}
     <div class="card shadow-sm border-warning">

@@ -7,10 +7,12 @@ import logging
 from collections import defaultdict
 from calendar import monthrange
 from datetime import date, datetime, timedelta
+from urllib.parse import urlencode
 from typing import Any, Dict, List
 from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.test.client import RequestFactory
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET
@@ -35,6 +37,7 @@ from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotAll
 from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
 from metas.models import Meta, MetaAlocacao, ProgressoMeta
+from metas.services import meta_esta_concluida
 from veiculos.models import Veiculo
 from django.db.models import Sum, Count, Q
 from django.db import transaction
@@ -2523,6 +2526,27 @@ def _item_execucao_status_from_fields(
     )
 
 
+def _render_confirmar_encerramento_meta(request, *, meta: Meta, next_url: str):
+    encerrar_url = (
+        reverse("metas:encerrar-meta", args=[meta.id])
+        + "?"
+        + urlencode({
+            "next": "/metas/atividades/",
+            "source": "minhas-metas",
+            "flow_next": next_url,
+        })
+    )
+    return render(
+        request,
+        "minhas_metas/confirmar_encerrar_meta_modal.html",
+        {
+            "meta": meta,
+            "next": next_url,
+            "encerrar_url": encerrar_url,
+        },
+    )
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 @csrf_protect
@@ -2547,6 +2571,7 @@ def concluir_item_form(request, item_id: int):
     meta = pi.meta
     source_context = (request.GET.get("source") or request.POST.get("source") or "").strip().lower()
     ignorar_pendentes = source_context == "minhas-metas"
+    next_url = safe_next_url(request, "/minhas-metas/")
 
     links = (
         ProgramacaoItemServidor.objects
@@ -2766,6 +2791,11 @@ def concluir_item_form(request, item_id: int):
 
         messages.success(request, "Item atualizado com sucesso.")
         back_url = safe_next_url(request, "/minhas-metas/")
+        if source_context == "minhas-metas" and status_execucao in {EXECUTADA, NAO_REALIZADA_JUSTIFICADA}:
+            if meta:
+                meta.refresh_from_db()
+            if meta_esta_concluida(meta):
+                return _render_confirmar_encerramento_meta(request, meta=meta, next_url=back_url)
         return redirect(back_url)
 
     contexto = {

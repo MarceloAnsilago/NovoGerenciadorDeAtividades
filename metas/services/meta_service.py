@@ -38,6 +38,12 @@ def meta_deve_iniciar_automatica(unidade: No | None) -> bool:
     return not unidade_tem_filhos(unidade)
 
 
+def meta_esta_concluida(meta: Meta | None) -> bool:
+    if meta is None:
+        return False
+    return bool(meta.concluida)
+
+
 def get_auto_alocacao(meta: Meta) -> MetaAlocacao | None:
     return (
         meta.alocacoes

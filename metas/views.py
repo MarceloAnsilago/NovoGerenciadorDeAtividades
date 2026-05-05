@@ -11,6 +11,7 @@ from django.db.models import Q, Sum, Count
 from django.core.paginator import Paginator
 from django.db import connection, transaction
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from core.utils.security import safe_next_url
 
 from core.utils import get_unidade_atual
@@ -936,6 +937,16 @@ def encerrar_meta_view(request, meta_id):
     unidade = get_unidade_atual(request)
     next_url_default = reverse("metas:metas-unidade")
     next_url = safe_next_url(request, next_url_default)
+    flow_source = (request.GET.get("source") or request.POST.get("source") or "").strip().lower()
+    flow_next_raw = (request.GET.get("flow_next") or request.POST.get("flow_next") or "").strip()
+    flow_next_url = ""
+    if (
+        flow_source == "minhas-metas"
+        and flow_next_raw
+        and url_has_allowed_host_and_scheme(flow_next_raw, allowed_hosts={request.get_host()})
+    ):
+        flow_next_url = flow_next_raw
+        next_url = flow_next_url
 
     if not unidade:
         messages.error(request, "Selecione ou assuma uma unidade antes de encerrar metas.")
@@ -1186,5 +1197,7 @@ def encerrar_meta_view(request, meta_id):
         "mostrar_confirmar_pendentes": mostrar_confirmar_pendentes,
         "form_errors": form_errors,
         "next_url": next_url,
+        "flow_source": flow_source,
+        "flow_next_url": flow_next_url,
     }
     return render(request, "metas/encerrar_meta.html", contexto)
