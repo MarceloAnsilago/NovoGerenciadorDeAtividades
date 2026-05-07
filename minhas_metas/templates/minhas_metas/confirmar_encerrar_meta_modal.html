@@ -10,13 +10,106 @@
        aria-labelledby="confirmarEncerrarMetaModalLabel"
        aria-modal="true"
        role="dialog">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="confirmarEncerrarMetaModalLabel">Confirmar encerramento</h5>
         </div>
         <div class="modal-body">
-          <p class="mb-0">Esta meta já foi concluída. Deseja encerrar a meta?</p>
+          <p class="mb-3">Esta meta já foi concluída. Deseja encerrar a meta?</p>
+
+          {% if resumo_meta %}
+            <div class="border rounded p-3 bg-light">
+              <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
+                <div>
+                  <div class="text-muted small">Meta</div>
+                  <div class="fw-semibold">{{ meta.display_titulo|default:meta.titulo }}</div>
+                </div>
+                {% if resumo_meta.primeira_data or resumo_meta.ultima_data %}
+                  <div class="text-md-end">
+                    <div class="text-muted small">Período programado</div>
+                    <div class="fw-semibold">
+                      {% if resumo_meta.primeira_data %}{{ resumo_meta.primeira_data|date:"d/m/Y" }}{% endif %}
+                      {% if resumo_meta.primeira_data and resumo_meta.ultima_data %} a {% endif %}
+                      {% if resumo_meta.ultima_data %}{{ resumo_meta.ultima_data|date:"d/m/Y" }}{% endif %}
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+
+              <div class="row g-2">
+                <div class="col-6 col-md-4">
+                  <div class="border rounded bg-white p-2 h-100">
+                    <div class="text-muted small">Alvo da meta</div>
+                    <div class="fs-5 fw-semibold">{{ resumo_meta.alvo_meta|default:0 }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="border rounded bg-white p-2 h-100">
+                    <div class="text-muted small">Alocado na unidade</div>
+                    <div class="fs-5 fw-semibold">{{ resumo_meta.alocado|default:0 }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="border rounded bg-white p-2 h-100">
+                    <div class="text-muted small">Programadas</div>
+                    <div class="fs-5 fw-semibold">{{ resumo_meta.programadas|default:0 }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="border rounded bg-white p-2 h-100">
+                    <div class="text-muted small">Solucionadas</div>
+                    <div class="fs-5 fw-semibold">{{ resumo_meta.solucionadas|default:0 }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="border rounded bg-white p-2 h-100">
+                    <div class="text-muted small">Concluídas</div>
+                    <div class="fs-5 fw-semibold">{{ resumo_meta.concluidas|default:0 }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="border rounded bg-white p-2 h-100">
+                    <div class="text-muted small">Justificadas</div>
+                    <div class="fs-5 fw-semibold">{{ resumo_meta.justificadas|default:0 }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="border rounded bg-white p-2 h-100">
+                    <div class="text-muted small">Canceladas</div>
+                    <div class="fs-5 fw-semibold">{{ resumo_meta.canceladas|default:0 }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="border rounded bg-white p-2 h-100">
+                    <div class="text-muted small">Não realizadas</div>
+                    <div class="fs-5 fw-semibold">{{ resumo_meta.nao_realizadas|default:0 }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="border rounded bg-white p-2 h-100">
+                    <div class="text-muted small">Pendentes</div>
+                    <div class="fs-5 fw-semibold">{{ resumo_meta.pendentes|default:0 }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <div class="d-flex justify-content-between small text-muted mb-1">
+                  <span>Progresso para encerramento</span>
+                  <span>{{ resumo_meta.percentual_solucionado|default:0 }}%</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                  <div class="progress-bar"
+                       role="progressbar"
+                       style="width: {{ resumo_meta.percentual_solucionado|default:0 }}%;"
+                       aria-valuenow="{{ resumo_meta.percentual_solucionado|default:0 }}"
+                       aria-valuemin="0"
+                       aria-valuemax="100"></div>
+                </div>
+              </div>
+            </div>
+          {% endif %}
         </div>
         <div class="modal-footer">
           <a href="{{ next }}" class="btn btn-light" data-confirmar-meta-nao>Não</a>
@@ -30,6 +123,16 @@
     <div class="card shadow-sm">
       <div class="card-body">
         <p>Esta meta já foi concluída. Deseja encerrar a meta?</p>
+        {% if resumo_meta %}
+          <p class="mb-3">
+            Programadas: {{ resumo_meta.programadas|default:0 }}.
+            Concluídas: {{ resumo_meta.concluidas|default:0 }}.
+            Justificadas: {{ resumo_meta.justificadas|default:0 }}.
+            Canceladas: {{ resumo_meta.canceladas|default:0 }}.
+            Não realizadas: {{ resumo_meta.nao_realizadas|default:0 }}.
+            Pendentes: {{ resumo_meta.pendentes|default:0 }}.
+          </p>
+        {% endif %}
         <div class="d-flex justify-content-end gap-2">
           <a href="{{ next }}" class="btn btn-light">Não</a>
           <a href="{{ encerrar_url }}" class="btn btn-primary">Sim</a>

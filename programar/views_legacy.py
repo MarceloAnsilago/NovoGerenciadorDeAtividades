@@ -37,7 +37,7 @@ from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotAll
 from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
 from metas.models import Meta, MetaAlocacao, ProgressoMeta
-from metas.services import meta_esta_concluida
+from metas.services import meta_esta_concluida, resumo_execucao_meta
 from veiculos.models import Veiculo
 from django.db.models import Sum, Count, Q
 from django.db import transaction
@@ -2526,7 +2526,7 @@ def _item_execucao_status_from_fields(
     )
 
 
-def _render_confirmar_encerramento_meta(request, *, meta: Meta, next_url: str):
+def _render_confirmar_encerramento_meta(request, *, meta: Meta, next_url: str, unidade_id: int | None = None):
     encerrar_url = (
         reverse("metas:encerrar-meta", args=[meta.id])
         + "?"
@@ -2543,6 +2543,7 @@ def _render_confirmar_encerramento_meta(request, *, meta: Meta, next_url: str):
             "meta": meta,
             "next": next_url,
             "encerrar_url": encerrar_url,
+            "resumo_meta": resumo_execucao_meta(meta, unidade_id=unidade_id),
         },
     )
 
@@ -2794,8 +2795,13 @@ def concluir_item_form(request, item_id: int):
         if source_context == "minhas-metas" and status_execucao in {EXECUTADA, NAO_REALIZADA_JUSTIFICADA}:
             if meta:
                 meta.refresh_from_db()
-            if meta_esta_concluida(meta):
-                return _render_confirmar_encerramento_meta(request, meta=meta, next_url=back_url)
+            if meta_esta_concluida(meta, unidade_id=unidade_ctx_id):
+                return _render_confirmar_encerramento_meta(
+                    request,
+                    meta=meta,
+                    next_url=back_url,
+                    unidade_id=unidade_ctx_id,
+                )
         return redirect(back_url)
 
     contexto = {

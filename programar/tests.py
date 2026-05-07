@@ -368,6 +368,11 @@ class ConcluirItemFormTests(TestCase):
         self.assertNotContains(response, "Esta meta já foi concluída. Deseja encerrar a meta?")
 
     def test_exibe_confirmacao_apos_salvar_conclusao_quando_meta_esta_concluida(self):
+        self._criar_item(
+            data_ref=date(2026, 5, 4),
+            concluido=True,
+            concluido_em=timezone.now(),
+        )
         item = self._criar_item(data_ref=date(2026, 5, 5))
         alocacao = MetaAlocacao.objects.create(
             meta=self.meta,
@@ -401,6 +406,11 @@ class ConcluirItemFormTests(TestCase):
         self.assertContains(response, reverse("metas:encerrar-meta", args=[self.meta.id]))
 
     def test_exibe_confirmacao_apos_salvar_nao_realizada_justificada_quando_meta_esta_concluida(self):
+        self._criar_item(
+            data_ref=date(2026, 5, 4),
+            concluido=True,
+            concluido_em=timezone.now(),
+        )
         item = self._criar_item(data_ref=date(2026, 5, 5))
         alocacao = MetaAlocacao.objects.create(
             meta=self.meta,
@@ -430,6 +440,38 @@ class ConcluirItemFormTests(TestCase):
         self.assertFalse(item.concluido)
         self.assertTrue(item.nao_realizada_justificada)
         self.assertContains(response, "Esta meta já foi concluída. Deseja encerrar a meta?")
+
+    def test_nao_exibe_confirmacao_quando_meta_ainda_tem_item_solucionado_faltando(self):
+        self.meta.quantidade_alvo = 5
+        self.meta.save(update_fields=["quantidade_alvo"])
+        MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=5,
+            atribuida_por=self.user,
+        )
+        for day in (3, 4, 5):
+            self._criar_item(
+                data_ref=date(2026, 5, day),
+                concluido=True,
+                concluido_em=timezone.now(),
+            )
+        item = self._criar_item(data_ref=date(2026, 5, 6))
+        next_url = f"{reverse('programar:calendario')}?selected_date=2026-05-06&open_modal=1"
+
+        response = self.client.post(
+            reverse("programar:concluir-item-form", args=[item.id]),
+            {
+                "source": "minhas-metas",
+                "next": next_url,
+                "status_execucao": EXECUTADA,
+                "observacoes": "",
+            },
+        )
+
+        item.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(item.concluido)
 
     def test_encerrar_meta_retorna_para_next_original_do_fluxo_minhas_metas(self):
         item = self._criar_item(data_ref=date(2026, 5, 5))

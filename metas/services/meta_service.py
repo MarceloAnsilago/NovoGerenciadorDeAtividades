@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from django.db import transaction
-from django.db.models import Q, QuerySet
+from django.db.models import Count, Max, Min, Q, QuerySet
 
 from metas.models import Meta
 from metas.models import MetaAlocacao
@@ -38,10 +38,105 @@ def meta_deve_iniciar_automatica(unidade: No | None) -> bool:
     return not unidade_tem_filhos(unidade)
 
 
-def meta_esta_concluida(meta: Meta | None) -> bool:
+def meta_esta_concluida(meta: Meta | None, *, unidade_id: int | None = None) -> bool:
     if meta is None:
         return False
-    return bool(meta.concluida)
+    if meta.encerrada:
+        return True
+
+    alvo = int(meta.quantidade_alvo or 0)
+    if unidade_id:
+        alocacao = (
+            meta.alocacoes
+            .filter(unidade_id=unidade_id)
+            .order_by("id")
+            .first()
+        )
+        if alocacao:
+            alvo = int(alocacao.quantidade_alocada or 0)
+    if alvo <= 0:
+        return False
+
+    from programar.models import ProgramacaoItem
+
+    itens_qs = ProgramacaoItem.objects.filter(meta_id=meta.id)
+    if unidade_id:
+        itens_qs = itens_qs.filter(programacao__unidade_id=unidade_id)
+
+    solucionadas = itens_qs.filter(
+        Q(concluido=True) | Q(nao_realizada_justificada=True)
+    ).count()
+    return solucionadas >= alvo
+
+
+def resumo_execucao_meta(meta: Meta | None, *, unidade_id: int | None = None) -> dict:
+    if meta is None:
+        return {}
+
+    alvo_meta = int(meta.quantidade_alvo or 0)
+    alocado = 0
+    alvo_referencia = alvo_meta
+    if unidade_id:
+        alocacao = (
+            meta.alocacoes
+            .filter(unidade_id=unidade_id)
+            .order_by("id")
+            .first()
+        )
+        if alocacao:
+            alocado = int(alocacao.quantidade_alocada or 0)
+            alvo_referencia = alocado
+    if not alocado:
+        alocado = int(meta.alocado_total or 0)
+
+    from programar.models import ProgramacaoItem
+
+    itens_qs = ProgramacaoItem.objects.filter(meta_id=meta.id)
+    if unidade_id:
+        itens_qs = itens_qs.filter(programacao__unidade_id=unidade_id)
+
+    resumo = itens_qs.aggregate(
+        programadas=Count("id"),
+        concluidas=Count("id", filter=Q(concluido=True)),
+        justificadas=Count("id", filter=Q(concluido=False, nao_realizada_justificada=True)),
+        canceladas=Count("id", filter=Q(cancelada=True)),
+        nao_realizadas=Count(
+            "id",
+            filter=Q(
+                concluido=False,
+                concluido_em__isnull=False,
+                cancelada=False,
+                nao_realizada_justificada=False,
+            ),
+        ),
+        pendentes=Count(
+            "id",
+            filter=Q(
+                concluido=False,
+                concluido_em__isnull=True,
+                cancelada=False,
+                nao_realizada_justificada=False,
+            ),
+        ),
+        primeira_data=Min("programacao__data"),
+        ultima_data=Max("programacao__data"),
+    )
+
+    concluidas = int(resumo.get("concluidas") or 0)
+    justificadas = int(resumo.get("justificadas") or 0)
+    solucionadas = concluidas + justificadas
+    percentual_solucionado = 0
+    if alvo_referencia > 0:
+        percentual_solucionado = min(100, round((solucionadas / alvo_referencia) * 100))
+
+    resumo.update({
+        "alvo_meta": alvo_meta,
+        "alocado": alocado,
+        "alvo_referencia": alvo_referencia,
+        "solucionadas": solucionadas,
+        "percentual_solucionado": percentual_solucionado,
+    })
+    return resumo
 
 
 def get_auto_alocacao(meta: Meta) -> MetaAlocacao | None:
