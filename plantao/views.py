@@ -61,14 +61,23 @@ def _next_or_same_friday(d):    # Friday=4
     from datetime import timedelta
     return d + timedelta(days=(4 - d.weekday()) % 7)
 
-def _weeks_sat_to_fri(dt_ini, dt_fim):
-    from datetime import timedelta
-    start = _prev_or_same_saturday(dt_ini)
-    last  = _next_or_same_friday(dt_fim)
-    weeks, cur = [], start
-    while cur <= last:
-        weeks.append((cur, cur + timedelta(days=6)))
-        cur += timedelta(days=7)
+DIAS_SEMANA_CICLO = (
+    (0, "Segunda-feira"),
+    (1, "Terca-feira"),
+    (2, "Quarta-feira"),
+    (3, "Quinta-feira"),
+    (4, "Sexta-feira"),
+    (5, "Sabado"),
+    (6, "Domingo"),
+)
+
+
+def _gerar_ciclos_plantao(dt_ini, dt_fim, duracao_ciclo):
+    weeks, cur = [], dt_ini
+    while cur <= dt_fim:
+        fim = cur + timedelta(days=duracao_ciclo - 1)
+        weeks.append((cur, fim))
+        cur = fim + timedelta(days=1)
     return weeks
 
 
@@ -215,21 +224,46 @@ def lista_plantao(request):
     plantoes_salvos_ctx = _build_plantoes_salvos_context(request)
 
     def with_plantoes_salvos(ctx):
-        return {**ctx, **plantoes_salvos_ctx}
+        return {
+            "dia_inicio_ciclo": str(dia_inicio_ciclo),
+            "duracao_ciclo": duracao_ciclo,
+            "dias_semana_ciclo": DIAS_SEMANA_CICLO,
+            **ctx,
+            **plantoes_salvos_ctx,
+        }
 
     data_inicial = (request.POST.get("data_inicial") or request.GET.get("data_inicial") or "")
     data_final   = (request.POST.get("data_final")   or request.GET.get("data_final")   or "")
+    dia_inicio_ciclo_raw = (request.POST.get("dia_inicio_ciclo") or request.GET.get("dia_inicio_ciclo") or "5")
+    duracao_ciclo_raw = (request.POST.get("duracao_ciclo") or request.GET.get("duracao_ciclo") or "7")
+    try:
+        dia_inicio_ciclo = int(dia_inicio_ciclo_raw)
+    except (TypeError, ValueError):
+        dia_inicio_ciclo = 5
+    if dia_inicio_ciclo not in dict(DIAS_SEMANA_CICLO):
+        dia_inicio_ciclo = 5
+    try:
+        duracao_ciclo = int(duracao_ciclo_raw)
+    except (TypeError, ValueError):
+        duracao_ciclo = 7
+    if duracao_ciclo < 1 or duracao_ciclo > 31:
+        duracao_ciclo = 7
 
     # valores mínimos / vazios que devolvemos se abortar
     empty_context = {
         "data_inicial": data_inicial,
         "data_final": data_final,
+        "dia_inicio_ciclo": str(dia_inicio_ciclo),
+        "duracao_ciclo": duracao_ciclo,
+        "dias_semana_ciclo": DIAS_SEMANA_CICLO,
         "servidores_com_descanso": {},
         "servidores_options": [],
         "excluidos_options": [],
         "bloqueados": [],
         "grupos": [],
         "conflito_abort": False,
+        "ciclo_invalido": False,
+        "ciclo_mensagem": "",
     }
 
      # validações iniciais / render vazio
@@ -243,6 +277,9 @@ def lista_plantao(request):
     try:
         dt_ini = datetime.strptime(data_inicial, "%Y-%m-%d").date()
         dt_fim = datetime.strptime(data_final, "%Y-%m-%d").date()
+        if not (request.POST.get("dia_inicio_ciclo") or request.GET.get("dia_inicio_ciclo")):
+            dia_inicio_ciclo = dt_ini.weekday()
+            empty_context["dia_inicio_ciclo"] = str(dia_inicio_ciclo)
     except ValueError:
         messages.error(request, "Datas inválidas. Use o seletor de data no formato YYYY-MM-DD.")
         return render(
@@ -256,6 +293,27 @@ def lista_plantao(request):
         return render(request, "plantao/lista.html", with_plantoes_salvos(empty_context))
 
     # --- ler optional ignore_plantao (usado após salvar para não reportar o plantão recém-criado) ---
+    ciclo_inicio = dt_ini
+    total_dias_periodo = (dt_fim - ciclo_inicio).days + 1
+    resto_ciclo = total_dias_periodo % duracao_ciclo
+    if resto_ciclo:
+        dias_faltantes = duracao_ciclo - resto_ciclo
+        data_final_necessaria = dt_fim + timedelta(days=dias_faltantes)
+        return render(
+            request,
+            "plantao/lista.html",
+            with_plantoes_salvos(
+                {
+                    **empty_context,
+                    "ciclo_invalido": True,
+                    "ciclo_mensagem": (
+                        f"O ultimo ciclo ficaria com apenas {resto_ciclo} de {duracao_ciclo} dias. "
+                        f"Para concluir o ciclo, escolha a data final ate {data_final_necessaria.strftime('%d/%m/%Y')}."
+                    ),
+                }
+            ),
+        )
+
     ignore_raw = request.GET.get("ignore_plantao") or request.POST.get("ignore_plantao")
     ignore_plantao_id = None
     if ignore_raw:
@@ -343,7 +401,7 @@ def lista_plantao(request):
     bloqueados = list(todos.filter(id__in=bloqueados_ids))
 
     # semanas (Sáb→Sex)
-    weeks = _weeks_sat_to_fri(dt_ini, dt_fim)
+    weeks = _gerar_ciclos_plantao(ciclo_inicio, dt_fim, duracao_ciclo)
 
     # grupos vindos do request (sem limites)
     grupos_sel_ids = {}

@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$hostIp = "127.0.0.2"
+$hostIp = "127.0.0.1"
 $port = 8000
 $url = "http://$hostIp`:$port/"
 
