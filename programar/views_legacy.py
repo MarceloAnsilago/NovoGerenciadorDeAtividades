@@ -300,6 +300,22 @@ def metas_disponiveis(request):
 
 
 log = logging.getLogger(__name__)
+EXPEDIENTE_DESATIVADO_MARKER = "[sistema:expediente_administrativo=desativado]"
+
+
+def _strip_expediente_desativado_marker(value: str | None) -> str:
+    return str(value or "").replace(EXPEDIENTE_DESATIVADO_MARKER, "").strip()
+
+
+def _observacao_programacao_value(value: str | None, *, incluir_expediente: bool) -> str:
+    observacao = _strip_expediente_desativado_marker(value)
+    if incluir_expediente:
+        return observacao
+    return f"{observacao}\n{EXPEDIENTE_DESATIVADO_MARKER}".strip()
+
+
+def _expediente_desativado_explicitamente(value: str | None) -> bool:
+    return EXPEDIENTE_DESATIVADO_MARKER in str(value or "")
 
 def _impedidos_por_descanso(unidade_id: int | None, data_ref):
     if not unidade_id:
@@ -584,6 +600,10 @@ def salvar_programacao(request):
         meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
     except (TypeError, ValueError):
         meta_expediente_id = None
+    observacao_programacao = _observacao_programacao_value(
+        body.get("observacao") or "",
+        incluir_expediente=incluir_expediente,
+    )
 
     with transaction.atomic():
         prog = (
@@ -595,13 +615,13 @@ def salvar_programacao(request):
             prog = Programacao.objects.create(
                 data=dia,
                 unidade_id=unidade_id,
-                observacao=body.get("observacao") or "",
+                observacao=observacao_programacao,
                 criado_por=getattr(request, "user", None),
             )
 
         if body.get("observacao") is not None:
             Programacao.objects.filter(pk=prog.pk).update(
-                observacao=body.get("observacao") or ""
+                observacao=observacao_programacao
             )
 
         # itens já existentes
@@ -2395,7 +2415,13 @@ def programacao_do_dia_orm(request):
             pass
         itens.append(obj)
 
-    return JsonResponse({"ok": True, "programacao_exists": True, "programacao_id": prog.id, "itens": itens})
+    return JsonResponse({
+        "ok": True,
+        "programacao_exists": True,
+        "programacao_id": prog.id,
+        "expediente_admin_desativado": _expediente_desativado_explicitamente(getattr(prog, "observacao", "")),
+        "itens": itens,
+    })
 
 
 @login_required

@@ -59,6 +59,7 @@
     const titleEl = get(IDS.title);
     const saveBtn = get(IDS.saveBtn);
     const selectedActivitiesSeparator = get(IDS.selectedActivitiesSeparator);
+    const incluirExpediente = get("programar-incluirExpediente");
 
     if (inputDate) inputDate.value = dateStr || "";
     if (titleEl) titleEl.textContent = labelText ? `Programar atividades - ${labelText}` : "Programar atividades";
@@ -66,6 +67,7 @@
       selectedActivitiesSeparator.textContent = buildSelectedActivitiesLabel(dateStr, labelText);
     }
     if (saveBtn) saveBtn.disabled = true;
+    if (incluirExpediente) incluirExpediente.checked = true;
     NS.metaStatusSelected = "andamento";
 
     if (isISODate(dateStr)) {

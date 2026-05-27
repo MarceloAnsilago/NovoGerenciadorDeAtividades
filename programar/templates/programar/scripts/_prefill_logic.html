@@ -218,12 +218,14 @@
 
       let itens = [];
       let programacaoExists = false;
+      let expedienteAdminDesativado = false;
       try{
         const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
         if (!resp.ok) return;
         const data = await resp.json().catch(()=> ({}));
         itens = Array.isArray(data?.itens) ? data.itens : [];
         programacaoExists = !!data?.programacao_exists;
+        expedienteAdminDesativado = !!data?.expediente_admin_desativado;
       }catch{ return; }
       if (isStalePrefill(runId, requestedDate)) return;
 
@@ -236,16 +238,17 @@
       const expEl = document.getElementById('expedienteAdmin');
       const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
       const hasExpedienteItem = !!(expId && itens.some(it => Number(it?.meta_id) === expId));
-      setIncluirExpedienteChecked(!programacaoExists || hasExpedienteItem);
+      setIncluirExpedienteChecked(!expedienteAdminDesativado || hasExpedienteItem);
 
-      // por padro, permite semear apenas quando nao existe programacao salva
-      NS._allowExpedienteFromLivres = !programacaoExists;
+      // permite semear quando nao existe programacao salva ou quando uma programacao antiga
+      // nao tem expediente e tambem nao foi marcada explicitamente como sem expediente.
+      NS._allowExpedienteFromLivres = !programacaoExists || (!expedienteAdminDesativado && !hasExpedienteItem);
       NS._hasPrefilledExpediente    = false;
 
       if (!itens.length){
         // nada salvo: se existe programacao sem expediente, nao semeia; se nao existe, o loader pode semear.
         (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
-        if (!programacaoExists && getIncluirExpedienteEl()?.checked) {
+        if (NS._allowExpedienteFromLivres && getIncluirExpedienteEl()?.checked) {
           try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
         }
         NS._obsDirty = false;
@@ -324,7 +327,7 @@
     }
 
       if (isStalePrefill(runId, requestedDate)) return;
-      if (!programacaoExists && getIncluirExpedienteEl()?.checked) {
+      if (NS._allowExpedienteFromLivres && getIncluirExpedienteEl()?.checked) {
         try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
       }
       (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
