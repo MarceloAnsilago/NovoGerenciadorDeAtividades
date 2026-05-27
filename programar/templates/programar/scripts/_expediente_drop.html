@@ -149,6 +149,8 @@
 
   // ---------- aceitar/recusar visualmente ----------
   function canDropSid(sid){
+    const incluirExp = document.getElementById('programar-incluirExpediente');
+    if (incluirExp && !incluirExp.checked) return false;
     if (!sid) return false;
     // j existe no Expediente? nega drop (no duplica nem desconta)
     if (exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)) return false;

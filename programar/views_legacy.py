@@ -556,6 +556,8 @@ def salvar_programacao(request):
 
     iso = body.get("data")
     itens_in = body.get("itens") or []
+    incluir_expediente = body.get("incluir_expediente", True)
+    incluir_expediente = incluir_expediente not in (False, "false", "False", "0", 0, None)
     if not iso:
         return JsonResponse({"ok": False, "error": "Data ausente."}, status=400)
     dia = _parse_iso(str(iso))
@@ -627,6 +629,8 @@ def salvar_programacao(request):
             if meta_id not in metas_permitidas:
                 continue
             is_expediente = meta_expediente_id is not None and meta_id == meta_expediente_id
+            if is_expediente and not incluir_expediente:
+                continue
 
             obs = it.get("observacao") or ""
             raw_veiculo = it.get("veiculo_id")
@@ -715,7 +719,12 @@ def salvar_programacao(request):
         orfaos = [
             pi_id
             for (pi_id, pi) in existentes.items()
-            if pi_id not in ids_payload and (meta_expediente_id is None or int(getattr(pi, "meta_id", 0) or 0) != meta_expediente_id)
+            if pi_id not in ids_payload
+            and (
+                meta_expediente_id is None
+                or int(getattr(pi, "meta_id", 0) or 0) != meta_expediente_id
+                or not incluir_expediente
+            )
         ]
         if orfaos:
             ProgramacaoItemServidor.objects.filter(item_id__in=orfaos).delete()
@@ -1264,6 +1273,9 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         dia_label = f"{dt.strftime('%d/%m')} ({_weekday_pt_short(dt.weekday())})"
 
         itens = _fetch_programacao_dia(request, iso)
+        programacao_salva = False
+        if unidade_id:
+            programacao_salva = Programacao.objects.filter(unidade_id=unidade_id, data=dt).exists()
 
         # ids alocados em qualquer atividade do dia
         alocados_ids: set[str] = set()
@@ -1272,8 +1284,10 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 if sid:
                     alocados_ids.add(str(sid))
 
-        # expediente (livres - alocados) e impedidos
-        expediente, impedidos = _fetch_expediente_admin(request, iso, alocados_ids)
+        # expediente (livres - alocados) e impedidos. Se existe programacao salva,
+        # o expediente deve refletir somente o que foi salvo, inclusive quando ausente.
+        expediente_calculado, impedidos = _fetch_expediente_admin(request, iso, alocados_ids)
+        expediente = [] if programacao_salva else expediente_calculado
 
         # Se vier "Expediente Administrativo" como atividade do legado, converte para expediente
         expediente_extra = []
@@ -2261,7 +2275,7 @@ def programacao_do_dia_orm(request):
     try:
         prog = Programacao.objects.get(unidade_id=unidade_id, data=iso)
     except Programacao.DoesNotExist:
-        return JsonResponse({"ok": True, "itens": []})
+        return JsonResponse({"ok": True, "programacao_exists": False, "itens": []})
 
     itens_qs = list(
         ProgramacaoItem.objects.filter(programacao=prog).values(
@@ -2381,7 +2395,7 @@ def programacao_do_dia_orm(request):
             pass
         itens.append(obj)
 
-    return JsonResponse({"ok": True, "itens": itens})
+    return JsonResponse({"ok": True, "programacao_exists": True, "programacao_id": prog.id, "itens": itens})
 
 
 @login_required

@@ -128,6 +128,12 @@
   function renderExpedienteFromLivres(livres, opts){
     const exp = getContainer(opts.expedienteSelector);
     if (!exp) return;
+    const incluirExp = document.getElementById('programar-incluirExpediente');
+    if (incluirExp && !incluirExp.checked) {
+      exp.replaceChildren();
+      setBadgeFor(exp, 0, opts.expedienteBadgeSelector);
+      return;
+    }
     exp.replaceChildren();
     livres.forEach(s => exp.appendChild(defaultRenderExpedienteItem(s)));
     setBadgeFor(exp, exp.children.length, opts.expedienteBadgeSelector);
@@ -292,7 +298,8 @@
         );
         const progLoadedFlag = document.body.dataset.progLoaded === '1';
 
-        const shouldAutofill = !!opts.autofillExpediente;
+        const incluirExp = document.getElementById('programar-incluirExpediente');
+        const shouldAutofill = !!opts.autofillExpediente && (!incluirExp || incluirExp.checked);
         console.debug('[programar] autofillExpediente?', shouldAutofill, {
           requested: opts.autofillExpediente, hasChipsInCards: !!hasChipsInCards, progLoadedFlag
         });
@@ -401,6 +408,12 @@
     const opts = { ...DEFAULTS, ...options };
     const expEl = getContainer(opts.expedienteSelector);
     if (!expEl) return;
+    const incluirExp = document.getElementById('programar-incluirExpediente');
+    if (incluirExp && !incluirExp.checked) {
+      expEl.replaceChildren();
+      updateBadges(opts);
+      return;
+    }
     let expLivres = Array.isArray(NS._lastLivres) ? NS._lastLivres.slice() : [];
     if (opts.expedienteExcludeAllocated) {
       const alocados = collectAllocatedIds(opts);

@@ -248,6 +248,8 @@
     expBody.addEventListener("dragover", (e) => { e.preventDefault(); }, true);
     expBody.addEventListener("drop", (e) => {
       e.preventDefault();
+      const incluirExp = document.getElementById("programar-incluirExpediente");
+      if (incluirExp && !incluirExp.checked) return;
       const sid = (e.dataTransfer && (e.dataTransfer.getData("application/x-sid") || e.dataTransfer.getData("text/plain"))) || DRAG.id;
       if (!sid) return;
       const name = findServerNameById(sid);

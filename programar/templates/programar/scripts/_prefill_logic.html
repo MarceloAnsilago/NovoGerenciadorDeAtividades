@@ -27,6 +27,15 @@
     return String(document.getElementById("programar-dataAtividade")?.value || "").trim();
   }
 
+  function getIncluirExpedienteEl() {
+    return document.getElementById("programar-incluirExpediente");
+  }
+
+  function setIncluirExpedienteChecked(value) {
+    const el = getIncluirExpedienteEl();
+    if (el) el.checked = !!value;
+  }
+
   function resolveCurrentPrefillDate() {
     const active = getModalSelectedDate();
     if (isISODate(active)) return active;
@@ -208,28 +217,37 @@
       url.searchParams.set('data', requestedDate);
 
       let itens = [];
+      let programacaoExists = false;
       try{
         const resp = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
         if (!resp.ok) return;
         const data = await resp.json().catch(()=> ({}));
         itens = Array.isArray(data?.itens) ? data.itens : [];
+        programacaoExists = !!data?.programacao_exists;
       }catch{ return; }
       if (isStalePrefill(runId, requestedDate)) return;
 
       NS._lastPrefill = { date: requestedDate, itens };
 
       // sempre limpa
-      resetAllocations({ skipExpediente: itens.length === 0 });
+      resetAllocations({ skipExpediente: false });
       if (isStalePrefill(runId, requestedDate)) return;
 
-      // por padro, permite semear; caso venham itens, bloqueia
-      NS._allowExpedienteFromLivres = itens.length === 0;
+      const expEl = document.getElementById('expedienteAdmin');
+      const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
+      const hasExpedienteItem = !!(expId && itens.some(it => Number(it?.meta_id) === expId));
+      setIncluirExpedienteChecked(!programacaoExists || hasExpedienteItem);
+
+      // por padro, permite semear apenas quando nao existe programacao salva
+      NS._allowExpedienteFromLivres = !programacaoExists;
       NS._hasPrefilledExpediente    = false;
 
       if (!itens.length){
-        // nada salvo  apenas atualiza contadores e sai (loader poder semear expediente)
+        // nada salvo: se existe programacao sem expediente, nao semeia; se nao existe, o loader pode semear.
         (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
-        try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
+        if (!programacaoExists && getIncluirExpedienteEl()?.checked) {
+          try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
+        }
         NS._obsDirty = false;
         document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: requestedDate, count: 0 }}));
         return;
@@ -237,9 +255,6 @@
 
       await waitForMetasGridReady();
       if (isStalePrefill(runId, requestedDate)) return;
-
-      const expEl = document.getElementById('expedienteAdmin');
-      const expId = Number(expEl?.dataset.metaId || NS.metaExpedienteId || 0);
 
       const ordered = [...itens].sort((a, b) => {
         const av = a?.veiculo_id != null;
@@ -309,7 +324,9 @@
     }
 
       if (isStalePrefill(runId, requestedDate)) return;
-      try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
+      if (!programacaoExists && getIncluirExpedienteEl()?.checked) {
+        try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
+      }
       (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
       NS._obsDirty = false;
       document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: requestedDate, count: itens.length }}));
@@ -352,6 +369,7 @@
       if (expEl) expEl.removeAttribute('data-lock');
       NS._hasPrefilledExpediente = false;
       NS._allowExpedienteFromLivres = true;
+      setIncluirExpedienteChecked(true);
 
       const dateStr = document.getElementById('programar-dataAtividade')?.value;
       if (dateStr) NS.prefillProgramacaoDia(dateStr);

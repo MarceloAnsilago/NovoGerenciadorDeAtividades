@@ -59,7 +59,8 @@
       deleteBtn: document.getElementById('programar-btnExcluir'),
       date: document.getElementById('programar-dataAtividade'),
       cardsWrap: document.getElementById('metaCardsContainer'),
-      expediente: document.getElementById('expedienteAdmin')
+      expediente: document.getElementById('expedienteAdmin'),
+      incluirExpediente: document.getElementById('programar-incluirExpediente')
     };
   }
 
@@ -105,7 +106,8 @@
   }
 
   function addExpedienteItemIfAny(list){
-    const { expediente } = getEl();
+    const { expediente, incluirExpediente } = getEl();
+    if (incluirExpediente && !incluirExpediente.checked) return;
     if (!expediente) return;
     const meta_id = Number(expediente.dataset.metaId || window.META_EXPEDIENTE_ID || NS.metaExpedienteId || 0);
     if (!meta_id) return;
@@ -118,9 +120,9 @@
   }
 
   function hasAnythingToSave(){
-    const { cardsWrap, expediente } = getEl();
+    const { cardsWrap, expediente, incluirExpediente } = getEl();
     const hasCards = !!cardsWrap?.querySelector('[data-meta-id]');
-    const hasExp   = !!getServidoresIdsFrom(expediente).length;
+    const hasExp   = !!(incluirExpediente?.checked && getServidoresIdsFrom(expediente).length);
     return hasCards || hasExp;
   }
 
@@ -159,7 +161,12 @@
       return;
     }
 
-    const payload = { data: dateStr, observacao: '', itens };
+    const payload = {
+      data: dateStr,
+      observacao: '',
+      incluir_expediente: !!document.getElementById('programar-incluirExpediente')?.checked,
+      itens
+    };
 
     const original = btn?.innerHTML;
     if (btn){
@@ -277,9 +284,32 @@
     refreshSalvarBtn();
     refreshExcluirBtn();
 
-    const { btn, deleteBtn, cardsWrap, expediente } = getEl();
+    const { btn, deleteBtn, cardsWrap, expediente, incluirExpediente } = getEl();
     btn?.addEventListener('click', (e)=>{ e.preventDefault(); salvar(); });
     deleteBtn?.addEventListener('click', (e)=>{ e.preventDefault(); excluirProgramacao(); });
+    incluirExpediente?.addEventListener('change', (e)=>{
+      const checked = !!e.target.checked;
+      if (!checked) {
+        const qtd = getServidoresIdsFrom(expediente).length;
+        const msg = qtd
+          ? `Os ${qtd} servidor(es) no expediente administrativo ficarao fora da programacao deste dia. Deseja continuar?`
+          : 'Este dia sera salvo sem expediente administrativo. Deseja continuar?';
+        if (!window.confirm(msg)) {
+          e.target.checked = true;
+          return;
+        }
+        if (expediente) {
+          delete expediente.dataset.itemId;
+          expediente.removeAttribute('data-lock');
+          expediente.innerHTML = '';
+        }
+      } else {
+        document.body.dataset.progLoaded = '0';
+        try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
+      }
+      try { (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})(); } catch (_){}
+      refreshSalvarBtn();
+    });
     modalEl.addEventListener('keydown', (e)=>{
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){
         e.preventDefault(); if (!btn?.disabled) salvar();
