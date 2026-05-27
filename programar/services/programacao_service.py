@@ -32,6 +32,12 @@ def _ids_permitidos(unidade_id: int) -> tuple[set[int], set[int], set[int]]:
         .values_list("id", flat=True)
         .distinct()
     )
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        if meta_expediente_id is not None:
+            metas.add(int(meta_expediente_id))
+    except (TypeError, ValueError):
+        pass
     servidores = set(
         Servidor.objects.filter(unidade_id=unidade_id, ativo=True).values_list("id", flat=True)
     )

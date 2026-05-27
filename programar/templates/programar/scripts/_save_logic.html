@@ -112,7 +112,18 @@
     const meta_id = Number(expediente.dataset.metaId || window.META_EXPEDIENTE_ID || NS.metaExpedienteId || 0);
     if (!meta_id) return;
 
-    const servidores_ids = getServidoresIdsFrom(expediente);
+    let servidores_ids = getServidoresIdsFrom(expediente);
+    if (!servidores_ids.length && Array.isArray(NS._lastLivres) && NS._lastLivres.length) {
+      const { cardsWrap } = getEl();
+      const alocados = new Set();
+      cardsWrap?.querySelectorAll('[data-meta-id]').forEach(card => {
+        const drop = card.querySelector('.meta-dropzone') || card;
+        getServidoresIdsFrom(drop).forEach(id => alocados.add(String(id)));
+      });
+      servidores_ids = NS._lastLivres
+        .map(s => Number(s?.id))
+        .filter(id => Number.isFinite(id) && !alocados.has(String(id)));
+    }
     const itemId  = Number(expediente.dataset.itemId || 0);
     const item = { meta_id, observacao: '', veiculo_id: null, servidores_ids };
     if (itemId) item.id = itemId;

@@ -600,6 +600,8 @@ def salvar_programacao(request):
         meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
     except (TypeError, ValueError):
         meta_expediente_id = None
+    if meta_expediente_id is not None:
+        metas_permitidas.add(meta_expediente_id)
     observacao_programacao = _observacao_programacao_value(
         body.get("observacao") or "",
         incluir_expediente=incluir_expediente,
@@ -646,9 +648,9 @@ def salvar_programacao(request):
                 meta_id = int(raw_meta_id)
             except (TypeError, ValueError):
                 continue
+            is_expediente = meta_expediente_id is not None and meta_id == meta_expediente_id
             if meta_id not in metas_permitidas:
                 continue
-            is_expediente = meta_expediente_id is not None and meta_id == meta_expediente_id
             if is_expediente and not incluir_expediente:
                 continue
 
