@@ -202,6 +202,7 @@
             </div>
             <div class="meta-sep"></div>
             ${descricao ? `<p class="meta-desc mb-0">${descricaoEscaped}</p>` : ""}
+            <div class="meta-dates">
             ${dInicio ? `
               <div class="meta-date">
                 <i class="bi bi-calendar-check"></i>
@@ -218,7 +219,12 @@
             ` : ""}
             <div class="meta-small mt-2">Em programação: <b>${programadas}</b></div>
             <div class="meta-small mt-1">Alocado nesta unidade: <b>${alocado}</b></div>
-            <div class="meta-progress mt-1">
+            </div>
+            <div class="meta-stats">
+              <div class="meta-small">Em programaÃ§Ã£o: <b>${programadas}</b></div>
+              <div class="meta-small">Alocado nesta unidade: <b>${alocado}</b></div>
+            </div>
+            <div class="meta-progress">
               <div class="d-flex justify-content-between summary mb-1">
                 <span>Executado (unidade)</span>
                 <span><b>${executado}</b> / ${alocado}</span>
@@ -226,7 +232,7 @@
               <div class="progress"><div class="progress-bar bg-primary" style="width:${percentualExecutado}%"></div></div>
             </div>
             ${andamentoHref ? `
-              <div class="meta-link-row mt-2">
+              <div class="meta-link-row">
                 <span class="meta-andamento-link" data-href="${andamentoHrefEscaped}">Ver andamento</span>
               </div>
             ` : ""}
