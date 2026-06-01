@@ -22,6 +22,7 @@ from programar.status import (
     item_execucao_status_from_fields,
     item_permanece_aberto,
 )
+from programar.views_legacy import _resolve_expediente_admin_report
 
 
 class ItemStatusTest(unittest.TestCase):
@@ -164,6 +165,28 @@ class ItemStatusTest(unittest.TestCase):
                 nao_realizada_justificada=True,
                 today=today,
             )
+        )
+
+
+class ExpedienteAdminReportTest(unittest.TestCase):
+    def test_inclui_servidor_livre_ausente_no_expediente_salvo(self):
+        self.assertEqual(
+            _resolve_expediente_admin_report(
+                ["Brenner", "Robson"],
+                ["Brenner"],
+                expediente_desativado=False,
+            ),
+            ["Brenner", "Robson"],
+        )
+
+    def test_nao_exibe_expediente_quando_desativado_explicitamente(self):
+        self.assertEqual(
+            _resolve_expediente_admin_report(
+                ["Brenner", "Robson"],
+                ["Brenner"],
+                expediente_desativado=True,
+            ),
+            [],
         )
 
 

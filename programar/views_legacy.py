@@ -1159,6 +1159,24 @@ def _fetch_expediente_admin(
     return expediente, impedidos_list
 
 
+def _resolve_expediente_admin_report(
+    expediente_calculado: list[str],
+    expediente_salvo: list[str],
+    *,
+    expediente_desativado: bool,
+) -> list[str]:
+    if expediente_desativado:
+        return []
+
+    expediente: list[str] = []
+    seen: set[str] = set()
+    for nome in list(expediente_calculado) + list(expediente_salvo):
+        if nome and nome not in seen:
+            seen.add(nome)
+            expediente.append(nome)
+    return expediente
+
+
 def _daterange_inclusive(d0: date, d1: date):
     cur = d0
     while cur <= d1:
@@ -1295,9 +1313,18 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         dia_label = f"{dt.strftime('%d/%m')} ({_weekday_pt_short(dt.weekday())})"
 
         itens = _fetch_programacao_dia(request, iso)
-        programacao_salva = False
+        expediente_desativado = False
         if unidade_id:
-            programacao_salva = Programacao.objects.filter(unidade_id=unidade_id, data=dt).exists()
+            programacao = (
+                Programacao.objects
+                .filter(unidade_id=unidade_id, data=dt)
+                .only("observacao")
+                .first()
+            )
+            expediente_desativado = bool(
+                programacao
+                and _expediente_desativado_explicitamente(getattr(programacao, "observacao", ""))
+            )
 
         # ids alocados em qualquer atividade do dia
         alocados_ids: set[str] = set()
@@ -1306,10 +1333,9 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 if sid:
                     alocados_ids.add(str(sid))
 
-        # expediente (livres - alocados) e impedidos. Se existe programacao salva,
-        # o expediente deve refletir somente o que foi salvo, inclusive quando ausente.
+        # Calcula o expediente a partir dos servidores livres para absorver ajustes
+        # posteriores na programacao. A ausencia so prevalece quando foi salva de forma explicita.
         expediente_calculado, impedidos = _fetch_expediente_admin(request, iso, alocados_ids)
-        expediente = [] if programacao_salva else expediente_calculado
 
         # Se vier "Expediente Administrativo" como atividade do legado, converte para expediente
         expediente_extra = []
@@ -1329,17 +1355,12 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         if is_feriado:
             # Em feriados, nao exibir expediente administrativo no relatorio.
             expediente = []
-            expediente_extra = []
         else:
-            # Mescla expediente calculado + do legado (sem duplicar nomes)
-            if expediente_extra:
-                seen = set()
-                exp_merge = []
-                for nome in list(expediente) + expediente_extra:
-                    if nome not in seen:
-                        seen.add(nome)
-                        exp_merge.append(nome)
-                expediente = exp_merge
+            expediente = _resolve_expediente_admin_report(
+                expediente_calculado,
+                expediente_extra,
+                expediente_desativado=expediente_desativado,
+            )
 
         # Monta os blocks garantindo feriados/expediente primeiro
         blocks: list[dict] = []
