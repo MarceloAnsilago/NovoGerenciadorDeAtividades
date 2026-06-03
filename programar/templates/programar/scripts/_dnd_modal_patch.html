@@ -17,6 +17,21 @@
     const name = div?.querySelector(".srv-name")?.textContent || div?.textContent || sid;
     return String(name).trim();
   }
+  function appendToAvailableIfMissing(sid, name) {
+    const list = el("servidoresLivres");
+    if (!list) return;
+    if (!list.querySelector(`.servidor-card[data-id="${sid}"]`)) {
+      const d = document.createElement("div");
+      d.className = "servidor-card";
+      d.dataset.id = sid;
+      d.setAttribute("draggable", "true");
+      d.innerHTML = `
+        <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
+        <span class="srv-name">${escapeHtml(name)}</span>
+      `;
+      list.appendChild(d);
+    }
+  }
   function appendToExpedienteIfMissing(sid, name) {
     const list = el("expedienteAdmin");
     if (!list) return;
@@ -31,6 +46,7 @@
       `;
       list.appendChild(d);
     }
+    el("servidoresLivres")?.querySelector(`.servidor-card[data-id="${sid}"]`)?.remove();
   }
   function removeFromExpediente(sid) {
     el("expedienteAdmin")?.querySelector(`.servidor-card[data-id="${sid}"]`)?.remove();
@@ -145,7 +161,7 @@
     chip.querySelector(".chip-remove").addEventListener("click", () => {
       chip.remove();
       allocations[sid] = Math.max(0, (allocations[sid] || 0) - 1);
-      if ((allocations[sid] || 0) === 0) appendToExpedienteIfMissing(sid, name);
+      if ((allocations[sid] || 0) === 0) appendToAvailableIfMissing(sid, name);
       updateCounts();
     });
 

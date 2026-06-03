@@ -28,10 +28,10 @@
     const el = document.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
     return (el?.querySelector(SEL.srvName)?.textContent || el?.textContent || String(sid)).trim();
   }
-  function appendToExpedienteNoDup(sid, name){
-    const exp = $(SEL.exp);
-    if (!exp) { console.warn(TAG, 'Expediente não encontrado'); return; }
-    let el = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
+  function appendToLivresNoDup(sid, name){
+    const livres = $(SEL.livres);
+    if (!livres) { console.warn(TAG, 'Servidores disponiveis nao encontrado'); return; }
+    let el = livres.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
     if (!el){
       el = document.createElement('div');
       el.className = 'servidor-card';
@@ -40,10 +40,8 @@
       el.innerHTML = `
         <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
         <span class="srv-name">${escapeHtml(name || sid)}</span>`;
-      exp.appendChild(el);
+      livres.appendChild(el);
     }
-    // garantir remoção de "livres"
-    $(SEL.livres)?.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)?.remove();
   }
   function collectChips(card){
     return $$(SEL.chip, card).map(ch => {
@@ -73,24 +71,24 @@
     }
     if (!usedOfficial) {
       // visual
-      (backup || collectChips(card)).forEach(({sid,name}) => appendToExpedienteNoDup(sid, name));
+      (backup || collectChips(card)).forEach(({sid,name}) => appendToLivresNoDup(sid, name));
     }
   }
 
   function reinforce(backup){
-    // reforça destino correto (vence scripts que repovoam "livres")
+    // reforca destino correto apos remover de uma atividade
     const chips = backup || [];
     setTimeout(() => {
-      chips.forEach(({sid,name}) => appendToExpedienteNoDup(sid, name));
+      chips.forEach(({sid,name}) => appendToLivresNoDup(sid, name));
       updateCountsSafe();
     }, 0);
     setTimeout(() => {
-      chips.forEach(({sid,name}) => appendToExpedienteNoDup(sid, name));
+      chips.forEach(({sid,name}) => appendToLivresNoDup(sid, name));
       updateCountsSafe();
     }, 120);
   }
 
-  // ---- fechamento determinístico do card ----
+  // ---- fechamento deterministico do card ----
   function closeCard(card){
     if (!card || card.__closing__) return;
     card.__closing__ = true;
@@ -108,14 +106,14 @@
     // 3) remove card
     try { card.remove(); } catch {}
 
-    // 4) reforços
+    // 4) reforcos
     reinforce(backup);
 
     setTimeout(() => { delete card.__chipsBackup; delete card.__closing__; }, 300);
   }
 
   // ----- interceptores -----
-  // backup o mais cedo possível
+  // backup o mais cedo possivel
   document.addEventListener('pointerdown', (ev) => {
     const btn = ev.target.closest(SEL.closeBtn);
     if (!btn) return;
@@ -138,18 +136,18 @@
     closeCard(card);
   }, true);
 
-  // ----- rede de segurança -----
+  // ----- rede de seguranca -----
   const mo = new MutationObserver(muts => {
     for (const m of muts) {
       m.removedNodes.forEach(n => {
         if (n.nodeType !== 1) return;
         if (n.matches?.(SEL.metaCard)) {
           const backup = n.__chipsBackup || collectChips(n);
-          backup.forEach(({sid,name}) => appendToExpedienteNoDup(sid, name));
+          backup.forEach(({sid,name}) => appendToLivresNoDup(sid, name));
         } else {
           n.querySelectorAll?.(SEL.metaCard)?.forEach(c => {
             const backup = c.__chipsBackup || collectChips(c);
-            backup.forEach(({sid,name}) => appendToExpedienteNoDup(sid, name));
+            backup.forEach(({sid,name}) => appendToLivresNoDup(sid, name));
           });
         }
       });
