@@ -315,6 +315,8 @@ function syncConclusionLink(card) {
       }
 
       try { card.remove(); } catch (_) {}
+      setTimeout(() => { try { window.PROGRAMAR?.refreshExpedienteFromLivres?.(); } catch (_) {} }, 0);
+      setTimeout(() => { try { window.PROGRAMAR?.refreshExpedienteFromLivres?.(); } catch (_) {} }, 120);
       try { (window.PROGRAMAR?.updateCounts || window.ProgramarCards?.updateCounts)?.(); } catch (_) {}
     }, { capture: true });
 

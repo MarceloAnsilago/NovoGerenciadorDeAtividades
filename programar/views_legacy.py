@@ -607,12 +607,18 @@ def salvar_programacao(request):
         incluir_expediente=incluir_expediente,
     )
     alocados_campo_payload: set[int] = set()
+    expediente_manual_payload: set[int] = set()
     for raw_item in itens_in:
         try:
             raw_meta_id = int(raw_item.get("meta_id"))
         except (TypeError, ValueError):
             continue
         if meta_expediente_id is not None and raw_meta_id == meta_expediente_id:
+            for sid in raw_item.get("expediente_manual_servidores_ids") or []:
+                try:
+                    expediente_manual_payload.add(int(sid))
+                except (TypeError, ValueError):
+                    continue
             continue
         for sid in raw_item.get("servidores_ids") or []:
             try:
@@ -762,6 +768,70 @@ def salvar_programacao(request):
                 ProgramacaoItemServidor.objects.bulk_create(bulk)
                 total_vinculos += len(bulk)
         # delete-orphans: remove itens que não vieram no payload
+        if incluir_expediente and meta_expediente_id is not None:
+            livres, _impedidos, _feriados, _plantao = _servidores_status_para_data(unidade_id, dia)
+            servidores_expediente_ids: list[int] = []
+            vistos_expediente: set[int] = set()
+            for servidor in livres:
+                try:
+                    sid_int = int(servidor.get("id"))
+                except (TypeError, ValueError):
+                    continue
+                if sid_int in vistos_expediente:
+                    continue
+                if sid_int in alocados_campo_payload and sid_int not in expediente_manual_payload:
+                    continue
+                vistos_expediente.add(sid_int)
+                servidores_expediente_ids.append(sid_int)
+
+            expediente_existente = next(
+                (
+                    pi
+                    for pi in existentes.values()
+                    if int(getattr(pi, "meta_id", 0) or 0) == meta_expediente_id
+                ),
+                None,
+            )
+            expediente_payload_id = None
+            for it in itens_in:
+                try:
+                    if int(it.get("meta_id")) != meta_expediente_id:
+                        continue
+                except (TypeError, ValueError):
+                    continue
+                raw_id = it.get("id")
+                try:
+                    expediente_payload_id = int(raw_id) if raw_id not in (None, "", "null") else None
+                except (TypeError, ValueError):
+                    expediente_payload_id = None
+                break
+
+            pi_expediente = existentes.get(expediente_payload_id) if expediente_payload_id else expediente_existente
+            if pi_expediente:
+                ProgramacaoItem.objects.filter(pk=pi_expediente.pk).update(
+                    meta_id=meta_expediente_id,
+                    observacao="",
+                    veiculo_id=None,
+                )
+            else:
+                pi_expediente = ProgramacaoItem.objects.create(
+                    programacao=prog,
+                    meta_id=meta_expediente_id,
+                    observacao="",
+                    veiculo_id=None,
+                    concluido=False,
+                )
+
+            ids_payload.add(pi_expediente.id)
+            ProgramacaoItemServidor.objects.filter(item_id=pi_expediente.id).delete()
+            if servidores_expediente_ids:
+                bulk = [
+                    ProgramacaoItemServidor(item_id=pi_expediente.id, servidor_id=sid)
+                    for sid in servidores_expediente_ids
+                ]
+                ProgramacaoItemServidor.objects.bulk_create(bulk)
+                total_vinculos += len(bulk)
+
         orfaos = [
             pi_id
             for (pi_id, pi) in existentes.items()

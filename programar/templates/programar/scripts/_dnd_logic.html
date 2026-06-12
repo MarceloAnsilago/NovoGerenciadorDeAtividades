@@ -54,6 +54,9 @@
     try { window.ProgramarCards?.updateCounts?.(); } catch {}
     try { window.PROGRAMAR?.updateCounts?.(); } catch {}
   }
+  function refreshExpedienteSafe(){
+    try { window.PROGRAMAR?.refreshExpedienteFromLivres?.(); } catch {}
+  }
 
   // ---- caminho 1: exatamente como o X do servidor ----
   function removeLikeUserClicks(card){
@@ -80,10 +83,12 @@
     const chips = backup || [];
     setTimeout(() => {
       chips.forEach(({sid,name}) => appendToLivresNoDup(sid, name));
+      refreshExpedienteSafe();
       updateCountsSafe();
     }, 0);
     setTimeout(() => {
       chips.forEach(({sid,name}) => appendToLivresNoDup(sid, name));
+      refreshExpedienteSafe();
       updateCountsSafe();
     }, 120);
   }

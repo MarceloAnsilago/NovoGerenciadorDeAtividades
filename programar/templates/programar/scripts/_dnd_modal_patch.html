@@ -24,15 +24,12 @@
       const d = document.createElement("div");
       d.className = "servidor-card";
       d.dataset.id = sid;
-      d.dataset.expedienteManual = "1";
       d.setAttribute("draggable", "true");
       d.innerHTML = `
         <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
         <span class="srv-name">${escapeHtml(name)}</span>
       `;
       list.appendChild(d);
-    } else {
-      list.querySelector(`.servidor-card[data-id="${sid}"]`).dataset.expedienteManual = "1";
     }
   }
   function appendToExpedienteIfMissing(sid, name) {
@@ -42,12 +39,15 @@
       const d = document.createElement("div");
       d.className = "servidor-card";
       d.dataset.id = sid;
+      d.dataset.expedienteManual = "1";
       d.setAttribute("draggable", "true");
       d.innerHTML = `
         <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
         <span class="srv-name">${escapeHtml(name)}</span>
       `;
       list.appendChild(d);
+    } else {
+      list.querySelector(`.servidor-card[data-id="${sid}"]`).dataset.expedienteManual = "1";
     }
     el("servidoresLivres")?.querySelector(`.servidor-card[data-id="${sid}"]`)?.remove();
   }
