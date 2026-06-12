@@ -606,6 +606,19 @@ def salvar_programacao(request):
         body.get("observacao") or "",
         incluir_expediente=incluir_expediente,
     )
+    alocados_campo_payload: set[int] = set()
+    for raw_item in itens_in:
+        try:
+            raw_meta_id = int(raw_item.get("meta_id"))
+        except (TypeError, ValueError):
+            continue
+        if meta_expediente_id is not None and raw_meta_id == meta_expediente_id:
+            continue
+        for sid in raw_item.get("servidores_ids") or []:
+            try:
+                alocados_campo_payload.add(int(sid))
+            except (TypeError, ValueError):
+                continue
 
     with transaction.atomic():
         prog = (
@@ -674,6 +687,13 @@ def salvar_programacao(request):
                     continue
                 vistos_servidores.add(sid_int)
                 candidatos_servidores_ids.append(sid_int)
+            expediente_manual_ids: set[int] = set()
+            if is_expediente:
+                for sid in (it.get("expediente_manual_servidores_ids") or []):
+                    try:
+                        expediente_manual_ids.add(int(sid))
+                    except (TypeError, ValueError):
+                        continue
 
             raw_item_id = it.get("id")
             item_id: int | None = None
@@ -698,6 +718,10 @@ def salvar_programacao(request):
             for sid_int in candidatos_servidores_ids:
                 if ativos_ids and sid_int not in ativos_ids and sid_int not in allowed_existing_ids:
                     # Bloqueia novos vinculos com inativos, mas preserva vinculos historicos do proprio item.
+                    continue
+                if is_expediente and sid_int in alocados_campo_payload and sid_int not in expediente_manual_ids:
+                    # Expediente administrativo nao deve repetir automaticamente servidor alocado em campo.
+                    # A duplicidade so permanece quando veio marcada como inclusao manual no payload.
                     continue
                 servidores_ids.append(sid_int)
 

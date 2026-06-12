@@ -1,15 +1,16 @@
 import unittest
+import json
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from atividades.models import Area, Atividade
 from core.models import No
 from metas.models import Meta, MetaAlocacao, ProgressoMeta
-from programar.models import Programacao, ProgramacaoItem
+from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from programar.status import (
     CANCELADA,
     EXECUTADA,
@@ -23,6 +24,7 @@ from programar.status import (
     item_permanece_aberto,
 )
 from programar.views_legacy import _resolve_expediente_admin_report
+from servidores.models import Servidor
 
 
 class ItemStatusTest(unittest.TestCase):
@@ -187,6 +189,95 @@ class ExpedienteAdminReportTest(unittest.TestCase):
                 expediente_desativado=True,
             ),
             [],
+        )
+
+
+@override_settings(META_EXPEDIENTE_ID=888909)
+class SalvarProgramacaoExpedienteTest(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="tester_save_programar", password="123456")
+        self.unidade = No.objects.create(nome="ULSAV Save", tipo="setor")
+        self.area = Area.objects.create(code="AREA_SAVE", nome="Area Save")
+        self.atividade = Atividade.objects.create(
+            titulo="Atividade campo",
+            descricao="",
+            area=self.area,
+            unidade_origem=self.unidade,
+            criado_por=self.user,
+        )
+        self.meta_campo = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=self.atividade,
+            titulo="Meta campo",
+            descricao="",
+            quantidade_alvo=1,
+            criado_por=self.user,
+        )
+        self.meta_expediente = Meta.objects.create(
+            id=888909,
+            unidade_criadora=self.unidade,
+            atividade=None,
+            titulo="Expediente administrativo",
+            descricao="",
+            quantidade_alvo=0,
+            criado_por=self.user,
+        )
+        self.servidor = Servidor.objects.create(unidade=self.unidade, nome="Servidor Teste")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["contexto_atual"] = self.unidade.id
+        session.save()
+
+    def _post_salvar(self, expediente_manual_ids=None):
+        payload = {
+            "data": "2026-06-12",
+            "observacao": "",
+            "incluir_expediente": True,
+            "itens": [
+                {
+                    "meta_id": self.meta_campo.id,
+                    "observacao": "",
+                    "veiculo_id": None,
+                    "servidores_ids": [self.servidor.id],
+                },
+                {
+                    "meta_id": self.meta_expediente.id,
+                    "observacao": "",
+                    "veiculo_id": None,
+                    "servidores_ids": [self.servidor.id],
+                    "expediente_manual_servidores_ids": expediente_manual_ids or [],
+                },
+            ],
+        }
+        return self.client.post(
+            reverse("programar:salvar_programacao"),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_remove_do_expediente_servidor_ja_alocado_em_campo(self):
+        response = self._post_salvar()
+
+        self.assertEqual(response.status_code, 200)
+        item_expediente = ProgramacaoItem.objects.get(meta_id=self.meta_expediente.id)
+        self.assertFalse(
+            ProgramacaoItemServidor.objects.filter(
+                item=item_expediente,
+                servidor=self.servidor,
+            ).exists()
+        )
+
+    def test_preserva_no_expediente_quando_duplicidade_foi_manual(self):
+        response = self._post_salvar(expediente_manual_ids=[self.servidor.id])
+
+        self.assertEqual(response.status_code, 200)
+        item_expediente = ProgramacaoItem.objects.get(meta_id=self.meta_expediente.id)
+        self.assertTrue(
+            ProgramacaoItemServidor.objects.filter(
+                item=item_expediente,
+                servidor=self.servidor,
+            ).exists()
         )
 
 

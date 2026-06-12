@@ -121,6 +121,25 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
 def salvar_programacao(unidade_id: int, data_ref: date, payload: dict[str, Any], user) -> dict[str, Any]:
     itens_in = payload.get("itens") or []
     metas_ids, servidores_ids_ativos, veiculos_ids = _ids_permitidos(unidade_id)
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
+
+    alocados_campo_payload: set[int] = set()
+    for raw in itens_in:
+        try:
+            raw_meta_id = int(raw.get("meta_id"))
+        except (TypeError, ValueError):
+            continue
+        if meta_expediente_id is not None and raw_meta_id == meta_expediente_id:
+            continue
+        for sid in raw.get("servidores_ids") or []:
+            try:
+                alocados_campo_payload.add(int(sid))
+            except (TypeError, ValueError):
+                continue
 
     with transaction.atomic():
         prog = (
@@ -153,6 +172,7 @@ def salvar_programacao(unidade_id: int, data_ref: date, payload: dict[str, Any],
                 continue
             if meta_id not in metas_ids:
                 continue
+            is_expediente = meta_expediente_id is not None and meta_id == meta_expediente_id
 
             try:
                 veiculo_id = int(raw.get("veiculo_id")) if raw.get("veiculo_id") not in (None, "", "null") else None
@@ -163,12 +183,21 @@ def salvar_programacao(unidade_id: int, data_ref: date, payload: dict[str, Any],
 
             srv: list[int] = []
             seen: set[int] = set()
+            expediente_manual_ids: set[int] = set()
+            if is_expediente:
+                for sid in raw.get("expediente_manual_servidores_ids") or []:
+                    try:
+                        expediente_manual_ids.add(int(sid))
+                    except (TypeError, ValueError):
+                        continue
             for sid in raw.get("servidores_ids") or []:
                 try:
                     sid_int = int(sid)
                 except (TypeError, ValueError):
                     continue
                 if sid_int in seen or sid_int not in servidores_ids_ativos:
+                    continue
+                if is_expediente and sid_int in alocados_campo_payload and sid_int not in expediente_manual_ids:
                     continue
                 seen.add(sid_int)
                 srv.append(sid_int)

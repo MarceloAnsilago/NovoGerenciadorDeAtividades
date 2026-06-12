@@ -120,9 +120,17 @@
     });
     const servidores_ids = getServidoresIdsFrom(expediente)
       .filter(id => !alocados.has(String(id)));
+    const expediente_manual_servidores_ids = getServidoresIdsFrom(expediente)
+      .filter(id => {
+        const el = expediente.querySelector(`[data-id="${id}"], [data-servidor-id="${id}"]`);
+        return !!(el && el.dataset.expedienteManual === '1' && alocados.has(String(id)));
+      });
+    expediente_manual_servidores_ids.forEach(id => {
+      if (!servidores_ids.includes(id)) servidores_ids.push(id);
+    });
     if (!servidores_ids.length) return;
     const itemId  = Number(expediente.dataset.itemId || 0);
-    const item = { meta_id, observacao: '', veiculo_id: null, servidores_ids };
+    const item = { meta_id, observacao: '', veiculo_id: null, servidores_ids, expediente_manual_servidores_ids };
     if (itemId) item.id = itemId;
     list.push(item);
   }

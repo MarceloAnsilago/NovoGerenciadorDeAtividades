@@ -223,10 +223,16 @@
 
         // garante o X mesmo sem wrapper: agora e no prximo tick
         let elNow = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
-        if (elNow) ensureCloseButton(elNow, sid, name);
+        if (elNow) {
+          elNow.dataset.expedienteManual = '1';
+          ensureCloseButton(elNow, sid, name);
+        }
         setTimeout(() => {
           const elLater = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
-          if (elLater) ensureCloseButton(elLater, sid, name);
+          if (elLater) {
+            elLater.dataset.expedienteManual = '1';
+            ensureCloseButton(elLater, sid, name);
+          }
         }, 0);
       }
     } catch(_) {}
@@ -245,6 +251,7 @@
           <span class="srv-count-badge"></span>`;
         exp.appendChild(el);
       }
+      el.dataset.expedienteManual = '1';
       ensureCloseButton(el, sid, name);
     }
 
