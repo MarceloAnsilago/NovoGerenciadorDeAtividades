@@ -18,7 +18,7 @@ ITEM_STATUS_LABELS = {
     NAO_REALIZADA: "Não realizada - mas continua em aberto",
     NAO_REALIZADA_JUSTIFICADA: "Nao realizada justificada",
     REMARCADA_CONCLUIDA: "Remarcada e concluida",
-    ENCERRADA_AUTOMATICAMENTE: "Encerrada automaticamente",
+    ENCERRADA_AUTOMATICAMENTE: "Meta encerrada",
 }
 
 
