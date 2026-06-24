@@ -24,6 +24,7 @@ from descanso.models import Descanso, Feriado
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from programar.status import (
     CANCELADA,
+    ENCERRADA_AUTOMATICAMENTE,
     EXECUTADA,
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
@@ -2035,7 +2036,7 @@ def events_feed(request):
     programacoes = list(qs.values("id", "data", "concluida"))
     prog_ids = [p["id"] for p in programacoes]
     counts: Dict[int, Dict[str, int]] = {
-        pid: {"total": 0, "concluidas": 0, "canceladas": 0, "nao_realizadas": 0}
+        pid: {"total": 0, "concluidas": 0, "canceladas": 0, "nao_realizadas": 0, "encerradas_auto": 0}
         for pid in prog_ids
     }
     metas_por_programacao: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
@@ -2048,25 +2049,6 @@ def events_feed(request):
             itens_qs = itens_qs.exclude(meta_id=meta_expediente_id)
         itens_qs = itens_qs.exclude(meta_id__isnull=True)
 
-        itens_stats = (
-            itens_qs
-            .values("programacao_id")
-            .annotate(
-                total=Count("id"),
-                concluidas=Count("id", filter=Q(concluido=True)),
-                canceladas=Count("id", filter=Q(cancelada=True)),
-                nao_realizadas=Count("id", filter=Q(concluido=False, concluido_em__isnull=False, cancelada=False)),
-            )
-        )
-        for row in itens_stats:
-            pid = row.get("programacao_id")
-            if pid in counts:
-                counts[pid] = {
-                    "total": int(row.get("total") or 0),
-                    "concluidas": int(row.get("concluidas") or 0),
-                    "canceladas": int(row.get("canceladas") or 0),
-                    "nao_realizadas": int(row.get("nao_realizadas") or 0),
-                }
         title_counts: Dict[int, Dict[str, int]] = {pid: {} for pid in prog_ids}
         title_order: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
         activity_counts: Dict[int, Dict[tuple[str, str], int]] = {pid: {} for pid in prog_ids}
@@ -2102,7 +2084,18 @@ def events_feed(request):
                 bool(getattr(item, "cancelada", False)),
                 bool(getattr(item, "nao_realizada_justificada", False)),
                 getattr(item, "remarcado_de_id", None),
+                getattr(item, "observacao", "") or "",
             )
+            if pid in counts:
+                counts[pid]["total"] += 1
+                if status_item in {EXECUTADA, REMARCADA_CONCLUIDA}:
+                    counts[pid]["concluidas"] += 1
+                elif status_item == CANCELADA:
+                    counts[pid]["canceladas"] += 1
+                elif status_item == ENCERRADA_AUTOMATICAMENTE:
+                    counts[pid]["encerradas_auto"] += 1
+                elif status_item in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA}:
+                    counts[pid]["nao_realizadas"] += 1
             key = (titulo, status_item)
             if key not in activity_counts[pid]:
                 activity_counts[pid][key] = 0
@@ -2126,14 +2119,15 @@ def events_feed(request):
     data = []
     for prog in programacoes:
         pid = prog["id"]
-        contadores = counts.get(pid, {"total": 0, "concluidas": 0, "canceladas": 0, "nao_realizadas": 0})
+        contadores = counts.get(pid, {"total": 0, "concluidas": 0, "canceladas": 0, "nao_realizadas": 0, "encerradas_auto": 0})
         total = contadores["total"]
         if total == 0:
             continue
         concluidas = contadores["concluidas"]
         canceladas = contadores.get("canceladas", 0)
         nao_realizadas = contadores.get("nao_realizadas", 0)
-        pendentes = max(total - concluidas - canceladas - nao_realizadas, 0)
+        encerradas_auto = contadores.get("encerradas_auto", 0)
+        pendentes = max(total - concluidas - canceladas - nao_realizadas - encerradas_auto, 0)
 
         nome_atividades = metas_por_programacao.get(pid) or []
         nome_titulo = "; ".join(nome_atividades) if nome_atividades else ""
@@ -2157,6 +2151,7 @@ def events_feed(request):
                 "total_concluidas": concluidas,
                 "total_canceladas": canceladas,
                 "total_nao_realizadas": nao_realizadas,
+                "total_encerradas_auto": encerradas_auto,
                 "total_pendentes": pendentes,
                 "nomes_atividades": nome_atividades,
                 "atividades": atividades_por_programacao.get(pid, []),
@@ -2506,6 +2501,7 @@ def programacao_do_dia_orm(request):
             cancelada,
             nao_realizada_justificada,
             remarcado_de_id,
+            it.get("observacao") or "",
         )
         obj = {
             "id": iid,
@@ -2664,6 +2660,7 @@ def _item_execucao_status(item: ProgramacaoItem) -> str:
         bool(getattr(item, "cancelada", False)),
         bool(getattr(item, "nao_realizada_justificada", False)),
         getattr(item, "remarcado_de_id", None),
+        getattr(item, "observacao", "") or "",
     )
 
 
@@ -2673,6 +2670,7 @@ def _item_execucao_status_from_fields(
     cancelada: bool = False,
     nao_realizada_justificada: bool = False,
     remarcado_de_id: int | None = None,
+    observacao: str | None = None,
 ) -> str:
     return item_execucao_status_from_fields(
         concluido,
@@ -2680,6 +2678,7 @@ def _item_execucao_status_from_fields(
         cancelada,
         nao_realizada_justificada,
         remarcado_de_id,
+        observacao,
     )
 
 

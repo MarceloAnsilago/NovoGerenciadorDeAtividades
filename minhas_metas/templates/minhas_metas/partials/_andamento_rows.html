@@ -22,6 +22,7 @@
     <div class="d-flex align-items-center gap-2">
       <span class="badge
         {% if it.status_key == 'remarcadas_concluidas' %}bg-primary-subtle text-primary
+        {% elif it.status_key == 'encerradas_automaticamente' %}bg-secondary-subtle text-secondary
         {% elif it.status_key == 'concluidas' %}bg-success-subtle text-success
         {% elif it.status_key == 'canceladas' %}bg-dark-subtle text-dark
         {% elif it.status_key == 'nao_realizadas_justificadas' %}bg-info-subtle text-info-emphasis
@@ -32,6 +33,7 @@
 
       <a class="btn btn-sm
         {% if it.status_key == 'remarcadas_concluidas' %}btn-primary
+        {% elif it.status_key == 'encerradas_automaticamente' %}btn-secondary
         {% elif it.status_key == 'concluidas' %}btn-success
         {% elif it.status_key == 'canceladas' %}btn-dark
         {% elif it.status_key == 'nao_realizadas_justificadas' %}btn-info
@@ -40,6 +42,8 @@
          href="{% url 'programar:concluir-item-form' it.item_id %}?next={{ request.get_full_path|urlencode }}&source=minhas-metas">
         {% if it.status_key == 'remarcadas_concluidas' %}
           Remarcada e concluida
+        {% elif it.status_key == 'encerradas_automaticamente' %}
+          Encerrada automaticamente
         {% elif it.status_key == 'concluidas' %}
           Concluida
         {% elif it.status_key == 'canceladas' %}

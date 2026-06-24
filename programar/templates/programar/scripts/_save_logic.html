@@ -52,6 +52,7 @@
   };
 
   // ---------- Helpers ----------
+  const AUTO_CLOSED_MARKER = "[sistema:meta_encerrada_automaticamente=1]";
   function getEl(){
     return {
       modal: document.getElementById('programar-modalAtividade'),
@@ -97,7 +98,10 @@
     const remarcadoDeId = Number(card.dataset.remarcadoDeId || 0);
     const drop = card.querySelector('.meta-dropzone') || card;
     const servidores_ids = getServidoresIdsFrom(drop);
-    const observacao = (card.querySelector('textarea[name="observacao"]')?.value || '').trim();
+    let observacao = (card.querySelector('textarea[name="observacao"]')?.value || '').trim();
+    if (card.dataset.systemMarker === AUTO_CLOSED_MARKER && !observacao.includes(AUTO_CLOSED_MARKER)) {
+      observacao = `${observacao} ${AUTO_CLOSED_MARKER}`.trim();
+    }
     const veiculo_id = extractVeiculoId(card);
     const out = { meta_id, observacao, veiculo_id, servidores_ids };
     if (itemId) out.id = itemId;

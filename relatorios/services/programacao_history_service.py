@@ -92,6 +92,7 @@ def snapshot_programacao_dia(unidade_id: int | None, data_ref: date) -> dict[str
             cancelada,
             nao_realizada_justificada,
             remarcado_de_id,
+            getattr(item, "observacao", "") or "",
         )
         servidores = servidores_por_item.get(item.id, [])
         veiculo_obj = getattr(item, "veiculo", None)

@@ -20,6 +20,7 @@ from atividades.models import Area, Atividade
 
 from .models import Meta, MetaAlocacao, ProgressoMeta
 from programar.models import ProgramacaoItem
+from programar.status import ENCERRADA_AUTOMATICAMENTE_MARKER
 from .forms import MetaForm
 from .services import (
     meta_deve_iniciar_automatica,
@@ -1121,6 +1122,8 @@ def encerrar_meta_view(request, meta_id):
                     observacao_final = observacao_original
                     if nota_suffix not in observacao_original:
                         observacao_final = (observacao_original + " " + nota_suffix).strip()
+                    if ENCERRADA_AUTOMATICAMENTE_MARKER not in observacao_final:
+                        observacao_final = f"{observacao_final} {ENCERRADA_AUTOMATICAMENTE_MARKER}".strip()
 
                     ProgramacaoItem.objects.filter(pk=pend.pk).update(
                         concluido=True,

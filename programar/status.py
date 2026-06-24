@@ -8,6 +8,8 @@ CANCELADA = "cancelada"
 NAO_REALIZADA = "nao_realizada"
 NAO_REALIZADA_JUSTIFICADA = "nao_realizada_justificada"
 REMARCADA_CONCLUIDA = "remarcada_concluida"
+ENCERRADA_AUTOMATICAMENTE = "encerrada_automaticamente"
+ENCERRADA_AUTOMATICAMENTE_MARKER = "[sistema:meta_encerrada_automaticamente=1]"
 
 ITEM_STATUS_LABELS = {
     EXECUTADA: "Concluida",
@@ -16,7 +18,12 @@ ITEM_STATUS_LABELS = {
     NAO_REALIZADA: "Não realizada - mas continua em aberto",
     NAO_REALIZADA_JUSTIFICADA: "Nao realizada justificada",
     REMARCADA_CONCLUIDA: "Remarcada e concluida",
+    ENCERRADA_AUTOMATICAMENTE: "Encerrada automaticamente",
 }
+
+
+def item_encerrado_automaticamente(observacao: str | None) -> bool:
+    return ENCERRADA_AUTOMATICAMENTE_MARKER in str(observacao or "")
 
 
 def remarcacao_origem_label(
@@ -48,7 +55,10 @@ def item_execucao_status_from_fields(
     cancelada: bool = False,
     nao_realizada_justificada: bool = False,
     remarcado_de_id: int | None = None,
+    observacao: str | None = None,
 ) -> str:
+    if item_encerrado_automaticamente(observacao):
+        return ENCERRADA_AUTOMATICAMENTE
     if concluido:
         if remarcado_de_id:
             return REMARCADA_CONCLUIDA
@@ -120,6 +130,7 @@ def item_execucao_status_with_expediente_rule(
     cancelada: bool = False,
     nao_realizada_justificada: bool = False,
     remarcado_de_id: int | None = None,
+    observacao: str | None = None,
     today: date | None = None,
 ) -> str:
     status = item_execucao_status_from_fields(
@@ -128,6 +139,7 @@ def item_execucao_status_with_expediente_rule(
         cancelada,
         nao_realizada_justificada,
         remarcado_de_id,
+        observacao,
     )
     if is_auto_concluida_expediente(
         meta_id=meta_id,

@@ -13,6 +13,8 @@ from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from programar.status import (
     CANCELADA,
+    ENCERRADA_AUTOMATICAMENTE,
+    ENCERRADA_AUTOMATICAMENTE_MARKER,
     EXECUTADA,
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
@@ -51,6 +53,15 @@ class ItemStatusTest(unittest.TestCase):
             nao_realizada_justificada=False,
         )
         self.assertEqual(status, EXECUTADA)
+
+    def test_resolve_status_for_auto_closed_meta_item(self):
+        status = item_execucao_status_from_fields(
+            concluido=True,
+            concluido_em=object(),
+            nao_realizada_justificada=False,
+            observacao=f"Encerrado automaticamente. {ENCERRADA_AUTOMATICAMENTE_MARKER}",
+        )
+        self.assertEqual(status, ENCERRADA_AUTOMATICAMENTE)
 
     def test_resolve_status_for_rescheduled_completed_item(self):
         status = item_execucao_status_from_fields(

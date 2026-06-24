@@ -101,6 +101,7 @@ def get_programacao_dia(unidade_id: int, data_ref: date) -> list[dict[str, Any]]
             cancelada,
             nao_realizada_justificada,
             remarcado_de_id,
+            item.observacao,
         )
         out.append(
             {

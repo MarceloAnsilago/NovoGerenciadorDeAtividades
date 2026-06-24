@@ -35,6 +35,11 @@
       raw === "remarcada-concluida" ||
       raw === "remarcada e concluida"
     ) return "remarcada_concluida";
+    if (
+      raw === "encerrada_automaticamente" ||
+      raw === "encerrada-automaticamente" ||
+      raw === "encerrada automaticamente"
+    ) return "encerrada_automaticamente";
     if (raw === "executada" || raw === "concluida") return "executada";
     if (raw === "cancelada" || raw === "cancelado") return "cancelada";
     if (
@@ -61,10 +66,13 @@
       "is-not-executed",
       "is-justified",
       "is-rescheduled",
-      "is-cancelled"
+      "is-cancelled",
+      "is-auto-closed"
     );
     if (execStatus === "remarcada_concluida") {
       link.classList.add("btn-primary", "is-rescheduled");
+    } else if (execStatus === "encerrada_automaticamente") {
+      link.classList.add("btn-secondary", "is-auto-closed");
     } else if (execStatus === "executada") {
       link.classList.add("btn-success");
     } else if (execStatus === "cancelada") {
@@ -80,12 +88,13 @@
     if (icon) {
       icon.classList.toggle("bi-check2-square", execStatus === "pendente");
       icon.classList.toggle("bi-arrow-repeat", execStatus === "remarcada_concluida");
+      icon.classList.toggle("bi-flag-fill", execStatus === "encerrada_automaticamente");
       icon.classList.toggle("bi-check-circle", execStatus === "executada");
       icon.classList.toggle("bi-ban", execStatus === "cancelada");
       icon.classList.toggle("bi-x-circle", execStatus === "nao_realizada");
       icon.classList.toggle("bi-shield-check", execStatus === "nao_realizada_justificada");
     }
-    const label = execStatus === "remarcada_concluida"
+    let label = execStatus === "remarcada_concluida"
       ? "Atividade remarcada e concluida em Minhas Metas"
       : (execStatus === "executada"
       ? "Atividade concluida em Minhas Metas"
@@ -96,6 +105,9 @@
       : (execStatus === "nao_realizada"
         ? "Atividade não realizada, mas continua em aberto em Minhas Metas"
         : "Concluir item em Minhas Metas"))));
+    if (execStatus === "encerrada_automaticamente") {
+      label = "Atividade encerrada automaticamente ao encerrar a meta";
+    }
     link.title = label;
     link.setAttribute("aria-label", label);
   }

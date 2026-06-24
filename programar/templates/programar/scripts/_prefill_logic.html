@@ -11,6 +11,7 @@
   NS._hasPrefilledExpediente    = false;  // ser true se o expediente veio do banco
 
   const DEBUG = false;
+  const AUTO_CLOSED_MARKER = "[sistema:meta_encerrada_automaticamente=1]";
   NS._prefillRunId = NS._prefillRunId || 0;
   function escapeHtml(value){
     return String(value ?? '').replace(/[&<>"']/g, (ch) => (
@@ -311,7 +312,12 @@
       window.PROGRAMAR?.syncMetaConclusionLink?.(card);
 
       const ta = card.querySelector('textarea[name="observacao"]');
-      if (ta) ta.value = it.observacao || '';
+      if (ta) ta.value = String(it.observacao || '').replace(AUTO_CLOSED_MARKER, '').trim();
+      if (statusExecucao === "encerrada_automaticamente") {
+        card.dataset.systemMarker = AUTO_CLOSED_MARKER;
+      } else {
+        delete card.dataset.systemMarker;
+      }
       window.PROGRAMAR?.syncObsIndicator?.(card);
 
       const sel = card.querySelector('select[name="card_veiculos"], select.card-veiculos, [data-veiculo-id]');

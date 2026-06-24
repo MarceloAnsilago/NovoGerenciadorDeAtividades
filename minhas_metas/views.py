@@ -19,6 +19,7 @@ from metas.models import MetaAlocacao
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from programar.status import (
     CANCELADA,
+    ENCERRADA_AUTOMATICAMENTE,
     ITEM_STATUS_LABELS,
     NAO_REALIZADA,
     NAO_REALIZADA_JUSTIFICADA,
@@ -131,7 +132,10 @@ def _item_execucao_info(item):
         bool(getattr(item, "cancelada", False)),
         bool(getattr(item, "nao_realizada_justificada", False)),
         getattr(item, "remarcado_de_id", None),
+        getattr(item, "observacao", "") or "",
     )
+    if status == ENCERRADA_AUTOMATICAMENTE:
+        return "encerradas_automaticamente", ITEM_STATUS_LABELS[ENCERRADA_AUTOMATICAMENTE]
     if status == REMARCADA_CONCLUIDA:
         return "remarcadas_concluidas", ITEM_STATUS_LABELS[REMARCADA_CONCLUIDA]
     if status == EXECUTADA:
