@@ -1207,6 +1207,14 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
             "veiculo": veiculo_label,
             "observacao": (getattr(it, "observacao", "") or "").strip(),
             "meta_descricao": (getattr(meta, "descricao", "") or "").strip() if meta else "",
+            "status_execucao": _item_execucao_status_from_fields(
+                bool(getattr(it, "concluido", False)),
+                getattr(it, "concluido_em", None),
+                bool(getattr(it, "cancelada", False)),
+                bool(getattr(it, "nao_realizada_justificada", False)),
+                getattr(it, "remarcado_de_id", None),
+                getattr(it, "observacao", "") or "",
+            ),
         })
 
     return out
@@ -1361,11 +1369,13 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             feriados_map.setdefault(f.data, [])
             feriados_map[f.data].append(f.descricao or f.cadastro.descricao)
 
-    def _srv_list_html(nomes: list[str], *, with_boxes: bool = True, inline: bool = False) -> str:
+    def _srv_list_html(nomes: list[str], *, with_boxes: bool = True, inline: bool = False, checked: bool = False) -> str:
         if not nomes:
             return "<span class='text-muted'>-</span>"
         if inline or not with_boxes:
             return "<span class='srv-inline'>" + ", ".join(html.escape(n) for n in nomes) + "</span>"
+        checked_class = " is-checked" if checked else ""
+        checked_mark = "x" if checked else ""
         parts = []
         for nm in nomes:
             safe = html.escape(nm)
@@ -1373,17 +1383,19 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 "<div class='srv-line'>"
                 f"<span class='srv-name'>{safe}</span>"
                 "<span class='srv-choices'>"
-                "<span class='print-cbx'></span><small>S</small>"
+                f"<span class='print-cbx{checked_class}'>{checked_mark}</span><small>S</small>"
                 "<span class='print-cbx'></span><small>N</small>"
                 "</span>"
                 "</div>"
             )
         return "".join(parts)
 
-    def _realizada_boxes() -> str:
+    def _realizada_boxes(*, checked: bool = False) -> str:
+        checked_class = " is-checked" if checked else ""
+        checked_mark = "x" if checked else ""
         return (
             "<div class='choice'>"
-            "<span class='print-cbx'></span><small>Sim</small>"
+            f"<span class='print-cbx{checked_class}'>{checked_mark}</span><small>Sim</small>"
             "<span class='print-cbx'></span><small>Não</small>"
             "</div>"
         )
@@ -1471,6 +1483,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 "veiculo": it["veiculo"],
                 "observacao": it.get("observacao") or "",
                 "meta_descricao": it.get("meta_descricao") or "",
+                "status_execucao": it.get("status_execucao") or "",
             })
         blocks.append({"kind": "impedidos", "dados": impedidos})
 
@@ -1536,6 +1549,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 )
 
             elif b["kind"] == "atividade":
+                encerrada_automaticamente = b.get("status_execucao") == ENCERRADA_AUTOMATICAMENTE
                 # acumula para rel. atividades
                 for nome in (b.get("servidores") or []):
                     if nome and isinstance(nome, str):
@@ -1561,9 +1575,9 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     open_tr
                     + dia_td
                     + f"<td class='atividade-cell'><div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
-                    + f"<td>{_srv_list_html(b['servidores'], with_boxes=True, inline=False)}{meta_desc_html}</td>"
+                    + f"<td>{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=encerrada_automaticamente)}{meta_desc_html}</td>"
                     + f"<td class='veiculo-cell'>{_veiculo_html(b['veiculo'])}</td>"
-                    + f"<td class='realizada-cell'>{_realizada_boxes()}</td>"
+                    + f"<td class='realizada-cell'>{_realizada_boxes(checked=encerrada_automaticamente)}</td>"
                     + "</tr>"
                 )
 
@@ -1616,6 +1630,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table td, .programacao-semana-table th{ vertical-align: top; }"
         ".programacao-semana-table .atividade-main{ font-weight:600; }"
         ".programacao-semana-table .atividade-obs{ display:block; margin-top:.15rem; font-style:italic; font-size:.82em; line-height:1.25; color:#6c757d; }"
+        ".programacao-semana-table .print-cbx.is-checked{ text-align:center; font-weight:700; line-height:10px; color:#000; }"
 
         "/* Relatório 'Justificativa' */"
         ".rel-atividades .card-ativ{ page-break-inside: avoid; }"
@@ -1656,6 +1671,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "    min-width: 100px !important; width: 100px !important;"
         "  }"
         "  .print-cbx{ width:10px; height:10px; margin:0 3px 0 4px; border-width:1.2px; }"
+        "  .print-cbx.is-checked{ line-height:9px; }"
         "  .programacao-semana-table thead th{"
         "    border-bottom: 0.75pt solid #000 !important;"
         "    border-top: 0.5pt solid #000 !important;"
