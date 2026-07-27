@@ -356,13 +356,12 @@
   document.addEventListener('hide.bs.modal', (ev) => {
     if (!ev.target || ev.target.id !== 'programar-modalAtividade') return;
     if (!NS._obsDirty) return;
-    const ok = window.confirm('Ha observacoes nao salvas. Deseja salvar antes de fechar?');
-    if (!ok) { NS._obsDirty = false; return; }
+    if (NS._savingBeforeClose) return;
     ev.preventDefault();
-    const btn = document.getElementById('programar-btnSalvar');
-    if (btn && !btn.disabled) {
-      btn.click();
-    }
+    NS._savingBeforeClose = true;
+    Promise.resolve(salvar()).finally(() => {
+      NS._savingBeforeClose = false;
+    });
   });
 
   // ---------- Bind imediato (se o include for após o footer) ----------
