@@ -1550,6 +1550,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 
             elif b["kind"] == "atividade":
                 encerrada_automaticamente = b.get("status_execucao") == ENCERRADA_AUTOMATICAMENTE
+                auto_x_class = " auto-closed-x-cell" if encerrada_automaticamente else ""
                 # acumula para rel. atividades
                 for nome in (b.get("servidores") or []):
                     if nome and isinstance(nome, str):
@@ -1574,10 +1575,10 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 day_rows.append(
                     open_tr
                     + dia_td
-                    + f"<td class='atividade-cell'><div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
-                    + f"<td>{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=encerrada_automaticamente)}{meta_desc_html}</td>"
-                    + f"<td class='veiculo-cell'>{_veiculo_html(b['veiculo'])}</td>"
-                    + f"<td class='realizada-cell'>{_realizada_boxes(checked=encerrada_automaticamente)}</td>"
+                    + f"<td class='atividade-cell{auto_x_class}'><div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
+                    + f"<td class='{auto_x_class.strip()}'>{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=encerrada_automaticamente)}{meta_desc_html}</td>"
+                    + f"<td class='veiculo-cell{auto_x_class}'>{_veiculo_html(b['veiculo'])}</td>"
+                    + f"<td class='realizada-cell{auto_x_class}'>{_realizada_boxes(checked=encerrada_automaticamente)}</td>"
                     + "</tr>"
                 )
 
@@ -1631,6 +1632,13 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table .atividade-main{ font-weight:600; }"
         ".programacao-semana-table .atividade-obs{ display:block; margin-top:.15rem; font-style:italic; font-size:.82em; line-height:1.25; color:#6c757d; }"
         ".programacao-semana-table .print-cbx.is-checked{ text-align:center; font-weight:700; line-height:10px; color:#000; }"
+        ".programacao-semana-table .auto-closed-x-cell{"
+        "  background-image:"
+        "    linear-gradient(to bottom right, transparent calc(50% - .5px), #d7dee8 calc(50% - .5px), #d7dee8 calc(50% + .5px), transparent calc(50% + .5px)),"
+        "    linear-gradient(to top right, transparent calc(50% - .5px), #d7dee8 calc(50% - .5px), #d7dee8 calc(50% + .5px), transparent calc(50% + .5px));"
+        "  background-repeat:no-repeat;"
+        "  background-size:100% 100%;"
+        "}"
 
         "/* Relatório 'Justificativa' */"
         ".rel-atividades .card-ativ{ page-break-inside: avoid; }"
@@ -1672,6 +1680,11 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "  }"
         "  .print-cbx{ width:10px; height:10px; margin:0 3px 0 4px; border-width:1.2px; }"
         "  .print-cbx.is-checked{ line-height:9px; }"
+        "  .programacao-semana-table .auto-closed-x-cell{"
+        "    background-image:"
+        "      linear-gradient(to bottom right, transparent calc(50% - .3pt), #d7dee8 calc(50% - .3pt), #d7dee8 calc(50% + .3pt), transparent calc(50% + .3pt)),"
+        "      linear-gradient(to top right, transparent calc(50% - .3pt), #d7dee8 calc(50% - .3pt), #d7dee8 calc(50% + .3pt), transparent calc(50% + .3pt));"
+        "  }"
         "  .programacao-semana-table thead th{"
         "    border-bottom: 0.75pt solid #000 !important;"
         "    border-top: 0.5pt solid #000 !important;"
