@@ -273,3 +273,58 @@ class RelatorioProgramacaoTests(TestCase):
         indicadores = {card["label"]: card["value"] for card in report["indicadores"]["cards"]}
         self.assertEqual(indicadores["Atividades canceladas"], 1)
         self.assertContains(response, "Cancelada")
+
+    def test_relatorio_historico_exibe_observacao_do_evento(self):
+        item = ProgramacaoItem.objects.create(
+            programacao=self.programacao_2,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.now(),
+            observacao="Equipe informou bloqueio no local",
+        )
+        snapshot_antes = {
+            "id": item.id,
+            "programacao_id": self.programacao_2.id,
+            "programacao_data": "2026-03-11",
+            "meta_id": self.meta.id,
+            "meta_titulo": "Fiscalizacao de viveiros",
+            "status_execucao": PENDENTE,
+            "observacao": "",
+            "servidores": [],
+        }
+        snapshot_depois = {
+            **snapshot_antes,
+            "status_execucao": EXECUTADA,
+            "observacao": "Equipe informou bloqueio no local",
+        }
+        ProgramacaoHistorico.objects.create(
+            unidade=self.unidade,
+            usuario=self.user,
+            meta=self.meta,
+            data_programacao=self.programacao_2.data,
+            programacao_id=self.programacao_2.id,
+            item_id=item.id,
+            evento=ProgramacaoHistorico.EVENTO_STATUS_ALTERADO,
+            origem="status_form",
+            titulo_item="Fiscalizacao de viveiros",
+            descricao="Status alterado pela tela de conclusao.",
+            status_antes=PENDENTE,
+            status_depois=EXECUTADA,
+            snapshot_antes=snapshot_antes,
+            snapshot_depois=snapshot_depois,
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_historico": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entry = response.context["report"]["historico"]["entries"][0]
+        self.assertEqual(entry.observacao_evento, "Equipe informou bloqueio no local")
+        self.assertContains(response, "Observa")
+        self.assertContains(response, "Equipe informou bloqueio no local")

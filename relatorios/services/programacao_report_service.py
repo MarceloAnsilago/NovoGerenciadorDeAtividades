@@ -55,6 +55,21 @@ def _snapshot_veiculo_label(snapshot: dict[str, Any] | None) -> str:
     return nome or placa
 
 
+def _history_entry_observacao(entry: ProgramacaoHistorico) -> str:
+    detalhes = entry.detalhes or {}
+    for key in ("observacao_depois", "observacao"):
+        value = str(detalhes.get(key) or "").strip()
+        if value:
+            return value
+
+    for snapshot in (entry.snapshot_depois, entry.snapshot_antes):
+        value = str((snapshot or {}).get("observacao") or "").strip()
+        if value:
+            return value
+
+    return ""
+
+
 def _current_items_in_period(unidade_id: int, data_inicial: date, data_final: date):
     return list(
         ProgramacaoItem.objects.filter(
@@ -122,6 +137,8 @@ def _build_history_section(unidade_id: int, data_inicial: date, data_final: date
         .select_related("usuario")
         .order_by("-criado_em", "-id")
     )
+    for entry in historico:
+        entry.observacao_evento = _history_entry_observacao(entry)
     return {
         "entries": historico,
         "total": len(historico),
