@@ -208,6 +208,22 @@ function syncConclusionLink(card) {
     syncObsIndicator(card);
   }
 
+  function openCancelamentoItem(card) {
+    const itemId = String(card?.dataset?.itemId || "").trim();
+    if (!itemId) return false;
+    const title = (card.querySelector(".meta-title-text")?.textContent || "atividade").trim();
+    const msg = `A atividade "${title}" ja esta salva na programacao. Para remover, cancele a atividade na tela de conclusao/cancelamento. Deseja abrir essa tela agora?`;
+    if (!window.confirm(msg)) return true;
+    try { syncConclusionLink(card); } catch (_) {}
+    const href = card.querySelector(".meta-concluir")?.href || "";
+    if (!href || href.endsWith("#")) {
+      window.alert("Nao foi possivel abrir a tela de cancelamento deste item.");
+      return true;
+    }
+    window.location.href = href;
+    return true;
+  }
+
   function openObsModal(card) {
     if (!card) return;
     const modalEl = document.getElementById(OBS_IDS.modal);
@@ -319,6 +335,10 @@ function syncConclusionLink(card) {
       ev.stopPropagation();
       if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
 
+      if (openCancelamentoItem(card)) {
+        return;
+      }
+
       const chipXs = Array.from(card.querySelectorAll(".servidor-chip .chip-remove"));
       chipXs.forEach((b) => { try { b.click(); } catch (_) {} });
 
@@ -326,6 +346,7 @@ function syncConclusionLink(card) {
         try { window.ProgramarCards?.returnAllFromCard?.(card); } catch (_) {}
       }
 
+      NS._obsDirty = true;
       try { card.remove(); } catch (_) {}
       setTimeout(() => { try { window.PROGRAMAR?.refreshExpedienteFromLivres?.(); } catch (_) {} }, 0);
       setTimeout(() => { try { window.PROGRAMAR?.refreshExpedienteFromLivres?.(); } catch (_) {} }, 120);
