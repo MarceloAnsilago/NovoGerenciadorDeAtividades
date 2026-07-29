@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -9,7 +9,7 @@ from atividades.models import Area, Atividade
 from core.models import No
 from metas.models import Meta
 from programar.models import Programacao, ProgramacaoItem
-from programar.status import CANCELADA, EXECUTADA, PENDENTE
+from programar.status import CANCELADA, ENCERRADA_AUTOMATICAMENTE_MARKER, EXECUTADA, PENDENTE
 from relatorios.models import ProgramacaoHistorico
 
 
@@ -273,6 +273,45 @@ class RelatorioProgramacaoTests(TestCase):
         indicadores = {card["label"]: card["value"] for card in report["indicadores"]["cards"]}
         self.assertEqual(indicadores["Atividades canceladas"], 1)
         self.assertContains(response, "Cancelada")
+
+    def test_relatorio_indicadores_inclui_atrasadas_sem_encerradas_automaticamente(self):
+        data_atrasada = timezone.localdate() - timedelta(days=1)
+        programacao_atrasada = Programacao.objects.create(
+            data=data_atrasada,
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao_atrasada,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=None,
+            nao_realizada_justificada=False,
+            observacao="Pendente atrasada",
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao_atrasada,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=None,
+            nao_realizada_justificada=False,
+            observacao=f"Encerrado automaticamente ao encerrar a meta. {ENCERRADA_AUTOMATICAMENTE_MARKER}",
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": data_atrasada.replace(day=1).isoformat(),
+                "data_final": data_atrasada.isoformat(),
+                "sec_desempenho": "0",
+                "sec_historico": "0",
+                "sec_indicadores": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        indicadores = {card["label"]: card["value"] for card in response.context["report"]["indicadores"]["cards"]}
+        self.assertEqual(indicadores["Atividades atrasadas"], 1)
 
     def test_relatorio_historico_exibe_observacao_do_evento(self):
         item = ProgramacaoItem.objects.create(

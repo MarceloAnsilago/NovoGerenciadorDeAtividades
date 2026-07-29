@@ -12,6 +12,7 @@ from programar.models import ProgramacaoItem
 from programar.status import (
     CANCELADA,
     ENCERRADA_AUTOMATICAMENTE,
+    ENCERRADA_AUTOMATICAMENTE_MARKER,
     EXECUTADA,
     ITEM_STATUS_LABELS,
     PENDENTE,
@@ -155,6 +156,22 @@ def _resolve_latest_state(
     return "removida", {}
 
 
+def _is_overdue_snapshot(status: str, snapshot: dict[str, Any], today: date) -> bool:
+    if status != PENDENTE:
+        return False
+    if ENCERRADA_AUTOMATICAMENTE_MARKER in str(snapshot.get("observacao") or ""):
+        return False
+
+    raw_date = str(snapshot.get("programacao_data") or "").strip()
+    if not raw_date:
+        return False
+    try:
+        programacao_data = date.fromisoformat(raw_date)
+    except ValueError:
+        return False
+    return programacao_data < today
+
+
 def _build_history_section(unidade_id: int, data_inicial: date, data_final: date) -> dict[str, Any]:
     historico = list(
         ProgramacaoHistorico.objects.filter(
@@ -236,6 +253,7 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         "nao_realizada_justificada": 0,
         ENCERRADA_AUTOMATICAMENTE: 0,
         "pendente": 0,
+        "atrasada": 0,
         "removida": 0,
     }
 
@@ -265,6 +283,8 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
 
         if final_status in counters:
             counters[final_status] += 1
+        if _is_overdue_snapshot(final_status, final_snapshot or initial_snapshot, today):
+            counters["atrasada"] += 1
         # Resolve veículo: preferir label do snapshot; fallback via ORM (nome + placa).
         veiculo_label = _snapshot_veiculo_label(final_snapshot) or _snapshot_veiculo_label(initial_snapshot)
         if not veiculo_label:
@@ -386,6 +406,7 @@ def _build_indicators_section(
             {"label": "Atividades nao realizadas justificadas", "value": counters.get("nao_realizada_justificada", 0)},
             {"label": "Atividades encerradas automaticamente", "value": counters.get(ENCERRADA_AUTOMATICAMENTE, 0)},
             {"label": "Atividades pendentes", "value": counters.get("pendente", 0)},
+            {"label": "Atividades atrasadas", "value": counters.get("atrasada", 0)},
             {"label": "Atividades alteradas", "value": len(changed_ids)},
             {"label": "Atividades adicionadas", "value": len(added_ids)},
             {"label": "Atividades removidas", "value": len(removed_ids)},
