@@ -212,7 +212,7 @@ function syncConclusionLink(card) {
     const itemId = String(card?.dataset?.itemId || "").trim();
     if (!itemId) return false;
     const title = (card.querySelector(".meta-title-text")?.textContent || "atividade").trim();
-    const msg = `Como a atividade "${title}" ja foi salva no banco nao e possivel remover, voce pode usar a opcao cancelar na tela de conclusao/cancelamento para eliminar ela da programacao. Deseja abrir essa tela agora?`;
+    const msg = `Como a atividade "${title}" já foi salva no banco, não é possível remover. Você pode usar a opção Cancelar na tela de conclusão/cancelamento para eliminar ela da programação. Deseja abrir essa tela agora?`;
     if (!window.confirm(msg)) return true;
     try { syncConclusionLink(card); } catch (_) {}
     const href = card.querySelector(".meta-concluir")?.href || "";
