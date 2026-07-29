@@ -26,6 +26,7 @@ from programar.status import (
     PENDENTE,
     REMARCADA_CONCLUIDA,
     EXECUTADA,
+    ENCERRADA_AUTOMATICAMENTE_MARKER,
     item_execucao_status_from_fields,
 )
 from relatorios.services.non_performed_service import build_non_performed_groups
@@ -676,6 +677,7 @@ def nao_realizadas_view(request):
                 programacao__data__lt=today,
             )
         )
+        .exclude(observacao__contains=ENCERRADA_AUTOMATICAMENTE_MARKER)
         .order_by("-programacao__data", "-id")
     )
     expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)

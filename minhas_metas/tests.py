@@ -10,6 +10,7 @@ from atividades.models import Area, Atividade
 from core.models import No
 from metas.models import Meta
 from programar.models import Programacao, ProgramacaoItem
+from programar.status import ENCERRADA_AUTOMATICAMENTE_MARKER
 from veiculos.models import Veiculo
 
 
@@ -148,6 +149,32 @@ class NaoRealizadasViewTests(TestCase):
         atrasado = next(item for item in response.context["nao_realizadas"] if item["item_id"] == item_atrasado.id)
         self.assertEqual(atrasado["status"], "Atrasada")
         self.assertContains(response, "Pendente atrasada")
+
+    def test_nao_realizadas_nao_inclui_encerradas_automaticamente_como_atrasadas(self):
+        data_atrasada = timezone.localdate() - timedelta(days=1)
+        programacao_atrasada = Programacao.objects.create(
+            data=data_atrasada,
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        item_encerrado = ProgramacaoItem.objects.create(
+            programacao=programacao_atrasada,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=None,
+            nao_realizada_justificada=False,
+            observacao=f"Encerrado automaticamente ao encerrar a meta. {ENCERRADA_AUTOMATICAMENTE_MARKER}",
+        )
+
+        response = self.client.get(
+            reverse("minhas_metas:nao-realizadas"),
+            {"month": f"{data_atrasada.year}-{data_atrasada.month:02d}"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item_ids = {item["item_id"] for item in response.context["nao_realizadas"]}
+        self.assertNotIn(item_encerrado.id, item_ids)
+        self.assertNotContains(response, "Encerrado automaticamente ao encerrar a meta")
 
     def test_nao_realizadas_exclui_itens_cancelados(self):
         self.item.cancelada = True

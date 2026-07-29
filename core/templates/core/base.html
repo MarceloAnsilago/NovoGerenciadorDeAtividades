@@ -346,9 +346,9 @@
       <li class="nav-item">
         <a class="nav-link {% if mm_app == 'minhas_metas' and mm_url == 'nao-realizadas' %}active{% endif %}"
           href="{% url 'minhas_metas:nao-realizadas' %}"
-          data-bs-title="Não realizadas"
+          data-bs-title="Não realizadas/Atrasadas"
           aria-current="{% if mm_app == 'minhas_metas' and mm_url == 'nao-realizadas' %}page{% endif %}">
-          <i class="bi bi-slash-circle"></i> <span>Não realizadas</span>
+          <i class="bi bi-slash-circle"></i> <span>Não realiz./Atrasadas</span>
         </a>
       </li>
     {% endwith %}

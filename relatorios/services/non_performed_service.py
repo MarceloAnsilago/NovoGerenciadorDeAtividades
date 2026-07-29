@@ -7,6 +7,7 @@ from typing import Any
 from django.conf import settings
 
 from programar.models import ProgramacaoItem, ProgramacaoItemServidor
+from programar.status import ENCERRADA_AUTOMATICAMENTE_MARKER
 
 
 def _secondary_activity_name(meta) -> str | None:
@@ -46,6 +47,7 @@ def build_non_performed_groups(
             programacao__data__gte=data_inicial,
             programacao__data__lte=data_final,
         )
+        .exclude(observacao__contains=ENCERRADA_AUTOMATICAMENTE_MARKER)
         .order_by("meta__titulo", "meta_id", "-programacao__data", "-id")
     )
     if include_overdue:
