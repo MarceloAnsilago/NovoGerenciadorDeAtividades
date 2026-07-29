@@ -524,8 +524,8 @@
                       <th>Data programada</th>
                       <th>Evento</th>
                       <th>Atividade</th>
-                      <th>Observa&ccedil;&atilde;o</th>
                       <th>Descrição</th>
+                      <th>Observa&ccedil;&atilde;o</th>
                       <th>Usuário</th>
                     </tr>
                   </thead>
@@ -536,8 +536,8 @@
                         <td>{{ entry.data_programacao|date:"d/m/Y" }}</td>
                         <td>{{ entry.get_evento_display }}</td>
                         <td>{{ entry.titulo_item|default:"-" }}</td>
-                        <td>{{ entry.observacao_evento|default:"-" }}</td>
                         <td>{{ entry.descricao }}</td>
+                        <td>{{ entry.observacao_evento|default:"-" }}</td>
                         <td>{{ entry.usuario.get_short_name|default:entry.usuario.username|default:"-" }}</td>
                       </tr>
                     {% empty %}
