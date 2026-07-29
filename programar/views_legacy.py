@@ -2989,6 +2989,11 @@ def concluir_item_form(request, item_id: int):
                 )
         return redirect(back_url)
 
+    status_execucao_current = _item_execucao_status(pi)
+    status_param = (request.GET.get("status") or "").strip().lower()
+    if status_param == CANCELADA:
+        status_execucao_current = CANCELADA
+
     contexto = {
         "item": pi,
         "programacao": programacao,
@@ -3006,7 +3011,7 @@ def concluir_item_form(request, item_id: int):
         "pendentes_tem_mais": pendentes_tem_mais,
         "pendentes_confirmacao_obrigatoria": False,
         "confirmar_pendentes_checked": False,
-        "status_execucao_current": _item_execucao_status(pi),
+        "status_execucao_current": status_execucao_current,
         "source": source_context,
         "form_errors": {},
     }

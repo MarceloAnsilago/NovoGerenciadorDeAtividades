@@ -220,7 +220,13 @@ function syncConclusionLink(card) {
       window.alert("Nao foi possivel abrir a tela de cancelamento deste item.");
       return true;
     }
-    window.location.href = href;
+    try {
+      const url = new URL(href, window.location.origin);
+      url.searchParams.set("status", "cancelada");
+      window.location.href = `${url.pathname}${url.search}`;
+    } catch (_) {
+      window.location.href = `${href}${href.includes("?") ? "&" : "?"}status=cancelada`;
+    }
     return true;
   }
 
