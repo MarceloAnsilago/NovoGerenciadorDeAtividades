@@ -23,7 +23,21 @@ def _secondary_activity_name(meta) -> str | None:
     return atividade_nome
 
 
-def build_non_performed_groups(*, unidade_id: int, data_inicial: date, data_final: date) -> list[dict[str, Any]]:
+def build_non_performed_groups(
+    *,
+    unidade_id: int,
+    data_inicial: date,
+    data_final: date,
+    include_overdue: bool = False,
+    today: date | None = None,
+) -> list[dict[str, Any]]:
+    today = today or date.today()
+    status_filter = {
+        "concluido": False,
+        "concluido_em__isnull": False,
+        "cancelada": False,
+        "nao_realizada_justificada": False,
+    }
     itens_qs = (
         ProgramacaoItem.objects
         .select_related("programacao", "meta", "meta__atividade", "veiculo")
@@ -31,13 +45,24 @@ def build_non_performed_groups(*, unidade_id: int, data_inicial: date, data_fina
             programacao__unidade_id=unidade_id,
             programacao__data__gte=data_inicial,
             programacao__data__lte=data_final,
-            concluido=False,
-            concluido_em__isnull=False,
-            cancelada=False,
-            nao_realizada_justificada=False,
         )
         .order_by("meta__titulo", "meta_id", "-programacao__data", "-id")
     )
+    if include_overdue:
+        from django.db.models import Q
+
+        itens_qs = itens_qs.filter(
+            Q(**status_filter)
+            | Q(
+                concluido=False,
+                concluido_em__isnull=True,
+                cancelada=False,
+                nao_realizada_justificada=False,
+                programacao__data__lt=today,
+            )
+        )
+    else:
+        itens_qs = itens_qs.filter(**status_filter)
 
     meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
     try:
@@ -98,6 +123,7 @@ def build_non_performed_groups(*, unidade_id: int, data_inicial: date, data_fina
             {
                 "item_id": item.id,
                 "data": getattr(programacao, "data", None),
+                "status": "Atrasada" if not getattr(item, "concluido_em", None) else "Nao realizada",
                 "servidores": servidores_por_item.get(item.id, []),
                 "veiculo": veiculo_label,
                 "observacao": str(getattr(item, "observacao", "") or "").strip(),

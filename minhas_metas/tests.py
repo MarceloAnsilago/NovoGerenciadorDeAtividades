@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -113,13 +113,41 @@ class NaoRealizadasViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "minhas_metas/nao_realizadas_print.html")
-        self.assertContains(response, "Atividades nao realizadas no periodo selecionado")
+        self.assertContains(response, "Atividades nao realizadas e atrasadas no periodo selecionado")
         self.assertContains(response, self.meta.display_titulo)
         self.assertContains(response, "Periodo:")
 
         grupos = response.context["nao_realizadas_grupos"]
         self.assertEqual(len(grupos), 1)
         self.assertEqual(grupos[0]["meta_id"], self.meta.id)
+
+    def test_nao_realizadas_inclui_pendentes_atrasadas_no_mes(self):
+        data_atrasada = timezone.localdate() - timedelta(days=1)
+        programacao_atrasada = Programacao.objects.create(
+            data=data_atrasada,
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        item_atrasado = ProgramacaoItem.objects.create(
+            programacao=programacao_atrasada,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=None,
+            nao_realizada_justificada=False,
+            observacao="Pendente atrasada",
+        )
+
+        response = self.client.get(
+            reverse("minhas_metas:nao-realizadas"),
+            {"month": f"{data_atrasada.year}-{data_atrasada.month:02d}"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item_ids = {item["item_id"] for item in response.context["nao_realizadas"]}
+        self.assertIn(item_atrasado.id, item_ids)
+        atrasado = next(item for item in response.context["nao_realizadas"] if item["item_id"] == item_atrasado.id)
+        self.assertEqual(atrasado["status"], "Atrasada")
+        self.assertContains(response, "Pendente atrasada")
 
     def test_nao_realizadas_exclui_itens_cancelados(self):
         self.item.cancelada = True

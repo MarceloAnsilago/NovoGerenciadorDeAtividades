@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Atividades n&atilde;o realizadas{% endblock %}
+{% block title %}Atividades n&atilde;o realizadas e atrasadas{% endblock %}
 
 {% block extra_head %}
   {{ block.super }}
@@ -11,7 +11,7 @@
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-      <h1 class="h4 mb-1">Atividades n&atilde;o realizadas</h1>
+      <h1 class="h4 mb-1">Atividades n&atilde;o realizadas e atrasadas</h1>
       <div class="text-muted small">
         Unidade: <strong>{{ unidade.nome }}</strong>
         {% if dt_start and dt_end %}
@@ -48,7 +48,7 @@
           {% endfor %}
         </ul>
       {% else %}
-        <div class="alert alert-info mb-0">Nenhuma atividade com status n&atilde;o realizada foi encontrada.</div>
+        <div class="alert alert-info mb-0">Nenhuma atividade n&atilde;o realizada ou atrasada foi encontrada.</div>
       {% endif %}
 
       {% if month_filters %}
@@ -57,6 +57,7 @@
             <thead class="table-light">
               <tr>
                 <th style="width:100px;">Data</th>
+                <th style="width:120px;">Status</th>
                 <th>Meta / Atividade</th>
                 <th style="width:26%;">Servidores</th>
                 <th style="width:140px;">Veiculo</th>
@@ -69,6 +70,11 @@
               {% for item in nao_realizadas %}
               <tr>
                 <td class="text-nowrap">{{ item.data|date:"d/m/Y" }}</td>
+                <td>
+                  <span class="badge {% if item.status == 'Atrasada' %}text-bg-danger{% else %}text-bg-warning{% endif %}">
+                    {{ item.status }}
+                  </span>
+                </td>
                 <td>
                   <div class="fw-semibold">{{ item.meta_titulo }}</div>
                   {% if item.atividade_nome %}
@@ -86,7 +92,7 @@
                 </td>
                 <td class="text-nowrap">{{ item.veiculo|default:"-" }}</td>
                 <td>{{ item.observacao|default:"-" }}</td>
-                <td class="text-nowrap">{{ item.concluido_em|date:"d/m/Y H:i" }}</td>
+                <td class="text-nowrap">{{ item.concluido_em|date:"d/m/Y H:i"|default:"-" }}</td>
                 <td class="text-nowrap">
                   <div class="d-flex flex-wrap gap-2">
                     <a class="btn btn-sm btn-outline-warning"
@@ -110,7 +116,7 @@
               </tr>
               {% empty %}
               <tr class="table-light">
-                <td colspan="7" class="text-center text-muted py-4">Nenhuma atividade n&atilde;o realizada no m&ecirc;s selecionado.</td>
+                <td colspan="8" class="text-center text-muted py-4">Nenhuma atividade n&atilde;o realizada ou atrasada no m&ecirc;s selecionado.</td>
               </tr>
               {% endfor %}
             </tbody>

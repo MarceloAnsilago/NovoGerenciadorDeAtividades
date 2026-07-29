@@ -660,10 +660,21 @@ def nao_realizadas_view(request):
         .select_related("programacao", "meta", "meta__atividade", "veiculo")
         .filter(
             programacao__unidade_id=unidade.id,
-            concluido=False,
-            concluido_em__isnull=False,
-            cancelada=False,
-            nao_realizada_justificada=False,
+        )
+        .filter(
+            Q(
+                concluido=False,
+                concluido_em__isnull=False,
+                cancelada=False,
+                nao_realizada_justificada=False,
+            )
+            | Q(
+                concluido=False,
+                concluido_em__isnull=True,
+                cancelada=False,
+                nao_realizada_justificada=False,
+                programacao__data__lt=today,
+            )
         )
         .order_by("-programacao__data", "-id")
     )
@@ -759,6 +770,7 @@ def nao_realizadas_view(request):
             "item_id": item.id,
             "review_item_id": getattr(item_revisao, "id", item.id),
             "data": getattr(programacao, "data", None),
+            "status": "Atrasada" if not getattr(item, "concluido_em", None) else "Nao realizada",
             "meta_id": getattr(meta, "id", None),
             "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem titulo)"),
             "atividade_nome": _secondary_activity_name(meta),
@@ -774,6 +786,8 @@ def nao_realizadas_view(request):
             unidade_id=unidade.id,
             data_inicial=dt_start,
             data_final=dt_end,
+            include_overdue=True,
+            today=today,
         )
 
     print_query = request.GET.copy()

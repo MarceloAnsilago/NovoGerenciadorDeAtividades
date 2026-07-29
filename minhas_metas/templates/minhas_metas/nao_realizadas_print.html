@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Atividades nao realizadas para impressao{% endblock %}
+{% block title %}Atividades nao realizadas e atrasadas para impressao{% endblock %}
 
 {% block extra_head %}
   {{ block.super }}
@@ -117,7 +117,7 @@
         </div>
 
         <header class="nao-realizadas-print-header">
-          <h1>Atividades nao realizadas</h1>
+          <h1>Atividades nao realizadas e atrasadas</h1>
           <div class="nao-realizadas-print-meta">
             Unidade: <strong>{{ unidade.nome }}</strong>
             {% if periodo_label %}
@@ -128,7 +128,7 @@
         </header>
 
         <section class="nao-realizadas-print-section">
-          <h2>Atividades nao realizadas no periodo selecionado</h2>
+          <h2>Atividades nao realizadas e atrasadas no periodo selecionado</h2>
           <div class="text-muted small mb-2">Agrupado por meta/atividade.</div>
 
           {% if nao_realizadas_grupos %}
@@ -136,7 +136,7 @@
               {% include "minhas_metas/partials/_nao_realizadas_groups_table.html" %}
             </div>
           {% else %}
-            <p class="text-muted mb-0">Nenhuma atividade nao realizada no periodo selecionado.</p>
+            <p class="text-muted mb-0">Nenhuma atividade nao realizada ou atrasada no periodo selecionado.</p>
           {% endif %}
         </section>
       </div>
