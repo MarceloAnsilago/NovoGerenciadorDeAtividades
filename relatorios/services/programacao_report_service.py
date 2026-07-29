@@ -70,6 +70,36 @@ def _history_entry_observacao(entry: ProgramacaoHistorico) -> str:
     return ""
 
 
+def _meta_expediente_id() -> int | None:
+    raw_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        return int(raw_id) if raw_id is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _filter_history_entries(historico: list[ProgramacaoHistorico]) -> list[ProgramacaoHistorico]:
+    meta_expediente_id = _meta_expediente_id()
+    if meta_expediente_id is None:
+        return historico
+
+    changed_item_ids = {
+        int(entry.item_id)
+        for entry in historico
+        if entry.item_id and entry.evento != ProgramacaoHistorico.EVENTO_ATIVIDADE_CRIADA
+    }
+
+    return [
+        entry
+        for entry in historico
+        if not (
+            entry.evento == ProgramacaoHistorico.EVENTO_ATIVIDADE_CRIADA
+            and entry.meta_id == meta_expediente_id
+            and (not entry.item_id or int(entry.item_id) not in changed_item_ids)
+        )
+    ]
+
+
 def _current_items_in_period(unidade_id: int, data_inicial: date, data_final: date):
     return list(
         ProgramacaoItem.objects.filter(
@@ -137,6 +167,7 @@ def _build_history_section(unidade_id: int, data_inicial: date, data_final: date
         .select_related("usuario")
         .order_by("-criado_em", "-id")
     )
+    historico = _filter_history_entries(historico)
     for entry in historico:
         entry.observacao_evento = _history_entry_observacao(entry)
     return {

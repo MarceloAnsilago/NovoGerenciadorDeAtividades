@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -328,3 +328,100 @@ class RelatorioProgramacaoTests(TestCase):
         self.assertEqual(entry.observacao_evento, "Equipe informou bloqueio no local")
         self.assertContains(response, "Observa")
         self.assertContains(response, "Equipe informou bloqueio no local")
+
+    @override_settings(META_EXPEDIENTE_ID=777909)
+    def test_relatorio_historico_oculta_criacao_expediente_sem_alteracao(self):
+        meta_expediente = Meta.objects.create(
+            id=777909,
+            unidade_criadora=self.unidade,
+            atividade=None,
+            titulo="Expediente administrativo",
+            descricao="",
+            quantidade_alvo=0,
+            criado_por=self.user,
+        )
+        item_campo = ProgramacaoItem.objects.create(
+            programacao=self.programacao_2,
+            meta=self.meta,
+            concluido=False,
+            observacao="Barreira voltou para pendente",
+        )
+        item_expediente = ProgramacaoItem.objects.create(
+            programacao=self.programacao_2,
+            meta=meta_expediente,
+            concluido=False,
+        )
+
+        ProgramacaoHistorico.objects.create(
+            unidade=self.unidade,
+            usuario=self.user,
+            meta=meta_expediente,
+            data_programacao=self.programacao_2.data,
+            programacao_id=self.programacao_2.id,
+            item_id=item_expediente.id,
+            evento=ProgramacaoHistorico.EVENTO_ATIVIDADE_CRIADA,
+            origem="modal",
+            titulo_item="Expediente administrativo",
+            descricao="Atividade 'Expediente administrativo' criada na programacao.",
+            status_antes="",
+            status_depois=PENDENTE,
+            snapshot_antes={},
+            snapshot_depois={
+                "id": item_expediente.id,
+                "programacao_id": self.programacao_2.id,
+                "programacao_data": "2026-03-11",
+                "meta_id": meta_expediente.id,
+                "meta_titulo": "Expediente administrativo",
+                "status_execucao": PENDENTE,
+                "servidores": [],
+            },
+        )
+        ProgramacaoHistorico.objects.create(
+            unidade=self.unidade,
+            usuario=self.user,
+            meta=self.meta,
+            data_programacao=self.programacao_2.data,
+            programacao_id=self.programacao_2.id,
+            item_id=item_campo.id,
+            evento=ProgramacaoHistorico.EVENTO_STATUS_ALTERADO,
+            origem="status_form",
+            titulo_item="Fiscalizacao de viveiros",
+            descricao="Status da atividade 'Fiscalizacao de viveiros' alterado de 'Cancelada' para 'Pendente'.",
+            status_antes=CANCELADA,
+            status_depois=PENDENTE,
+            snapshot_antes={
+                "id": item_campo.id,
+                "programacao_id": self.programacao_2.id,
+                "programacao_data": "2026-03-11",
+                "meta_id": self.meta.id,
+                "meta_titulo": "Fiscalizacao de viveiros",
+                "status_execucao": CANCELADA,
+                "servidores": [],
+            },
+            snapshot_depois={
+                "id": item_campo.id,
+                "programacao_id": self.programacao_2.id,
+                "programacao_data": "2026-03-11",
+                "meta_id": self.meta.id,
+                "meta_titulo": "Fiscalizacao de viveiros",
+                "status_execucao": PENDENTE,
+                "servidores": [],
+            },
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_historico": "1",
+                "sec_desempenho": "0",
+                "sec_indicadores": "0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entries = response.context["report"]["historico"]["entries"]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].item_id, item_campo.id)
+        self.assertEqual(entries[0].evento, ProgramacaoHistorico.EVENTO_STATUS_ALTERADO)

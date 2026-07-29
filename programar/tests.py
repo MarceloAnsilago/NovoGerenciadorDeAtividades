@@ -271,6 +271,7 @@ class SalvarProgramacaoExpedienteTest(TestCase):
         response = self._post_salvar()
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(ProgramacaoItem.objects.filter(meta_id=self.meta_expediente.id).count(), 1)
         item_expediente = ProgramacaoItem.objects.get(meta_id=self.meta_expediente.id)
         self.assertFalse(
             ProgramacaoItemServidor.objects.filter(
@@ -283,6 +284,7 @@ class SalvarProgramacaoExpedienteTest(TestCase):
         response = self._post_salvar(expediente_manual_ids=[self.servidor.id])
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(ProgramacaoItem.objects.filter(meta_id=self.meta_expediente.id).count(), 1)
         item_expediente = ProgramacaoItem.objects.get(meta_id=self.meta_expediente.id)
         self.assertTrue(
             ProgramacaoItemServidor.objects.filter(

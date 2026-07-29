@@ -673,6 +673,8 @@ def salvar_programacao(request):
                 continue
             if is_expediente and not incluir_expediente:
                 continue
+            if is_expediente:
+                continue
 
             obs = it.get("observacao") or ""
             raw_veiculo = it.get("veiculo_id")
