@@ -322,16 +322,17 @@
             <div style="margin-top: 14px;">
               <h3 style="margin: 0 0 8px; font-size: 1.15rem;">Resumo por atividade</h3>
               <div class="legenda-box">
-                <strong>Legenda:</strong> Remarc. = remarcada e concluida | Canc. = canceladas atuais + removidas historicas | N.R. = n&atilde;o realizada | N.R.(J) = n&atilde;o realizada e justificada | Encerr. = encerrada automaticamente
+                <strong>Legenda:</strong> Prog. Total = todas programadas no periodo | Canc./Remov. = canceladas atuais + removidas historicas | Prog. Atual = programadas atuais sem canceladas | Remarc. = remarcada e concluida | N.R. = n&atilde;o realizada | N.R.(J) = n&atilde;o realizada e justificada | Encerr. = encerrada automaticamente
               </div>
               <table class="resumo-atividade-table">
                 <thead>
                   <tr>
                     <th>Atividade</th>
-                    <th style="text-align: right;">Prog.</th>
+                    <th style="text-align: right;">Prog. Total</th>
+                    <th style="text-align: right;">Canc./Remov.</th>
+                    <th style="text-align: right;">Prog. Atual</th>
                     <th style="text-align: right;">Conc.</th>
                     <th style="text-align: right;">Remarc.</th>
-                    <th style="text-align: right;">Canc.</th>
                     <th style="text-align: right;">N.R.</th>
                     <th style="text-align: right;">N.R.(J)</th>
                     <th style="text-align: right;">Encerr.</th>
@@ -343,10 +344,11 @@
                   {% for r in report.desempenho.resumo_por_atividade %}
                     <tr>
                       <td>{{ r.titulo }}</td>
-                      <td style="text-align: right;">{{ r.total }}</td>
+                      <td style="text-align: right;">{{ r.total_periodo }}</td>
+                      <td style="text-align: right;">{{ r.cancelada_ou_removida }}</td>
+                      <td style="text-align: right;">{{ r.total_atual }}</td>
                       <td style="text-align: right;">{{ r.executada }}</td>
                       <td style="text-align: right;">{{ r.remarcada_concluida }}</td>
-                      <td style="text-align: right;">{{ r.cancelada }}</td>
                       <td style="text-align: right;">{{ r.nao_realizada }}</td>
                       <td style="text-align: right;">{{ r.nao_realizada_justificada }}</td>
                       <td style="text-align: right;">{{ r.encerrada_automaticamente }}</td>

@@ -388,14 +388,18 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
     resumo_por_atividade = list(resumo_by_titulo.values())
 
     for row in resumo_por_atividade:
-        total = int(row.get("total") or 0)
+        total_periodo = int(row.get("total_base") or 0)
+        total_atual_com_canceladas = int(row.get("total") or 0)
         executada = int(row.get("executada") or 0)
         remarcada_concluida = int(row.get("remarcada_concluida") or 0)
         cancelada = int(row.get(CANCELADA) or 0)
         removida = int(row.get("removida") or 0)
         cancelada_atual = max(cancelada - removida, 0)
         encerrada_automaticamente = int(row.get(ENCERRADA_AUTOMATICAMENTE) or 0)
-        total_execucao = max(total - cancelada_atual - encerrada_automaticamente, 0)
+        total_atual = max(total_atual_com_canceladas - cancelada_atual, 0)
+        total_execucao = max(total_atual - encerrada_automaticamente, 0)
+        row["total_periodo"] = total_periodo
+        row["total_atual"] = total_atual
         row["total_execucao"] = total_execucao
         if total_execucao:
             row["execucao_percent"] = int(round(((executada + remarcada_concluida) * 100.0 / total_execucao), 0))
@@ -403,12 +407,13 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         else:
             row["execucao_percent"] = None
             row["execucao_percent_label"] = "-"
+        row["cancelada_ou_removida"] = cancelada
 
     resumo_por_atividade.sort(
         key=lambda r: (
             int(r.get("execucao_percent") if r.get("execucao_percent") is not None else -1),
             str(r.get("titulo") or "").casefold(),
-            -int(r.get("total") or 0),
+            -int(r.get("total_atual") or 0),
         )
     )
     nao_realizadas_grupos = build_non_performed_groups(
@@ -477,7 +482,10 @@ def _build_indicators_section(
                 "label": "Atividades concluidas",
                 "value": counters.get(EXECUTADA, 0) + counters.get(REMARCADA_CONCLUIDA, 0),
             },
-            {"label": "Atividades canceladas", "value": counters.get(CANCELADA, 0)},
+            {
+                "label": "Atividades canceladas/removidas",
+                "value": counters.get(CANCELADA, 0) + len(removed_ids),
+            },
             {"label": "Atividades remarcadas e concluidas", "value": counters.get(REMARCADA_CONCLUIDA, 0)},
             {"label": "Atividades nao realizadas", "value": counters.get(NAO_REALIZADA, 0)},
             {"label": "Atividades nao realizadas justificadas", "value": counters.get(NAO_REALIZADA_JUSTIFICADA, 0)},
@@ -486,7 +494,6 @@ def _build_indicators_section(
             {"label": "Atividades atrasadas", "value": counters.get("atrasada", 0)},
             {"label": "Atividades alteradas", "value": len(changed_ids)},
             {"label": "Atividades adicionadas", "value": len(added_ids)},
-            {"label": "Atividades removidas", "value": len(removed_ids)},
         ]
     }
 
