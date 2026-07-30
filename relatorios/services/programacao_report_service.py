@@ -451,9 +451,9 @@ def _build_indicators_section(
                 "label": "Total de atividades programadas",
                 "value": total_programadas,
                 "breakdown": [
-                    {"label": "Programacao atual", "value": total_programadas},
-                    {"label": "Base desempenho", "value": total_desempenho},
-                    {"label": "Adicionadas no historico", "value": total_adicionadas_historico},
+                    {"label": "Programacao atual: atividades salvas no calendario", "value": total_programadas},
+                    {"label": "Base desempenho: inclui historico e removidas", "value": total_desempenho},
+                    {"label": "Historico: atividades adicionadas no periodo", "value": total_adicionadas_historico},
                 ],
                 "formula": f"Total = {total_programadas}; historico nao soma no total",
             },

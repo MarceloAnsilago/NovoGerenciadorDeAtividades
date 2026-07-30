@@ -92,7 +92,7 @@
     }
     .card.has-breakdown {
       display: grid;
-      grid-template-columns: minmax(0, .9fr) minmax(145px, 1.1fr);
+      grid-template-columns: minmax(0, .75fr) minmax(180px, 1.25fr);
       column-gap: 12px;
       align-items: center;
     }
@@ -107,9 +107,10 @@
       line-height: 1.35;
     }
     .card .breakdown-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: 10px;
+      align-items: start;
     }
     .card .formula {
       margin-top: 5px;

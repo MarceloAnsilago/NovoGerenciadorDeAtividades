@@ -36,7 +36,7 @@
     }
     .relatorio-indicador-card.has-breakdown {
       display: grid;
-      grid-template-columns: minmax(0, .9fr) minmax(150px, 1.1fr);
+      grid-template-columns: minmax(0, .75fr) minmax(190px, 1.25fr);
       column-gap: 1rem;
       align-items: center;
     }
@@ -51,9 +51,10 @@
       line-height: 1.35;
     }
     .relatorio-indicador-card .breakdown-row {
-      display: flex;
-      justify-content: space-between;
-      gap: .75rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: .75rem;
+      align-items: start;
     }
     .relatorio-indicador-card .formula {
       margin-top: .35rem;
