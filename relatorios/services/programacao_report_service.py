@@ -388,11 +388,16 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         total = int(row.get("total") or 0)
         executada = int(row.get("executada") or 0)
         remarcada_concluida = int(row.get("remarcada_concluida") or 0)
-        row["execucao_percent"] = int(round(((executada + remarcada_concluida) * 100.0 / total), 0)) if total else 0
+        if total:
+            row["execucao_percent"] = int(round(((executada + remarcada_concluida) * 100.0 / total), 0))
+            row["execucao_percent_label"] = f"{row['execucao_percent']}%"
+        else:
+            row["execucao_percent"] = None
+            row["execucao_percent_label"] = "-"
 
     resumo_por_atividade.sort(
         key=lambda r: (
-            int(r.get("execucao_percent") or 0),
+            int(r.get("execucao_percent") if r.get("execucao_percent") is not None else -1),
             str(r.get("titulo") or "").casefold(),
             -int(r.get("total") or 0),
         )
