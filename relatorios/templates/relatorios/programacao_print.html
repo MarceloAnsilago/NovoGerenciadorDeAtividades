@@ -90,10 +90,18 @@
       font-size: 2rem;
       font-weight: 700;
     }
+    .card.has-breakdown {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(145px, 1.1fr);
+      column-gap: 12px;
+      align-items: center;
+    }
+    .card.has-breakdown .indicator-main {
+      min-width: 0;
+    }
     .card .breakdown {
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 1px solid var(--line);
+      padding-left: 12px;
+      border-left: 2px solid var(--line);
       color: var(--muted);
       font-size: .78rem;
       line-height: 1.35;
@@ -240,9 +248,11 @@
           <h2>Indicadores de desempenho</h2>
           <div class="cards">
             {% for card in report.indicadores.cards %}
-              <div class="card">
-                <div class="label">{{ card.label }}</div>
-                <div class="value">{{ card.value }}</div>
+              <div class="card{% if card.breakdown %} has-breakdown{% endif %}">
+                <div class="indicator-main">
+                  <div class="label">{{ card.label }}</div>
+                  <div class="value">{{ card.value }}</div>
+                </div>
                 {% if card.breakdown %}
                   <div class="breakdown">
                     {% for item in card.breakdown %}

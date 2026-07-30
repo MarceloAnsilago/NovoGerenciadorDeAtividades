@@ -34,10 +34,18 @@
       line-height: 1;
       margin-top: .45rem;
     }
+    .relatorio-indicador-card.has-breakdown {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(150px, 1.1fr);
+      column-gap: 1rem;
+      align-items: center;
+    }
+    .relatorio-indicador-card.has-breakdown .indicator-main {
+      min-width: 0;
+    }
     .relatorio-indicador-card .breakdown {
-      margin-top: .7rem;
-      padding-top: .65rem;
-      border-top: 1px solid #d7dee8;
+      padding-left: 1rem;
+      border-left: 2px solid #d7dee8;
       color: #475569;
       font-size: .8rem;
       line-height: 1.35;
@@ -273,6 +281,16 @@
       .relatorio-indicador-card .small {
         font-size: .72rem !important;
       }
+      .relatorio-indicador-card.has-breakdown {
+        grid-template-columns: 1fr;
+        row-gap: .65rem;
+      }
+      .relatorio-indicador-card .breakdown {
+        padding-left: 0;
+        padding-top: .65rem;
+        border-left: 0;
+        border-top: 1px solid #d7dee8;
+      }
     }
   </style>
 {% endblock %}
@@ -367,9 +385,11 @@
               <h5 class="fw-semibold mb-3">Indicadores de desempenho</h5>
               <div class="relatorio-indicadores-grid">
                 {% for card in report.indicadores.cards %}
-                  <div class="relatorio-indicador-card">
-                    <div class="small text-muted mb-2">{{ card.label }}</div>
-                    <div class="value">{{ card.value }}</div>
+                  <div class="relatorio-indicador-card{% if card.breakdown %} has-breakdown{% endif %}">
+                    <div class="indicator-main">
+                      <div class="small text-muted mb-2">{{ card.label }}</div>
+                      <div class="value">{{ card.value }}</div>
+                    </div>
                     {% if card.breakdown %}
                       <div class="breakdown">
                         {% for item in card.breakdown %}
