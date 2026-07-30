@@ -379,7 +379,10 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         resumo_by_titulo[titulo]["total_base"] += 1
         if status_final != "removida":
             resumo_by_titulo[titulo]["total"] += 1
-        if status_final in counters:
+        if status_final == "removida":
+            resumo_by_titulo[titulo][CANCELADA] += 1
+            resumo_by_titulo[titulo]["removida"] += 1
+        elif status_final in counters:
             resumo_by_titulo[titulo][status_final] += 1
 
     resumo_por_atividade = list(resumo_by_titulo.values())
@@ -389,8 +392,10 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         executada = int(row.get("executada") or 0)
         remarcada_concluida = int(row.get("remarcada_concluida") or 0)
         cancelada = int(row.get(CANCELADA) or 0)
+        removida = int(row.get("removida") or 0)
+        cancelada_atual = max(cancelada - removida, 0)
         encerrada_automaticamente = int(row.get(ENCERRADA_AUTOMATICAMENTE) or 0)
-        total_execucao = max(total - cancelada - encerrada_automaticamente, 0)
+        total_execucao = max(total - cancelada_atual - encerrada_automaticamente, 0)
         row["total_execucao"] = total_execucao
         if total_execucao:
             row["execucao_percent"] = int(round(((executada + remarcada_concluida) * 100.0 / total_execucao), 0))
