@@ -388,8 +388,12 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         total = int(row.get("total") or 0)
         executada = int(row.get("executada") or 0)
         remarcada_concluida = int(row.get("remarcada_concluida") or 0)
-        if total:
-            row["execucao_percent"] = int(round(((executada + remarcada_concluida) * 100.0 / total), 0))
+        cancelada = int(row.get(CANCELADA) or 0)
+        encerrada_automaticamente = int(row.get(ENCERRADA_AUTOMATICAMENTE) or 0)
+        total_execucao = max(total - cancelada - encerrada_automaticamente, 0)
+        row["total_execucao"] = total_execucao
+        if total_execucao:
+            row["execucao_percent"] = int(round(((executada + remarcada_concluida) * 100.0 / total_execucao), 0))
             row["execucao_percent_label"] = f"{row['execucao_percent']}%"
         else:
             row["execucao_percent"] = None
