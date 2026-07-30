@@ -375,8 +375,10 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         titulo = str(row.get("titulo") or "").strip() or "-"
         status_final = str(row.get("status_final") or "").strip()
         if titulo not in resumo_by_titulo:
-            resumo_by_titulo[titulo] = {"titulo": titulo, "total": 0, **{key: 0 for key in counters.keys()}}
-        resumo_by_titulo[titulo]["total"] += 1
+            resumo_by_titulo[titulo] = {"titulo": titulo, "total": 0, "total_base": 0, **{key: 0 for key in counters.keys()}}
+        resumo_by_titulo[titulo]["total_base"] += 1
+        if status_final != "removida":
+            resumo_by_titulo[titulo]["total"] += 1
         if status_final in counters:
             resumo_by_titulo[titulo][status_final] += 1
 
