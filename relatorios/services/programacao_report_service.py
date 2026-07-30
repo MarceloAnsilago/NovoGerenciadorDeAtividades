@@ -15,8 +15,11 @@ from programar.status import (
     ENCERRADA_AUTOMATICAMENTE_MARKER,
     EXECUTADA,
     ITEM_STATUS_LABELS,
+    NAO_REALIZADA,
+    NAO_REALIZADA_JUSTIFICADA,
     PENDENTE,
     REMARCADA_CONCLUIDA,
+    item_execucao_status_from_fields,
 )
 
 from relatorios.models import ProgramacaoHistorico
@@ -111,6 +114,52 @@ def _current_items_in_period(unidade_id: int, data_inicial: date, data_final: da
         .select_related("programacao")
         .order_by("programacao__data", "id")
     )
+
+
+def _current_programacao_indicator_counts(unidade_id: int, data_inicial: date, data_final: date) -> dict[str, Any]:
+    qs = (
+        ProgramacaoItem.objects.filter(
+            programacao__unidade_id=unidade_id,
+            programacao__data__gte=data_inicial,
+            programacao__data__lte=data_final,
+        )
+        .exclude(meta_id__isnull=True)
+        .select_related("programacao")
+        .order_by("programacao__data", "id")
+    )
+    meta_expediente_id = _meta_expediente_id()
+    if meta_expediente_id is not None:
+        qs = qs.exclude(meta_id=meta_expediente_id)
+
+    counters = {
+        EXECUTADA: 0,
+        REMARCADA_CONCLUIDA: 0,
+        CANCELADA: 0,
+        NAO_REALIZADA: 0,
+        NAO_REALIZADA_JUSTIFICADA: 0,
+        ENCERRADA_AUTOMATICAMENTE: 0,
+        PENDENTE: 0,
+        "atrasada": 0,
+    }
+    today = timezone.localdate()
+    total = 0
+    for item in qs:
+        total += 1
+        status = item_execucao_status_from_fields(
+            bool(getattr(item, "concluido", False)),
+            getattr(item, "concluido_em", None),
+            bool(getattr(item, "cancelada", False)),
+            bool(getattr(item, "nao_realizada_justificada", False)),
+            getattr(item, "remarcado_de_id", None),
+            getattr(item, "observacao", "") or "",
+        )
+        if status in counters:
+            counters[status] += 1
+        programacao_data = getattr(getattr(item, "programacao", None), "data", None)
+        if status == PENDENTE and programacao_data and programacao_data < today:
+            counters["atrasada"] += 1
+
+    return {"total": total, "counters": counters}
 
 
 def _history_items_map(unidade_id: int, data_inicial: date, data_final: date):
@@ -390,10 +439,11 @@ def _build_indicators_section(
         if item_id
     )
 
-    counters = desempenho.get("counters", {})
+    current_indicators = _current_programacao_indicator_counts(unidade_id, data_inicial, data_final)
+    counters = current_indicators.get("counters", {})
+    total_programadas = int(current_indicators.get("total", 0) or 0)
     total_desempenho = desempenho.get("total", 0)
     total_adicionadas_historico = len(added_ids)
-    total_programadas = total_desempenho
 
     return {
         "cards": [
@@ -401,21 +451,22 @@ def _build_indicators_section(
                 "label": "Total de atividades programadas",
                 "value": total_programadas,
                 "breakdown": [
-                    {"label": "Itens considerados", "value": total_desempenho},
+                    {"label": "Programacao atual", "value": total_programadas},
+                    {"label": "Base desempenho", "value": total_desempenho},
                     {"label": "Adicionadas no historico", "value": total_adicionadas_historico},
                 ],
-                "formula": f"Total = {total_desempenho}; adicionadas ja auditadas no historico",
+                "formula": f"Total = {total_programadas}; historico nao soma no total",
             },
             {
                 "label": "Atividades concluidas",
-                "value": counters.get("executada", 0) + counters.get(REMARCADA_CONCLUIDA, 0),
+                "value": counters.get(EXECUTADA, 0) + counters.get(REMARCADA_CONCLUIDA, 0),
             },
             {"label": "Atividades canceladas", "value": counters.get(CANCELADA, 0)},
             {"label": "Atividades remarcadas e concluidas", "value": counters.get(REMARCADA_CONCLUIDA, 0)},
-            {"label": "Atividades nao realizadas", "value": counters.get("nao_realizada", 0)},
-            {"label": "Atividades nao realizadas justificadas", "value": counters.get("nao_realizada_justificada", 0)},
+            {"label": "Atividades nao realizadas", "value": counters.get(NAO_REALIZADA, 0)},
+            {"label": "Atividades nao realizadas justificadas", "value": counters.get(NAO_REALIZADA_JUSTIFICADA, 0)},
             {"label": "Atividades encerradas automaticamente", "value": counters.get(ENCERRADA_AUTOMATICAMENTE, 0)},
-            {"label": "Atividades pendentes", "value": counters.get("pendente", 0)},
+            {"label": "Atividades pendentes", "value": counters.get(PENDENTE, 0)},
             {"label": "Atividades atrasadas", "value": counters.get("atrasada", 0)},
             {"label": "Atividades alteradas", "value": len(changed_ids)},
             {"label": "Atividades adicionadas", "value": len(added_ids)},
