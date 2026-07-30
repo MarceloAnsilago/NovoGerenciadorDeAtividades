@@ -90,6 +90,24 @@
       font-size: 2rem;
       font-weight: 700;
     }
+    .card .breakdown {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .78rem;
+      line-height: 1.35;
+    }
+    .card .breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .card .formula {
+      margin-top: 5px;
+      color: var(--text);
+      font-weight: 700;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -225,6 +243,19 @@
               <div class="card">
                 <div class="label">{{ card.label }}</div>
                 <div class="value">{{ card.value }}</div>
+                {% if card.breakdown %}
+                  <div class="breakdown">
+                    {% for item in card.breakdown %}
+                      <div class="breakdown-row">
+                        <span>{{ item.label }}</span>
+                        <strong>{{ item.value }}</strong>
+                      </div>
+                    {% endfor %}
+                    {% if card.formula %}
+                      <div class="formula">{{ card.formula }}</div>
+                    {% endif %}
+                  </div>
+                {% endif %}
               </div>
             {% endfor %}
           </div>

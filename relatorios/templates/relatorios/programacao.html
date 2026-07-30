@@ -34,6 +34,24 @@
       line-height: 1;
       margin-top: .45rem;
     }
+    .relatorio-indicador-card .breakdown {
+      margin-top: .7rem;
+      padding-top: .65rem;
+      border-top: 1px solid #d7dee8;
+      color: #475569;
+      font-size: .8rem;
+      line-height: 1.35;
+    }
+    .relatorio-indicador-card .breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      gap: .75rem;
+    }
+    .relatorio-indicador-card .formula {
+      margin-top: .35rem;
+      color: #0f172a;
+      font-weight: 600;
+    }
     .relatorio-indicador-card .small {
       font-size: .82rem !important;
       line-height: 1.35;
@@ -189,6 +207,9 @@
       }
       .relatorio-indicador-card .value {
         font-size: 1.6rem;
+      }
+      .relatorio-indicador-card .breakdown {
+        font-size: .72rem;
       }
       .relatorio-print-header {
         margin-bottom: .85rem;
@@ -349,6 +370,19 @@
                   <div class="relatorio-indicador-card">
                     <div class="small text-muted mb-2">{{ card.label }}</div>
                     <div class="value">{{ card.value }}</div>
+                    {% if card.breakdown %}
+                      <div class="breakdown">
+                        {% for item in card.breakdown %}
+                          <div class="breakdown-row">
+                            <span>{{ item.label }}</span>
+                            <strong>{{ item.value }}</strong>
+                          </div>
+                        {% endfor %}
+                        {% if card.formula %}
+                          <div class="formula">{{ card.formula }}</div>
+                        {% endif %}
+                      </div>
+                    {% endif %}
                   </div>
                 {% endfor %}
               </div>

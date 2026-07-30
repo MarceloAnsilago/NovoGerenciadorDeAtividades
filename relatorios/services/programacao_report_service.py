@@ -391,11 +391,21 @@ def _build_indicators_section(
     )
 
     counters = desempenho.get("counters", {})
-    total_programadas = desempenho.get("total", 0) + len(added_ids)
+    total_desempenho = desempenho.get("total", 0)
+    total_adicionadas_historico = len(added_ids)
+    total_programadas = total_desempenho
 
     return {
         "cards": [
-            {"label": "Total de atividades programadas", "value": total_programadas},
+            {
+                "label": "Total de atividades programadas",
+                "value": total_programadas,
+                "breakdown": [
+                    {"label": "Itens considerados", "value": total_desempenho},
+                    {"label": "Adicionadas no historico", "value": total_adicionadas_historico},
+                ],
+                "formula": f"Total = {total_desempenho}; adicionadas ja auditadas no historico",
+            },
             {
                 "label": "Atividades concluidas",
                 "value": counters.get("executada", 0) + counters.get(REMARCADA_CONCLUIDA, 0),
