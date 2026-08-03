@@ -44,8 +44,9 @@
     return String(iso || '');
   }
 
-  function reportTitle(startISO, endISO){
-    return `Programa\u00e7\u00e3o do dia ${formatDateBR(startISO)} a ${formatDateBR(endISO)}`;
+  function reportTitle(startISO, endISO, mode){
+    const prefix = String(mode || '').toLowerCase() === 'just-only' ? 'Justificativas' : 'Programa\u00e7\u00e3o';
+    return `${prefix} do dia ${formatDateBR(startISO)} a ${formatDateBR(endISO)}`;
   }
 
   function sanitizeNode(node){
@@ -193,7 +194,7 @@
         });
         container.dataset.start = startISO; container.dataset.end = endISO;
         container.dataset.mode = mode;
-        document.title = reportTitle(startISO, endISO);
+        document.title = reportTitle(startISO, endISO, mode);
       }catch(e){ if (DEBUG) console.warn('dataset fail', e); }
 
     }catch(err){
