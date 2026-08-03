@@ -36,6 +36,18 @@
     container.appendChild(alert);
   }
 
+  function formatDateBR(iso){
+    const parts = String(iso || '').split('-');
+    if (parts.length === 3 && parts[0].length === 4){
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return String(iso || '');
+  }
+
+  function reportTitle(startISO, endISO){
+    return `Programa\u00e7\u00e3o do dia ${formatDateBR(startISO)} a ${formatDateBR(endISO)}`;
+  }
+
   function sanitizeNode(node){
     if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
 
@@ -181,6 +193,7 @@
         });
         container.dataset.start = startISO; container.dataset.end = endISO;
         container.dataset.mode = mode;
+        document.title = reportTitle(startISO, endISO);
       }catch(e){ if (DEBUG) console.warn('dataset fail', e); }
 
     }catch(err){

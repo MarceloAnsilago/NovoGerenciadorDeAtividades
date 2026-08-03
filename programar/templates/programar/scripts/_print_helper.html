@@ -79,6 +79,16 @@
       return;
     }
 
+    function formatDateBR(iso) {
+      const parts = String(iso || '').split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+      return String(iso || '');
+    }
+
+    const reportTitle = `Programa\u00e7\u00e3o do dia ${formatDateBR(range.start)} a ${formatDateBR(range.end)}`;
+
     const container = document.getElementById('programar-relatoriosContainer');
     const target = container?.querySelector('#relatorioPrintArea') || container?.firstElementChild || container;
     let html = target?.outerHTML || '';
@@ -110,13 +120,12 @@
       const styles = collectStylesHtml();
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
       if (!doc) { cleanup(); return; }
-      const titleRange = `${range.start} &#8594; ${range.end}`;
       doc.open();
   doc.write(`<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Relatório ${titleRange}</title>
+  <title>${reportTitle}</title>
   ${styles}
   <style>
     body{margin:0;padding:8px;background:#fff;font-family:system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif;font-size:11px;}

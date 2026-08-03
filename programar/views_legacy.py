@@ -548,6 +548,9 @@ def _format_iso_to_br(date_str: str) -> str:
 def _period_label_br(start: str, end: str) -> str:
     return f"{_format_iso_to_br(start)} &#8594; {_format_iso_to_br(end)}"
 
+def _programacao_title_br(start: str, end: str) -> str:
+    return f"Programa\u00e7\u00e3o do dia {_format_iso_to_br(start)} a {_format_iso_to_br(end)}"
+
 @login_required
 @csrf_protect
 @require_POST
@@ -1933,12 +1936,13 @@ def print_relatorio_semana(request):
     plantonistas_html = _render_plantonistas_html(servidores, start, end)
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
     period_label = _period_label_br(start, end)
+    page_title = _programacao_title_br(start, end)
 
     html_out = f"""<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Relatório {period_label}</title>
+  <title>{page_title}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
@@ -1997,12 +2001,13 @@ def print_relatorio_justificativas(request):
 
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
     period_label = _period_label_br(start, end)
+    page_title = f"Justificativas - {_programacao_title_br(start, end)}"
 
     html_out = f"""<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Justificativas {period_label}</title>
+  <title>{page_title}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>

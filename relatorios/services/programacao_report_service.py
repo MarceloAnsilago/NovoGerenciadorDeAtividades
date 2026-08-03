@@ -37,7 +37,7 @@ def _dt_end(value: date):
 
 
 def _format_periodo(data_inicial: date, data_final: date) -> str:
-    return f"{data_inicial.strftime('%d/%m/%Y')} -> {data_final.strftime('%d/%m/%Y')}"
+    return f"{data_inicial.strftime('%d/%m/%Y')} a {data_final.strftime('%d/%m/%Y')}"
 
 
 def _status_label(status: str) -> str:

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Relatório de Programação</title>
+  <title>{% if report %}Programa&ccedil;&atilde;o do dia {{ report.periodo_label }}{% else %}Relat&oacute;rio de Programa&ccedil;&atilde;o{% endif %}</title>
   <style>
     :root {
       color-scheme: light;
