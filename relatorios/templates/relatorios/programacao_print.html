@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% if report %}Programa&ccedil;&atilde;o do dia {{ report.periodo_label }}{% else %}Relat&oacute;rio de Programa&ccedil;&atilde;o{% endif %}</title>
+  <title>{% if report %}Relat&oacute;rio de Programa&ccedil;&atilde;o {{ report.periodo_label }}{% else %}Relat&oacute;rio de Programa&ccedil;&atilde;o{% endif %}</title>
   <style>
     :root {
       color-scheme: light;
@@ -237,7 +237,7 @@
 
     {% if report %}
       <header class="header">
-        <h1>Relatório de Programação de Atividades</h1>
+        <h1>Relat&oacute;rio de Programa&ccedil;&atilde;o {{ report.periodo_label }}</h1>
         <div class="meta">
           Período: <strong>{{ report.periodo_label }}</strong>
           <span style="margin-left:10px;">Gerado em {{ report.gerado_em|date:"d/m/Y H:i" }}</span>

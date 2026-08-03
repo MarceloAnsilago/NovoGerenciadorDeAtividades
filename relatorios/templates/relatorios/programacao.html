@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}{% if report %}Programa&ccedil;&atilde;o do dia {{ report.periodo_label }}{% else %}Relat&oacute;rio de Programa&ccedil;&atilde;o{% endif %}{% endblock %}
+{% block title %}{% if report %}Relat&oacute;rio de Programa&ccedil;&atilde;o {{ report.periodo_label }}{% else %}Relat&oacute;rio de Programa&ccedil;&atilde;o{% endif %}{% endblock %}
 
 {% block extra_head %}
   {% include "programar/styles/_programacao_styles.html" %}
@@ -363,7 +363,7 @@
         <div class="container mt-3 report-container px-0">
           <div class="relatorio-print-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1rem;padding-bottom:.9rem;border-bottom:2px solid #cfd6df;">
             <div>
-              <h2 class="relatorio-print-title" style="margin:0;font-size:2rem;line-height:1.1;color:#162033;font-weight:700;">Relatório de Programação de Atividades</h2>
+              <h2 class="relatorio-print-title" style="margin:0;font-size:2rem;line-height:1.1;color:#162033;font-weight:700;">Relat&oacute;rio de Programa&ccedil;&atilde;o {{ report.periodo_label }}</h2>
               <div class="relatorio-print-meta" style="margin-top:.7rem;font-size:1rem;color:#475569;">
                 Período: <strong>{{ report.periodo_label }}</strong>
                 <span class="ms-2">Gerado em {{ report.gerado_em|date:"d/m/Y H:i" }}</span>
