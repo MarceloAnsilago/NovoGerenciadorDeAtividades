@@ -200,7 +200,7 @@ def _prepare_metas_context(request, *, emit_messages=False):
             ProgramacaoItem.objects
             .filter(meta_id__in=meta_ids, programacao__unidade=unidade_real)
             .values("meta_id")
-            .annotate(total=Count("id"))
+            .annotate(total=Count("id", filter=Q(cancelada=False)))
         )
         prog_count_map = {row["meta_id"]: row["total"] for row in prog_counts}
     except Exception:
@@ -685,7 +685,7 @@ def editar_meta_view(request, meta_id):
     # info somente leitura
     meta_alocado_total = meta.alocado_total or 0
     if ProgramacaoItem._meta.db_table in connection.introspection.table_names():
-        meta_programadas_total = ProgramacaoItem.objects.filter(meta=meta).count()
+        meta_programadas_total = ProgramacaoItem.objects.filter(meta=meta, cancelada=False).count()
     else:
         meta_programadas_total = 0
 

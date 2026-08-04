@@ -699,3 +699,35 @@ class MetasDisponiveisApiTests(TestCase):
         self.assertEqual(meta_payload["id"], self.meta.id)
         self.assertEqual(meta_payload["alocado_unidade"], 5)
         self.assertEqual(meta_payload["executado_unidade"], 3)
+
+    def test_metas_disponiveis_nao_conta_canceladas_como_programadas(self):
+        MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=2,
+            atribuida_por=self.user,
+        )
+        programacao = Programacao.objects.create(
+            data=timezone.localdate(),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            cancelada=True,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            cancelada=False,
+        )
+
+        response = self.client.get(
+            reverse("programar:metas_disponiveis"),
+            {"data": timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        meta_payload = response.json()["metas"][0]
+        self.assertEqual(meta_payload["programadas_total"], 1)

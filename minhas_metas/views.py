@@ -261,7 +261,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             .filter(meta_id__in=meta_ids, programacao__unidade_id=unidade.id)
             .values("meta_id")
             .annotate(
-                total=Count("id"),
+                total=Count("id", filter=Q(cancelada=False)),
                 nao_realizadas_atrasadas=Count(
                     "id",
                     filter=Q(
@@ -276,7 +276,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
                 ),
                 pendentes_atrasadas=Count(
                     "id",
-                    filter=Q(concluido=False, concluido_em__isnull=True, programacao__data__lt=today),
+                    filter=Q(concluido=False, concluido_em__isnull=True, cancelada=False, programacao__data__lt=today),
                 ),
             )
         )

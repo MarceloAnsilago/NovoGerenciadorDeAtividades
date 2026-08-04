@@ -68,7 +68,7 @@ class MetaForm(forms.ModelForm):
                 from programar.models import ProgramacaoItem  # import local para evitar custo global
 
                 if ProgramacaoItem._meta.db_table in connection.introspection.table_names():
-                    programadas_total = ProgramacaoItem.objects.filter(meta_id=instance.id).count()
+                    programadas_total = ProgramacaoItem.objects.filter(meta_id=instance.id, cancelada=False).count()
             except Exception:
                 programadas_total = 0
 
