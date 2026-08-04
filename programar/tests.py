@@ -293,6 +293,49 @@ class SalvarProgramacaoExpedienteTest(TestCase):
             ).exists()
         )
 
+    def test_salvar_payload_incompleto_preserva_item_salvo(self):
+        programacao = Programacao.objects.create(
+            data=date(2026, 6, 12),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        item_presente = ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta_campo,
+            observacao="Veio no payload",
+        )
+        item_omitido = ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta_campo,
+            observacao="Nao veio no payload",
+        )
+        ProgramacaoItemServidor.objects.create(item=item_presente, servidor=self.servidor)
+        ProgramacaoItemServidor.objects.create(item=item_omitido, servidor=self.servidor)
+
+        payload = {
+            "data": "2026-06-12",
+            "observacao": "",
+            "incluir_expediente": True,
+            "itens": [
+                {
+                    "id": item_presente.id,
+                    "meta_id": self.meta_campo.id,
+                    "observacao": "Atualizado",
+                    "veiculo_id": None,
+                    "servidores_ids": [self.servidor.id],
+                }
+            ],
+        }
+        response = self.client.post(
+            reverse("programar:salvar_programacao"),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(ProgramacaoItem.objects.filter(pk=item_presente.pk).exists())
+        self.assertTrue(ProgramacaoItem.objects.filter(pk=item_omitido.pk).exists())
+
 
 class ConcluirItemFormTests(TestCase):
     def setUp(self):

@@ -845,11 +845,9 @@ def salvar_programacao(request):
             pi_id
             for (pi_id, pi) in existentes.items()
             if pi_id not in ids_payload
-            and (
-                meta_expediente_id is None
-                or int(getattr(pi, "meta_id", 0) or 0) != meta_expediente_id
-                or not incluir_expediente
-            )
+            and meta_expediente_id is not None
+            and int(getattr(pi, "meta_id", 0) or 0) == meta_expediente_id
+            and not incluir_expediente
         ]
         if orfaos:
             ProgramacaoItemServidor.objects.filter(item_id__in=orfaos).delete()
@@ -1558,7 +1556,8 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 
             elif b["kind"] == "atividade":
                 encerrada_automaticamente = b.get("status_execucao") == ENCERRADA_AUTOMATICAMENTE
-                auto_x_class = " auto-closed-x-cell" if encerrada_automaticamente else ""
+                marcada_com_x = encerrada_automaticamente or b.get("status_execucao") == CANCELADA
+                auto_x_class = " auto-closed-x-cell" if marcada_com_x else ""
                 # acumula para rel. atividades
                 for nome in (b.get("servidores") or []):
                     if nome and isinstance(nome, str):

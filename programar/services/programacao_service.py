@@ -233,7 +233,7 @@ def salvar_programacao(unidade_id: int, data_ref: date, payload: dict[str, Any],
                 )
                 total_links += len(srv)
 
-        orfaos = [item_id for item_id in existentes.keys() if item_id not in ids_payload]
+        orfaos: list[int] = []
         if orfaos:
             ProgramacaoItemServidor.objects.filter(item_id__in=orfaos).delete()
             ProgramacaoItem.objects.filter(id__in=orfaos).delete()
