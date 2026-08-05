@@ -271,8 +271,155 @@ class RelatorioProgramacaoTests(TestCase):
         resumo = {report_row["titulo"]: report_row for report_row in report["desempenho"]["resumo_por_atividade"]}
         self.assertEqual(resumo["Fiscalizacao de viveiros"]["cancelada"], 1)
         indicadores = {card["label"]: card["value"] for card in report["indicadores"]["cards"]}
-        self.assertEqual(indicadores["Atividades canceladas"], 1)
+        self.assertEqual(indicadores["Atividades canceladas/removidas"], 1)
         self.assertContains(response, "Cancelada")
+
+    def test_relatorio_separa_canceladas_e_removidas_no_resumo(self):
+        atividade = Atividade.objects.create(
+            titulo="Fiscalizacao de laticinios",
+            descricao="",
+            area=self.area,
+            unidade_origem=self.unidade,
+            criado_por=self.user,
+        )
+        meta = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=atividade,
+            titulo="Laticinios",
+            descricao="meta de teste",
+            quantidade_alvo=2,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=self.programacao_2,
+            meta=meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            cancelada=True,
+            observacao="Cancelada no calendario",
+        )
+        snapshot_removida = {
+            "id": 987654,
+            "programacao_id": self.programacao_2.id,
+            "programacao_data": "2026-03-11",
+            "meta_id": meta.id,
+            "meta_titulo": "Fiscalizacao de laticinios",
+            "status_execucao": PENDENTE,
+            "servidores": [],
+        }
+        ProgramacaoHistorico.objects.create(
+            unidade=self.unidade,
+            usuario=self.user,
+            meta=meta,
+            data_programacao=self.programacao_2.data,
+            programacao_id=self.programacao_2.id,
+            item_id=987654,
+            evento=ProgramacaoHistorico.EVENTO_ATIVIDADE_REMOVIDA,
+            origem="teste",
+            titulo_item="Fiscalizacao de laticinios",
+            descricao="Atividade removida da programacao.",
+            status_antes=PENDENTE,
+            status_depois="",
+            snapshot_antes=snapshot_removida,
+            snapshot_depois={},
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_desempenho": "1",
+                "sec_indicadores": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        resumo = {row["titulo"]: row for row in response.context["report"]["desempenho"]["resumo_por_atividade"]}
+        row = resumo["Fiscalizacao de laticinios"]
+        self.assertEqual(row["cancelada"], 1)
+        self.assertEqual(row["removida"], 1)
+        self.assertEqual(row["cancelada_ou_removida"], 2)
+        self.assertEqual(row["total_atual"], 0)
+
+    def test_relatorio_indicadores_de_historico_respeitam_data_programada_do_periodo(self):
+        snapshot_removida = {
+            "id": 876543,
+            "programacao_id": 123456,
+            "programacao_data": "2026-04-01",
+            "meta_id": self.meta.id,
+            "meta_titulo": "Fiscalizacao de viveiros",
+            "status_execucao": PENDENTE,
+            "servidores": [],
+        }
+        historico = ProgramacaoHistorico.objects.create(
+            unidade=self.unidade,
+            usuario=self.user,
+            meta=self.meta,
+            data_programacao=date(2026, 4, 1),
+            programacao_id=123456,
+            item_id=876543,
+            evento=ProgramacaoHistorico.EVENTO_ATIVIDADE_REMOVIDA,
+            origem="teste",
+            titulo_item="Fiscalizacao de viveiros",
+            descricao="Atividade de abril removida em marco.",
+            status_antes=PENDENTE,
+            status_depois="",
+            snapshot_antes=snapshot_removida,
+            snapshot_depois={},
+        )
+        ProgramacaoHistorico.objects.filter(pk=historico.pk).update(
+            criado_em=timezone.make_aware(datetime(2026, 3, 20, 10, 0))
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_desempenho": "0",
+                "sec_historico": "0",
+                "sec_indicadores": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        indicadores = {card["label"]: card["value"] for card in response.context["report"]["indicadores"]["cards"]}
+        self.assertEqual(indicadores["Atividades canceladas/removidas"], 0)
+
+    @override_settings(META_EXPEDIENTE_ID=777909)
+    def test_relatorio_desempenho_nao_conta_expediente_administrativo(self):
+        meta_expediente = Meta.objects.create(
+            id=777909,
+            unidade_criadora=self.unidade,
+            atividade=None,
+            titulo="Expediente administrativo",
+            descricao="",
+            quantidade_alvo=0,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=self.programacao_2,
+            meta=meta_expediente,
+            concluido=False,
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_desempenho": "1",
+                "sec_indicadores": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        report = response.context["report"]
+        self.assertEqual(report["desempenho"]["total"], 2)
+        breakdown = {item["label"]: item["value"] for item in report["indicadores"]["cards"][0]["breakdown"]}
+        self.assertEqual(breakdown["Atual: salvas no calendario"], 2)
+        self.assertEqual(breakdown["Desempenho: atuais + removidas"], 2)
 
     def test_relatorio_indicadores_inclui_atrasadas_sem_encerradas_automaticamente(self):
         data_atrasada = timezone.localdate() - timedelta(days=1)

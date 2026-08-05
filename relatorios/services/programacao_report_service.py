@@ -245,6 +245,9 @@ def _build_history_section(unidade_id: int, data_inicial: date, data_final: date
 def _build_performance_section(unidade_id: int, data_inicial: date, data_final: date) -> dict[str, Any]:
     by_item, start_dt, end_dt = _history_items_map(unidade_id, data_inicial, data_final)
     current_items = _current_items_in_period(unidade_id, data_inicial, data_final)
+    meta_expediente_id = _meta_expediente_id()
+    if meta_expediente_id is not None:
+        current_items = [item for item in current_items if int(getattr(item, "meta_id", 0) or 0) != meta_expediente_id]
     # Evita N chamadas repetidas por item (snapshot_programacao_dia consulta o dia inteiro).
     current_snapshots: dict[int, dict[str, Any]] = {}
     snapshots_by_day: dict[date, dict[int, dict[str, Any]]] = {}
@@ -256,11 +259,6 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         if data_ref not in snapshots_by_day:
             snapshots_by_day[data_ref] = snapshot_programacao_dia(unidade_id, data_ref).get("items", {}) or {}
         current_snapshots[item.id] = snapshots_by_day[data_ref].get(item.id, {})
-    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
-    try:
-        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
-    except (TypeError, ValueError):
-        meta_expediente_id = None
     today = timezone.localdate()
 
     baseline: dict[int, dict[str, Any]] = {}
@@ -289,6 +287,8 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         if item_id not in baseline:
             for entry in entries:
                 snap = entry.snapshot_antes or entry.snapshot_depois or {}
+                if meta_expediente_id is not None and int(snap.get("meta_id") or 0) == meta_expediente_id:
+                    continue
                 if snap:
                     baseline[item_id] = snap
                     break
@@ -380,7 +380,6 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         if status_final != "removida":
             resumo_by_titulo[titulo]["total"] += 1
         if status_final == "removida":
-            resumo_by_titulo[titulo][CANCELADA] += 1
             resumo_by_titulo[titulo]["removida"] += 1
         elif status_final in counters:
             resumo_by_titulo[titulo][status_final] += 1
@@ -394,9 +393,8 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         remarcada_concluida = int(row.get("remarcada_concluida") or 0)
         cancelada = int(row.get(CANCELADA) or 0)
         removida = int(row.get("removida") or 0)
-        cancelada_atual = max(cancelada - removida, 0)
         encerrada_automaticamente = int(row.get(ENCERRADA_AUTOMATICAMENTE) or 0)
-        total_atual = max(total_atual_com_canceladas - cancelada_atual, 0)
+        total_atual = max(total_atual_com_canceladas - cancelada, 0)
         total_execucao = max(total_atual - encerrada_automaticamente, 0)
         row["total_periodo"] = total_periodo
         row["total_atual"] = total_atual
@@ -407,7 +405,7 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         else:
             row["execucao_percent"] = None
             row["execucao_percent_label"] = "-"
-        row["cancelada_ou_removida"] = cancelada
+        row["cancelada_ou_removida"] = cancelada + removida
 
     resumo_por_atividade.sort(
         key=lambda r: (
@@ -439,6 +437,8 @@ def _build_indicators_section(
 ) -> dict[str, Any]:
     history_qs = ProgramacaoHistorico.objects.filter(
         unidade_id=unidade_id,
+        data_programacao__gte=data_inicial,
+        data_programacao__lte=data_final,
         criado_em__gte=_dt_start(data_inicial),
         criado_em__lte=_dt_end(data_final),
     )
@@ -473,10 +473,10 @@ def _build_indicators_section(
                 "value": total_programadas,
                 "breakdown": [
                     {"label": "Atual: salvas no calendario", "value": total_programadas},
-                    {"label": "Desempenho: historico/removidas", "value": total_desempenho},
+                    {"label": "Desempenho: atuais + removidas", "value": total_desempenho},
                     {"label": "Historico: adicionadas no periodo", "value": total_adicionadas_historico},
                 ],
-                "formula": f"Total = {total_programadas}; historico nao soma",
+                "formula": f"Total = {total_programadas}; removidas so detalham o desempenho",
             },
             {
                 "label": "Atividades concluidas",
