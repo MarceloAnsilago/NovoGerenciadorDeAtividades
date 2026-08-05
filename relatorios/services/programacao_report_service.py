@@ -482,7 +482,7 @@ def _build_indicators_section(
                     },
                     {"label": "Historico: adicionadas no periodo", "value": total_adicionadas_historico},
                 ],
-                "formula": f"Total = {total_programadas} - removidas so detalham o desempenho",
+                "formula": f"Total = {total_programadas} -> removidas só detalham o desempenho",
             },
             {
                 "label": "Atividades concluidas",
