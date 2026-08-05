@@ -419,7 +419,7 @@ class RelatorioProgramacaoTests(TestCase):
         self.assertEqual(report["desempenho"]["total"], 2)
         breakdown = {item["label"]: item["value"] for item in report["indicadores"]["cards"][0]["breakdown"]}
         self.assertEqual(breakdown["Atual: salvas no calendario"], 2)
-        self.assertEqual(breakdown["Desempenho: atuais + removidas"], 2)
+        self.assertEqual(breakdown["Desempenho: 2 atuais + 0 removidas"], 2)
 
     def test_relatorio_indicadores_inclui_atrasadas_sem_encerradas_automaticamente(self):
         data_atrasada = timezone.localdate() - timedelta(days=1)

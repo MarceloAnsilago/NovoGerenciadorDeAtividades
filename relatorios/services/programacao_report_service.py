@@ -465,6 +465,7 @@ def _build_indicators_section(
     total_programadas = int(current_indicators.get("total", 0) or 0)
     total_desempenho = desempenho.get("total", 0)
     total_adicionadas_historico = len(added_ids)
+    total_removidas_desempenho = int((desempenho.get("counters", {}) or {}).get("removida", 0) or 0)
 
     return {
         "cards": [
@@ -473,10 +474,13 @@ def _build_indicators_section(
                 "value": total_programadas,
                 "breakdown": [
                     {"label": "Atual: salvas no calendario", "value": total_programadas},
-                    {"label": "Desempenho: atuais + removidas", "value": total_desempenho},
+                    {
+                        "label": f"Desempenho: {total_programadas} atuais + {total_removidas_desempenho} removidas",
+                        "value": total_desempenho,
+                    },
                     {"label": "Historico: adicionadas no periodo", "value": total_adicionadas_historico},
                 ],
-                "formula": f"Total = {total_programadas}; removidas so detalham o desempenho",
+                "formula": f"Total = {total_programadas} - removidas so detalham o desempenho",
             },
             {
                 "label": "Atividades concluidas",
