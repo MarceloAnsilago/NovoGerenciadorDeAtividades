@@ -466,7 +466,8 @@ def _build_indicators_section(
     total_desempenho = desempenho.get("total", 0)
     total_adicionadas_historico = len(added_ids)
     total_removidas_desempenho = int((desempenho.get("counters", {}) or {}).get("removida", 0) or 0)
-    total_canceladas_removidas = int(counters.get(CANCELADA, 0) or 0) + total_removidas_desempenho
+    total_canceladas_atuais = int(counters.get(CANCELADA, 0) or 0)
+    total_canceladas_removidas = total_canceladas_atuais + total_removidas_desempenho
 
     return {
         "cards": [
@@ -490,6 +491,11 @@ def _build_indicators_section(
             {
                 "label": "Atividades canceladas/removidas",
                 "value": total_canceladas_removidas,
+                "breakdown": [
+                    {"label": "Canceladas atuais", "value": total_canceladas_atuais},
+                    {"label": "Removidas no desempenho", "value": total_removidas_desempenho},
+                ],
+                "formula": f"Total = {total_canceladas_atuais} + {total_removidas_desempenho}",
             },
             {"label": "Atividades remarcadas e concluidas", "value": counters.get(REMARCADA_CONCLUIDA, 0)},
             {"label": "Atividades nao realizadas", "value": counters.get(NAO_REALIZADA, 0)},
