@@ -36,12 +36,26 @@
     }
     .relatorio-indicador-card.has-breakdown {
       display: grid;
-      grid-template-columns: 172px minmax(0, 1fr);
-      column-gap: .55rem;
-      align-items: center;
+      grid-template-columns: 92px minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+      column-gap: .7rem;
+      row-gap: .4rem;
+      align-items: end;
     }
     .relatorio-indicador-card.has-breakdown .indicator-main {
+      display: contents;
+    }
+    .relatorio-indicador-card.has-breakdown .indicator-main .small {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      margin-bottom: 0 !important;
       min-width: 0;
+    }
+    .relatorio-indicador-card.has-breakdown .indicator-main .value {
+      grid-column: 1;
+      grid-row: 2;
+      align-self: end;
+      margin-top: 0;
     }
     .relatorio-indicador-card .breakdown {
       padding-left: .55rem;
@@ -49,6 +63,11 @@
       color: #475569;
       font-size: .72rem;
       line-height: 1.18;
+    }
+    .relatorio-indicador-card.has-breakdown .breakdown {
+      grid-column: 2;
+      grid-row: 2;
+      align-self: end;
     }
     .relatorio-indicador-card .breakdown-row {
       display: grid;
@@ -288,10 +307,21 @@
       }
       .relatorio-indicador-card.has-breakdown {
         grid-template-columns: 1fr;
-        row-gap: .65rem;
+        grid-template-rows: auto auto auto;
+        row-gap: .45rem;
       }
       .relatorio-indicador-card.has-breakdown .small {
+        grid-column: 1;
+        grid-row: 1;
         white-space: normal;
+      }
+      .relatorio-indicador-card.has-breakdown .indicator-main .value {
+        grid-column: 1;
+        grid-row: 2;
+      }
+      .relatorio-indicador-card.has-breakdown .breakdown {
+        grid-column: 1;
+        grid-row: 3;
       }
       .relatorio-indicador-card .breakdown {
         padding-left: 0;
