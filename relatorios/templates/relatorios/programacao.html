@@ -36,7 +36,7 @@
     }
     .relatorio-indicador-card.has-breakdown {
       display: grid;
-      grid-template-columns: 102px minmax(0, 1fr);
+      grid-template-columns: 172px minmax(0, 1fr);
       column-gap: .55rem;
       align-items: center;
     }
@@ -67,6 +67,9 @@
       color: #475569 !important;
       text-transform: uppercase;
       letter-spacing: .03em;
+    }
+    .relatorio-indicador-card.has-breakdown .small {
+      white-space: nowrap;
     }
     .relatorio-section + .relatorio-section {
       margin-top: 1.5rem;
@@ -286,6 +289,9 @@
       .relatorio-indicador-card.has-breakdown {
         grid-template-columns: 1fr;
         row-gap: .65rem;
+      }
+      .relatorio-indicador-card.has-breakdown .small {
+        white-space: normal;
       }
       .relatorio-indicador-card .breakdown {
         padding-left: 0;
