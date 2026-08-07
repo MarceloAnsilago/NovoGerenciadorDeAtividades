@@ -69,7 +69,19 @@
   function removeFromExpediente(sid) {
     el("expedienteAdmin")?.querySelector(`.servidor-card[data-id="${sid}"]`)?.remove();
   }
+  function rebuildAllocationsFromCards() {
+    Object.keys(allocations).forEach((key) => { delete allocations[key]; });
+    const container = el("metaCardsContainer");
+    if (!container) return allocations;
+    container.querySelectorAll(".meta-dropzone .servidor-chip, .meta-dropzone .servidor-card").forEach((node) => {
+      const sid = String(node.dataset.id || node.dataset.servidorId || "").trim();
+      if (!sid) return;
+      allocations[sid] = (allocations[sid] || 0) + 1;
+    });
+    return allocations;
+  }
   function updateCounts() {
+    rebuildAllocationsFromCards();
     const livres = el("servidoresLivres");
     const cLivres = el("countServidoresLivres");
     const cExp = el("countExpedienteAdmin");
@@ -106,6 +118,7 @@
     }
   }
   NS.updateCounts = NS.updateCounts || updateCounts;
+  NS.rebuildAllocationCounts = NS.rebuildAllocationCounts || rebuildAllocationsFromCards;
 
   // ---------- injeta/garante a dropzone ----------
   function ensureDropzone(card) {
