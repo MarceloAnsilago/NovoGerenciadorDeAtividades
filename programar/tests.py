@@ -3,6 +3,7 @@ import json
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
+from django.test import RequestFactory
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -10,6 +11,7 @@ from django.utils import timezone
 from atividades.models import Area, Atividade
 from core.models import No
 from metas.models import Meta, MetaAlocacao, ProgressoMeta
+from plantao.models import Plantao, Semana, SemanaServidor
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from programar.status import (
     CANCELADA,
@@ -25,7 +27,7 @@ from programar.status import (
     item_execucao_status_from_fields,
     item_permanece_aberto,
 )
-from programar.views_legacy import _resolve_expediente_admin_report
+from programar.views_legacy import _fetch_plantonistas_via_orm, _resolve_expediente_admin_report
 from servidores.models import Servidor
 
 
@@ -200,6 +202,79 @@ class ExpedienteAdminReportTest(unittest.TestCase):
                 expediente_desativado=True,
             ),
             [],
+        )
+
+
+class PlantonistasRelatorioTest(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="tester_plantonista_report", password="123456")
+        self.unidade = No.objects.create(nome="ULSAV Plantao", tipo="setor")
+        self.ingrid = Servidor.objects.create(
+            unidade=self.unidade,
+            nome="INGRID GRISOLIA CYPRIANO MENEGATT",
+            telefone="(69) 98459-8385",
+        )
+        self.reginaldo = Servidor.objects.create(
+            unidade=self.unidade,
+            nome="REGINALDO MARCELO DA SILVA",
+            telefone="(69) 98414-6436",
+        )
+        self.plantao = Plantao.objects.create(
+            unidade=self.unidade,
+            inicio=date(2026, 8, 2),
+            fim=date(2026, 8, 29),
+            criado_por=self.user,
+        )
+        semana_ingrid = Semana.objects.create(
+            plantao=self.plantao,
+            inicio=date(2026, 8, 2),
+            fim=date(2026, 8, 8),
+            ordem=1,
+        )
+        semana_reginaldo = Semana.objects.create(
+            plantao=self.plantao,
+            inicio=date(2026, 8, 9),
+            fim=date(2026, 8, 15),
+            ordem=2,
+        )
+        SemanaServidor.objects.create(
+            semana=semana_ingrid,
+            servidor=self.ingrid,
+            telefone_snapshot=self.ingrid.telefone,
+        )
+        SemanaServidor.objects.create(
+            semana=semana_reginaldo,
+            servidor=self.reginaldo,
+            telefone_snapshot=self.reginaldo.telefone,
+        )
+        self.factory = RequestFactory()
+
+    def _request(self):
+        request = self.factory.get("/programar/api/relatorios/")
+        request.user = self.user
+        request.session = {"contexto_atual": self.unidade.id}
+        return request
+
+    def test_relatorio_semanal_usa_plantonista_da_data_final(self):
+        servidores = _fetch_plantonistas_via_orm(
+            self._request(),
+            "2026-08-08",
+            "2026-08-14",
+        )
+
+        self.assertEqual([s["nome"] for s in servidores], ["REGINALDO MARCELO DA SILVA"])
+
+    def test_relatorio_periodo_maior_mantem_plantonistas_do_intervalo(self):
+        servidores = _fetch_plantonistas_via_orm(
+            self._request(),
+            "2026-08-08",
+            "2026-08-15",
+        )
+
+        self.assertEqual(
+            [s["nome"] for s in servidores],
+            ["INGRID GRISOLIA CYPRIANO MENEGATT", "REGINALDO MARCELO DA SILVA"],
         )
 
 

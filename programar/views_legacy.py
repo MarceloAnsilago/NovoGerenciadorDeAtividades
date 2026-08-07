@@ -923,6 +923,14 @@ def _pick_plantao_id_by_date(request, d_ref: date | None) -> int | None:
     return int(plantao_id) if plantao_id else None
 
 
+def _plantonista_ref_date_for_range(start: str, end: str) -> date | None:
+    ds = _parse_iso(start)
+    de = _parse_iso(end)
+    if not ds or not de:
+        return None
+    return de if 0 <= (de - ds).days < 7 else None
+
+
 # =============================================================================
 # Helpers - PLANTONISTAS (bridge + ORM + render)
 # =============================================================================
@@ -954,6 +962,7 @@ def _fetch_plantonistas_via_bridge(request, start: str, end: str) -> List[Dict[s
 
     ds = _parse_iso(start)
     de = _parse_iso(end)
+    ref_date = _plantonista_ref_date_for_range(start, end)
 
     for params in combos:
         try:
@@ -977,6 +986,8 @@ def _fetch_plantonistas_via_bridge(request, start: str, end: str) -> List[Dict[s
                     sem_fim_raw = sem.get("fim")
                     sem_ini = _parse_iso(str(sem_ini_raw or "")[:10]) if sem_ini_raw else None
                     sem_fim = _parse_iso(str(sem_fim_raw or "")[:10]) if sem_fim_raw else None
+                    if ref_date and sem_ini and sem_fim and not (sem_ini <= ref_date <= sem_fim):
+                        continue
                     if sem_ini and ds and sem_ini < ds:
                         sem_ini = ds
                     if sem_fim and de and sem_fim > de:
@@ -1019,6 +1030,7 @@ def _fetch_plantonistas_via_orm(request, start: str, end: str) -> List[Dict[str,
     ds, de = _parse_iso(start), _parse_iso(end)
     if not ds or not de:
         return []
+    ref_date = _plantonista_ref_date_for_range(start, end)
 
     try:
         from plantao.models import SemanaServidor  # type: ignore
@@ -1038,6 +1050,13 @@ def _fetch_plantonistas_via_orm(request, start: str, end: str) -> List[Dict[str,
                 semana__plantao__fim__gte=ds,
             )
         )
+        if ref_date:
+            ss_qs = ss_qs.filter(
+                semana__inicio__lte=ref_date,
+                semana__fim__gte=ref_date,
+                semana__plantao__inicio__lte=ref_date,
+                semana__plantao__fim__gte=ref_date,
+            )
         if plantao_id:
             ss_qs = ss_qs.filter(semana__plantao_id=plantao_id)
         if unidade_id:
