@@ -468,6 +468,51 @@ class EventsFeedStatusTests(TestCase):
         self.assertEqual(props["total_pendentes"], 0)
         self.assertEqual(props["atividades"][0]["status"], NAO_REALIZADA_JUSTIFICADA)
 
+    def test_events_feed_trata_nao_realizada_remarcada_concluida_como_concluida(self):
+        programacao_origem = Programacao.objects.create(
+            data=date(2026, 8, 6),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        item_origem = ProgramacaoItem.objects.create(
+            programacao=programacao_origem,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            nao_realizada_justificada=False,
+            observacao="Nao realizada, continua em aberto.",
+        )
+        programacao_remarcada = Programacao.objects.create(
+            data=date(2026, 8, 7),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao_remarcada,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.now(),
+            remarcado_de=item_origem,
+            observacao="Realizada na remarcacao.",
+        )
+
+        response = self.client.get(
+            reverse("programar:events_feed"),
+            {"start": "2026-08-01", "end": "2026-09-01"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = sorted(response.json(), key=lambda event: event["start"])
+        origem_props = payload[0]["extendedProps"]
+        remarcada_props = payload[1]["extendedProps"]
+        self.assertEqual(origem_props["total_programadas"], 1)
+        self.assertEqual(origem_props["total_concluidas"], 1)
+        self.assertEqual(origem_props["total_nao_realizadas"], 0)
+        self.assertEqual(origem_props["total_pendentes"], 0)
+        self.assertEqual(origem_props["atividades"][0]["status"], EXECUTADA)
+        self.assertEqual(remarcada_props["total_concluidas"], 1)
+        self.assertEqual(remarcada_props["atividades"][0]["status"], REMARCADA_CONCLUIDA)
+
 
 class ConcluirItemFormTests(TestCase):
     def setUp(self):

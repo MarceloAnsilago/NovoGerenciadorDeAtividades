@@ -2130,7 +2130,20 @@ def events_feed(request):
         title_order: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
         activity_counts: Dict[int, Dict[tuple[str, str], int]] = {pid: {} for pid in prog_ids}
         activity_order: Dict[int, list[tuple[str, str]]] = {pid: [] for pid in prog_ids}
-        itens_com_meta = itens_qs.select_related("meta", "meta__atividade").order_by("programacao_id", "meta__titulo")
+        itens_com_meta = list(
+            itens_qs.select_related("meta", "meta__atividade").order_by("programacao_id", "meta__titulo")
+        )
+        item_ids = [item.id for item in itens_com_meta]
+        origens_remarcadas_concluidas = set()
+        if item_ids:
+            origens_remarcadas_concluidas = set(
+                ProgramacaoItem.objects.filter(
+                    remarcado_de_id__in=item_ids,
+                    concluido=True,
+                )
+                .exclude(cancelada=True)
+                .values_list("remarcado_de_id", flat=True)
+            )
         for item in itens_com_meta:
             pid = item.programacao_id
             if pid not in metas_por_programacao:
@@ -2163,6 +2176,8 @@ def events_feed(request):
                 getattr(item, "remarcado_de_id", None),
                 getattr(item, "observacao", "") or "",
             )
+            if status_item == NAO_REALIZADA and item.id in origens_remarcadas_concluidas:
+                status_item = EXECUTADA
             if pid in counts:
                 counts[pid]["total"] += 1
                 if status_item in {EXECUTADA, REMARCADA_CONCLUIDA}:
