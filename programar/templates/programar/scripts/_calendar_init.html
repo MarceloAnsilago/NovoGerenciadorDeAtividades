@@ -41,12 +41,15 @@ document.addEventListener('DOMContentLoaded', function(){
       .programar-event-count-badge.is-overdue{background:#ffe1bf;border-color:#ffb977;color:#7a2f00;}
       .programar-event-count-badge.is-cancelled{background:#e9ecef;border-color:#ced4da;color:#212529;}
       .programar-event-count-badge.is-auto-closed{background:#edf2f7;border-color:#cbd5e1;color:#334155;}
+      .programar-event-count-badge.is-justified{background:#e7f5f7;border-color:#b8e1e7;color:#0c5460;}
       .programar-event-status.is-done{background:#e8f2ff;border-color:#bcd8ff;color:#0b4f9c;}
       .programar-event-status.is-done .programar-event-count{color:#0b4f9c;}
       .programar-event-status.is-cancelled{background:#e9ecef;border-color:#ced4da;color:#212529;}
       .programar-event-status.is-cancelled .programar-event-count{color:#212529;}
       .programar-event-status.is-auto-closed{background:#edf2f7;border-color:#cbd5e1;color:#334155;}
       .programar-event-status.is-auto-closed .programar-event-count{color:#334155;}
+      .programar-event-status.is-justified{background:#e7f5f7;border-color:#b8e1e7;color:#0c5460;}
+      .programar-event-status.is-justified .programar-event-count{color:#0c5460;}
       .programar-event-status.is-not-executed{background:#f1f3f5;border-color:#ced4da;color:#343a40;}
       .programar-event-status.is-not-executed .programar-event-count{color:#343a40;}
       .programar-event-status.is-partial{background:#f1f7eb;border-color:#d5e8b8;color:#3d5c1f;}
@@ -68,6 +71,7 @@ document.addEventListener('DOMContentLoaded', function(){
       .prog-event-card.is-done{background:#eef6ff;border-color:#c6defc;}
       .prog-event-card.is-cancelled{background:#f1f3f5;border-color:#ced4da;}
       .prog-event-card.is-auto-closed{background:#f8fafc;border-color:#cbd5e1;}
+      .prog-event-card.is-justified{background:#f0fbfc;border-color:#c4e8ed;}
       .prog-event-card.is-not-executed{background:#f8f9fa;border-color:#dee2e6;}
       .prog-event-card.is-partial{background:#f7faf2;border-color:#dfecc9;}
       .prog-event-card.is-pending{background:#fff4f5;border-color:#f5c2c7;}
@@ -123,27 +127,30 @@ document.addEventListener('DOMContentLoaded', function(){
     const concluidas = Number(props?.total_concluidas || 0);
     const canceladas = Number(props?.total_canceladas || 0);
     const naoRealizadas = Number(props?.total_nao_realizadas || 0);
+    const naoRealizadasJustificadas = Number(props?.total_nao_realizadas_justificadas || 0);
     const encerradasAuto = Number(props?.total_encerradas_auto || 0);
     const pendentesBase = Number(props?.total_pendentes);
     const pendentes = Number.isFinite(pendentesBase)
       ? Math.max(pendentesBase, 0)
-      : Math.max(total - concluidas - canceladas - naoRealizadas - encerradasAuto, 0);
+      : Math.max(total - concluidas - canceladas - naoRealizadas - naoRealizadasJustificadas - encerradasAuto, 0);
     const cancelled = total > 0 && canceladas >= total;
     const autoClosed = total > 0 && encerradasAuto >= total;
-    const done = total > 0 && (concluidas + canceladas + encerradasAuto) >= total && !cancelled && !autoClosed;
+    const justified = total > 0 && naoRealizadasJustificadas >= total;
+    const done = total > 0 && (concluidas + canceladas + encerradasAuto + naoRealizadasJustificadas) >= total && !cancelled && !autoClosed && !justified;
     const notExecuted = total > 0 && naoRealizadas >= total;
-    const partial = !done && !cancelled && !autoClosed && !notExecuted && (concluidas > 0 || canceladas > 0 || naoRealizadas > 0 || encerradasAuto > 0);
+    const partial = !done && !cancelled && !autoClosed && !justified && !notExecuted && (concluidas > 0 || canceladas > 0 || naoRealizadas > 0 || naoRealizadasJustificadas > 0 || encerradasAuto > 0);
     const dayIso = toIsoDate(startRef);
     const todayIso = toIsoDate(new Date());
     const overdue = pendentes > 0 && !!dayIso && dayIso < todayIso;
     return {
       key: overdue
         ? "overdue"
-        : (cancelled ? "cancelled" : (autoClosed ? "auto-closed" : (done ? "done" : (notExecuted ? "not-executed" : (partial ? "partial" : "pending"))))),
+        : (cancelled ? "cancelled" : (autoClosed ? "auto-closed" : (justified ? "justified" : (done ? "done" : (notExecuted ? "not-executed" : (partial ? "partial" : "pending")))))),
       total,
       concluidas,
       canceladas,
       naoRealizadas,
+      naoRealizadasJustificadas,
       encerradasAuto,
       pendentes,
     };
@@ -227,6 +234,7 @@ document.addEventListener('DOMContentLoaded', function(){
         done: { label: 'Concluida' },
         cancelled: { label: 'Cancelada' },
         "auto-closed": { label: 'Meta encerrada' },
+        justified: { label: 'Nao realizada justificada' },
         "not-executed": { label: 'Não realizada - mas continua em aberto' },
         partial: { label: 'Em andamento' },
         pending: { label: 'Pendente' },
@@ -240,10 +248,10 @@ document.addEventListener('DOMContentLoaded', function(){
       statusEl.className = `programar-event-status is-${status.key}`;
       const countClass = status.key === "done"
         ? "done"
-        : (status.key === "cancelled" ? "cancelled" : (status.key === "auto-closed" ? "auto-closed" : (status.key === "not-executed" ? "not-executed" : (status.key === "overdue" ? "overdue" : "pending"))));
+        : (status.key === "cancelled" ? "cancelled" : (status.key === "auto-closed" ? "auto-closed" : (status.key === "justified" ? "justified" : (status.key === "not-executed" ? "not-executed" : (status.key === "overdue" ? "overdue" : "pending")))));
       const countValue = status.key === "done"
         ? status.total
-        : (status.key === "cancelled" ? status.canceladas : (status.key === "auto-closed" ? status.encerradasAuto : (status.key === "not-executed" ? status.naoRealizadas : status.pendentes)));
+        : (status.key === "cancelled" ? status.canceladas : (status.key === "auto-closed" ? status.encerradasAuto : (status.key === "justified" ? status.naoRealizadasJustificadas : (status.key === "not-executed" ? status.naoRealizadas : status.pendentes))));
       const countsHtml = (status.key === "partial")
         ? ""
         : `

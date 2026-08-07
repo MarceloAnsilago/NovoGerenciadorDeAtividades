@@ -337,6 +337,63 @@ class SalvarProgramacaoExpedienteTest(TestCase):
         self.assertTrue(ProgramacaoItem.objects.filter(pk=item_omitido.pk).exists())
 
 
+class EventsFeedStatusTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="tester_events_feed", password="123456")
+        self.unidade = No.objects.create(nome="ULSAV Events", tipo="setor")
+        self.area = Area.objects.create(code="AREA_EVENTS", nome="Area Events")
+        self.atividade = Atividade.objects.create(
+            titulo="Atividade events",
+            descricao="",
+            area=self.area,
+            unidade_origem=self.unidade,
+            criado_por=self.user,
+        )
+        self.meta = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=self.atividade,
+            titulo="Meta events",
+            descricao="",
+            quantidade_alvo=1,
+            criado_por=self.user,
+        )
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["contexto_atual"] = self.unidade.id
+        session.save()
+
+    def test_events_feed_separa_nao_realizada_justificada_de_aberta(self):
+        programacao = Programacao.objects.create(
+            data=date(2026, 8, 14),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            nao_realizada_justificada=True,
+            observacao="Justificada.",
+        )
+
+        response = self.client.get(
+            reverse("programar:events_feed"),
+            {"start": "2026-08-01", "end": "2026-09-01"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload), 1)
+        props = payload[0]["extendedProps"]
+        self.assertEqual(props["total_programadas"], 1)
+        self.assertEqual(props["total_nao_realizadas"], 0)
+        self.assertEqual(props["total_nao_realizadas_justificadas"], 1)
+        self.assertEqual(props["total_pendentes"], 0)
+        self.assertEqual(props["atividades"][0]["status"], NAO_REALIZADA_JUSTIFICADA)
+
+
 class ConcluirItemFormTests(TestCase):
     def setUp(self):
         user_model = get_user_model()

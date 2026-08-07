@@ -2074,7 +2074,14 @@ def events_feed(request):
     programacoes = list(qs.values("id", "data", "concluida"))
     prog_ids = [p["id"] for p in programacoes]
     counts: Dict[int, Dict[str, int]] = {
-        pid: {"total": 0, "concluidas": 0, "canceladas": 0, "nao_realizadas": 0, "encerradas_auto": 0}
+        pid: {
+            "total": 0,
+            "concluidas": 0,
+            "canceladas": 0,
+            "nao_realizadas": 0,
+            "nao_realizadas_justificadas": 0,
+            "encerradas_auto": 0,
+        }
         for pid in prog_ids
     }
     metas_por_programacao: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
@@ -2132,8 +2139,10 @@ def events_feed(request):
                     counts[pid]["canceladas"] += 1
                 elif status_item == ENCERRADA_AUTOMATICAMENTE:
                     counts[pid]["encerradas_auto"] += 1
-                elif status_item in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA}:
+                elif status_item == NAO_REALIZADA:
                     counts[pid]["nao_realizadas"] += 1
+                elif status_item == NAO_REALIZADA_JUSTIFICADA:
+                    counts[pid]["nao_realizadas_justificadas"] += 1
             key = (titulo, status_item)
             if key not in activity_counts[pid]:
                 activity_counts[pid][key] = 0
@@ -2157,15 +2166,23 @@ def events_feed(request):
     data = []
     for prog in programacoes:
         pid = prog["id"]
-        contadores = counts.get(pid, {"total": 0, "concluidas": 0, "canceladas": 0, "nao_realizadas": 0, "encerradas_auto": 0})
+        contadores = counts.get(pid, {
+            "total": 0,
+            "concluidas": 0,
+            "canceladas": 0,
+            "nao_realizadas": 0,
+            "nao_realizadas_justificadas": 0,
+            "encerradas_auto": 0,
+        })
         total = contadores["total"]
         if total == 0:
             continue
         concluidas = contadores["concluidas"]
         canceladas = contadores.get("canceladas", 0)
         nao_realizadas = contadores.get("nao_realizadas", 0)
+        nao_realizadas_justificadas = contadores.get("nao_realizadas_justificadas", 0)
         encerradas_auto = contadores.get("encerradas_auto", 0)
-        pendentes = max(total - concluidas - canceladas - nao_realizadas - encerradas_auto, 0)
+        pendentes = max(total - concluidas - canceladas - nao_realizadas - nao_realizadas_justificadas - encerradas_auto, 0)
 
         nome_atividades = metas_por_programacao.get(pid) or []
         nome_titulo = "; ".join(nome_atividades) if nome_atividades else ""
@@ -2189,6 +2206,7 @@ def events_feed(request):
                 "total_concluidas": concluidas,
                 "total_canceladas": canceladas,
                 "total_nao_realizadas": nao_realizadas,
+                "total_nao_realizadas_justificadas": nao_realizadas_justificadas,
                 "total_encerradas_auto": encerradas_auto,
                 "total_pendentes": pendentes,
                 "nomes_atividades": nome_atividades,
