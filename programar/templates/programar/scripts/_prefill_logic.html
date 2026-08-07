@@ -195,6 +195,32 @@
   }
   NS.resetAllocations = resetAllocations;
 
+  function markExpedienteManualForAllocatedServers(){
+    const expEl = document.getElementById('expedienteAdmin');
+    const container = document.getElementById('metaCardsContainer');
+    if (!expEl || !container) return;
+    const alocados = new Set();
+    container.querySelectorAll('.meta-dropzone .servidor-chip[data-id], .meta-dropzone .servidor-card[data-id]').forEach(node => {
+      const sid = String(node.dataset.id || node.dataset.servidorId || '').trim();
+      if (sid) alocados.add(sid);
+    });
+    if (!alocados.size) return;
+    expEl.querySelectorAll('.servidor-card[data-id], [data-servidor-id]').forEach(card => {
+      const sid = String(card.dataset.id || card.dataset.servidorId || '').trim();
+      if (!sid || !alocados.has(sid)) return;
+      card.dataset.expedienteManual = '1';
+      card.classList.add('has-count', 'expediente-manual');
+      let badge = card.querySelector('.srv-count-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'srv-count-badge';
+        card.appendChild(badge);
+      }
+      badge.textContent = '';
+      badge.title = 'Readicionado manualmente ao expediente';
+    });
+  }
+
   // guarda ltimo prefill
   NS._lastPrefill = { date: null, itens: [] };
 
@@ -336,6 +362,7 @@
       if (NS._allowExpedienteFromLivres && getIncluirExpedienteEl()?.checked) {
         try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
       }
+      markExpedienteManualForAllocatedServers();
       (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
       NS._obsDirty = false;
       document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: requestedDate, count: itens.length }}));
