@@ -11,6 +11,7 @@
   // ---------- estado compartilhado / fallbacks ----------
   const allocations = (NS._allocations = NS._allocations || Object.create(null));
   const DRAG = (NS._dragState = NS._dragState || { id: null });
+  const TEAM_DRAG_KEY = "application/x-programar-team-card";
 
   function findServerNameById(sid) {
     const div = document.querySelector(`.servidor-card[data-id="${sid}"]`);
@@ -31,6 +32,25 @@
       `;
       list.appendChild(d);
     }
+  }
+  function ensureTeamDragId(card) {
+    if (!card) return "";
+    if (!card.dataset.teamDragId) {
+      card.dataset.teamDragId = `team-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+    return card.dataset.teamDragId;
+  }
+  function getServerIdsFromCard(card) {
+    if (!card) return [];
+    const seen = new Set();
+    const ids = [];
+    card.querySelectorAll(".meta-dropzone .servidor-chip[data-id], .meta-dropzone .servidor-card[data-id]").forEach((node) => {
+      const sid = String(node.dataset.id || node.dataset.servidorId || "").trim();
+      if (!sid || seen.has(sid)) return;
+      seen.add(sid);
+      ids.push(sid);
+    });
+    return ids;
   }
   function ensureExpedienteManualBadge(card) {
     if (!card) return;
@@ -137,7 +157,11 @@
   function upgradeExistingCards() {
     const container = el("metaCardsContainer");
     if (!container) return;
-    container.querySelectorAll("[data-meta-id]").forEach(ensureDropzone);
+    container.querySelectorAll("[data-meta-id]").forEach((card) => {
+      ensureDropzone(card);
+      card.setAttribute("draggable", "true");
+      ensureTeamDragId(card);
+    });
   }
 
   // envelopa ensureMetaCard existente para sempre criar dropzone
@@ -147,6 +171,10 @@
       ? _ensureMetaCard.call(NS, metaId, title, options)
       : document.querySelector(`#metaCardsContainer [data-meta-id="${metaId}"]`);
     ensureDropzone(card);
+    if (card) {
+      card.setAttribute("draggable", "true");
+      ensureTeamDragId(card);
+    }
     return card;                 // <<< retorna o CARD, não a dropzone
   };
 
@@ -157,8 +185,16 @@
       for (const m of ms) {
         m.addedNodes.forEach((n) => {
           if (n.nodeType === 1) {
-            if (n.matches?.("#metaCardsContainer [data-meta-id]")) ensureDropzone(n);
-            n.querySelectorAll?.("#metaCardsContainer [data-meta-id]").forEach(ensureDropzone);
+            if (n.matches?.("#metaCardsContainer [data-meta-id]")) {
+              ensureDropzone(n);
+              n.setAttribute("draggable", "true");
+              ensureTeamDragId(n);
+            }
+            n.querySelectorAll?.("#metaCardsContainer [data-meta-id]").forEach((card) => {
+              ensureDropzone(card);
+              card.setAttribute("draggable", "true");
+              ensureTeamDragId(card);
+            });
           }
         });
       }
@@ -214,6 +250,15 @@
     }
     return fallbackAddToMeta(sid, metaId, target);
   }
+  function copyTeamToDropzone(sourceCard, targetDz) {
+    if (!sourceCard || !targetDz) return;
+    const targetCard = targetDz.closest("#metaCardsContainer [data-meta-id]");
+    if (!targetCard || targetCard === sourceCard) return;
+    const metaId = targetCard.dataset.metaId;
+    if (!metaId) return;
+    getServerIdsFromCard(sourceCard).forEach((sid) => addToMeta(sid, metaId, targetDz));
+    updateCounts();
+  }
 
   function getDropzoneFromEvent(e) {
     const path = (e.composedPath && e.composedPath()) || [];
@@ -265,13 +310,36 @@
     }
   }, true);
 
-  document.addEventListener("dragend", () => { DRAG.id = null; }, true);
+  document.addEventListener("dragstart", (e) => {
+    if (e.target.closest("button,a,input,select,textarea,.servidor-chip,.meta-dropzone")) return;
+    const card = e.target.closest("#metaCardsContainer [data-meta-id]");
+    if (!card) return;
+    const ids = getServerIdsFromCard(card);
+    if (!ids.length) {
+      e.preventDefault();
+      return;
+    }
+    const dragId = ensureTeamDragId(card);
+    DRAG.teamCardId = dragId;
+    if (e.dataTransfer) {
+      e.dataTransfer.setData(TEAM_DRAG_KEY, dragId);
+      e.dataTransfer.setData("text/plain", `team:${dragId}`);
+      e.dataTransfer.effectAllowed = "copy";
+    }
+    card.classList.add("is-team-dragging");
+  }, true);
+
+  document.addEventListener("dragend", () => {
+    DRAG.id = null;
+    DRAG.teamCardId = null;
+    document.querySelectorAll(".is-team-dragging").forEach((card) => card.classList.remove("is-team-dragging"));
+  }, true);
 
   document.addEventListener("dragover", (e) => {
     const dz = getDropzoneFromEvent(e);
     if (!dz) return;
     e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    if (e.dataTransfer) e.dataTransfer.dropEffect = DRAG.teamCardId ? "copy" : "move";
     dz.classList.add("drop-hover");
   }, true);
 
@@ -287,6 +355,13 @@
     dz.classList.remove("drop-hover");
 
     const metaId = dz.closest("[data-meta-id]")?.dataset.metaId;
+    const teamDragId = (e.dataTransfer && e.dataTransfer.getData(TEAM_DRAG_KEY)) || DRAG.teamCardId || "";
+    if (teamDragId) {
+      const sourceCard = document.querySelector(`#metaCardsContainer [data-team-drag-id="${teamDragId}"]`);
+      copyTeamToDropzone(sourceCard, dz);
+      return;
+    }
+
     let sid = (e.dataTransfer && (e.dataTransfer.getData("application/x-sid") || e.dataTransfer.getData("text/plain"))) || DRAG.id;
     if (!metaId || !sid) return;
 
@@ -301,6 +376,7 @@
       e.preventDefault();
       e.stopPropagation();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      if (e.dataTransfer && e.dataTransfer.getData(TEAM_DRAG_KEY)) return;
       const incluirExp = document.getElementById("programar-incluirExpediente");
       if (incluirExp && !incluirExp.checked) return;
       const sid = (e.dataTransfer && (e.dataTransfer.getData("application/x-sid") || e.dataTransfer.getData("text/plain"))) || DRAG.id;
