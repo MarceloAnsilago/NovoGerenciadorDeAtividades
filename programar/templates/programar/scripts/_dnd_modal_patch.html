@@ -32,22 +32,38 @@
       list.appendChild(d);
     }
   }
+  function ensureExpedienteManualBadge(card) {
+    if (!card) return;
+    card.dataset.expedienteManual = "1";
+    card.classList.add("expediente-manual");
+    let badge = card.querySelector(".srv-count-badge");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "srv-count-badge";
+      card.appendChild(badge);
+    }
+    card.classList.add("has-count");
+    badge.textContent = "";
+    badge.title = "Readicionado manualmente ao expediente";
+  }
   function appendToExpedienteIfMissing(sid, name) {
     const list = el("expedienteAdmin");
     if (!list) return;
-    if (!list.querySelector(`.servidor-card[data-id="${sid}"]`)) {
+    const existing = list.querySelector(`.servidor-card[data-id="${sid}"]`);
+    if (!existing) {
       const d = document.createElement("div");
       d.className = "servidor-card";
       d.dataset.id = sid;
-      d.dataset.expedienteManual = "1";
       d.setAttribute("draggable", "true");
       d.innerHTML = `
         <span class="srv-icon"><i class="bi bi-person-fill"></i></span>
         <span class="srv-name">${escapeHtml(name)}</span>
+        <span class="srv-count-badge"></span>
       `;
       list.appendChild(d);
+      ensureExpedienteManualBadge(d);
     } else {
-      list.querySelector(`.servidor-card[data-id="${sid}"]`).dataset.expedienteManual = "1";
+      ensureExpedienteManualBadge(existing);
     }
     el("servidoresLivres")?.querySelector(`.servidor-card[data-id="${sid}"]`)?.remove();
   }
@@ -59,7 +75,10 @@
     const cLivres = el("countServidoresLivres");
     const cExp = el("countExpedienteAdmin");
     if (cLivres && livres) cLivres.textContent = String(livres.querySelectorAll(".servidor-card").length);
-    if (cExp && el("expedienteAdmin")) cExp.textContent = String(el("expedienteAdmin").querySelectorAll(".servidor-card").length);
+    if (cExp && el("expedienteAdmin")) {
+      const ids = new Set(Array.from(el("expedienteAdmin").querySelectorAll(".servidor-card[data-id]")).map((card) => String(card.dataset.id)));
+      cExp.textContent = String(ids.size);
+    }
 
     // badges na pool
     if (livres) {
@@ -92,6 +111,7 @@
   // ---------- injeta/garante a dropzone ----------
   function ensureDropzone(card) {
     if (!card) return null;
+    if (card.id === "expedienteAdmin" || card.closest?.("#expedienteAdminCard")) return null;
     let dz = card.querySelector(".meta-dropzone");
     if (!dz) {
       const body = card.querySelector(".meta-body, .card-body") || card;
@@ -125,8 +145,8 @@
       for (const m of ms) {
         m.addedNodes.forEach((n) => {
           if (n.nodeType === 1) {
-            if (n.matches?.("[data-meta-id]")) ensureDropzone(n);
-            n.querySelectorAll?.("[data-meta-id]").forEach(ensureDropzone);
+            if (n.matches?.("#metaCardsContainer [data-meta-id]")) ensureDropzone(n);
+            n.querySelectorAll?.("#metaCardsContainer [data-meta-id]").forEach(ensureDropzone);
           }
         });
       }
@@ -188,22 +208,22 @@
     let dz = null;
     for (const n of path) {
       if (n && n.classList?.contains("meta-dropzone")) { dz = n; break; }
-      if (n && n.dataset?.metaId) {
+      if (n && n.dataset?.metaId && n.closest?.("#metaCardsContainer")) {
         dz = n.querySelector?.(".meta-dropzone") || ensureDropzone(n);
         if (dz) break;
       }
     }
     if (!dz) {
       const direct = e.target?.closest?.(".meta-dropzone");
-      if (direct) dz = direct;
+      if (direct && direct.closest?.("#metaCardsContainer")) dz = direct;
     }
     if (!dz) {
-      const card = e.target?.closest?.("[data-meta-id]");
+      const card = e.target?.closest?.("#metaCardsContainer [data-meta-id]");
       if (card) dz = card.querySelector(".meta-dropzone") || ensureDropzone(card);
     }
     if (!dz && typeof e.clientX === "number") {
       const elAtPoint = document.elementFromPoint(e.clientX, e.clientY);
-      const card = elAtPoint?.closest?.("[data-meta-id]");
+      const card = elAtPoint?.closest?.("#metaCardsContainer [data-meta-id]");
       if (card) dz = card.querySelector(".meta-dropzone") || ensureDropzone(card);
     }
     return dz;
@@ -267,6 +287,8 @@
     expBody.addEventListener("dragover", (e) => { e.preventDefault(); }, true);
     expBody.addEventListener("drop", (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       const incluirExp = document.getElementById("programar-incluirExpediente");
       if (incluirExp && !incluirExp.checked) return;
       const sid = (e.dataTransfer && (e.dataTransfer.getData("application/x-sid") || e.dataTransfer.getData("text/plain"))) || DRAG.id;

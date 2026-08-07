@@ -99,6 +99,19 @@
       ensureDraggable();
     });
   }
+  function ensureManualBadge(el){
+    if (!el) return;
+    el.dataset.expedienteManual = '1';
+    el.classList.add('has-count', 'expediente-manual');
+    let badge = el.querySelector('.srv-count-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'srv-count-badge';
+      el.appendChild(badge);
+    }
+    badge.textContent = '';
+    badge.title = 'Readicionado manualmente ao expediente';
+  }
 
   // ---------- util: pegar sid do DataTransfer ----------
   const DT_KEY = 'application/x-sid';
@@ -152,8 +165,8 @@
     const incluirExp = document.getElementById('programar-incluirExpediente');
     if (incluirExp && !incluirExp.checked) return false;
     if (!sid) return false;
-    // j existe no Expediente? nega drop (no duplica nem desconta)
-    if (exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)) return false;
+    // Se ja existe no Expediente, o drop apenas marca como readicionado manualmente.
+    if (exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)) return true;
     if (CFG.ALLOW_WHEN_ALLOCATED) return true;
     const allocs = (window.ProgramarCards?.allocations?.() || {});
     return (allocs[sid] || 0) === 0;
@@ -198,6 +211,7 @@
     if (alreadyInExp) {
       const el = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
       if (el) {
+        ensureManualBadge(el);
         el.classList.add('flash-exp');
         setTimeout(() => el.classList.remove('flash-exp'), 800);
       }
@@ -224,13 +238,13 @@
         // garante o X mesmo sem wrapper: agora e no prximo tick
         let elNow = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
         if (elNow) {
-          elNow.dataset.expedienteManual = '1';
+          ensureManualBadge(elNow);
           ensureCloseButton(elNow, sid, name);
         }
         setTimeout(() => {
           const elLater = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
           if (elLater) {
-            elLater.dataset.expedienteManual = '1';
+            ensureManualBadge(elLater);
             ensureCloseButton(elLater, sid, name);
           }
         }, 0);
@@ -251,7 +265,7 @@
           <span class="srv-count-badge"></span>`;
         exp.appendChild(el);
       }
-      el.dataset.expedienteManual = '1';
+      ensureManualBadge(el);
       ensureCloseButton(el, sid, name);
     }
 
