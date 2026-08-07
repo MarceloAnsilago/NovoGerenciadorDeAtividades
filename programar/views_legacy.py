@@ -1814,6 +1814,17 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 # =============================================================================
 # Relatórios (JSON + Imprimível)
 # =============================================================================
+DEFAULT_RELATORIO_OBSERVACAO = """AVISO DE CONFIDENCIALIDADE
+
+A Programação Mensal de Atividades constitui documento de uso interno desta ULSAV, elaborado para fins de planejamento, coordenação e execução das ações institucionais.
+
+As informações nela contidas são de caráter restrito e destinam-se exclusivamente aos servidores da Unidade, não devendo ser compartilhadas, reproduzidas ou divulgadas a terceiros, por qualquer meio, sem autorização da chefia imediata.
+
+A divulgação indevida de informações constantes na programação poderá comprometer a eficácia das ações de fiscalização, bem como sujeitar o responsável às medidas administrativas cabíveis.
+
+Solicitamos a colaboração de todos os servidores na preservação da confidencialidade deste documento, zelando pela segurança das informações e pelo bom desempenho das atividades institucionais."""
+
+
 def _relatorio_observacao_from_request(request) -> str:
     try:
         raw = request.GET.get("observacao", "")
@@ -1821,6 +1832,8 @@ def _relatorio_observacao_from_request(request) -> str:
         raw = ""
     obs = str(raw or "")
     obs = obs.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not obs:
+        obs = DEFAULT_RELATORIO_OBSERVACAO
     if len(obs) > 2000:
         obs = obs[:2000].rstrip()
     return obs
