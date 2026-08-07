@@ -65,7 +65,6 @@
     } else {
       ensureExpedienteManualBadge(existing);
     }
-    el("servidoresLivres")?.querySelector(`.servidor-card[data-id="${sid}"]`)?.remove();
   }
   function removeFromExpediente(sid) {
     el("expedienteAdmin")?.querySelector(`.servidor-card[data-id="${sid}"]`)?.remove();

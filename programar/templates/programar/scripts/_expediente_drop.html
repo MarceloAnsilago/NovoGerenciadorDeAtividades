@@ -227,7 +227,7 @@
       return;
     }
 
-    // 3) Adiciona ao Expediente (COM X) e s ento remove de "Disponveis"
+    // 3) Adiciona ao Expediente (COM X) mantendo "Disponiveis" como catalogo.
     let usedAPI = false;
     try {
       if (window.ProgramarCards?.appendToExpediente) {
@@ -268,9 +268,6 @@
       ensureManualBadge(el);
       ensureCloseButton(el, sid, name);
     }
-
-    // agora sim: remove dos "Disponveis"
-    $(SEL.livres)?.querySelector(`${SEL.srvCard}[data-id="${sid}"]`)?.remove();
 
     try { (window.PROGRAMAR?.updateCounts || window.ProgramarCards?.updateCounts)?.(); } catch(_){}
     showToast('Movido para Expediente', ev.clientX, ev.clientY, '#b7ffb7');
