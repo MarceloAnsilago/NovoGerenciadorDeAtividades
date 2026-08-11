@@ -356,6 +356,7 @@
         </ul>
       </div>
 
+      <div data-relatorio-panel="programacao" class="{% if report_tab == 'encerradas' %}d-none{% endif %}">
       <form method="get" class="row g-3" id="relatorio-programacao-form">
         <input type="hidden" id="id_report_tab" name="report_tab" value="{{ report_tab|default:'programacao' }}">
         <div class="col-12 col-md-4">
@@ -403,10 +404,12 @@
       {% if form_error %}
         <div class="alert alert-danger mt-3 mb-0">{{ form_error }}</div>
       {% endif %}
+      </div>
+      <div data-relatorio-panel="encerradas" class="{% if report_tab != 'encerradas' %}d-none{% endif %}"></div>
     </div>
   </div>
 
-  {% if report %}
+  {% if report and report_tab != "encerradas" %}
     <div id="relatorio-programacao-print-area" class="card border-0 shadow-sm mt-4 relatorio-print-area">
       <div class="card-body">
         <div class="container mt-3 report-container px-0">
@@ -696,14 +699,11 @@
             btn.classList.toggle("active", active);
             btn.setAttribute("aria-selected", active ? "true" : "false");
           });
-          const historico = document.getElementById("id_sec_historico");
-          const desempenho = document.getElementById("id_sec_desempenho");
-          const indicadores = document.getElementById("id_sec_indicadores");
-          if (tab === "encerradas") {
-            if (historico) historico.checked = false;
-            if (desempenho) desempenho.checked = true;
-            if (indicadores) indicadores.checked = true;
-          }
+          document.querySelectorAll("[data-relatorio-panel]").forEach((panel) => {
+            panel.classList.toggle("d-none", panel.dataset.relatorioPanel !== tab);
+          });
+          const printArea = document.getElementById("relatorio-programacao-print-area");
+          if (printArea) printArea.classList.toggle("d-none", tab === "encerradas");
           return;
         }
 

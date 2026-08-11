@@ -18,58 +18,6 @@ def _parse_date(value: str):
         return None
 
 
-def _filter_encerradas_report(report):
-    if not report:
-        return report
-
-    desempenho = report.get("desempenho")
-    if not desempenho:
-        return report
-
-    rows = [
-        row for row in desempenho.get("rows", [])
-        if str(row.get("status_final") or "") == "encerrada_automaticamente"
-    ]
-    resumo = []
-    for row in desempenho.get("resumo_por_atividade", []):
-        encerradas = int(row.get("encerrada_automaticamente") or 0)
-        if encerradas:
-            item = dict(row)
-            item["total_periodo"] = encerradas
-            item["total_atual"] = encerradas
-            item["total_execucao"] = 0
-            item["cancelada_ou_removida"] = 0
-            item["executada"] = 0
-            item["remarcada_concluida"] = 0
-            item["nao_realizada"] = 0
-            item["nao_realizada_justificada"] = 0
-            item["pendente"] = 0
-            item["execucao_percent"] = None
-            item["execucao_percent_label"] = "-"
-            resumo.append(item)
-
-    counters = {key: 0 for key in (desempenho.get("counters") or {}).keys()}
-    counters["encerrada_automaticamente"] = len(rows)
-    report = dict(report)
-    report["desempenho"] = {
-        **desempenho,
-        "rows": rows,
-        "total": len(rows),
-        "counters": counters,
-        "resumo_por_atividade": resumo,
-        "nao_realizadas_grupos": [],
-    }
-    report["indicadores"] = {
-        "cards": [
-            {
-                "label": "Programacoes encerradas",
-                "value": len(rows),
-            }
-        ]
-    } if report.get("indicadores") is not None else None
-    return report
-
-
 @login_required
 @require_GET
 def relatorios_home_view(request):
@@ -98,10 +46,6 @@ def relatorio_programacao_view(request):
         "desempenho": request.GET.get("sec_desempenho", "1") not in {"0", "false", "off"},
         "indicadores": request.GET.get("sec_indicadores", "1") not in {"0", "false", "off"},
     }
-    if report_tab == "encerradas":
-        selected_sections["historico"] = False
-        selected_sections["desempenho"] = True
-        selected_sections["indicadores"] = True
 
     context = {
         "today_iso": timezone.localdate().isoformat(),
@@ -114,7 +58,7 @@ def relatorio_programacao_view(request):
         "report_tab": report_tab,
     }
 
-    if data_inicial_raw or data_final_raw:
+    if report_tab != "encerradas" and (data_inicial_raw or data_final_raw):
         if not data_inicial or not data_final:
             context["form_error"] = "Informe um período válido."
         elif data_inicial > data_final:
@@ -128,8 +72,6 @@ def relatorio_programacao_view(request):
                 data_final=data_final,
                 include_sections=selected_sections,
             )
-            if report_tab == "encerradas":
-                context["report"] = _filter_encerradas_report(context["report"])
 
     template_name = "relatorios/programacao_print.html" if is_print else "relatorios/programacao.html"
     return render(request, template_name, context)
