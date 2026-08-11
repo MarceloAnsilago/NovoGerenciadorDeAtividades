@@ -450,7 +450,7 @@
                         data-programacao-percentual="{{ periodo.percentual_solucionado }}"
                         data-programacao-action="reabrir"
                         data-programacao-can-reabrir="{% if can_reabrir_programacao_mes %}1{% else %}0{% endif %}"
-                        {% if not can_reabrir_programacao_mes %}title="Somente usuarios com permissao podem reabrir esta programacao mensal"{% endif %}
+                        {% if not can_reabrir_programacao_mes %}title="Somente usuários com permissão podem reabrir esta programação mensal"{% endif %}
                       >
                         Reabrir
                       </button>
@@ -889,7 +889,7 @@
             encerrarBtn.dataset.programacaoAction === "reabrir"
             && encerrarBtn.dataset.programacaoCanReabrir === "0"
           ) {
-            window.alert("Somente usuarios com permissao podem reabrir esta programacao mensal.");
+            window.alert("Somente usuários com permissão podem reabrir esta programação mensal.");
             return;
           }
           const modalEl = document.getElementById("confirmarEncerrarProgramacaoMesModal");
