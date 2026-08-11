@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Max, Min
+from django.db.models import Count, Max, Min, Q
 from django.db.models.functions import TruncMonth
 from django.shortcuts import render
 from django.utils import timezone
@@ -38,6 +38,7 @@ def _build_programacoes_encerradas_periodos(request):
             data_final=Max("data"),
             dias_programados=Count("data", distinct=True),
             total_programacoes=Count("id"),
+            total_encerradas=Count("id", filter=Q(concluida=True)),
         )
         .order_by("-mes")
     )
@@ -45,6 +46,9 @@ def _build_programacoes_encerradas_periodos(request):
     for row in rows:
         mes = row.get("mes")
         row["is_mes_atual"] = bool(mes and mes.year == today.year and mes.month == today.month)
+        total_programacoes = int(row.get("total_programacoes") or 0)
+        total_encerradas = int(row.get("total_encerradas") or 0)
+        row["is_encerrado"] = total_programacoes > 0 and total_encerradas >= total_programacoes
         periodos.append(row)
     return periodos
 

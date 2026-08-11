@@ -413,6 +413,7 @@
                 <th>M&ecirc;s</th>
                 <th>Per&iacute;odo programado</th>
                 <th class="text-end">Dias programados</th>
+                <th class="text-end">A&ccedil;&otilde;es</th>
               </tr>
             </thead>
             <tbody>
@@ -430,10 +431,31 @@
                     Do dia {{ periodo.data_inicial|date:"d/m/Y" }} ao dia {{ periodo.data_final|date:"d/m/Y" }}
                   </td>
                   <td class="text-end">{{ periodo.dias_programados }}</td>
+                  <td class="text-end">
+                    {% if periodo.is_encerrado %}
+                      <button
+                        type="button"
+                        class="btn btn-outline-primary btn-sm"
+                        data-programacao-mes="{{ periodo.mes|date:'Y-m' }}"
+                        data-programacao-action="reabrir"
+                      >
+                        Reabrir
+                      </button>
+                    {% else %}
+                      <button
+                        type="button"
+                        class="btn btn-outline-danger btn-sm"
+                        data-programacao-mes="{{ periodo.mes|date:'Y-m' }}"
+                        data-programacao-action="encerrar"
+                      >
+                        Encerrar
+                      </button>
+                    {% endif %}
+                  </td>
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="3" class="text-muted">Nenhum m&ecirc;s com programa&ccedil;&atilde;o encontrado.</td>
+                  <td colspan="4" class="text-muted">Nenhum m&ecirc;s com programa&ccedil;&atilde;o encontrado.</td>
                 </tr>
               {% endfor %}
             </tbody>
