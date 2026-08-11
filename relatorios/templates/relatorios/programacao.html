@@ -342,9 +342,22 @@
           <h1 class="h4 mb-1">Relatório de Programação</h1>
           <p class="text-muted mb-0">Gere um relatório consolidado usando o histórico e os dados atuais da programação.</p>
         </div>
+        <ul class="nav nav-tabs relatorio-programacao-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button type="button" class="nav-link {% if report_tab != 'encerradas' %}active{% endif %}" data-relatorio-tab="programacao" role="tab" aria-selected="{% if report_tab != 'encerradas' %}true{% else %}false{% endif %}">
+            Relat&oacute;rio de programa&ccedil;&atilde;o
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button type="button" class="nav-link {% if report_tab == 'encerradas' %}active{% endif %}" data-relatorio-tab="encerradas" role="tab" aria-selected="{% if report_tab == 'encerradas' %}true{% else %}false{% endif %}">
+            Programa&ccedil;&otilde;es encerradas
+          </button>
+        </li>
+        </ul>
       </div>
 
       <form method="get" class="row g-3" id="relatorio-programacao-form">
+        <input type="hidden" id="id_report_tab" name="report_tab" value="{{ report_tab|default:'programacao' }}">
         <div class="col-12 col-md-4">
           <label for="id_data_inicial" class="form-label">Data inicial</label>
           <input type="date" id="id_data_inicial" name="data_inicial" class="form-control" value="{{ data_inicial|default:'' }}">
@@ -399,7 +412,9 @@
         <div class="container mt-3 report-container px-0">
           <div class="relatorio-print-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1rem;padding-bottom:.9rem;border-bottom:2px solid #cfd6df;">
             <div>
-              <h2 class="relatorio-print-title" style="margin:0;font-size:2rem;line-height:1.1;color:#162033;font-weight:700;">Relat&oacute;rio de Programa&ccedil;&atilde;o {{ report.periodo_label }}</h2>
+              <h2 class="relatorio-print-title" style="margin:0;font-size:2rem;line-height:1.1;color:#162033;font-weight:700;">
+                {% if report_tab == "encerradas" %}Programa&ccedil;&otilde;es Encerradas{% else %}Relat&oacute;rio de Programa&ccedil;&atilde;o{% endif %} {{ report.periodo_label }}
+              </h2>
               <div class="relatorio-print-meta" style="margin-top:.7rem;font-size:1rem;color:#475569;">
                 Período: <strong>{{ report.periodo_label }}</strong>
                 <span class="ms-2">Gerado em {{ report.gerado_em|date:"d/m/Y H:i" }}</span>
@@ -670,6 +685,28 @@
       }
 
       document.addEventListener("click", function (ev) {
+        const tabBtn = ev.target.closest?.("[data-relatorio-tab]");
+        if (tabBtn) {
+          ev.preventDefault();
+          const tab = tabBtn.dataset.relatorioTab === "encerradas" ? "encerradas" : "programacao";
+          const tabInput = document.getElementById("id_report_tab");
+          if (tabInput) tabInput.value = tab;
+          document.querySelectorAll("[data-relatorio-tab]").forEach((btn) => {
+            const active = btn.dataset.relatorioTab === tab;
+            btn.classList.toggle("active", active);
+            btn.setAttribute("aria-selected", active ? "true" : "false");
+          });
+          const historico = document.getElementById("id_sec_historico");
+          const desempenho = document.getElementById("id_sec_desempenho");
+          const indicadores = document.getElementById("id_sec_indicadores");
+          if (tab === "encerradas") {
+            if (historico) historico.checked = false;
+            if (desempenho) desempenho.checked = true;
+            if (indicadores) indicadores.checked = true;
+          }
+          return;
+        }
+
         const btn = ev.target.closest?.("#relatorio-btn-mes-atual");
         if (!btn) return;
 
