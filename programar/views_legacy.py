@@ -1365,7 +1365,8 @@ def _resolve_expediente_admin_report(
 
     expediente: list[str] = []
     seen: set[str] = set()
-    for nome in list(expediente_calculado) + list(expediente_salvo):
+    fonte = expediente_salvo if expediente_salvo else expediente_calculado
+    for nome in fonte:
         if nome and nome not in seen:
             seen.add(nome)
             expediente.append(nome)
