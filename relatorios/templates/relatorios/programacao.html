@@ -446,6 +446,17 @@
                         type="button"
                         class="btn btn-outline-danger btn-sm"
                         data-programacao-mes="{{ periodo.mes|date:'Y-m' }}"
+                        data-programacao-mes-label="{{ periodo.mes|date:'F/Y' }}"
+                        data-programacao-periodo="Do dia {{ periodo.data_inicial|date:'d/m/Y' }} ao dia {{ periodo.data_final|date:'d/m/Y' }}"
+                        data-programacao-dias="{{ periodo.dias_programados }}"
+                        data-programacao-total-programacoes="{{ periodo.total_programacoes }}"
+                        data-programacao-total-atividades="{{ periodo.total_atividades }}"
+                        data-programacao-concluidas="{{ periodo.concluidas }}"
+                        data-programacao-justificadas="{{ periodo.justificadas }}"
+                        data-programacao-canceladas="{{ periodo.canceladas }}"
+                        data-programacao-nao-realizadas="{{ periodo.nao_realizadas }}"
+                        data-programacao-pendentes="{{ periodo.pendentes }}"
+                        data-programacao-percentual="{{ periodo.percentual_solucionado }}"
                         data-programacao-action="encerrar"
                       >
                         Encerrar
@@ -460,6 +471,110 @@
               {% endfor %}
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade"
+       id="confirmarEncerrarProgramacaoMesModal"
+       tabindex="-1"
+       aria-labelledby="confirmarEncerrarProgramacaoMesModalLabel"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmarEncerrarProgramacaoMesModalLabel">Confirmar encerramento</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">Deseja encerrar esse m&ecirc;s de programa&ccedil;&atilde;o?</p>
+
+          <div class="border rounded p-3 bg-light">
+            <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
+              <div>
+                <div class="text-muted small">M&ecirc;s</div>
+                <div class="fw-semibold" data-encerrar-mes-label>-</div>
+              </div>
+              <div class="text-md-end">
+                <div class="text-muted small">Per&iacute;odo programado</div>
+                <div class="fw-semibold" data-encerrar-periodo>-</div>
+              </div>
+            </div>
+
+            <div class="row g-2">
+              <div class="col-6 col-md-4">
+                <div class="border rounded bg-white p-2 h-100">
+                  <div class="text-muted small">Programa&ccedil;&otilde;es</div>
+                  <div class="fs-5 fw-semibold" data-encerrar-total-programacoes>0</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-4">
+                <div class="border rounded bg-white p-2 h-100">
+                  <div class="text-muted small">Dias programados</div>
+                  <div class="fs-5 fw-semibold" data-encerrar-dias>0</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-4">
+                <div class="border rounded bg-white p-2 h-100">
+                  <div class="text-muted small">Atividades</div>
+                  <div class="fs-5 fw-semibold" data-encerrar-total-atividades>0</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-4">
+                <div class="border rounded bg-white p-2 h-100">
+                  <div class="text-muted small">Conclu&iacute;das</div>
+                  <div class="fs-5 fw-semibold" data-encerrar-concluidas>0</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-4">
+                <div class="border rounded bg-white p-2 h-100">
+                  <div class="text-muted small">Justificadas</div>
+                  <div class="fs-5 fw-semibold" data-encerrar-justificadas>0</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-4">
+                <div class="border rounded bg-white p-2 h-100">
+                  <div class="text-muted small">Canceladas</div>
+                  <div class="fs-5 fw-semibold" data-encerrar-canceladas>0</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-4">
+                <div class="border rounded bg-white p-2 h-100">
+                  <div class="text-muted small">N&atilde;o realizadas</div>
+                  <div class="fs-5 fw-semibold" data-encerrar-nao-realizadas>0</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-4">
+                <div class="border rounded bg-white p-2 h-100">
+                  <div class="text-muted small">Pendentes</div>
+                  <div class="fs-5 fw-semibold" data-encerrar-pendentes>0</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <div class="d-flex justify-content-between small text-muted mb-1">
+                <span>Progresso para encerramento</span>
+                <span data-encerrar-percentual-label>0%</span>
+              </div>
+              <div class="progress" style="height: 8px;">
+                <div class="progress-bar"
+                     role="progressbar"
+                     style="width: 0%;"
+                     aria-valuenow="0"
+                     aria-valuemin="0"
+                     aria-valuemax="100"
+                     data-encerrar-percentual-bar></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">N&atilde;o</button>
+          <button type="button" class="btn btn-primary" id="btnConfirmarEncerrarProgramacaoMes">
+            Sim, encerrar este m&ecirc;s
+          </button>
         </div>
       </div>
     </div>
@@ -744,6 +859,53 @@
       }
 
       document.addEventListener("click", function (ev) {
+        const encerrarBtn = ev.target.closest?.("[data-programacao-action='encerrar']");
+        if (encerrarBtn) {
+          ev.preventDefault();
+          const modalEl = document.getElementById("confirmarEncerrarProgramacaoMesModal");
+          if (!modalEl) return;
+
+          const setText = (selector, value) => {
+            const el = modalEl.querySelector(selector);
+            if (el) el.textContent = value || "0";
+          };
+          const metric = (name) => encerrarBtn.dataset[name] || "0";
+          const percentual = Number(String(metric("programacaoPercentual") || "0").replace(",", "."));
+
+          setText("[data-encerrar-mes-label]", encerrarBtn.dataset.programacaoMesLabel || encerrarBtn.dataset.programacaoMes || "-");
+          setText("[data-encerrar-periodo]", encerrarBtn.dataset.programacaoPeriodo || "-");
+          setText("[data-encerrar-total-programacoes]", metric("programacaoTotalProgramacoes"));
+          setText("[data-encerrar-dias]", metric("programacaoDias"));
+          setText("[data-encerrar-total-atividades]", metric("programacaoTotalAtividades"));
+          setText("[data-encerrar-concluidas]", metric("programacaoConcluidas"));
+          setText("[data-encerrar-justificadas]", metric("programacaoJustificadas"));
+          setText("[data-encerrar-canceladas]", metric("programacaoCanceladas"));
+          setText("[data-encerrar-nao-realizadas]", metric("programacaoNaoRealizadas"));
+          setText("[data-encerrar-pendentes]", metric("programacaoPendentes"));
+          setText("[data-encerrar-percentual-label]", `${Number.isFinite(percentual) ? percentual : 0}%`);
+
+          const bar = modalEl.querySelector("[data-encerrar-percentual-bar]");
+          if (bar) {
+            const width = Math.max(0, Math.min(100, Number.isFinite(percentual) ? percentual : 0));
+            bar.style.width = `${width}%`;
+            bar.setAttribute("aria-valuenow", String(width));
+          }
+
+          const confirmBtn = document.getElementById("btnConfirmarEncerrarProgramacaoMes");
+          if (confirmBtn) {
+            confirmBtn.dataset.programacaoMes = encerrarBtn.dataset.programacaoMes || "";
+          }
+
+          if (window.bootstrap && window.bootstrap.Modal) {
+            window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+          } else {
+            modalEl.classList.add("show");
+            modalEl.style.display = "block";
+            modalEl.removeAttribute("aria-hidden");
+          }
+          return;
+        }
+
         const tabBtn = ev.target.closest?.("[data-relatorio-tab]");
         if (tabBtn) {
           ev.preventDefault();

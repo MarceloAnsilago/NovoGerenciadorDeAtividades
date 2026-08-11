@@ -12,6 +12,8 @@ from django.views.decorators.http import require_GET
 
 from core.utils import get_unidade_atual_id
 from programar.models import Programacao
+from programar.models import ProgramacaoItem
+from programar.status import ENCERRADA_AUTOMATICAMENTE_MARKER
 
 from .services.programacao_report_service import build_programacao_report
 
@@ -49,6 +51,32 @@ def _build_programacoes_encerradas_periodos(request):
         total_programacoes = int(row.get("total_programacoes") or 0)
         total_encerradas = int(row.get("total_encerradas") or 0)
         row["is_encerrado"] = total_programacoes > 0 and total_encerradas >= total_programacoes
+        itens_qs = ProgramacaoItem.objects.filter(
+            programacao__unidade_id=unidade_id,
+            programacao__data__gte=row.get("data_inicial"),
+            programacao__data__lte=row.get("data_final"),
+        )
+        item_counts = itens_qs.aggregate(
+            total_atividades=Count("id"),
+            concluidas=Count("id", filter=Q(concluido=True)),
+            justificadas=Count("id", filter=Q(nao_realizada_justificada=True)),
+            canceladas=Count("id", filter=Q(cancelada=True)),
+            nao_realizadas=Count(
+                "id",
+                filter=Q(concluido=False, concluido_em__isnull=False, cancelada=False, nao_realizada_justificada=False),
+            ),
+            encerradas_auto=Count("id", filter=Q(observacao__contains=ENCERRADA_AUTOMATICAMENTE_MARKER)),
+            pendentes=Count("id", filter=Q(concluido=False, concluido_em__isnull=True, cancelada=False, nao_realizada_justificada=False)),
+        )
+        row.update({key: int(value or 0) for key, value in item_counts.items()})
+        solucionadas = (
+            row["concluidas"]
+            + row["justificadas"]
+            + row["canceladas"]
+            + row["nao_realizadas"]
+            + row["encerradas_auto"]
+        )
+        row["percentual_solucionado"] = round((solucionadas / row["total_atividades"]) * 100, 1) if row["total_atividades"] else 0
         periodos.append(row)
     return periodos
 
