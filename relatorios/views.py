@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Max, Min, Q
 from django.db.models.functions import TruncMonth
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 
 from core.utils import get_unidade_atual_id
 from programar.models import Programacao
@@ -81,6 +82,13 @@ def _build_programacoes_encerradas_periodos(request):
     return periodos
 
 
+def _month_bounds(mes: date) -> tuple[date, date]:
+    start = mes.replace(day=1)
+    if start.month == 12:
+        return start, date(start.year + 1, 1, 1)
+    return start, date(start.year, start.month + 1, 1)
+
+
 @login_required
 @require_GET
 def relatorios_home_view(request):
@@ -139,3 +147,37 @@ def relatorio_programacao_view(request):
 
     template_name = "relatorios/programacao_print.html" if is_print else "relatorios/programacao.html"
     return render(request, template_name, context)
+
+
+@login_required
+@require_POST
+def encerrar_programacao_mes(request):
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade nao definida."}, status=400)
+
+    mes_raw = (request.POST.get("mes") or "").strip()
+    try:
+        mes_ref = datetime.strptime(f"{mes_raw}-01", "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "Mes invalido."}, status=400)
+
+    start, end = _month_bounds(mes_ref)
+    qs = Programacao.objects.filter(unidade_id=unidade_id, data__gte=start, data__lt=end)
+    total = qs.count()
+    if total <= 0:
+        return JsonResponse({"ok": False, "error": "Nenhuma programacao encontrada para este mes."}, status=404)
+
+    now = timezone.now()
+    updated = qs.filter(concluida=False).update(
+        concluida=True,
+        concluida_em=now,
+        concluida_por=request.user,
+    )
+    return JsonResponse({
+        "ok": True,
+        "mes": mes_raw,
+        "total": total,
+        "updated": updated,
+        "message": "Programacao mensal encerrada.",
+    })

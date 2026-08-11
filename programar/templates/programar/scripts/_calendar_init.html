@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function(){
   const holidayDates = new Set();
   const overdueDates = new Set();
   const notExecutedDates = new Set();
+  const lockedMonths = new Set();
   let lastDayMarker = "";
   const updateDayCells = () => {
     const cells = el.querySelectorAll('[data-date]');
@@ -17,9 +18,11 @@ document.addEventListener('DOMContentLoaded', function(){
       const isHoliday = holidayDates.has(date);
       const isOverdue = !isHoliday && overdueDates.has(date);
       const isNotExecuted = !isHoliday && !isOverdue && notExecutedDates.has(date);
+      const isMonthLocked = lockedMonths.has(date.slice(0, 7));
       cell.classList.toggle('fc-day-feriado', isHoliday);
       cell.classList.toggle('fc-day-atrasado', isOverdue);
       cell.classList.toggle('fc-day-nao-realizada', isNotExecuted);
+      cell.classList.toggle('fc-day-mes-encerrado', isMonthLocked);
     });
   };
 
@@ -77,6 +80,10 @@ document.addEventListener('DOMContentLoaded', function(){
       .prog-event-card.is-pending{background:#fff4f5;border-color:#f5c2c7;}
       .prog-event-card.is-overdue{background:#ffedd6;border-color:#ffbf86;}
       .prog-event-card .fc-event-main{padding:8px 9px;}
+      .prog-event-card.is-month-locked{background:#eef2f7;border-color:#94a3b8;}
+      .fc-daygrid-day.fc-day-mes-encerrado{background:#f8fafc;}
+      .fc-daygrid-day.fc-day-mes-encerrado .fc-daygrid-day-number::after{content:" Encerrada";display:inline-flex;margin-left:.35rem;padding:.05rem .35rem;border-radius:.35rem;border:1px solid #cbd5e1;background:#e2e8f0;color:#334155;font-size:.62rem;font-weight:700;vertical-align:middle;}
+      .programacao-mes-encerrado-bg{background:#e2e8f0!important;opacity:.35!important;}
       .prog-event-feriado{border:1px solid #f5c2c7;background:#fff5f5;border-radius:.65rem;box-shadow:0 1px 4px rgba(15,23,42,.05);}
       .programar-event-feriado{display:flex;flex-direction:column;gap:.35rem;color:#842029;min-width:0;}
       .programar-event-feriado .feriado-badge{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;font-weight:700;padding:.28rem .55rem;border-radius:.55rem;border:1px solid #f5c2c7;background:#fdecef;color:#842029;}
@@ -108,6 +115,23 @@ document.addEventListener('DOMContentLoaded', function(){
     const dd = String(value.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
   }
+
+  function monthKeyFromIso(value) {
+    const iso = toIsoDate(value);
+    return iso ? iso.slice(0, 7) : "";
+  }
+
+  function showMonthLockedWarning() {
+    NS.toast('Esta programa\u00e7\u00e3o mensal est\u00e1 encerrada e n\u00e3o pode ser alterada.', {
+      variant: 'warning',
+      title: 'Programa\u00e7\u00e3o encerrada'
+    });
+  }
+
+  NS.isMonthLocked = function(value) {
+    const key = monthKeyFromIso(value);
+    return !!key && lockedMonths.has(key);
+  };
 
   function parseIsoDateLocal(value) {
     const raw = String(value || "").trim();
@@ -194,12 +218,21 @@ document.addEventListener('DOMContentLoaded', function(){
       holidayDates.clear();
       overdueDates.clear();
       notExecutedDates.clear();
+      lockedMonths.clear();
       events.forEach((ev) => {
         const eventDay = toIsoDate(ev?.startStr || ev?.start);
         if (!eventDay) return;
+        if (ev?.extendedProps?.kind === 'programacao_mes_encerrado') {
+          const month = ev.extendedProps.month || eventDay.slice(0, 7);
+          if (month) lockedMonths.add(month);
+          return;
+        }
         if (ev?.extendedProps?.kind === 'feriado') {
           holidayDates.add(eventDay);
           return;
+        }
+        if (ev?.extendedProps?.programacao_mes_encerrado) {
+          lockedMonths.add(ev.extendedProps.programacao_mes || eventDay.slice(0, 7));
         }
         const naoRealizadas = Number(ev?.extendedProps?.total_nao_realizadas || 0);
         if (naoRealizadas > 0) notExecutedDates.add(eventDay);
@@ -210,6 +243,9 @@ document.addEventListener('DOMContentLoaded', function(){
     },
     eventContent(info) {
       const props = info.event.extendedProps || {};
+      if (props.kind === "programacao_mes_encerrado") {
+        return { domNodes: [] };
+      }
       if (props.kind === "feriado") {
         const wrapper = document.createElement('div');
         wrapper.className = 'programar-event-feriado';
@@ -302,13 +338,19 @@ document.addEventListener('DOMContentLoaded', function(){
       return { domNodes: [wrapper] };
     },
     eventClassNames(arg){
+      if (arg.event.extendedProps?.kind === "programacao_mes_encerrado") {
+        return ["programacao-mes-encerrado-bg"];
+      }
       if (arg.event.extendedProps?.kind === "feriado") {
         return ["prog-event-feriado"];
       }
       const status = computeStatus(arg.event.extendedProps || {}, arg.event.startStr || arg.event.start);
-      return ['prog-event-card', `is-${status.key}`];
+      const classes = ['prog-event-card', `is-${status.key}`];
+      if (arg.event.extendedProps?.programacao_mes_encerrado) classes.push('is-month-locked');
+      return classes;
     },
     eventDidMount(info) {
+      if (info.event.extendedProps?.kind === "programacao_mes_encerrado") return;
       if (info.event.extendedProps?.kind !== "feriado") return;
       const url = buildFeriadoRedirectUrl(info.event);
       if (!url) return;
@@ -324,6 +366,10 @@ document.addEventListener('DOMContentLoaded', function(){
       if (props.kind === "feriado") {
         const url = buildFeriadoRedirectUrl(info.event);
         if (url) window.location.href = url;
+        return;
+      }
+      if (props.kind === "programacao_mes_encerrado" || props.programacao_mes_encerrado || NS.isMonthLocked(info.event.startStr || info.event.start)) {
+        showMonthLockedWarning();
         return;
       }
       if (typeof NS.openProgramarModal === 'function') {
@@ -355,6 +401,10 @@ document.addEventListener('DOMContentLoaded', function(){
     },
 
     dateClick(info){
+      if (NS.isMonthLocked(info.dateStr || info.date)) {
+        showMonthLockedWarning();
+        return;
+      }
       if (typeof NS.openProgramarModal === 'function') {
         const label = formatModalLabel(info.date);
         NS.openProgramarModal(info.dateStr, label);

@@ -41,6 +41,7 @@ from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from metas.services import meta_esta_concluida, resumo_execucao_meta
 from veiculos.models import Veiculo
 from django.db.models import Sum, Count, Q
+from django.db.models.functions import TruncMonth
 from django.db import transaction
 from relatorios.services.programacao_history_service import (
     record_programacao_day_diff_after_commit,
@@ -590,6 +591,11 @@ def salvar_programacao(request):
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
         return JsonResponse({"ok": False, "error": "Unidade nao definida."}, status=400)
+    if _programacao_mes_encerrada(unidade_id, dia):
+        return JsonResponse(
+            {"ok": False, "error": "Esta programacao mensal esta encerrada e nao pode ser alterada."},
+            status=423,
+        )
     before_snapshot = snapshot_programacao_dia(unidade_id, dia)
 
     metas_permitidas = set(
@@ -879,6 +885,67 @@ def _parse_iso(s: str) -> date | None:
         return datetime.strptime(s, "%Y-%m-%d").date()
     except Exception:
         return None
+
+
+def _month_bounds(ref: date) -> tuple[date, date]:
+    start = ref.replace(day=1)
+    if start.month == 12:
+        return start, date(start.year + 1, 1, 1)
+    return start, date(start.year, start.month + 1, 1)
+
+
+def _programacao_mes_key(ref: date | None) -> str:
+    return ref.strftime("%Y-%m") if ref else ""
+
+
+def _programacao_mes_encerrada(unidade_id: int | None, ref: date | None) -> bool:
+    if not unidade_id or not ref:
+        return False
+    start, end = _month_bounds(ref)
+    agg = (
+        Programacao.objects
+        .filter(unidade_id=unidade_id, data__gte=start, data__lt=end)
+        .aggregate(
+            total=Count("id"),
+            encerradas=Count("id", filter=Q(concluida=True)),
+        )
+    )
+    total = int(agg.get("total") or 0)
+    encerradas = int(agg.get("encerradas") or 0)
+    return total > 0 and encerradas >= total
+
+
+def _programacoes_meses_encerrados(
+    unidade_id: int | None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict[str, date]:
+    if not unidade_id:
+        return {}
+    qs = Programacao.objects.filter(unidade_id=unidade_id)
+    if start_date:
+        month_start, _month_end = _month_bounds(start_date)
+        qs = qs.filter(data__gte=month_start)
+    if end_date:
+        end_ref = end_date - timedelta(days=1)
+        _month_start, month_end = _month_bounds(end_ref)
+        qs = qs.filter(data__lt=month_end)
+    rows = (
+        qs.annotate(mes=TruncMonth("data"))
+        .values("mes")
+        .annotate(
+            total=Count("id"),
+            encerradas=Count("id", filter=Q(concluida=True)),
+        )
+    )
+    encerrados: dict[str, date] = {}
+    for row in rows:
+        mes = row.get("mes")
+        total = int(row.get("total") or 0)
+        encerradas = int(row.get("encerradas") or 0)
+        if mes and total > 0 and encerradas >= total:
+            encerrados[_programacao_mes_key(mes.date() if hasattr(mes, "date") else mes)] = mes.date() if hasattr(mes, "date") else mes
+    return encerrados
 
 
 def _pick_plantao_id(request, ds: date | None, de: date | None) -> int | None:
@@ -2104,6 +2171,7 @@ def events_feed(request):
         qs = qs.filter(data__lt=end_date)
 
     programacoes = list(qs.values("id", "data", "concluida"))
+    meses_encerrados = _programacoes_meses_encerrados(unidade_id, start_date, end_date)
     prog_ids = [p["id"] for p in programacoes]
     counts: Dict[int, Dict[str, int]] = {
         pid: {
@@ -2211,8 +2279,25 @@ def events_feed(request):
                 })
 
     data = []
+    for mes_key, mes_start in meses_encerrados.items():
+        _start, mes_end = _month_bounds(mes_start)
+        data.append({
+            "id": f"programacao-mes-encerrado-{mes_key}",
+            "title": "Programacao mensal encerrada",
+            "start": mes_start.isoformat(),
+            "end": mes_end.isoformat(),
+            "allDay": True,
+            "display": "background",
+            "classNames": ["programacao-mes-encerrado-bg"],
+            "extendedProps": {
+                "kind": "programacao_mes_encerrado",
+                "month": mes_key,
+                "message": "Esta programacao mensal esta encerrada.",
+            },
+        })
     for prog in programacoes:
         pid = prog["id"]
+        month_key = _programacao_mes_key(prog["data"])
         contadores = counts.get(pid, {
             "total": 0,
             "concluidas": 0,
@@ -2258,6 +2343,8 @@ def events_feed(request):
                 "total_pendentes": pendentes,
                 "nomes_atividades": nome_atividades,
                 "atividades": atividades_por_programacao.get(pid, []),
+                "programacao_mes_encerrado": month_key in meses_encerrados,
+                "programacao_mes": month_key,
             },
         })
     return JsonResponse(data, safe=False)
@@ -2673,6 +2760,11 @@ def excluir_programacao_secure(request):
         if not prog:
             return JsonResponse({"ok": True, "deleted": False})
     data_ref = getattr(prog, "data", None)
+    if _programacao_mes_encerrada(unidade_id, data_ref):
+        return JsonResponse(
+            {"ok": False, "error": "Esta programacao mensal esta encerrada e nao pode ser excluida."},
+            status=423,
+        )
     before_snapshot = snapshot_programacao_dia(unidade_id, data_ref) if data_ref else None
 
     with transaction.atomic():
@@ -2726,6 +2818,11 @@ def marcar_item_realizada(request, item_id: int):
         except ProgramacaoItem.DoesNotExist:
             return JsonResponse({"ok": False, "error": "Item não encontrado."}, status=404)
         data_ref = getattr(getattr(pi, "programacao", None), "data", None)
+        if _programacao_mes_encerrada(unidade_id, data_ref):
+            return JsonResponse(
+                {"ok": False, "error": "Esta programacao mensal esta encerrada e nao pode ser alterada."},
+                status=423,
+            )
         before_snapshot = snapshot_programacao_dia(unidade_id, data_ref) if data_ref else None
 
         if realizada:
@@ -2896,6 +2993,10 @@ def concluir_item_form(request, item_id: int):
         pendentes_tem_mais = pendentes_total > len(pendentes_preview)
 
     if request.method == "POST":
+        if _programacao_mes_encerrada(unidade_ctx_id, getattr(programacao, "data", None)):
+            messages.error(request, "Esta programacao mensal esta encerrada e nao pode ser alterada.")
+            return redirect(next_url)
+
         form_errors: dict[str, str] = {}
         status_execucao = (request.POST.get("status_execucao") or "").strip().lower()
         if status_execucao not in {EXECUTADA, REMARCADA_CONCLUIDA, CANCELADA, NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA, PENDENTE}:

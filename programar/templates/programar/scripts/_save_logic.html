@@ -155,7 +155,7 @@
     const { deleteBtn, date } = getEl();
     if (!deleteBtn) return;
     const iso = date?.value || '';
-    deleteBtn.disabled = !isISODate(iso);
+    deleteBtn.disabled = !isISODate(iso) || (typeof NS.isMonthLocked === 'function' && NS.isMonthLocked(iso));
   }
 
   function isISODate(s){ return /^\d{4}-\d{2}-\d{2}$/.test(String(s||'')); }
@@ -169,6 +169,14 @@
     const dateStr = date?.value || '';
     if (!isISODate(dateStr)){
       NS.toast('Selecione uma data válida para salvar.', {variant:'warning'});
+      return;
+    }
+
+    if (typeof NS.isMonthLocked === 'function' && NS.isMonthLocked(dateStr)) {
+      NS.toast('Esta programa\u00e7\u00e3o mensal est\u00e1 encerrada e n\u00e3o pode ser alterada.', {
+        variant: 'warning',
+        title: 'Programa\u00e7\u00e3o encerrada'
+      });
       return;
     }
 
