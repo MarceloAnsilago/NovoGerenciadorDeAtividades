@@ -435,7 +435,7 @@
                     {% if periodo.is_encerrado %}
                       <button
                         type="button"
-                        class="btn btn-outline-primary btn-sm {% if not can_reabrir_programacao_mes %}disabled{% endif %}"
+                        class="btn {% if can_reabrir_programacao_mes %}btn-outline-primary{% else %}btn-outline-secondary{% endif %} btn-sm"
                         data-programacao-mes="{{ periodo.mes|date:'Y-m' }}"
                         data-programacao-mes-label="{{ periodo.mes|date:'F/Y' }}"
                         data-programacao-periodo="Do dia {{ periodo.data_inicial|date:'d/m/Y' }} ao dia {{ periodo.data_final|date:'d/m/Y' }}"
@@ -449,7 +449,8 @@
                         data-programacao-pendentes="{{ periodo.pendentes }}"
                         data-programacao-percentual="{{ periodo.percentual_solucionado }}"
                         data-programacao-action="reabrir"
-                        {% if not can_reabrir_programacao_mes %}disabled title="Somente usuarios com permissao podem reabrir esta programacao mensal"{% endif %}
+                        data-programacao-can-reabrir="{% if can_reabrir_programacao_mes %}1{% else %}0{% endif %}"
+                        {% if not can_reabrir_programacao_mes %}title="Somente usuarios com permissao podem reabrir esta programacao mensal"{% endif %}
                       >
                         Reabrir
                       </button>
@@ -884,7 +885,13 @@
         const encerrarBtn = ev.target.closest?.("[data-programacao-action='encerrar'], [data-programacao-action='reabrir']");
         if (encerrarBtn) {
           ev.preventDefault();
-          if (encerrarBtn.disabled || encerrarBtn.classList.contains("disabled")) return;
+          if (
+            encerrarBtn.dataset.programacaoAction === "reabrir"
+            && encerrarBtn.dataset.programacaoCanReabrir === "0"
+          ) {
+            window.alert("Somente usuarios com permissao podem reabrir esta programacao mensal.");
+            return;
+          }
           const modalEl = document.getElementById("confirmarEncerrarProgramacaoMesModal");
           if (!modalEl) return;
           const action = encerrarBtn.dataset.programacaoAction === "reabrir" ? "reabrir" : "encerrar";
