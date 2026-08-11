@@ -28,6 +28,7 @@ def _build_programacoes_encerradas_periodos(request):
     if not unidade_id:
         return []
 
+    today = timezone.localdate()
     rows = (
         Programacao.objects.filter(unidade_id=unidade_id)
         .annotate(mes=TruncMonth("data"))
@@ -40,7 +41,12 @@ def _build_programacoes_encerradas_periodos(request):
         )
         .order_by("-mes")
     )
-    return list(rows)
+    periodos = []
+    for row in rows:
+        mes = row.get("mes")
+        row["is_mes_atual"] = bool(mes and mes.year == today.year and mes.month == today.month)
+        periodos.append(row)
+    return periodos
 
 
 @login_required
