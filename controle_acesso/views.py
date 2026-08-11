@@ -26,6 +26,7 @@ def gerenciar_permissoes_usuario(request):
         'auth': 'Autenticação e Autorização',
         'contenttypes': 'Tipos de Conteúdo',
         'core': 'Core',
+        'programar': 'Programacao',
         'sessions': 'Sessões'
     }
     model_labels = {

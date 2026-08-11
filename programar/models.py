@@ -33,6 +33,9 @@ class Programacao(models.Model):
     class Meta:
         db_table = "programar_atividades_programacao"
         managed = False
+        permissions = [
+            ("reabrir_programacao_mes", "Pode reabrir programacao mensal encerrada"),
+        ]
         indexes = [
             models.Index(fields=["data"]),
             models.Index(fields=["unidade"]),

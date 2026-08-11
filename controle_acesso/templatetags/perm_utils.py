@@ -77,6 +77,7 @@ def perm_friendly(perm):
     # Caso especial: permissão customizada
     custom_map = {
         "assumir_unidade": "Assumir/alternar unidades",
+        "reabrir_programacao_mes": "Programacoes - Reabrir mes encerrado",
     }
     if codename in custom_map:
         return custom_map[codename]

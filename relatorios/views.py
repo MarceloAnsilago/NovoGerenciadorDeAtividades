@@ -89,6 +89,32 @@ def _month_bounds(mes: date) -> tuple[date, date]:
     return start, date(start.year, start.month + 1, 1)
 
 
+def _unidade_depth(unidade) -> int | None:
+    if not unidade:
+        return None
+    depth = 0
+    atual = unidade
+    while getattr(atual, "parent_id", None):
+        depth += 1
+        atual = atual.parent
+    return depth
+
+
+def pode_reabrir_programacao_mes(user) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False):
+        return True
+    try:
+        perfil = getattr(user, "userprofile", None)
+    except Exception:
+        perfil = None
+    depth = _unidade_depth(getattr(perfil, "unidade", None))
+    if depth is not None and depth <= 2:
+        return True
+    return user.has_perm("programar.reabrir_programacao_mes")
+
+
 @login_required
 @require_GET
 def relatorios_home_view(request):
@@ -128,6 +154,7 @@ def relatorio_programacao_view(request):
         "observacao": observacao,
         "report_tab": report_tab,
         "programacoes_encerradas_periodos": _build_programacoes_encerradas_periodos(request),
+        "can_reabrir_programacao_mes": pode_reabrir_programacao_mes(request.user),
     }
 
     if report_tab != "encerradas" and (data_inicial_raw or data_final_raw):
@@ -180,4 +207,43 @@ def encerrar_programacao_mes(request):
         "total": total,
         "updated": updated,
         "message": "Programacao mensal encerrada.",
+    })
+
+
+@login_required
+@require_POST
+def reabrir_programacao_mes(request):
+    if not pode_reabrir_programacao_mes(request.user):
+        return JsonResponse(
+            {"ok": False, "error": "Voce nao tem permissao para reabrir esta programacao mensal."},
+            status=403,
+        )
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade nao definida."}, status=400)
+
+    mes_raw = (request.POST.get("mes") or "").strip()
+    try:
+        mes_ref = datetime.strptime(f"{mes_raw}-01", "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "Mes invalido."}, status=400)
+
+    start, end = _month_bounds(mes_ref)
+    qs = Programacao.objects.filter(unidade_id=unidade_id, data__gte=start, data__lt=end)
+    total = qs.count()
+    if total <= 0:
+        return JsonResponse({"ok": False, "error": "Nenhuma programacao encontrada para este mes."}, status=404)
+
+    updated = qs.filter(concluida=True).update(
+        concluida=False,
+        concluida_em=None,
+        concluida_por=None,
+    )
+    return JsonResponse({
+        "ok": True,
+        "mes": mes_raw,
+        "total": total,
+        "updated": updated,
+        "message": "Programacao mensal reaberta.",
     })

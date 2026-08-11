@@ -435,9 +435,21 @@
                     {% if periodo.is_encerrado %}
                       <button
                         type="button"
-                        class="btn btn-outline-primary btn-sm"
+                        class="btn btn-outline-primary btn-sm {% if not can_reabrir_programacao_mes %}disabled{% endif %}"
                         data-programacao-mes="{{ periodo.mes|date:'Y-m' }}"
+                        data-programacao-mes-label="{{ periodo.mes|date:'F/Y' }}"
+                        data-programacao-periodo="Do dia {{ periodo.data_inicial|date:'d/m/Y' }} ao dia {{ periodo.data_final|date:'d/m/Y' }}"
+                        data-programacao-dias="{{ periodo.dias_programados }}"
+                        data-programacao-total-programacoes="{{ periodo.total_programacoes }}"
+                        data-programacao-total-atividades="{{ periodo.total_atividades }}"
+                        data-programacao-concluidas="{{ periodo.concluidas }}"
+                        data-programacao-justificadas="{{ periodo.justificadas }}"
+                        data-programacao-canceladas="{{ periodo.canceladas }}"
+                        data-programacao-nao-realizadas="{{ periodo.nao_realizadas }}"
+                        data-programacao-pendentes="{{ periodo.pendentes }}"
+                        data-programacao-percentual="{{ periodo.percentual_solucionado }}"
                         data-programacao-action="reabrir"
+                        {% if not can_reabrir_programacao_mes %}disabled title="Somente usuarios com permissao podem reabrir esta programacao mensal"{% endif %}
                       >
                         Reabrir
                       </button>
@@ -484,11 +496,11 @@
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="confirmarEncerrarProgramacaoMesModalLabel">Confirmar encerramento</h5>
+          <h5 class="modal-title" id="confirmarEncerrarProgramacaoMesModalLabel" data-programacao-modal-title>Confirmar encerramento</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
         </div>
         <div class="modal-body">
-          <p class="mb-3">Deseja encerrar esse m&ecirc;s de programa&ccedil;&atilde;o?</p>
+          <p class="mb-3" data-programacao-modal-question>Deseja encerrar esse m&ecirc;s de programa&ccedil;&atilde;o?</p>
 
           <div class="border rounded p-3 bg-light">
             <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-3">
@@ -569,7 +581,7 @@
               </div>
             </div>
           </div>
-          <div class="alert alert-warning mt-3 mb-0">
+          <div class="alert alert-warning mt-3 mb-0" data-programacao-modal-warning>
             <strong>Aten&ccedil;&atilde;o:</strong> depois de encerrada, esta programa&ccedil;&atilde;o mensal s&oacute; poder&aacute; ser reaberta por usu&aacute;rios com permiss&atilde;o.
           </div>
         </div>
@@ -869,11 +881,13 @@
       }
 
       document.addEventListener("click", function (ev) {
-        const encerrarBtn = ev.target.closest?.("[data-programacao-action='encerrar']");
+        const encerrarBtn = ev.target.closest?.("[data-programacao-action='encerrar'], [data-programacao-action='reabrir']");
         if (encerrarBtn) {
           ev.preventDefault();
+          if (encerrarBtn.disabled || encerrarBtn.classList.contains("disabled")) return;
           const modalEl = document.getElementById("confirmarEncerrarProgramacaoMesModal");
           if (!modalEl) return;
+          const action = encerrarBtn.dataset.programacaoAction === "reabrir" ? "reabrir" : "encerrar";
 
           const setText = (selector, value) => {
             const el = modalEl.querySelector(selector);
@@ -894,6 +908,25 @@
           setText("[data-encerrar-pendentes]", metric("programacaoPendentes"));
           setText("[data-encerrar-percentual-label]", `${Number.isFinite(percentual) ? percentual : 0}%`);
 
+          const titleEl = modalEl.querySelector("[data-programacao-modal-title]");
+          const questionEl = modalEl.querySelector("[data-programacao-modal-question]");
+          const warningEl = modalEl.querySelector("[data-programacao-modal-warning]");
+          if (action === "reabrir") {
+            if (titleEl) titleEl.textContent = "Confirmar reabertura";
+            if (questionEl) questionEl.textContent = "Deseja reabrir esse mes de programacao?";
+            if (warningEl) {
+              warningEl.className = "alert alert-info mt-3 mb-0";
+              warningEl.innerHTML = "<strong>Aten&ccedil;&atilde;o:</strong> ao reabrir, esta programa&ccedil;&atilde;o mensal voltar&aacute; a aceitar altera&ccedil;&otilde;es no calend&aacute;rio.";
+            }
+          } else {
+            if (titleEl) titleEl.textContent = "Confirmar encerramento";
+            if (questionEl) questionEl.textContent = "Deseja encerrar esse mes de programacao?";
+            if (warningEl) {
+              warningEl.className = "alert alert-warning mt-3 mb-0";
+              warningEl.innerHTML = "<strong>Aten&ccedil;&atilde;o:</strong> depois de encerrada, esta programa&ccedil;&atilde;o mensal s&oacute; poder&aacute; ser reaberta por usu&aacute;rios com permiss&atilde;o.";
+            }
+          }
+
           const bar = modalEl.querySelector("[data-encerrar-percentual-bar]");
           if (bar) {
             const width = Math.max(0, Math.min(100, Number.isFinite(percentual) ? percentual : 0));
@@ -904,6 +937,8 @@
           const confirmBtn = document.getElementById("btnConfirmarEncerrarProgramacaoMes");
           if (confirmBtn) {
             confirmBtn.dataset.programacaoMes = encerrarBtn.dataset.programacaoMes || "";
+            confirmBtn.dataset.programacaoAction = action;
+            confirmBtn.textContent = action === "reabrir" ? "Sim, reabrir este mes" : "Sim, encerrar este mes";
           }
 
           if (window.bootstrap && window.bootstrap.Modal) {
@@ -954,16 +989,20 @@
       if (confirmarEncerrarBtn) {
         confirmarEncerrarBtn.addEventListener("click", async function () {
           const mes = confirmarEncerrarBtn.dataset.programacaoMes || "";
+          const action = confirmarEncerrarBtn.dataset.programacaoAction === "reabrir" ? "reabrir" : "encerrar";
           if (!/^\d{4}-\d{2}$/.test(mes)) return;
 
           const original = confirmarEncerrarBtn.innerHTML;
           confirmarEncerrarBtn.disabled = true;
-          confirmarEncerrarBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Encerrando...';
+          confirmarEncerrarBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${action === "reabrir" ? "Reabrindo..." : "Encerrando..."}`;
 
           try {
             const body = new URLSearchParams();
             body.set("mes", mes);
-            const resp = await fetch("{% url 'relatorios:programacao_encerrar_mes' %}", {
+            const endpoint = action === "reabrir"
+              ? "{% url 'relatorios:programacao_reabrir_mes' %}"
+              : "{% url 'relatorios:programacao_encerrar_mes' %}";
+            const resp = await fetch(endpoint, {
               method: "POST",
               headers: {
                 "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
@@ -974,7 +1013,7 @@
             });
             const json = await resp.json().catch(() => ({}));
             if (!resp.ok || json.ok === false) {
-              throw new Error(json.error || `Falha ao encerrar (HTTP ${resp.status}).`);
+              throw new Error(json.error || `Falha ao ${action === "reabrir" ? "reabrir" : "encerrar"} (HTTP ${resp.status}).`);
             }
             const modalEl = document.getElementById("confirmarEncerrarProgramacaoMesModal");
             if (modalEl && window.bootstrap && window.bootstrap.Modal) {
@@ -984,7 +1023,7 @@
             url.searchParams.set("report_tab", "encerradas");
             window.location.href = url.toString();
           } catch (err) {
-            window.alert(err.message || "Erro ao encerrar a programacao mensal.");
+            window.alert(err.message || `Erro ao ${action === "reabrir" ? "reabrir" : "encerrar"} a programacao mensal.`);
           } finally {
             confirmarEncerrarBtn.disabled = false;
             confirmarEncerrarBtn.innerHTML = original;
