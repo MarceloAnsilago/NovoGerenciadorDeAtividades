@@ -3,10 +3,15 @@ from __future__ import annotations
 from datetime import datetime
 
 from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Max, Min
+from django.db.models.functions import TruncMonth
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
+
+from core.utils import get_unidade_atual_id
+from programar.models import Programacao
 
 from .services.programacao_report_service import build_programacao_report
 
@@ -16,6 +21,26 @@ def _parse_date(value: str):
         return datetime.strptime(str(value or "").strip(), "%Y-%m-%d").date()
     except Exception:
         return None
+
+
+def _build_programacoes_encerradas_periodos(request):
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return []
+
+    rows = (
+        Programacao.objects.filter(unidade_id=unidade_id)
+        .annotate(mes=TruncMonth("data"))
+        .values("mes")
+        .annotate(
+            data_inicial=Min("data"),
+            data_final=Max("data"),
+            dias_programados=Count("data", distinct=True),
+            total_programacoes=Count("id"),
+        )
+        .order_by("-mes")
+    )
+    return list(rows)
 
 
 @login_required
@@ -56,6 +81,7 @@ def relatorio_programacao_view(request):
         "form_error": "",
         "observacao": observacao,
         "report_tab": report_tab,
+        "programacoes_encerradas_periodos": _build_programacoes_encerradas_periodos(request),
     }
 
     if report_tab != "encerradas" and (data_inicial_raw or data_final_raw):

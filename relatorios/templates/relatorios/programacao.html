@@ -405,7 +405,34 @@
         <div class="alert alert-danger mt-3 mb-0">{{ form_error }}</div>
       {% endif %}
       </div>
-      <div data-relatorio-panel="encerradas" class="{% if report_tab != 'encerradas' %}d-none{% endif %}"></div>
+      <div data-relatorio-panel="encerradas" class="{% if report_tab != 'encerradas' %}d-none{% endif %}">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>M&ecirc;s</th>
+                <th>Per&iacute;odo programado</th>
+                <th class="text-end">Dias programados</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for periodo in programacoes_encerradas_periodos %}
+                <tr>
+                  <td class="fw-semibold">{{ periodo.mes|date:"F/Y" }}</td>
+                  <td>
+                    Do dia {{ periodo.data_inicial|date:"d/m/Y" }} ao dia {{ periodo.data_final|date:"d/m/Y" }}
+                  </td>
+                  <td class="text-end">{{ periodo.dias_programados }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="3" class="text-muted">Nenhum m&ecirc;s com programa&ccedil;&atilde;o encontrado.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 
