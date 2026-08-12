@@ -1,0 +1,225 @@
+{% extends "core/base.html" %}
+
+{% block title %}Mapa de Atividades - {{ data_label }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mapa-atividades-container">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0">
+      <i class="bi bi-ui-checks-grid me-2"></i> Mapa de Atividades - {{ data_label }}
+    </h2>
+
+    <div class="report-toolbar d-flex gap-2 flex-wrap">
+      <form method="get" class="d-flex align-items-center gap-2">
+        <label for="mapaAtividadesData" class="form-label mb-0 small">Data</label>
+        <input id="mapaAtividadesData" type="date" name="data" value="{{ data_ref|date:'Y-m-d' }}" class="form-control form-control-sm">
+        <button class="btn btn-sm btn-outline-primary" type="submit" title="Atualizar data">
+          <i class="bi bi-arrow-repeat me-1"></i> Atualizar
+        </button>
+      </form>
+
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="window.print()">
+        <i class="bi bi-printer"></i> Imprimir
+      </button>
+
+      <a href="{% url 'minhas_metas:lista' %}" class="btn btn-sm btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+      </a>
+    </div>
+  </div>
+
+  <div class="mapa-summary mb-3">
+    <span>Unidade: <strong>{{ unidade.nome }}</strong></span>
+    <span>Atividades: <strong>{{ total_atividades }}</strong></span>
+    <span>Quadradinhos: <strong>{{ total_quadrados }}</strong></span>
+    <span>Concluidas: <strong>{{ concluidas }}</strong></span>
+    <span>Servidores no mapa: <strong>{{ total_servidores }}</strong></span>
+  </div>
+
+  <div class="table-responsive mb-3">
+    <table class="table table-bordered table-sm text-center align-middle w-100 mapa-table">
+      <thead class="table-secondary">
+        <tr>
+          <th>Servidor</th>
+          <th>Atividades do dia</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if rows %}
+          {% for row in rows %}
+            <tr>
+              <td class="text-start servidor-cell">{{ row.servidor_nome }}</td>
+              <td>
+                <div class="activities-grid">
+                  {% for atividade in row.atividades %}
+                    <span class="activity-square {% if atividade.concluido %}activity-done{% else %}activity-empty{% endif %}"
+                          title="#{{ atividade.item_id }} - {{ atividade.meta_titulo }} - {{ atividade.status_label }}">
+                      {% if atividade.concluido %}X{% endif %}
+                    </span>
+                  {% endfor %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="2" class="text-center text-muted py-3">
+              Nenhuma atividade programada para esta data.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if rows %}
+    <section class="mapa-legenda">
+      <h5 class="mb-2">Legenda das atividades</h5>
+      {% for row in rows %}
+        <div class="legend-group">
+          <div class="legend-server">{{ row.servidor_nome }}</div>
+          <div class="legend-items">
+            {% for atividade in row.atividades %}
+              <div class="legend-item">
+                <span class="legend-square {% if atividade.concluido %}activity-done{% else %}activity-empty{% endif %}">{% if atividade.concluido %}X{% endif %}</span>
+                <span>
+                  #{{ atividade.item_id }} - {{ atividade.meta_titulo }}
+                  {% if atividade.atividade_nome %}<span class="text-muted">({{ atividade.atividade_nome }})</span>{% endif %}
+                  {% if atividade.veiculo %}<span class="text-muted">- {{ atividade.veiculo }}</span>{% endif %}
+                  <span class="text-muted">- {{ atividade.status_label }}</span>
+                </span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </section>
+  {% endif %}
+</div>
+
+<style>
+.mapa-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: #495057;
+  font-size: .95rem;
+}
+.mapa-table {
+  font-size: .95rem;
+}
+.servidor-cell {
+  min-width: 220px;
+  width: 260px;
+}
+.activities-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.activity-square,
+.legend-square {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #495057;
+  background: #fff;
+  color: #111;
+  font-size: .78rem;
+  line-height: 1;
+  font-weight: 700;
+}
+.activity-empty {
+  background: #fff;
+}
+.activity-done {
+  background: #222;
+  border-color: #222;
+  color: #fff;
+}
+.mapa-legenda {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.legend-group {
+  border-top: 1px solid #d7dee8;
+  padding-top: 8px;
+  margin-top: 8px;
+}
+.legend-server {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.legend-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 4px 12px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .86rem;
+  text-align: left;
+}
+.legend-square {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  font-size: .65rem;
+}
+
+@media print {
+  @page { margin: 10mm 10mm 14mm 10mm; }
+  .navbar, .sidebar, .navbar-brand, .navbar-text { display: none !important; }
+  .report-toolbar, .btn { display: none !important; }
+  .content, .container, .container-fluid, .mapa-atividades-container {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+  .wrapper, .layout, .content { margin: 0 !important; }
+  h2, h5 { color: #000 !important; }
+  .table, .table-responsive { width: 100% !important; }
+  .mapa-table {
+    font-size: 10.5px;
+  }
+  .mapa-table th,
+  .mapa-table td {
+    border-color: #000 !important;
+    padding: 4px 5px !important;
+  }
+  .servidor-cell {
+    min-width: 180px;
+    width: 210px;
+  }
+  .activity-square {
+    width: 22px;
+    height: 22px;
+    border-color: #000 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+  .activity-done {
+    background: #000 !important;
+    color: #fff !important;
+  }
+  .legend-item {
+    font-size: 9.5px;
+  }
+  .legend-square {
+    border-color: #000 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+  .legend-square.activity-done {
+    background: #000 !important;
+    color: #fff !important;
+  }
+}
+</style>
+{% endblock %}

@@ -79,6 +79,12 @@ def _format_period_label(data_inicial: date | None, data_final: date | None) -> 
     return f"{data_inicial.strftime('%d/%m/%Y')} -> {data_final.strftime('%d/%m/%Y')}"
 
 
+def _format_date_label(data_ref: date | None) -> str:
+    if not data_ref:
+        return ""
+    return data_ref.strftime("%d/%m/%Y")
+
+
 def _build_programar_modal_context(unidade_id: int | None) -> dict[str, object]:
     veiculos_json = "[]"
     try:
@@ -819,6 +825,95 @@ def nao_realizadas_view(request):
     contexto.update(_build_programar_modal_context(unidade.id))
     template_name = "minhas_metas/nao_realizadas_print.html" if is_print else "minhas_metas/nao_realizadas.html"
     return render(request, template_name, contexto)
+
+
+@login_required
+def mapa_atividades_view(request):
+    unidade = get_unidade_atual(request)
+    if not unidade:
+        messages.error(request, "Selecione uma unidade antes de gerar o mapa de atividades.")
+        return redirect("core:dashboard")
+
+    today = timezone.localdate()
+    data_ref = _parse_iso(request.GET.get("data")) or today
+    expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+
+    itens_qs = (
+        ProgramacaoItem.objects
+        .select_related("programacao", "meta", "meta__atividade", "veiculo")
+        .filter(programacao__unidade_id=unidade.id, programacao__data=data_ref)
+        .order_by("meta__titulo", "id")
+    )
+    if expediente_meta_id:
+        itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
+
+    itens = list(itens_qs)
+    item_ids = [item.id for item in itens]
+    servidores_por_item: dict[int, list[object]] = defaultdict(list)
+    if item_ids:
+        links = (
+            ProgramacaoItemServidor.objects
+            .select_related("servidor")
+            .filter(item_id__in=item_ids)
+            .order_by("servidor__nome", "item_id")
+        )
+        for link in links:
+            if link.servidor:
+                servidores_por_item[link.item_id].append(link.servidor)
+
+    servidores_map: dict[int, dict[str, object]] = OrderedDict()
+    sem_servidor = {
+        "servidor_id": None,
+        "servidor_nome": "Sem servidor definido",
+        "atividades": [],
+    }
+
+    for item in itens:
+        meta = getattr(item, "meta", None)
+        status_key, status_label = _item_execucao_info(item)
+        atividade = {
+            "item_id": item.id,
+            "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Atividade"),
+            "atividade_nome": _secondary_activity_name(meta),
+            "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
+            "status_key": status_key,
+            "status_label": status_label,
+            "concluido": bool(getattr(item, "concluido", False)),
+        }
+        servidores_item = servidores_por_item.get(item.id) or []
+        if not servidores_item:
+            sem_servidor["atividades"].append(atividade)
+            continue
+        for servidor in servidores_item:
+            row = servidores_map.setdefault(
+                servidor.id,
+                {
+                    "servidor_id": servidor.id,
+                    "servidor_nome": getattr(servidor, "nome", f"Servidor {servidor.id}"),
+                    "atividades": [],
+                },
+            )
+            row["atividades"].append(atividade)
+
+    rows = list(servidores_map.values())
+    if sem_servidor["atividades"]:
+        rows.append(sem_servidor)
+
+    total_atividades = len(itens)
+    total_quadrados = sum(len(row["atividades"]) for row in rows)
+    concluidas = sum(1 for item in itens if getattr(item, "concluido", False))
+
+    contexto = {
+        "unidade": unidade,
+        "data_ref": data_ref,
+        "data_label": _format_date_label(data_ref),
+        "rows": rows,
+        "total_atividades": total_atividades,
+        "total_quadrados": total_quadrados,
+        "total_servidores": len([row for row in rows if row.get("servidor_id")]),
+        "concluidas": concluidas,
+    }
+    return render(request, "minhas_metas/mapa_atividades.html", contexto)
 
 
 @login_required
