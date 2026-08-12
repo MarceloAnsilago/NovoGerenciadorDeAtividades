@@ -856,7 +856,8 @@ def mapa_atividades_view(request):
     if expediente_meta_id:
         itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
 
-    status_mapa = (request.GET.get("status") or "").strip().lower()
+    status_raw = request.GET.get("status")
+    status_mapa = "em_andamento" if status_raw is None else str(status_raw).strip().lower()
     status_labels = {
         "em_andamento": "Em andamento",
         "concluidas": "Concluidas",
