@@ -64,7 +64,7 @@
                   {% for atividade in row.atividades %}
                     <span class="activity-square {% if atividade.concluido %}activity-done{% else %}activity-empty{% endif %}"
                           title="#{{ atividade.item_id }} - {{ atividade.data|date:'d/m/Y' }} - {{ atividade.meta_titulo }} - {{ atividade.status_label }}">
-                      {% if atividade.concluido %}X{% endif %}
+                      {{ forloop.counter }}
                     </span>
                   {% endfor %}
                 </div>
