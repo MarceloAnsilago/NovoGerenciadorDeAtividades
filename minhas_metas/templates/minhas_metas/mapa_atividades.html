@@ -22,23 +22,27 @@
 
   <form method="get" class="report-toolbar filter-panel mb-3">
     <input type="hidden" name="filtrar_atividades" value="1">
-    {% if status_mapa %}
-      <input type="hidden" name="status" value="{{ status_mapa }}">
-    {% endif %}
     <div class="d-flex align-items-center gap-2 flex-wrap">
       <label for="mapaAtividadesInicio" class="form-label mb-0 small">Inicial</label>
       <input id="mapaAtividadesInicio" type="date" name="inicio" value="{{ dt_start|date:'Y-m-d' }}" class="form-control form-control-sm filter-date-input">
       <label for="mapaAtividadesFim" class="form-label mb-0 small">Final</label>
       <input id="mapaAtividadesFim" type="date" name="fim" value="{{ dt_end|date:'Y-m-d' }}" class="form-control form-control-sm filter-date-input">
+      <label for="mapaAtividadesStatus" class="form-label small mb-0">Status</label>
+      <select id="mapaAtividadesStatus" name="status" class="form-select form-select-sm status-filter-select" aria-label="Filtrar atividades por status">
+        <option value="" {% if not status_mapa %}selected{% endif %}>Todos</option>
+        <option value="em_andamento" {% if status_mapa == "em_andamento" %}selected{% endif %}>Em andamento</option>
+        <option value="concluidas" {% if status_mapa == "concluidas" %}selected{% endif %}>Concluidas</option>
+        <option value="canceladas" {% if status_mapa == "canceladas" %}selected{% endif %}>Canceladas</option>
+        <option value="remarcadas_concluidas" {% if status_mapa == "remarcadas_concluidas" %}selected{% endif %}>Remarcadas e concluidas</option>
+        <option value="nao_realizadas" {% if status_mapa == "nao_realizadas" %}selected{% endif %}>Nao realizadas</option>
+        <option value="nao_realizadas_justificadas" {% if status_mapa == "nao_realizadas_justificadas" %}selected{% endif %}>Nao realizadas justificadas</option>
+      </select>
       <button class="btn btn-sm btn-outline-primary" type="submit" title="Atualizar filtros">
         <i class="bi bi-arrow-repeat me-1"></i> Atualizar
       </button>
       <a href="{% url 'minhas_metas:mapa-atividades' %}?inicio={{ mes_atual_inicio|date:'Y-m-d' }}&fim={{ mes_atual_fim|date:'Y-m-d' }}" class="btn btn-sm btn-outline-primary">
         <i class="bi bi-calendar-month me-1"></i> Mes atual
       </a>
-      <button class="btn btn-sm {% if status_mapa == 'em_andamento' %}btn-primary{% else %}btn-outline-primary{% endif %}" type="submit" name="status" value="em_andamento" title="Mostrar apenas atividades em andamento">
-        <i class="bi bi-hourglass-split me-1"></i> Em andamento
-      </button>
     </div>
 
     {% if atividades_opcoes %}
@@ -65,8 +69,8 @@
   <div class="mapa-summary mb-3">
     <span>Unidade: <strong>{{ unidade.nome }}</strong></span>
     <span>Periodo: <strong>{{ periodo_label }}</strong></span>
-    {% if status_mapa == "em_andamento" %}
-      <span>Status: <strong>Em andamento</strong></span>
+    {% if status_mapa_label %}
+      <span>Status: <strong>{{ status_mapa_label }}</strong></span>
     {% endif %}
     <span>Atividades: <strong>{{ total_atividades }}</strong></span>
     <span>Quadradinhos: <strong>{{ total_quadrados }}</strong></span>
@@ -132,6 +136,9 @@
 }
 .filter-date-input {
   width: 150px;
+}
+.status-filter-select {
+  width: 220px;
 }
 .activity-filter-grid {
   display: grid;

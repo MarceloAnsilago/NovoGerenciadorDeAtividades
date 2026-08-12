@@ -857,7 +857,15 @@ def mapa_atividades_view(request):
         itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
 
     status_mapa = (request.GET.get("status") or "").strip().lower()
-    if status_mapa not in {"em_andamento"}:
+    status_labels = {
+        "em_andamento": "Em andamento",
+        "concluidas": "Concluidas",
+        "canceladas": "Canceladas",
+        "remarcadas_concluidas": "Remarcadas e concluidas",
+        "nao_realizadas": "Nao realizadas",
+        "nao_realizadas_justificadas": "Nao realizadas justificadas",
+    }
+    if status_mapa not in status_labels:
         status_mapa = ""
     if status_mapa == "em_andamento":
         itens_qs = itens_qs.filter(
@@ -865,6 +873,26 @@ def mapa_atividades_view(request):
             concluido_em__isnull=True,
             cancelada=False,
             nao_realizada_justificada=False,
+        )
+    elif status_mapa == "concluidas":
+        itens_qs = itens_qs.filter(concluido=True)
+    elif status_mapa == "remarcadas_concluidas":
+        itens_qs = itens_qs.filter(concluido=True, remarcado_de_id__isnull=False)
+    elif status_mapa == "canceladas":
+        itens_qs = itens_qs.filter(cancelada=True)
+    elif status_mapa == "nao_realizadas":
+        itens_qs = itens_qs.filter(
+            concluido=False,
+            concluido_em__isnull=False,
+            cancelada=False,
+            nao_realizada_justificada=False,
+        )
+    elif status_mapa == "nao_realizadas_justificadas":
+        itens_qs = itens_qs.filter(
+            concluido=False,
+            concluido_em__isnull=False,
+            cancelada=False,
+            nao_realizada_justificada=True,
         )
 
     itens = list(itens_qs)
@@ -964,6 +992,7 @@ def mapa_atividades_view(request):
         ],
         "has_activity_filter": has_activity_filter,
         "status_mapa": status_mapa,
+        "status_mapa_label": status_labels.get(status_mapa, ""),
         "rows": rows,
         "total_atividades": total_atividades,
         "total_quadrados": total_quadrados,
