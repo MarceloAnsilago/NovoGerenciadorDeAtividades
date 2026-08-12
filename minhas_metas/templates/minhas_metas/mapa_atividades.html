@@ -209,18 +209,41 @@
   }
   .wrapper, .layout, .content { margin: 0 !important; }
   h2, h5 { color: #000 !important; }
-  .table, .table-responsive { width: 100% !important; }
+  .table-responsive {
+    display: block !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+  .table { width: 100% !important; }
   .mapa-table {
     font-size: 10.5px;
+    page-break-inside: auto;
+  }
+  .mapa-table thead {
+    display: table-header-group;
+  }
+  .mapa-table tbody {
+    display: table-row-group;
+  }
+  .mapa-table tr {
+    break-inside: avoid !important;
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
   }
   .mapa-table th,
   .mapa-table td {
     border-color: #000 !important;
     padding: 4px 5px !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
   .atividade-cell {
     min-width: 180px;
     width: 210px;
+  }
+  .activities-grid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
   .activity-square {
     border-color: #000 !important;
