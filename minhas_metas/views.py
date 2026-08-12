@@ -856,6 +856,17 @@ def mapa_atividades_view(request):
     if expediente_meta_id:
         itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
 
+    status_mapa = (request.GET.get("status") or "").strip().lower()
+    if status_mapa not in {"em_andamento"}:
+        status_mapa = ""
+    if status_mapa == "em_andamento":
+        itens_qs = itens_qs.filter(
+            concluido=False,
+            concluido_em__isnull=True,
+            cancelada=False,
+            nao_realizada_justificada=False,
+        )
+
     itens = list(itens_qs)
     atividades_opcoes_map: dict[int, str] = OrderedDict()
     for item in itens:
@@ -952,6 +963,7 @@ def mapa_atividades_view(request):
             for meta_id, titulo in atividades_opcoes_map.items()
         ],
         "has_activity_filter": has_activity_filter,
+        "status_mapa": status_mapa,
         "rows": rows,
         "total_atividades": total_atividades,
         "total_quadrados": total_quadrados,
