@@ -835,14 +835,23 @@ def mapa_atividades_view(request):
         return redirect("core:dashboard")
 
     today = timezone.localdate()
-    data_ref = _parse_iso(request.GET.get("data")) or today
+    default_start = today.replace(day=1)
+    default_end = today.replace(day=monthrange(today.year, today.month)[1])
+    dt_start = _parse_iso(request.GET.get("inicio")) or _parse_iso(request.GET.get("data")) or default_start
+    dt_end = _parse_iso(request.GET.get("fim")) or dt_start
+    if dt_end < dt_start:
+        dt_end = dt_start
     expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
 
     itens_qs = (
         ProgramacaoItem.objects
         .select_related("programacao", "meta", "meta__atividade", "veiculo")
-        .filter(programacao__unidade_id=unidade.id, programacao__data=data_ref)
-        .order_by("meta__titulo", "id")
+        .filter(
+            programacao__unidade_id=unidade.id,
+            programacao__data__gte=dt_start,
+            programacao__data__lte=dt_end,
+        )
+        .order_by("meta__titulo", "programacao__data", "id")
     )
     if expediente_meta_id:
         itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
@@ -869,6 +878,7 @@ def mapa_atividades_view(request):
         servidores_item = servidores_por_item.get(item.id) or []
         atividade = {
             "item_id": item.id,
+            "data": getattr(getattr(item, "programacao", None), "data", None),
             "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Atividade"),
             "atividade_nome": _secondary_activity_name(meta),
             "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
@@ -900,8 +910,11 @@ def mapa_atividades_view(request):
 
     contexto = {
         "unidade": unidade,
-        "data_ref": data_ref,
-        "data_label": _format_date_label(data_ref),
+        "dt_start": dt_start,
+        "dt_end": dt_end,
+        "periodo_label": _format_period_label(dt_start, dt_end),
+        "mes_atual_inicio": default_start,
+        "mes_atual_fim": default_end,
         "rows": rows,
         "total_atividades": total_atividades,
         "total_quadrados": total_quadrados,
