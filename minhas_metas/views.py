@@ -982,6 +982,8 @@ def mapa_atividades_view(request):
         "periodo_label": _format_period_label(dt_start, dt_end),
         "mes_atual_inicio": default_start,
         "mes_atual_fim": default_end,
+        "todo_periodo_inicio": date(today.year, 1, 1),
+        "todo_periodo_fim": date(today.year, 12, 31),
         "atividades_opcoes": [
             {
                 "id": meta_id,

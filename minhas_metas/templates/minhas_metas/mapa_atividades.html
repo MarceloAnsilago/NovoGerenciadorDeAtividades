@@ -37,12 +37,15 @@
         <option value="nao_realizadas" {% if status_mapa == "nao_realizadas" %}selected{% endif %}>Nao realizadas</option>
         <option value="nao_realizadas_justificadas" {% if status_mapa == "nao_realizadas_justificadas" %}selected{% endif %}>Nao realizadas justificadas</option>
       </select>
-      <button class="btn btn-sm btn-outline-primary" type="submit" title="Atualizar filtros">
-        <i class="bi bi-arrow-repeat me-1"></i> Atualizar
-      </button>
       <a href="{% url 'minhas_metas:mapa-atividades' %}?inicio={{ mes_atual_inicio|date:'Y-m-d' }}&fim={{ mes_atual_fim|date:'Y-m-d' }}" class="btn btn-sm btn-outline-primary">
         <i class="bi bi-calendar-month me-1"></i> Mes atual
       </a>
+      <a href="{% url 'minhas_metas:mapa-atividades' %}?inicio={{ todo_periodo_inicio|date:'Y-m-d' }}&fim={{ todo_periodo_fim|date:'Y-m-d' }}" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-calendar-range me-1"></i> Todo periodo
+      </a>
+      <button class="btn btn-sm btn-outline-primary" type="submit" title="Atualizar filtros">
+        <i class="bi bi-arrow-repeat me-1"></i> Atualizar
+      </button>
     </div>
 
     {% if atividades_opcoes %}
