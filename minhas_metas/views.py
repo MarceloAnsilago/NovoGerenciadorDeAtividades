@@ -861,43 +861,38 @@ def mapa_atividades_view(request):
             if link.servidor:
                 servidores_por_item[link.item_id].append(link.servidor)
 
-    servidores_map: dict[int, dict[str, object]] = OrderedDict()
-    sem_servidor = {
-        "servidor_id": None,
-        "servidor_nome": "Sem servidor definido",
-        "atividades": [],
-    }
+    atividades_map: dict[int, dict[str, object]] = OrderedDict()
 
     for item in itens:
         meta = getattr(item, "meta", None)
         status_key, status_label = _item_execucao_info(item)
+        servidores_item = servidores_por_item.get(item.id) or []
         atividade = {
             "item_id": item.id,
             "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Atividade"),
             "atividade_nome": _secondary_activity_name(meta),
             "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
+            "servidores": [
+                getattr(servidor, "nome", f"Servidor {getattr(servidor, 'id', '')}")
+                for servidor in servidores_item
+            ],
             "status_key": status_key,
             "status_label": status_label,
             "concluido": bool(getattr(item, "concluido", False)),
         }
-        servidores_item = servidores_por_item.get(item.id) or []
-        if not servidores_item:
-            sem_servidor["atividades"].append(atividade)
-            continue
-        for servidor in servidores_item:
-            row = servidores_map.setdefault(
-                servidor.id,
-                {
-                    "servidor_id": servidor.id,
-                    "servidor_nome": getattr(servidor, "nome", f"Servidor {servidor.id}"),
-                    "atividades": [],
-                },
-            )
-            row["atividades"].append(atividade)
+        meta_id = getattr(meta, "id", None) or 0
+        row = atividades_map.setdefault(
+            meta_id,
+            {
+                "meta_id": meta_id,
+                "atividade_nome": atividade["meta_titulo"],
+                "atividade_secundaria": atividade["atividade_nome"],
+                "atividades": [],
+            },
+        )
+        row["atividades"].append(atividade)
 
-    rows = list(servidores_map.values())
-    if sem_servidor["atividades"]:
-        rows.append(sem_servidor)
+    rows = list(atividades_map.values())
 
     total_atividades = len(itens)
     total_quadrados = sum(len(row["atividades"]) for row in rows)
@@ -910,7 +905,6 @@ def mapa_atividades_view(request):
         "rows": rows,
         "total_atividades": total_atividades,
         "total_quadrados": total_quadrados,
-        "total_servidores": len([row for row in rows if row.get("servidor_id")]),
         "concluidas": concluidas,
     }
     return render(request, "minhas_metas/mapa_atividades.html", contexto)

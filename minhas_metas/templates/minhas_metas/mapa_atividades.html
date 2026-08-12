@@ -33,22 +33,26 @@
     <span>Atividades: <strong>{{ total_atividades }}</strong></span>
     <span>Quadradinhos: <strong>{{ total_quadrados }}</strong></span>
     <span>Concluidas: <strong>{{ concluidas }}</strong></span>
-    <span>Servidores no mapa: <strong>{{ total_servidores }}</strong></span>
   </div>
 
   <div class="table-responsive mb-3">
     <table class="table table-bordered table-sm text-center align-middle w-100 mapa-table">
       <thead class="table-secondary">
         <tr>
-          <th>Servidor</th>
-          <th>Atividades do dia</th>
+          <th>Atividade / Meta</th>
+          <th>Execucoes do dia</th>
         </tr>
       </thead>
       <tbody>
         {% if rows %}
           {% for row in rows %}
             <tr>
-              <td class="text-start servidor-cell">{{ row.servidor_nome }}</td>
+              <td class="text-start atividade-cell">
+                <strong>{{ row.atividade_nome }}</strong>
+                {% if row.atividade_secundaria %}
+                  <div class="text-muted small">{{ row.atividade_secundaria }}</div>
+                {% endif %}
+              </td>
               <td>
                 <div class="activities-grid">
                   {% for atividade in row.atividades %}
@@ -77,14 +81,14 @@
       <h5 class="mb-2">Legenda das atividades</h5>
       {% for row in rows %}
         <div class="legend-group">
-          <div class="legend-server">{{ row.servidor_nome }}</div>
+          <div class="legend-server">{{ row.atividade_nome }}</div>
           <div class="legend-items">
             {% for atividade in row.atividades %}
               <div class="legend-item">
                 <span class="legend-square {% if atividade.concluido %}activity-done{% else %}activity-empty{% endif %}">{% if atividade.concluido %}X{% endif %}</span>
                 <span>
-                  #{{ atividade.item_id }} - {{ atividade.meta_titulo }}
-                  {% if atividade.atividade_nome %}<span class="text-muted">({{ atividade.atividade_nome }})</span>{% endif %}
+                  #{{ atividade.item_id }}
+                  {% if atividade.servidores %}<span class="text-muted">- {{ atividade.servidores|join:", " }}</span>{% endif %}
                   {% if atividade.veiculo %}<span class="text-muted">- {{ atividade.veiculo }}</span>{% endif %}
                   <span class="text-muted">- {{ atividade.status_label }}</span>
                 </span>
@@ -108,7 +112,7 @@
 .mapa-table {
   font-size: .95rem;
 }
-.servidor-cell {
+.atividade-cell {
   min-width: 220px;
   width: 260px;
 }
@@ -193,7 +197,7 @@
     border-color: #000 !important;
     padding: 4px 5px !important;
   }
-  .servidor-cell {
+  .atividade-cell {
     min-width: 180px;
     width: 210px;
   }
