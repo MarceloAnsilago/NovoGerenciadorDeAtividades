@@ -964,6 +964,7 @@ def mapa_atividades_view(request):
                 "meta_id": meta_id,
                 "atividade_nome": atividade["meta_titulo"],
                 "atividade_secundaria": atividade["atividade_nome"],
+                "data_limite": getattr(meta, "data_limite", None),
                 "atividades": [],
             },
         )

@@ -100,6 +100,9 @@
                 {% if row.atividade_secundaria %}
                   <div class="text-muted small">{{ row.atividade_secundaria }}</div>
                 {% endif %}
+                {% if row.data_limite %}
+                  <div class="text-muted small">Data limite: {{ row.data_limite|date:"d/m/Y" }}</div>
+                {% endif %}
               </td>
               <td>
                 <div class="activities-grid">
