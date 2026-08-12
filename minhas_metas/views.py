@@ -857,6 +857,34 @@ def mapa_atividades_view(request):
         itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
 
     itens = list(itens_qs)
+    atividades_opcoes_map: dict[int, str] = OrderedDict()
+    for item in itens:
+        meta = getattr(item, "meta", None)
+        meta_id = getattr(meta, "id", None) or 0
+        if not meta_id:
+            continue
+        atividades_opcoes_map.setdefault(
+            meta_id,
+            getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Atividade"),
+        )
+
+    meta_params = request.GET.getlist("meta")
+    selected_meta_ids: set[int] = set()
+    for raw_meta_id in meta_params:
+        try:
+            meta_id = int(raw_meta_id)
+        except (TypeError, ValueError):
+            continue
+        if meta_id > 0:
+            selected_meta_ids.add(meta_id)
+    has_activity_filter = request.GET.get("filtrar_atividades") == "1"
+
+    if has_activity_filter:
+        itens = [
+            item for item in itens
+            if getattr(getattr(item, "meta", None), "id", None) in selected_meta_ids
+        ]
+
     item_ids = [item.id for item in itens]
     servidores_por_item: dict[int, list[object]] = defaultdict(list)
     if item_ids:
@@ -915,6 +943,15 @@ def mapa_atividades_view(request):
         "periodo_label": _format_period_label(dt_start, dt_end),
         "mes_atual_inicio": default_start,
         "mes_atual_fim": default_end,
+        "atividades_opcoes": [
+            {
+                "id": meta_id,
+                "titulo": titulo,
+                "selected": (not has_activity_filter) or (meta_id in selected_meta_ids),
+            }
+            for meta_id, titulo in atividades_opcoes_map.items()
+        ],
+        "has_activity_filter": has_activity_filter,
         "rows": rows,
         "total_atividades": total_atividades,
         "total_quadrados": total_quadrados,
