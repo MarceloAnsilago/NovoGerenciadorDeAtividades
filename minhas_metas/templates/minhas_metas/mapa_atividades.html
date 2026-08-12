@@ -96,10 +96,10 @@
               <td class="text-start atividade-cell">
                 <strong>{{ row.atividade_nome }}</strong>
                 {% if row.atividade_secundaria %}
-                  <div class="text-muted small">{{ row.atividade_secundaria }}</div>
+                  <span class="text-muted small atividade-inline">({{ row.atividade_secundaria }})</span>
                 {% endif %}
                 {% if row.data_limite %}
-                  <div class="text-muted small">Data limite: {{ row.data_limite|date:"d/m/Y" }}</div>
+                  <span class="text-muted small atividade-inline">Data limite: {{ row.data_limite|date:"d/m/Y" }}</span>
                 {% endif %}
               </td>
               <td>
@@ -167,13 +167,17 @@
   font-size: .95rem;
 }
 .atividade-cell {
-  min-width: 220px;
-  width: 260px;
+  min-width: 300px;
+  width: 360px;
+}
+.atividade-inline {
+  margin-left: 8px;
+  white-space: nowrap;
 }
 .activities-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 9px;
 }
 .activity-square {
   display: inline-flex;
@@ -238,8 +242,11 @@
     page-break-inside: avoid !important;
   }
   .atividade-cell {
-    min-width: 180px;
-    width: 210px;
+    min-width: 260px;
+    width: 320px;
+  }
+  .atividade-inline {
+    margin-left: 6px;
   }
   .activities-grid {
     break-inside: avoid !important;
