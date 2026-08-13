@@ -418,13 +418,20 @@
             </thead>
             <tbody>
               {% for periodo in programacoes_encerradas_periodos %}
-                <tr class="{% if periodo.is_mes_atual %}table-primary{% endif %}">
+                <tr class="{% if periodo.is_mes_atual %}table-primary{% elif periodo.is_encerrado %}table-success{% endif %}">
                   <td class="fw-semibold">
                     {% if periodo.is_mes_atual %}
                       <span class="border-start border-4 border-primary ps-2">{{ periodo.mes|date:"F/Y" }}</span>
                       <span class="badge bg-primary ms-2">M&ecirc;s atual</span>
                     {% else %}
-                      {{ periodo.mes|date:"F/Y" }}
+                      {% if periodo.is_encerrado %}
+                        <span class="border-start border-4 border-success ps-2">{{ periodo.mes|date:"F/Y" }}</span>
+                      {% else %}
+                        {{ periodo.mes|date:"F/Y" }}
+                      {% endif %}
+                    {% endif %}
+                    {% if periodo.is_encerrado %}
+                      <span class="badge bg-success ms-2">Encerrada</span>
                     {% endif %}
                   </td>
                   <td>
