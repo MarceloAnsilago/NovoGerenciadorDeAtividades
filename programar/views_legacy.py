@@ -1654,7 +1654,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             elif b["kind"] == "atividade":
                 status_execucao = b.get("status_execucao") or ""
                 atividade_concluida = _relatorio_status_deve_marcar_x(status_execucao)
-                marcada_com_x = atividade_concluida or status_execucao == CANCELADA
+                marcada_com_x = status_execucao == CANCELADA
                 auto_x_class = " auto-closed-x-cell" if marcada_com_x else ""
                 # acumula para rel. atividades
                 for nome in (b.get("servidores") or []):
