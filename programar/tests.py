@@ -27,7 +27,11 @@ from programar.status import (
     item_execucao_status_from_fields,
     item_permanece_aberto,
 )
-from programar.views_legacy import _fetch_plantonistas_via_orm, _resolve_expediente_admin_report
+from programar.views_legacy import (
+    _fetch_plantonistas_via_orm,
+    _relatorio_status_deve_marcar_x,
+    _resolve_expediente_admin_report,
+)
 from servidores.models import Servidor
 
 
@@ -111,6 +115,17 @@ class ItemStatusTest(unittest.TestCase):
             item_execucao_label(NAO_REALIZADA),
             "Não realizada - mas continua em aberto",
         )
+
+    def test_relatorio_marca_x_para_status_concluidos(self):
+        self.assertTrue(_relatorio_status_deve_marcar_x(EXECUTADA))
+        self.assertTrue(_relatorio_status_deve_marcar_x(REMARCADA_CONCLUIDA))
+        self.assertTrue(_relatorio_status_deve_marcar_x(ENCERRADA_AUTOMATICAMENTE))
+
+    def test_relatorio_nao_marca_x_para_status_nao_concluidos(self):
+        self.assertFalse(_relatorio_status_deve_marcar_x(PENDENTE))
+        self.assertFalse(_relatorio_status_deve_marcar_x(CANCELADA))
+        self.assertFalse(_relatorio_status_deve_marcar_x(NAO_REALIZADA))
+        self.assertFalse(_relatorio_status_deve_marcar_x(NAO_REALIZADA_JUSTIFICADA))
 
     def test_auto_conclui_expediente_when_past_and_pending(self):
         today = date(2026, 3, 9)

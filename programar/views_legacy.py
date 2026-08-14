@@ -66,6 +66,15 @@ def _norm(s:str) -> str:
 def _is_expediente(nome_meta: str) -> bool:
     return _norm(nome_meta) in {"expediente administrativo", "expediente adm", "expediente"}
 
+
+def _relatorio_status_deve_marcar_x(status_execucao: str | None) -> bool:
+    return (status_execucao or "") in {
+        EXECUTADA,
+        REMARCADA_CONCLUIDA,
+        ENCERRADA_AUTOMATICAMENTE,
+    }
+
+
 def _meta_status_info(meta: Any) -> tuple[str, str]:
     if not meta:
         return "andamento", "Em andamento"
@@ -1643,8 +1652,9 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 )
 
             elif b["kind"] == "atividade":
-                encerrada_automaticamente = b.get("status_execucao") == ENCERRADA_AUTOMATICAMENTE
-                marcada_com_x = encerrada_automaticamente or b.get("status_execucao") == CANCELADA
+                status_execucao = b.get("status_execucao") or ""
+                atividade_concluida = _relatorio_status_deve_marcar_x(status_execucao)
+                marcada_com_x = atividade_concluida or status_execucao == CANCELADA
                 auto_x_class = " auto-closed-x-cell" if marcada_com_x else ""
                 # acumula para rel. atividades
                 for nome in (b.get("servidores") or []):
@@ -1671,9 +1681,9 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     open_tr
                     + dia_td
                     + f"<td class='atividade-cell{auto_x_class}'><div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
-                    + f"<td class='{auto_x_class.strip()}'>{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=encerrada_automaticamente)}{meta_desc_html}</td>"
+                    + f"<td class='{auto_x_class.strip()}'>{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=atividade_concluida)}{meta_desc_html}</td>"
                     + f"<td class='veiculo-cell{auto_x_class}'>{_veiculo_html(b['veiculo'])}</td>"
-                    + f"<td class='realizada-cell{auto_x_class}'>{_realizada_boxes(checked=encerrada_automaticamente)}</td>"
+                    + f"<td class='realizada-cell{auto_x_class}'>{_realizada_boxes(checked=atividade_concluida)}</td>"
                     + "</tr>"
                 )
 
