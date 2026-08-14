@@ -8,6 +8,7 @@ from django.db.models import Count, Max, Min, Q, QuerySet
 from metas.models import Meta
 from metas.models import MetaAlocacao
 from core.models import No
+from programar.querysets import item_conta_como_programado_q
 
 
 def metas_visiveis_por_unidade(unidade_id: int) -> QuerySet[Meta]:
@@ -96,7 +97,7 @@ def resumo_execucao_meta(meta: Meta | None, *, unidade_id: int | None = None) ->
         itens_qs = itens_qs.filter(programacao__unidade_id=unidade_id)
 
     resumo = itens_qs.aggregate(
-        programadas=Count("id"),
+        programadas=Count("id", filter=item_conta_como_programado_q()),
         concluidas=Count("id", filter=Q(concluido=True)),
         justificadas=Count("id", filter=Q(concluido=False, nao_realizada_justificada=True)),
         canceladas=Count("id", filter=Q(cancelada=True)),

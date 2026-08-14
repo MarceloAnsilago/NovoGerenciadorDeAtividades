@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from .models import Meta, MetaAlocacao
 from .services import meta_auto_pode_ser_sincronizada
+from programar.querysets import item_conta_como_programado_q
 
 
 class MetaForm(forms.ModelForm):
@@ -68,7 +69,10 @@ class MetaForm(forms.ModelForm):
                 from programar.models import ProgramacaoItem  # import local para evitar custo global
 
                 if ProgramacaoItem._meta.db_table in connection.introspection.table_names():
-                    programadas_total = ProgramacaoItem.objects.filter(meta_id=instance.id, cancelada=False).count()
+                    programadas_total = ProgramacaoItem.objects.filter(
+                        item_conta_como_programado_q(),
+                        meta_id=instance.id,
+                    ).count()
             except Exception:
                 programadas_total = 0
 

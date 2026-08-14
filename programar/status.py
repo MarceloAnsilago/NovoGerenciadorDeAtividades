@@ -83,7 +83,7 @@ def item_permanece_aberto(
     nao_realizada_justificada: bool = False,
     concluido_em=None,
 ) -> bool:
-    return (not concluido) and (not cancelada) and (not nao_realizada_justificada) and (not concluido_em)
+    return (not concluido) and (not cancelada) and (not nao_realizada_justificada)
 
 
 def is_auto_concluida_expediente(

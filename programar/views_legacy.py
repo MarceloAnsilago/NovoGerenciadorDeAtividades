@@ -22,6 +22,7 @@ from core.utils.security import safe_next_url
 from servidores.models import Servidor
 from descanso.models import Descanso, Feriado
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
+from programar.querysets import item_conta_como_programado_q
 from programar.status import (
     CANCELADA,
     ENCERRADA_AUTOMATICAMENTE,
@@ -2525,7 +2526,7 @@ def metas_disponiveis(request):
             .filter(meta_id__in=meta_ids, programacao__unidade_id=unidade_id)
             .values("meta_id")
             .annotate(
-                total=Count("id", filter=Q(cancelada=False)),
+                total=Count("id", filter=item_conta_como_programado_q()),
                 nao_realizadas_atrasadas=Count(
                     "id",
                     filter=Q(

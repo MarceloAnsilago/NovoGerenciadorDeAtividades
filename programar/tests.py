@@ -95,7 +95,13 @@ class ItemStatusTest(unittest.TestCase):
         self.assertFalse(item_permanece_aberto(concluido=False, nao_realizada_justificada=True))
 
     def test_regular_non_execution_keeps_item_open(self):
-        self.assertTrue(item_permanece_aberto(concluido=False, nao_realizada_justificada=False))
+        self.assertTrue(
+            item_permanece_aberto(
+                concluido=False,
+                concluido_em=object(),
+                nao_realizada_justificada=False,
+            )
+        )
 
     def test_cancelled_item_does_not_remain_open(self):
         self.assertFalse(item_permanece_aberto(concluido=False, cancelada=True, concluido_em=object()))
@@ -951,3 +957,34 @@ class MetasDisponiveisApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         meta_payload = response.json()["metas"][0]
         self.assertEqual(meta_payload["programadas_total"], 1)
+
+    def test_metas_disponiveis_nao_conta_nao_realizada_aberta_como_programada(self):
+        MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=2,
+            atribuida_por=self.user,
+        )
+        programacao = Programacao.objects.create(
+            data=timezone.localdate(),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            cancelada=False,
+            nao_realizada_justificada=False,
+            observacao="Nao realizada, continua em aberto.",
+        )
+
+        response = self.client.get(
+            reverse("programar:metas_disponiveis"),
+            {"data": timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        meta_payload = response.json()["metas"][0]
+        self.assertEqual(meta_payload["programadas_total"], 0)

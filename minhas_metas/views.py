@@ -17,6 +17,7 @@ from django.urls import reverse
 from core.utils import get_unidade_atual
 from metas.models import MetaAlocacao
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
+from programar.querysets import item_conta_como_programado_q
 from programar.status import (
     CANCELADA,
     ENCERRADA_AUTOMATICAMENTE,
@@ -267,7 +268,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             .filter(meta_id__in=meta_ids, programacao__unidade_id=unidade.id)
             .values("meta_id")
             .annotate(
-                total=Count("id", filter=Q(cancelada=False)),
+                total=Count("id", filter=item_conta_como_programado_q()),
                 nao_realizadas_atrasadas=Count(
                     "id",
                     filter=Q(
@@ -546,7 +547,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
             resumo_qs = resumo_qs.exclude(meta_id=expediente_meta_id)
 
         resumo_agg = resumo_qs.aggregate(
-            total=Count("id"),
+            total=Count("id", filter=item_conta_como_programado_q()),
             concluidas=Count("id", filter=Q(concluido=True)),
             remarcadas_concluidas=Count("id", filter=Q(concluido=True, remarcado_de_id__isnull=False)),
             canceladas=Count("id", filter=Q(cancelada=True)),
