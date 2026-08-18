@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from django.contrib.auth.decorators import login_required
+from django.conf import settings
 from django.db.models import Count, Max, Min, Q
 from django.db.models.functions import TruncMonth
 from django.http import JsonResponse
@@ -23,6 +24,14 @@ def _parse_date(value: str):
     try:
         return datetime.strptime(str(value or "").strip(), "%Y-%m-%d").date()
     except Exception:
+        return None
+
+
+def _meta_expediente_id() -> int | None:
+    raw_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        return int(raw_id) if raw_id is not None else None
+    except (TypeError, ValueError):
         return None
 
 
@@ -57,6 +66,9 @@ def _build_programacoes_encerradas_periodos(request):
             programacao__data__gte=row.get("data_inicial"),
             programacao__data__lte=row.get("data_final"),
         )
+        meta_expediente_id = _meta_expediente_id()
+        if meta_expediente_id is not None:
+            itens_qs = itens_qs.exclude(meta_id=meta_expediente_id)
         item_counts = itens_qs.aggregate(
             total_atividades=Count("id"),
             concluidas=Count("id", filter=Q(concluido=True)),
@@ -197,7 +209,20 @@ def encerrar_programacao_mes(request):
     if total <= 0:
         return JsonResponse({"ok": False, "error": "Nenhuma programacao encontrada para este mes."}, status=404)
 
+    now = timezone.now()
+    meta_expediente_id = _meta_expediente_id()
+    if meta_expediente_id is not None:
+        ProgramacaoItem.objects.filter(programacao__in=qs, meta_id=meta_expediente_id).update(
+            concluido=True,
+            concluido_em=now,
+            concluido_por=request.user,
+            cancelada=False,
+            nao_realizada_justificada=False,
+        )
+
     itens_abertos = ProgramacaoItem.objects.filter(programacao__in=qs).filter(_itens_abertos_bloqueantes_q())
+    if meta_expediente_id is not None:
+        itens_abertos = itens_abertos.exclude(meta_id=meta_expediente_id)
     bloqueios = itens_abertos.aggregate(
         pendentes=Count("id", filter=Q(concluido_em__isnull=True)),
         nao_realizadas=Count("id", filter=Q(concluido_em__isnull=False)),
@@ -225,7 +250,6 @@ def encerrar_programacao_mes(request):
             status=409,
         )
 
-    now = timezone.now()
     updated = qs.filter(concluida=False).update(
         concluida=True,
         concluida_em=now,

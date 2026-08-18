@@ -87,21 +87,18 @@ def _filter_history_entries(historico: list[ProgramacaoHistorico]) -> list[Progr
     if meta_expediente_id is None:
         return historico
 
-    changed_item_ids = {
-        int(entry.item_id)
-        for entry in historico
-        if entry.item_id and entry.evento != ProgramacaoHistorico.EVENTO_ATIVIDADE_CRIADA
-    }
-
     return [
         entry
         for entry in historico
-        if not (
-            entry.evento == ProgramacaoHistorico.EVENTO_ATIVIDADE_CRIADA
-            and entry.meta_id == meta_expediente_id
-            and (not entry.item_id or int(entry.item_id) not in changed_item_ids)
-        )
+        if int(getattr(entry, "meta_id", 0) or 0) != meta_expediente_id
     ]
+
+
+def _filter_history_qs_for_reports(qs):
+    meta_expediente_id = _meta_expediente_id()
+    if meta_expediente_id is None:
+        return qs
+    return qs.exclude(meta_id=meta_expediente_id)
 
 
 def _current_items_in_period(unidade_id: int, data_inicial: date, data_final: date):
@@ -442,6 +439,7 @@ def _build_indicators_section(
         criado_em__gte=_dt_start(data_inicial),
         criado_em__lte=_dt_end(data_final),
     )
+    history_qs = _filter_history_qs_for_reports(history_qs)
     added_ids = set(
         item_id for item_id in history_qs.filter(evento=ProgramacaoHistorico.EVENTO_ATIVIDADE_CRIADA).values_list("item_id", flat=True) if item_id
     )
