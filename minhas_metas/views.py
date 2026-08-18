@@ -14,6 +14,7 @@ from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.urls import reverse
 
+from atividades.models import Area
 from core.utils import get_unidade_atual
 from metas.models import MetaAlocacao
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
@@ -843,6 +844,24 @@ def mapa_atividades_view(request):
     if dt_end < dt_start:
         dt_end = dt_start
     expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    area_selected = (request.GET.get("area") or "").strip()
+    areas_qs = Area.objects.filter(ativo=True).order_by("nome")
+    area_labels = dict(Area.objects.values_list("code", "nome"))
+    if area_selected not in area_labels:
+        area_selected = ""
+    area_selected_label = area_labels.get(area_selected, "")
+
+    area_filter = Q()
+    if area_selected == Area.CODE_ANIMAL:
+        area_filter = Q(meta__atividade__area__code=Area.CODE_ANIMAL) | Q(
+            meta__atividade__area__code=Area.CODE_ANIMAL_VEGETAL
+        )
+    elif area_selected == Area.CODE_VEGETAL:
+        area_filter = Q(meta__atividade__area__code=Area.CODE_VEGETAL) | Q(
+            meta__atividade__area__code=Area.CODE_ANIMAL_VEGETAL
+        )
+    elif area_selected:
+        area_filter = Q(meta__atividade__area__code=area_selected)
 
     base_itens_qs = (
         ProgramacaoItem.objects
@@ -856,6 +875,8 @@ def mapa_atividades_view(request):
     )
     if expediente_meta_id:
         base_itens_qs = base_itens_qs.exclude(meta_id=expediente_meta_id)
+    if area_filter:
+        base_itens_qs = base_itens_qs.filter(area_filter)
 
     status_raw = request.GET.get("status")
     status_mapa = "em_andamento" if status_raw is None else str(status_raw).strip().lower()
@@ -894,6 +915,8 @@ def mapa_atividades_view(request):
     )
     if expediente_meta_id:
         alocacoes_qs = alocacoes_qs.exclude(meta_id=expediente_meta_id)
+    if area_filter:
+        alocacoes_qs = alocacoes_qs.filter(area_filter)
     alocacoes = list(alocacoes_qs)
 
     metas_info: dict[int, dict[str, object]] = OrderedDict()
@@ -1043,6 +1066,9 @@ def mapa_atividades_view(request):
         "mes_atual_fim": default_end,
         "todo_periodo_inicio": date(today.year, 1, 1),
         "todo_periodo_fim": date(today.year, 12, 31),
+        "areas": areas_qs,
+        "area_selected": area_selected,
+        "area_selected_label": area_selected_label,
         "atividades_opcoes": [
             {
                 "id": meta_id,

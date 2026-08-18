@@ -28,6 +28,13 @@
       <input id="mapaAtividadesInicio" type="date" name="inicio" value="{{ dt_start|date:'Y-m-d' }}" class="form-control form-control-sm filter-date-input">
       <label for="mapaAtividadesFim" class="form-label mb-0 small">Final</label>
       <input id="mapaAtividadesFim" type="date" name="fim" value="{{ dt_end|date:'Y-m-d' }}" class="form-control form-control-sm filter-date-input">
+      <label for="mapaAtividadesArea" class="form-label small mb-0">Area</label>
+      <select id="mapaAtividadesArea" name="area" class="form-select form-select-sm area-filter-select" aria-label="Filtrar atividades por area">
+        <option value="" {% if not area_selected %}selected{% endif %}>Todas</option>
+        {% for area_obj in areas %}
+          <option value="{{ area_obj.code }}" {% if area_selected == area_obj.code %}selected{% endif %}>{{ area_obj.nome }}</option>
+        {% endfor %}
+      </select>
       <label for="mapaAtividadesStatus" class="form-label small mb-0">Status</label>
       <select id="mapaAtividadesStatus" name="status" class="form-select form-select-sm status-filter-select" aria-label="Filtrar atividades por status">
         <option value="" {% if not status_mapa %}selected{% endif %}>Todos</option>
@@ -76,6 +83,9 @@
   <div class="mapa-summary mb-3">
     <span>Unidade: <strong>{{ unidade.nome }}</strong></span>
     <span>Periodo: <strong>{{ periodo_label }}</strong></span>
+    {% if area_selected %}
+      <span>Area: <strong>{{ area_selected_label|default:area_selected }}</strong></span>
+    {% endif %}
     {% if status_mapa_label %}
       <span>Status: <strong>{{ status_mapa_label }}</strong></span>
     {% endif %}
@@ -147,6 +157,9 @@
 }
 .status-filter-select {
   width: 220px;
+}
+.area-filter-select {
+  width: 180px;
 }
 .activity-filter-grid {
   display: grid;

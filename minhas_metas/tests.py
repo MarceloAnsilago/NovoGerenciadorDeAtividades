@@ -378,3 +378,52 @@ class MapaAtividadesViewTests(TestCase):
         self.assertEqual(len(opcoes), 1)
         self.assertEqual(opcoes[0]["id"], self.meta.id)
         self.assertTrue(opcoes[0]["selected"])
+
+    def test_mapa_filtro_area_usa_mesma_regra_inclusiva_de_atividades(self):
+        area_animal_vegetal = Area.objects.create(
+            code=Area.CODE_ANIMAL_VEGETAL,
+            nome="Animal e Vegetal",
+        )
+        atividade_mista = Atividade.objects.create(
+            titulo="Fiscalizacao mista",
+            descricao="",
+            area=area_animal_vegetal,
+            unidade_origem=self.unidade,
+            criado_por=self.user,
+        )
+        meta_mista = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=atividade_mista,
+            titulo="Titulo temporario",
+            descricao="meta mista",
+            quantidade_alvo=1,
+            data_inicio=date(2026, 3, 1),
+            data_limite=date(2026, 3, 31),
+            criado_por=self.user,
+        )
+        MetaAlocacao.objects.create(
+            meta=meta_mista,
+            unidade=self.unidade,
+            quantidade_alocada=1,
+            atribuida_por=self.user,
+        )
+
+        response = self.client.get(
+            reverse("minhas_metas:mapa-atividades"),
+            {"inicio": "2026-03-01", "fim": "2026-03-31", "status": "", "area": Area.CODE_ANIMAL},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        opcoes_ids = {opcao["id"] for opcao in response.context["atividades_opcoes"]}
+        self.assertIn(meta_mista.id, opcoes_ids)
+        self.assertNotIn(self.meta.id, opcoes_ids)
+
+        response = self.client.get(
+            reverse("minhas_metas:mapa-atividades"),
+            {"inicio": "2026-03-01", "fim": "2026-03-31", "status": "", "area": Area.CODE_VEGETAL},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        opcoes_ids = {opcao["id"] for opcao in response.context["atividades_opcoes"]}
+        self.assertIn(meta_mista.id, opcoes_ids)
+        self.assertNotIn(self.meta.id, opcoes_ids)
