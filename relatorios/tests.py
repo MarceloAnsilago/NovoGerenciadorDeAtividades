@@ -611,3 +611,88 @@ class RelatorioProgramacaoTests(TestCase):
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0].item_id, item_campo.id)
         self.assertEqual(entries[0].evento, ProgramacaoHistorico.EVENTO_STATUS_ALTERADO)
+
+    def test_encerrar_programacao_mes_bloqueia_item_pendente(self):
+        programacao = Programacao.objects.create(
+            data=date(2026, 4, 10),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=None,
+            cancelada=False,
+            nao_realizada_justificada=False,
+        )
+
+        response = self.client.post(reverse("relatorios:programacao_encerrar_mes"), {"mes": "2026-04"})
+
+        self.assertEqual(response.status_code, 409)
+        payload = response.json()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["pendentes"], 1)
+        self.assertEqual(payload["nao_realizadas"], 0)
+        self.assertIn("conclua os itens", payload["error"])
+        programacao.refresh_from_db()
+        self.assertFalse(programacao.concluida)
+
+    def test_encerrar_programacao_mes_bloqueia_nao_realizada_em_aberto(self):
+        programacao = Programacao.objects.create(
+            data=date(2026, 5, 10),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            cancelada=False,
+            nao_realizada_justificada=False,
+        )
+
+        response = self.client.post(reverse("relatorios:programacao_encerrar_mes"), {"mes": "2026-05"})
+
+        self.assertEqual(response.status_code, 409)
+        payload = response.json()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["pendentes"], 0)
+        self.assertEqual(payload["nao_realizadas"], 1)
+        programacao.refresh_from_db()
+        self.assertFalse(programacao.concluida)
+
+    def test_encerrar_programacao_mes_permite_somente_itens_resolvidos(self):
+        programacao = Programacao.objects.create(
+            data=date(2026, 6, 10),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.now(),
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            nao_realizada_justificada=True,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            concluido=False,
+            cancelada=True,
+        )
+
+        response = self.client.post(reverse("relatorios:programacao_encerrar_mes"), {"mes": "2026-06"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        programacao.refresh_from_db()
+        self.assertTrue(programacao.concluida)

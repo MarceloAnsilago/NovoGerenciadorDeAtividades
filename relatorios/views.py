@@ -74,8 +74,6 @@ def _build_programacoes_encerradas_periodos(request):
             row["concluidas"]
             + row["justificadas"]
             + row["canceladas"]
-            + row["nao_realizadas"]
-            + row["encerradas_auto"]
         )
         row["percentual_solucionado"] = round((solucionadas / row["total_atividades"]) * 100, 1) if row["total_atividades"] else 0
         periodos.append(row)
@@ -98,6 +96,10 @@ def _unidade_depth(unidade) -> int | None:
         depth += 1
         atual = atual.parent
     return depth
+
+
+def _itens_abertos_bloqueantes_q() -> Q:
+    return Q(concluido=False, cancelada=False, nao_realizada_justificada=False)
 
 
 def pode_reabrir_programacao_mes(user) -> bool:
@@ -194,6 +196,34 @@ def encerrar_programacao_mes(request):
     total = qs.count()
     if total <= 0:
         return JsonResponse({"ok": False, "error": "Nenhuma programacao encontrada para este mes."}, status=404)
+
+    itens_abertos = ProgramacaoItem.objects.filter(programacao__in=qs).filter(_itens_abertos_bloqueantes_q())
+    bloqueios = itens_abertos.aggregate(
+        pendentes=Count("id", filter=Q(concluido_em__isnull=True)),
+        nao_realizadas=Count("id", filter=Q(concluido_em__isnull=False)),
+    )
+    pendentes = int(bloqueios.get("pendentes") or 0)
+    nao_realizadas = int(bloqueios.get("nao_realizadas") or 0)
+    total_bloqueios = pendentes + nao_realizadas
+    if total_bloqueios > 0:
+        partes = []
+        if pendentes:
+            partes.append(f"{pendentes} pendente(s)")
+        if nao_realizadas:
+            partes.append(f"{nao_realizadas} nao realizada(s) ainda em aberto")
+        detalhe = " e ".join(partes)
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": (
+                    f"Nao e possivel encerrar a programacao mensal porque ha {detalhe}. "
+                    "Antes de encerrar, conclua os itens, marque como nao realizada justificada ou cancele."
+                ),
+                "pendentes": pendentes,
+                "nao_realizadas": nao_realizadas,
+            },
+            status=409,
+        )
 
     now = timezone.now()
     updated = qs.filter(concluida=False).update(

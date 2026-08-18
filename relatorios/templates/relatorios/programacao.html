@@ -909,6 +909,9 @@
           };
           const metric = (name) => encerrarBtn.dataset[name] || "0";
           const percentual = Number(String(metric("programacaoPercentual") || "0").replace(",", "."));
+          const pendentes = Number(metric("programacaoPendentes") || "0");
+          const naoRealizadas = Number(metric("programacaoNaoRealizadas") || "0");
+          const hasBlockingItems = action === "encerrar" && (pendentes > 0 || naoRealizadas > 0);
 
           setText("[data-encerrar-mes-label]", encerrarBtn.dataset.programacaoMesLabel || encerrarBtn.dataset.programacaoMes || "-");
           setText("[data-encerrar-periodo]", encerrarBtn.dataset.programacaoPeriodo || "-");
@@ -936,8 +939,13 @@
             if (titleEl) titleEl.textContent = "Confirmar encerramento";
             if (questionEl) questionEl.textContent = "Deseja encerrar esse mes de programacao?";
             if (warningEl) {
-              warningEl.className = "alert alert-warning mt-3 mb-0";
-              warningEl.innerHTML = "<strong>Aten&ccedil;&atilde;o:</strong> depois de encerrada, esta programa&ccedil;&atilde;o mensal s&oacute; poder&aacute; ser reaberta por usu&aacute;rios com permiss&atilde;o.";
+              if (hasBlockingItems) {
+                warningEl.className = "alert alert-danger mt-3 mb-0";
+                warningEl.innerHTML = "<strong>Encerramento bloqueado:</strong> existem atividades pendentes ou n&atilde;o realizadas ainda em aberto. Conclua os itens, marque como n&atilde;o realizada justificada ou cancele antes de encerrar.";
+              } else {
+                warningEl.className = "alert alert-warning mt-3 mb-0";
+                warningEl.innerHTML = "<strong>Aten&ccedil;&atilde;o:</strong> depois de encerrada, esta programa&ccedil;&atilde;o mensal s&oacute; poder&aacute; ser reaberta por usu&aacute;rios com permiss&atilde;o.";
+              }
             }
           }
 
@@ -952,7 +960,10 @@
           if (confirmBtn) {
             confirmBtn.dataset.programacaoMes = encerrarBtn.dataset.programacaoMes || "";
             confirmBtn.dataset.programacaoAction = action;
-            confirmBtn.textContent = action === "reabrir" ? "Sim, reabrir este mes" : "Sim, encerrar este mes";
+            confirmBtn.disabled = hasBlockingItems;
+            confirmBtn.textContent = action === "reabrir"
+              ? "Sim, reabrir este mes"
+              : (hasBlockingItems ? "Resolva os itens em aberto" : "Sim, encerrar este mes");
           }
 
           if (window.bootstrap && window.bootstrap.Modal) {
