@@ -869,36 +869,7 @@ def mapa_atividades_view(request):
     }
     if status_mapa not in status_labels:
         status_mapa = ""
-    itens_qs = base_itens_qs
-    if status_mapa == "em_andamento":
-        itens_qs = itens_qs.filter(
-            concluido=False,
-            concluido_em__isnull=True,
-            cancelada=False,
-            nao_realizada_justificada=False,
-        )
-    elif status_mapa == "concluidas":
-        itens_qs = itens_qs.filter(concluido=True)
-    elif status_mapa == "remarcadas_concluidas":
-        itens_qs = itens_qs.filter(concluido=True, remarcado_de_id__isnull=False)
-    elif status_mapa == "canceladas":
-        itens_qs = itens_qs.filter(cancelada=True)
-    elif status_mapa == "nao_realizadas":
-        itens_qs = itens_qs.filter(
-            concluido=False,
-            concluido_em__isnull=False,
-            cancelada=False,
-            nao_realizada_justificada=False,
-        )
-    elif status_mapa == "nao_realizadas_justificadas":
-        itens_qs = itens_qs.filter(
-            concluido=False,
-            concluido_em__isnull=False,
-            cancelada=False,
-            nao_realizada_justificada=True,
-        )
 
-    itens_status = list(itens_qs)
     itens_programacao = list(base_itens_qs)
 
     alocacoes_qs = (
@@ -969,10 +940,6 @@ def mapa_atividades_view(request):
             for meta_id, meta_info in metas_info.items()
             if meta_id in selected_meta_ids
         )
-        itens_status = [
-            item for item in itens_status
-            if getattr(getattr(item, "meta", None), "id", None) in selected_meta_ids
-        ]
         itens_programacao = [
             item for item in itens_programacao
             if getattr(getattr(item, "meta", None), "id", None) in selected_meta_ids
@@ -998,25 +965,10 @@ def mapa_atividades_view(request):
         if meta_id:
             itens_por_meta[meta_id].append(item)
 
-    meta_ids_status = {
-        int(getattr(getattr(item, "meta", None), "id", None) or 0)
-        for item in itens_status
-        if getattr(getattr(item, "meta", None), "id", None)
-    }
-    concluidas_por_meta = {
-        meta_id: sum(1 for item in meta_itens if getattr(item, "concluido", False))
-        for meta_id, meta_itens in itens_por_meta.items()
-    }
-
     for meta_id, meta_info in metas_info.items():
         meta = meta_info["meta"]
         diligencias_total = int(meta_info.get("diligencias_total") or 0)
         if diligencias_total <= 0:
-            continue
-        if status_mapa == "em_andamento":
-            if meta_id not in meta_ids_status and concluidas_por_meta.get(meta_id, 0) >= diligencias_total:
-                continue
-        elif status_mapa and meta_id not in meta_ids_status:
             continue
 
         row = atividades_map.setdefault(
@@ -1057,13 +1009,21 @@ def mapa_atividades_view(request):
                     "atividade_nome": row["atividade_secundaria"],
                     "veiculo": "",
                     "servidores": [],
-                    "status_key": "nao_programada",
+                    "status_key": "em_andamento",
                     "status_label": "Nao programada",
                     "concluido": False,
                 }
-            row["atividades"].append(atividade)
+            status_key = atividade["status_key"]
+            matches_status = (
+                not status_mapa
+                or status_key == status_mapa
+                or (status_mapa == "concluidas" and status_key == "remarcadas_concluidas")
+                or (status_mapa == "em_andamento" and status_key == "pendentes")
+            )
+            if matches_status:
+                row["atividades"].append(atividade)
 
-    rows = list(atividades_map.values())
+    rows = [row for row in atividades_map.values() if row["atividades"]]
 
     total_atividades = sum(len(row["atividades"]) for row in rows)
     total_quadrados = sum(len(row["atividades"]) for row in rows)

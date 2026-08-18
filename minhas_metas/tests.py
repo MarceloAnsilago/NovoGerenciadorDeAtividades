@@ -254,3 +254,39 @@ class MapaAtividadesViewTests(TestCase):
 
         self.assertContains(response, "Diligencias:")
         self.assertContains(response, "Diligencia nao programada", count=2)
+
+    def test_mapa_status_concluidas_filtra_quadrados_sem_levar_nao_programadas(self):
+        response = self.client.get(
+            reverse("minhas_metas:mapa-atividades"),
+            {"inicio": "2026-03-01", "fim": "2026-03-31", "status": "concluidas"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_atividades"], 1)
+        self.assertEqual(response.context["concluidas"], 1)
+
+        rows = response.context["rows"]
+        self.assertEqual(len(rows), 1)
+        atividades = rows[0]["atividades"]
+        self.assertEqual(len(atividades), 1)
+        self.assertEqual(atividades[0]["item_id"], self.item_concluido.id)
+        self.assertTrue(atividades[0]["concluido"])
+        self.assertNotContains(response, "Diligencia nao programada")
+
+    def test_mapa_status_em_andamento_inclui_diligencias_nao_programadas(self):
+        response = self.client.get(
+            reverse("minhas_metas:mapa-atividades"),
+            {"inicio": "2026-03-01", "fim": "2026-03-31", "status": "em_andamento"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_atividades"], 2)
+        self.assertEqual(response.context["concluidas"], 0)
+
+        rows = response.context["rows"]
+        self.assertEqual(len(rows), 1)
+        atividades = rows[0]["atividades"]
+        self.assertEqual(len(atividades), 2)
+        self.assertIsNone(atividades[0]["item_id"])
+        self.assertIsNone(atividades[1]["item_id"])
+        self.assertContains(response, "Diligencia nao programada", count=2)
