@@ -290,3 +290,91 @@ class MapaAtividadesViewTests(TestCase):
         self.assertIsNone(atividades[0]["item_id"])
         self.assertIsNone(atividades[1]["item_id"])
         self.assertContains(response, "Diligencia nao programada", count=2)
+
+    def test_mapa_opcoes_de_atividade_refletem_status_filtrado(self):
+        outra_atividade = Atividade.objects.create(
+            titulo="Fiscalizacao sem conclusao",
+            descricao="",
+            area=self.area,
+            unidade_origem=self.unidade,
+            criado_por=self.user,
+        )
+        outra_meta = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=outra_atividade,
+            titulo="Titulo temporario",
+            descricao="meta sem conclusao",
+            quantidade_alvo=1,
+            data_inicio=date(2026, 3, 1),
+            data_limite=date(2026, 3, 31),
+            criado_por=self.user,
+        )
+        MetaAlocacao.objects.create(
+            meta=outra_meta,
+            unidade=self.unidade,
+            quantidade_alocada=1,
+            atribuida_por=self.user,
+        )
+
+        response = self.client.get(
+            reverse("minhas_metas:mapa-atividades"),
+            [
+                ("inicio", "2026-03-01"),
+                ("fim", "2026-03-31"),
+                ("status", "concluidas"),
+                ("filtrar_atividades", "1"),
+                ("meta", str(self.meta.id)),
+                ("meta", str(outra_meta.id)),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        opcoes_ids = {opcao["id"] for opcao in response.context["atividades_opcoes"]}
+        self.assertIn(self.meta.id, opcoes_ids)
+        self.assertNotIn(outra_meta.id, opcoes_ids)
+        self.assertEqual(response.context["total_atividades"], 1)
+
+    def test_mapa_troca_de_status_recalcula_atividades_marcadas(self):
+        outra_atividade = Atividade.objects.create(
+            titulo="Fiscalizacao pendente",
+            descricao="",
+            area=self.area,
+            unidade_origem=self.unidade,
+            criado_por=self.user,
+        )
+        outra_meta = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=outra_atividade,
+            titulo="Titulo temporario",
+            descricao="meta pendente",
+            quantidade_alvo=1,
+            data_inicio=date(2026, 3, 1),
+            data_limite=date(2026, 3, 31),
+            criado_por=self.user,
+        )
+        MetaAlocacao.objects.create(
+            meta=outra_meta,
+            unidade=self.unidade,
+            quantidade_alocada=1,
+            atribuida_por=self.user,
+        )
+
+        response = self.client.get(
+            reverse("minhas_metas:mapa-atividades"),
+            [
+                ("inicio", "2026-03-01"),
+                ("fim", "2026-03-31"),
+                ("status", "concluidas"),
+                ("status_anterior", "em_andamento"),
+                ("filtrar_atividades", "1"),
+                ("meta", str(outra_meta.id)),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_atividades"], 1)
+        self.assertEqual(response.context["rows"][0]["meta_id"], self.meta.id)
+        opcoes = response.context["atividades_opcoes"]
+        self.assertEqual(len(opcoes), 1)
+        self.assertEqual(opcoes[0]["id"], self.meta.id)
+        self.assertTrue(opcoes[0]["selected"])

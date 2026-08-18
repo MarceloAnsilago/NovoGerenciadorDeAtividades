@@ -869,6 +869,13 @@ def mapa_atividades_view(request):
     }
     if status_mapa not in status_labels:
         status_mapa = ""
+    status_anterior_raw = request.GET.get("status_anterior")
+    status_anterior = None
+    if status_anterior_raw is not None:
+        status_anterior = str(status_anterior_raw).strip().lower()
+        if status_anterior not in status_labels:
+            status_anterior = ""
+    status_changed = status_anterior is not None and status_anterior != status_mapa
 
     itens_programacao = list(base_itens_qs)
 
@@ -932,18 +939,7 @@ def mapa_atividades_view(request):
             continue
         if meta_id > 0:
             selected_meta_ids.add(meta_id)
-    has_activity_filter = request.GET.get("filtrar_atividades") == "1"
-
-    if has_activity_filter:
-        metas_info = OrderedDict(
-            (meta_id, meta_info)
-            for meta_id, meta_info in metas_info.items()
-            if meta_id in selected_meta_ids
-        )
-        itens_programacao = [
-            item for item in itens_programacao
-            if getattr(getattr(item, "meta", None), "id", None) in selected_meta_ids
-        ]
+    has_activity_filter = request.GET.get("filtrar_atividades") == "1" and not status_changed
 
     item_ids = [item.id for item in itens_programacao]
     servidores_por_item: dict[int, list[object]] = defaultdict(list)
@@ -1023,7 +1019,16 @@ def mapa_atividades_view(request):
             if matches_status:
                 row["atividades"].append(atividade)
 
-    rows = [row for row in atividades_map.values() if row["atividades"]]
+    status_rows = [row for row in atividades_map.values() if row["atividades"]]
+    status_meta_ids = {int(row["meta_id"]) for row in status_rows if row.get("meta_id")}
+
+    if has_activity_filter:
+        rows = [
+            row for row in status_rows
+            if int(row["meta_id"]) in selected_meta_ids
+        ]
+    else:
+        rows = status_rows
 
     total_atividades = sum(len(row["atividades"]) for row in rows)
     total_quadrados = sum(len(row["atividades"]) for row in rows)
@@ -1042,9 +1047,13 @@ def mapa_atividades_view(request):
             {
                 "id": meta_id,
                 "titulo": titulo,
-                "selected": (not has_activity_filter) or (meta_id in selected_meta_ids),
+                "selected": (
+                    (not has_activity_filter and meta_id in status_meta_ids)
+                    or (has_activity_filter and meta_id in selected_meta_ids and meta_id in status_meta_ids)
+                ),
             }
             for meta_id, titulo in atividades_opcoes_map.items()
+            if meta_id in status_meta_ids
         ],
         "has_activity_filter": has_activity_filter,
         "status_mapa": status_mapa,

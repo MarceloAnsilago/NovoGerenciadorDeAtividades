@@ -22,6 +22,7 @@
 
   <form method="get" class="report-toolbar filter-panel mb-3">
     <input type="hidden" name="filtrar_atividades" value="1">
+    <input type="hidden" name="status_anterior" value="{{ status_mapa }}">
     <div class="d-flex align-items-center gap-2 flex-wrap">
       <label for="mapaAtividadesInicio" class="form-label mb-0 small">Inicial</label>
       <input id="mapaAtividadesInicio" type="date" name="inicio" value="{{ dt_start|date:'Y-m-d' }}" class="form-control form-control-sm filter-date-input">
