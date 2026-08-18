@@ -213,7 +213,6 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
     today = timezone.localdate()
     month_param = (request.GET.get("month") or "").strip()
     month_param_parsed = _parse_month_key(month_param)
-    bloqueios_encerramento = request.GET.get("bloqueios_encerramento", "").strip().lower() in {"1", "true", "yes", "on"}
     ano_raw = request.GET.get("ano")
     status_month_start = (
         date(month_param_parsed[0], month_param_parsed[1], 1)
@@ -664,6 +663,7 @@ def nao_realizadas_view(request):
     today = timezone.localdate()
     month_param = (request.GET.get("month") or "").strip()
     month_param_parsed = _parse_month_key(month_param)
+    bloqueios_encerramento = request.GET.get("bloqueios_encerramento", "").strip().lower() in {"1", "true", "yes", "on"}
 
     status_filter = Q(
         concluido=False,
