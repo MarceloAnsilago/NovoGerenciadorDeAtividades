@@ -775,7 +775,15 @@ def nao_realizadas_view(request):
         programacao = getattr(item, "programacao", None)
         if not meta or not programacao:
             continue
-        item_revisao = item_revisao_por_origem.get(item.id) or item
+        item_revisao = item_revisao_por_origem.get(item.id)
+        if (
+            bloqueios_encerramento
+            and item_revisao
+            and getattr(item_revisao, "concluido", False)
+            and not getattr(item_revisao, "cancelada", False)
+        ):
+            continue
+        item_revisao = item_revisao or item
         nao_realizadas.append({
             "item_id": item.id,
             "review_item_id": getattr(item_revisao, "id", item.id),

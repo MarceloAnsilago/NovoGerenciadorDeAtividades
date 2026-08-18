@@ -69,6 +69,9 @@ def _build_programacoes_encerradas_periodos(request):
         meta_expediente_id = _meta_expediente_id()
         if meta_expediente_id is not None:
             itens_qs = itens_qs.exclude(meta_id=meta_expediente_id)
+        origens_remarcadas_concluidas = _origens_remarcadas_concluidas_ids(itens_qs.values_list("id", flat=True))
+        if origens_remarcadas_concluidas:
+            itens_qs = itens_qs.exclude(id__in=origens_remarcadas_concluidas)
         item_counts = itens_qs.aggregate(
             total_atividades=Count("id"),
             concluidas=Count("id", filter=Q(concluido=True)),
@@ -112,6 +115,21 @@ def _unidade_depth(unidade) -> int | None:
 
 def _itens_abertos_bloqueantes_q() -> Q:
     return Q(concluido=False, cancelada=False, nao_realizada_justificada=False)
+
+
+def _origens_remarcadas_concluidas_ids(item_ids) -> set[int]:
+    ids = [int(item_id) for item_id in item_ids if item_id]
+    if not ids:
+        return set()
+    return {
+        int(item_id)
+        for item_id in ProgramacaoItem.objects.filter(
+            remarcado_de_id__in=ids,
+            concluido=True,
+            cancelada=False,
+        ).values_list("remarcado_de_id", flat=True)
+        if item_id
+    }
 
 
 def pode_reabrir_programacao_mes(user) -> bool:
@@ -223,6 +241,9 @@ def encerrar_programacao_mes(request):
     itens_abertos = ProgramacaoItem.objects.filter(programacao__in=qs).filter(_itens_abertos_bloqueantes_q())
     if meta_expediente_id is not None:
         itens_abertos = itens_abertos.exclude(meta_id=meta_expediente_id)
+    origens_remarcadas_concluidas = _origens_remarcadas_concluidas_ids(itens_abertos.values_list("id", flat=True))
+    if origens_remarcadas_concluidas:
+        itens_abertos = itens_abertos.exclude(id__in=origens_remarcadas_concluidas)
     bloqueios = itens_abertos.aggregate(
         pendentes=Count("id", filter=Q(concluido_em__isnull=True)),
         nao_realizadas=Count("id", filter=Q(concluido_em__isnull=False)),

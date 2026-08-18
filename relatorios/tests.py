@@ -697,6 +697,50 @@ class RelatorioProgramacaoTests(TestCase):
         programacao.refresh_from_db()
         self.assertTrue(programacao.concluida)
 
+    def test_encerrar_programacao_mes_ignora_origem_remarcada_e_concluida(self):
+        programacao_original = Programacao.objects.create(
+            data=date(2026, 8, 10),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        item_original = ProgramacaoItem.objects.create(
+            programacao=programacao_original,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            cancelada=False,
+            nao_realizada_justificada=False,
+        )
+        programacao_remarcada = Programacao.objects.create(
+            data=date(2026, 8, 11),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao_remarcada,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.now(),
+            cancelada=False,
+            nao_realizada_justificada=False,
+            remarcado_de=item_original,
+        )
+
+        response = self.client.post(reverse("relatorios:programacao_encerrar_mes"), {"mes": "2026-08"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        programacao_original.refresh_from_db()
+        programacao_remarcada.refresh_from_db()
+        self.assertTrue(programacao_original.concluida)
+        self.assertTrue(programacao_remarcada.concluida)
+
+        response = self.client.get(reverse("relatorios:programacao"), {"report_tab": "encerradas"})
+        periodo = next(row for row in response.context["programacoes_encerradas_periodos"] if row["mes"].date() == date(2026, 8, 1))
+        self.assertEqual(periodo["total_atividades"], 1)
+        self.assertEqual(periodo["nao_realizadas"], 0)
+        self.assertEqual(periodo["concluidas"], 1)
+
     @override_settings(META_EXPEDIENTE_ID=777909)
     def test_encerrar_programacao_mes_ignora_expediente_administrativo_pendente(self):
         meta_expediente = Meta.objects.create(

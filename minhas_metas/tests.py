@@ -106,6 +106,31 @@ class NaoRealizadasViewTests(TestCase):
             reverse("programar:concluir-item-form", args=[self.item.id]),
         )
 
+    def test_bloqueios_encerramento_nao_lista_origem_remarcada_e_concluida(self):
+        programacao_remarcada = Programacao.objects.create(
+            data=date(2026, 3, 12),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao_remarcada,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.now(),
+            cancelada=False,
+            remarcado_de=self.item,
+        )
+
+        response = self.client.get(
+            reverse("minhas_metas:nao-realizadas"),
+            {"month": "2026-03", "bloqueios_encerramento": "1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item_ids = {item["item_id"] for item in response.context["nao_realizadas"]}
+        self.assertNotIn(self.item.id, item_ids)
+        self.assertContains(response, "Nenhuma atividade")
+
     def test_print_renderiza_pagina_agrupada_do_mes(self):
         response = self.client.get(
             reverse("minhas_metas:nao-realizadas"),
