@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from atividades.models import Area, Atividade
 from core.models import No
-from metas.models import Meta
+from metas.models import Meta, MetaAlocacao
 from programar.models import Programacao, ProgramacaoItem
 from programar.status import ENCERRADA_AUTOMATICAMENTE_MARKER
 from veiculos.models import Veiculo
@@ -184,3 +184,73 @@ class NaoRealizadasViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Nenhuma atividade")
+
+
+class MapaAtividadesViewTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="tester_mapa", password="123456")
+        self.unidade = No.objects.create(nome="ULSAV Mapa", tipo="setor")
+        self.area = Area.objects.create(code="AREA_MAPA", nome="Area Mapa")
+        self.atividade = Atividade.objects.create(
+            titulo="Fiscalizacao por diligencia",
+            descricao="",
+            area=self.area,
+            unidade_origem=self.unidade,
+            criado_por=self.user,
+        )
+        self.meta = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=self.atividade,
+            titulo="Titulo temporario",
+            descricao="meta de mapa",
+            quantidade_alvo=3,
+            data_inicio=date(2026, 3, 1),
+            data_limite=date(2026, 3, 31),
+            criado_por=self.user,
+        )
+        MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=3,
+            atribuida_por=self.user,
+        )
+        self.programacao = Programacao.objects.create(
+            data=date(2026, 3, 11),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        self.item_concluido = ProgramacaoItem.objects.create(
+            programacao=self.programacao,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.now(),
+        )
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["contexto_atual"] = self.unidade.id
+        session.save()
+
+    def test_mapa_gera_quadrados_pelas_diligencias_e_marca_concluidas_programadas(self):
+        response = self.client.get(
+            reverse("minhas_metas:mapa-atividades"),
+            {"inicio": "2026-03-01", "fim": "2026-03-31", "status": ""},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_atividades"], 3)
+        self.assertEqual(response.context["concluidas"], 1)
+
+        rows = response.context["rows"]
+        self.assertEqual(len(rows), 1)
+        atividades = rows[0]["atividades"]
+        self.assertEqual(len(atividades), 3)
+        self.assertEqual(atividades[0]["item_id"], self.item_concluido.id)
+        self.assertTrue(atividades[0]["concluido"])
+        self.assertIsNone(atividades[1]["item_id"])
+        self.assertFalse(atividades[1]["concluido"])
+        self.assertIsNone(atividades[2]["item_id"])
+
+        self.assertContains(response, "Diligencias:")
+        self.assertContains(response, "Diligencia nao programada", count=2)

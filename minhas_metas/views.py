@@ -844,7 +844,7 @@ def mapa_atividades_view(request):
         dt_end = dt_start
     expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
 
-    itens_qs = (
+    base_itens_qs = (
         ProgramacaoItem.objects
         .select_related("programacao", "meta", "meta__atividade", "veiculo")
         .filter(
@@ -855,7 +855,7 @@ def mapa_atividades_view(request):
         .order_by("meta__titulo", "programacao__data", "id")
     )
     if expediente_meta_id:
-        itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
+        base_itens_qs = base_itens_qs.exclude(meta_id=expediente_meta_id)
 
     status_raw = request.GET.get("status")
     status_mapa = "em_andamento" if status_raw is None else str(status_raw).strip().lower()
@@ -869,6 +869,7 @@ def mapa_atividades_view(request):
     }
     if status_mapa not in status_labels:
         status_mapa = ""
+    itens_qs = base_itens_qs
     if status_mapa == "em_andamento":
         itens_qs = itens_qs.filter(
             concluido=False,
@@ -897,13 +898,55 @@ def mapa_atividades_view(request):
             nao_realizada_justificada=True,
         )
 
-    itens = list(itens_qs)
-    atividades_opcoes_map: dict[int, str] = OrderedDict()
-    for item in itens:
-        meta = getattr(item, "meta", None)
+    itens_status = list(itens_qs)
+    itens_programacao = list(base_itens_qs)
+
+    alocacoes_qs = (
+        MetaAlocacao.objects
+        .select_related("meta", "meta__atividade")
+        .filter(
+            unidade=unidade,
+            quantidade_alocada__gt=0,
+        )
+        .filter(
+            Q(meta__data_inicio__isnull=True) | Q(meta__data_inicio__lte=dt_end),
+            Q(meta__data_limite__isnull=True) | Q(meta__data_limite__gte=dt_start),
+        )
+        .order_by("meta__titulo", "id")
+    )
+    if expediente_meta_id:
+        alocacoes_qs = alocacoes_qs.exclude(meta_id=expediente_meta_id)
+    alocacoes = list(alocacoes_qs)
+
+    metas_info: dict[int, dict[str, object]] = OrderedDict()
+    for aloc in alocacoes:
+        meta = getattr(aloc, "meta", None)
         meta_id = getattr(meta, "id", None) or 0
         if not meta_id:
             continue
+        meta_info = metas_info.setdefault(
+            meta_id,
+            {
+                "meta": meta,
+                "diligencias_total": 0,
+            },
+        )
+        meta_info["diligencias_total"] = int(meta_info["diligencias_total"] or 0) + int(
+            getattr(aloc, "quantidade_alocada", 0) or 0
+        )
+    for item in itens_programacao:
+        meta = getattr(item, "meta", None)
+        meta_id = getattr(meta, "id", None) or 0
+        if not meta_id or meta_id in metas_info:
+            continue
+        metas_info[meta_id] = {
+            "meta": meta,
+            "diligencias_total": int(getattr(meta, "quantidade_alvo", 0) or 0),
+        }
+
+    atividades_opcoes_map: dict[int, str] = OrderedDict()
+    for meta_id, meta_info in metas_info.items():
+        meta = meta_info["meta"]
         atividades_opcoes_map.setdefault(
             meta_id,
             getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Atividade"),
@@ -921,12 +964,21 @@ def mapa_atividades_view(request):
     has_activity_filter = request.GET.get("filtrar_atividades") == "1"
 
     if has_activity_filter:
-        itens = [
-            item for item in itens
+        metas_info = OrderedDict(
+            (meta_id, meta_info)
+            for meta_id, meta_info in metas_info.items()
+            if meta_id in selected_meta_ids
+        )
+        itens_status = [
+            item for item in itens_status
+            if getattr(getattr(item, "meta", None), "id", None) in selected_meta_ids
+        ]
+        itens_programacao = [
+            item for item in itens_programacao
             if getattr(getattr(item, "meta", None), "id", None) in selected_meta_ids
         ]
 
-    item_ids = [item.id for item in itens]
+    item_ids = [item.id for item in itens_programacao]
     servidores_por_item: dict[int, list[object]] = defaultdict(list)
     if item_ids:
         links = (
@@ -940,43 +992,82 @@ def mapa_atividades_view(request):
                 servidores_por_item[link.item_id].append(link.servidor)
 
     atividades_map: dict[int, dict[str, object]] = OrderedDict()
+    itens_por_meta: dict[int, list[object]] = defaultdict(list)
+    for item in itens_programacao:
+        meta_id = getattr(getattr(item, "meta", None), "id", None) or 0
+        if meta_id:
+            itens_por_meta[meta_id].append(item)
 
-    for item in itens:
-        meta = getattr(item, "meta", None)
-        status_key, status_label = _item_execucao_info(item)
-        servidores_item = servidores_por_item.get(item.id) or []
-        atividade = {
-            "item_id": item.id,
-            "data": getattr(getattr(item, "programacao", None), "data", None),
-            "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Atividade"),
-            "atividade_nome": _secondary_activity_name(meta),
-            "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
-            "servidores": [
-                getattr(servidor, "nome", f"Servidor {getattr(servidor, 'id', '')}")
-                for servidor in servidores_item
-            ],
-            "status_key": status_key,
-            "status_label": status_label,
-            "concluido": bool(getattr(item, "concluido", False)),
-        }
-        meta_id = getattr(meta, "id", None) or 0
+    meta_ids_status = {
+        int(getattr(getattr(item, "meta", None), "id", None) or 0)
+        for item in itens_status
+        if getattr(getattr(item, "meta", None), "id", None)
+    }
+    concluidas_por_meta = {
+        meta_id: sum(1 for item in meta_itens if getattr(item, "concluido", False))
+        for meta_id, meta_itens in itens_por_meta.items()
+    }
+
+    for meta_id, meta_info in metas_info.items():
+        meta = meta_info["meta"]
+        diligencias_total = int(meta_info.get("diligencias_total") or 0)
+        if diligencias_total <= 0:
+            continue
+        if status_mapa == "em_andamento":
+            if meta_id not in meta_ids_status and concluidas_por_meta.get(meta_id, 0) >= diligencias_total:
+                continue
+        elif status_mapa and meta_id not in meta_ids_status:
+            continue
+
         row = atividades_map.setdefault(
             meta_id,
             {
                 "meta_id": meta_id,
-                "atividade_nome": atividade["meta_titulo"],
-                "atividade_secundaria": atividade["atividade_nome"],
+                "atividade_nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Atividade"),
+                "atividade_secundaria": _secondary_activity_name(meta),
                 "data_limite": getattr(meta, "data_limite", None),
                 "atividades": [],
             },
         )
-        row["atividades"].append(atividade)
+        meta_itens = itens_por_meta.get(meta_id) or []
+        for index in range(diligencias_total):
+            item = meta_itens[index] if index < len(meta_itens) else None
+            if item:
+                status_key, status_label = _item_execucao_info(item)
+                servidores_item = servidores_por_item.get(item.id) or []
+                atividade = {
+                    "item_id": item.id,
+                    "data": getattr(getattr(item, "programacao", None), "data", None),
+                    "meta_titulo": row["atividade_nome"],
+                    "atividade_nome": row["atividade_secundaria"],
+                    "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
+                    "servidores": [
+                        getattr(servidor, "nome", f"Servidor {getattr(servidor, 'id', '')}")
+                        for servidor in servidores_item
+                    ],
+                    "status_key": status_key,
+                    "status_label": status_label,
+                    "concluido": bool(getattr(item, "concluido", False)),
+                }
+            else:
+                atividade = {
+                    "item_id": None,
+                    "data": None,
+                    "meta_titulo": row["atividade_nome"],
+                    "atividade_nome": row["atividade_secundaria"],
+                    "veiculo": "",
+                    "servidores": [],
+                    "status_key": "nao_programada",
+                    "status_label": "Nao programada",
+                    "concluido": False,
+                }
+            row["atividades"].append(atividade)
 
     rows = list(atividades_map.values())
 
-    total_atividades = len(itens)
+    total_atividades = sum(len(row["atividades"]) for row in rows)
     total_quadrados = sum(len(row["atividades"]) for row in rows)
-    concluidas = sum(1 for item in itens if getattr(item, "concluido", False))
+    concluidas = sum(1 for row in rows for atividade in row["atividades"] if atividade["concluido"])
 
     contexto = {
         "unidade": unidade,
