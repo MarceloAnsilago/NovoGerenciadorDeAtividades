@@ -912,6 +912,9 @@
           const pendentes = Number(metric("programacaoPendentes") || "0");
           const naoRealizadas = Number(metric("programacaoNaoRealizadas") || "0");
           const hasBlockingItems = action === "encerrar" && (pendentes > 0 || naoRealizadas > 0);
+          const bloqueiosUrl = new URL("{% url 'minhas_metas:nao-realizadas' %}", window.location.origin);
+          bloqueiosUrl.searchParams.set("month", encerrarBtn.dataset.programacaoMes || "");
+          bloqueiosUrl.searchParams.set("bloqueios_encerramento", "1");
 
           setText("[data-encerrar-mes-label]", encerrarBtn.dataset.programacaoMesLabel || encerrarBtn.dataset.programacaoMes || "-");
           setText("[data-encerrar-periodo]", encerrarBtn.dataset.programacaoPeriodo || "-");
@@ -941,7 +944,7 @@
             if (warningEl) {
               if (hasBlockingItems) {
                 warningEl.className = "alert alert-danger mt-3 mb-0";
-                warningEl.innerHTML = "<strong>Encerramento bloqueado:</strong> existem atividades pendentes ou n&atilde;o realizadas ainda em aberto. Conclua os itens, marque como n&atilde;o realizada justificada ou cancele antes de encerrar.";
+                warningEl.innerHTML = `<strong>Encerramento bloqueado:</strong> existem atividades pendentes ou n&atilde;o realizadas ainda em aberto. <a class="alert-link" href="${bloqueiosUrl.toString()}">Abrir atividades que impedem o encerramento</a>.`;
               } else {
                 warningEl.className = "alert alert-warning mt-3 mb-0";
                 warningEl.innerHTML = "<strong>Aten&ccedil;&atilde;o:</strong> depois de encerrada, esta programa&ccedil;&atilde;o mensal s&oacute; poder&aacute; ser reaberta por usu&aacute;rios com permiss&atilde;o.";
@@ -960,10 +963,11 @@
           if (confirmBtn) {
             confirmBtn.dataset.programacaoMes = encerrarBtn.dataset.programacaoMes || "";
             confirmBtn.dataset.programacaoAction = action;
-            confirmBtn.disabled = hasBlockingItems;
+            confirmBtn.dataset.bloqueiosUrl = hasBlockingItems ? bloqueiosUrl.toString() : "";
+            confirmBtn.disabled = false;
             confirmBtn.textContent = action === "reabrir"
               ? "Sim, reabrir este mes"
-              : (hasBlockingItems ? "Resolva os itens em aberto" : "Sim, encerrar este mes");
+              : (hasBlockingItems ? "Abrir itens em aberto" : "Sim, encerrar este mes");
           }
 
           if (window.bootstrap && window.bootstrap.Modal) {
@@ -1015,6 +1019,11 @@
         confirmarEncerrarBtn.addEventListener("click", async function () {
           const mes = confirmarEncerrarBtn.dataset.programacaoMes || "";
           const action = confirmarEncerrarBtn.dataset.programacaoAction === "reabrir" ? "reabrir" : "encerrar";
+          const bloqueiosUrl = confirmarEncerrarBtn.dataset.bloqueiosUrl || "";
+          if (action === "encerrar" && bloqueiosUrl) {
+            window.location.href = bloqueiosUrl;
+            return;
+          }
           if (!/^\d{4}-\d{2}$/.test(mes)) return;
 
           const original = confirmarEncerrarBtn.innerHTML;

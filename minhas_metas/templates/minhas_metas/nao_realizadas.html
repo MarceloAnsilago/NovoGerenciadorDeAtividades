@@ -11,7 +11,13 @@
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-      <h1 class="h4 mb-1">Atividades n&atilde;o realizadas e atrasadas</h1>
+      <h1 class="h4 mb-1">
+        {% if bloqueios_encerramento %}
+          Atividades que impedem o encerramento
+        {% else %}
+          Atividades n&atilde;o realizadas e atrasadas
+        {% endif %}
+      </h1>
       <div class="text-muted small">
         Unidade: <strong>{{ unidade.nome }}</strong>
         {% if dt_start and dt_end %}
@@ -39,7 +45,7 @@
           {% for item in month_filters %}
             <li class="nav-item" role="presentation">
               <a class="nav-link {% if item.key == selected_month_key %}active{% endif %}"
-                 href="?month={{ item.key }}"
+                 href="?month={{ item.key }}{% if bloqueios_encerramento %}&bloqueios_encerramento=1{% endif %}"
                  role="tab">
                 {{ item.label }}
                 <span class="badge text-bg-light border ms-1">{{ item.total }}</span>
@@ -48,7 +54,13 @@
           {% endfor %}
         </ul>
       {% else %}
-        <div class="alert alert-info mb-0">Nenhuma atividade n&atilde;o realizada ou atrasada foi encontrada.</div>
+        <div class="alert alert-info mb-0">
+          {% if bloqueios_encerramento %}
+            Nenhuma atividade impedindo o encerramento foi encontrada.
+          {% else %}
+            Nenhuma atividade n&atilde;o realizada ou atrasada foi encontrada.
+          {% endif %}
+        </div>
       {% endif %}
 
       {% if month_filters %}
@@ -71,7 +83,7 @@
               <tr>
                 <td class="text-nowrap">{{ item.data|date:"d/m/Y" }}</td>
                 <td>
-                  <span class="badge {% if item.status == 'Atrasada' %}text-bg-danger{% else %}text-bg-warning{% endif %}">
+                    <span class="badge {% if item.status == 'Atrasada' %}text-bg-danger{% elif item.status == 'Pendente' %}text-bg-secondary{% else %}text-bg-warning{% endif %}">
                     {{ item.status }}
                   </span>
                 </td>

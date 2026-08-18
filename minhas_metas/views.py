@@ -213,6 +213,7 @@ def minhas_metas_view(request, template_name="minhas_metas/lista_metas.html"):
     today = timezone.localdate()
     month_param = (request.GET.get("month") or "").strip()
     month_param_parsed = _parse_month_key(month_param)
+    bloqueios_encerramento = request.GET.get("bloqueios_encerramento", "").strip().lower() in {"1", "true", "yes", "on"}
     ano_raw = request.GET.get("ano")
     status_month_start = (
         date(month_param_parsed[0], month_param_parsed[1], 1)
@@ -664,27 +665,26 @@ def nao_realizadas_view(request):
     month_param = (request.GET.get("month") or "").strip()
     month_param_parsed = _parse_month_key(month_param)
 
+    status_filter = Q(
+        concluido=False,
+        concluido_em__isnull=False,
+        cancelada=False,
+        nao_realizada_justificada=False,
+    )
+    pendentes_filter = Q(
+        concluido=False,
+        concluido_em__isnull=True,
+        cancelada=False,
+        nao_realizada_justificada=False,
+    )
+    if not bloqueios_encerramento:
+        pendentes_filter &= Q(programacao__data__lt=today)
+
     itens_base = (
         ProgramacaoItem.objects
         .select_related("programacao", "meta", "meta__atividade", "veiculo")
-        .filter(
-            programacao__unidade_id=unidade.id,
-        )
-        .filter(
-            Q(
-                concluido=False,
-                concluido_em__isnull=False,
-                cancelada=False,
-                nao_realizada_justificada=False,
-            )
-            | Q(
-                concluido=False,
-                concluido_em__isnull=True,
-                cancelada=False,
-                nao_realizada_justificada=False,
-                programacao__data__lt=today,
-            )
-        )
+        .filter(programacao__unidade_id=unidade.id)
+        .filter(status_filter | pendentes_filter)
         .exclude(observacao__contains=ENCERRADA_AUTOMATICAMENTE_MARKER)
         .order_by("-programacao__data", "-id")
     )
@@ -780,7 +780,11 @@ def nao_realizadas_view(request):
             "item_id": item.id,
             "review_item_id": getattr(item_revisao, "id", item.id),
             "data": getattr(programacao, "data", None),
-            "status": "Atrasada" if not getattr(item, "concluido_em", None) else "Nao realizada",
+            "status": (
+                "Nao realizada"
+                if getattr(item, "concluido_em", None)
+                else ("Atrasada" if getattr(programacao, "data", None) and programacao.data < today else "Pendente")
+            ),
             "meta_id": getattr(meta, "id", None),
             "meta_titulo": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "(sem titulo)"),
             "atividade_nome": _secondary_activity_name(meta),
@@ -821,6 +825,7 @@ def nao_realizadas_view(request):
         "dt_end": dt_end,
         "periodo_label": _format_period_label(dt_start, dt_end),
         "total_geral": itens_base.count(),
+        "bloqueios_encerramento": bloqueios_encerramento,
         "print_url": f"{reverse('minhas_metas:nao-realizadas')}?{print_query.urlencode()}",
         "back_url": back_url,
     }

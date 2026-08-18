@@ -150,6 +150,36 @@ class NaoRealizadasViewTests(TestCase):
         self.assertEqual(atrasado["status"], "Atrasada")
         self.assertContains(response, "Pendente atrasada")
 
+    def test_bloqueios_encerramento_inclui_pendentes_do_mes_mesmo_nao_atrasadas(self):
+        data_futura = timezone.localdate() + timedelta(days=10)
+        programacao_futura = Programacao.objects.create(
+            data=data_futura,
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        item_pendente = ProgramacaoItem.objects.create(
+            programacao=programacao_futura,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=None,
+            nao_realizada_justificada=False,
+            observacao="Pendente ainda nao atrasada",
+        )
+
+        month_key = f"{data_futura.year}-{data_futura.month:02d}"
+        response = self.client.get(
+            reverse("minhas_metas:nao-realizadas"),
+            {"month": month_key, "bloqueios_encerramento": "1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item_ids = {item["item_id"] for item in response.context["nao_realizadas"]}
+        self.assertIn(item_pendente.id, item_ids)
+        pendente = next(item for item in response.context["nao_realizadas"] if item["item_id"] == item_pendente.id)
+        self.assertEqual(pendente["status"], "Pendente")
+        self.assertContains(response, "Atividades que impedem o encerramento")
+        self.assertContains(response, "Pendente ainda nao atrasada")
+
     def test_nao_realizadas_nao_inclui_encerradas_automaticamente_como_atrasadas(self):
         data_atrasada = timezone.localdate() - timedelta(days=1)
         programacao_atrasada = Programacao.objects.create(
