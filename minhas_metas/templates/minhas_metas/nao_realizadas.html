@@ -128,7 +128,13 @@
               </tr>
               {% empty %}
               <tr class="table-light">
-                <td colspan="8" class="text-center text-muted py-4">Nenhuma atividade n&atilde;o realizada ou atrasada no m&ecirc;s selecionado.</td>
+                <td colspan="8" class="text-center text-muted py-4">
+                  {% if bloqueios_encerramento %}
+                    Nenhuma atividade impedindo o encerramento foi encontrada no m&ecirc;s selecionado.
+                  {% else %}
+                    Nenhuma atividade n&atilde;o realizada ou atrasada no m&ecirc;s selecionado.
+                  {% endif %}
+                </td>
               </tr>
               {% endfor %}
             </tbody>

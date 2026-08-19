@@ -129,6 +129,15 @@ class NaoRealizadasViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         item_ids = {item["item_id"] for item in response.context["nao_realizadas"]}
         self.assertNotIn(self.item.id, item_ids)
+        month_counts = {
+            item["key"]: item["total"]
+            for item in response.context["month_filters"]
+        }
+        self.assertNotIn("2026-03", month_counts)
+        self.assertEqual(response.context["total_geral"], 0)
+        self.assertEqual(response.context["selected_month_key"], "2026-03")
+        self.assertEqual(response.context["dt_start"], date(2026, 3, 1))
+        self.assertEqual(response.context["dt_end"], date(2026, 3, 31))
         self.assertContains(response, "Nenhuma atividade")
 
     def test_print_renderiza_pagina_agrupada_do_mes(self):

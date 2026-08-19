@@ -81,6 +81,21 @@ def _format_period_label(data_inicial: date | None, data_final: date | None) -> 
     return f"{data_inicial.strftime('%d/%m/%Y')} -> {data_final.strftime('%d/%m/%Y')}"
 
 
+def _origens_remarcadas_concluidas_ids(item_ids) -> set[int]:
+    ids = [int(item_id) for item_id in item_ids if item_id]
+    if not ids:
+        return set()
+    return {
+        int(item_id)
+        for item_id in ProgramacaoItem.objects.filter(
+            remarcado_de_id__in=ids,
+            concluido=True,
+            cancelada=False,
+        ).values_list("remarcado_de_id", flat=True)
+        if item_id
+    }
+
+
 def _format_date_label(data_ref: date | None) -> str:
     if not data_ref:
         return ""
@@ -691,6 +706,10 @@ def nao_realizadas_view(request):
     expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
     if expediente_meta_id:
         itens_base = itens_base.exclude(meta_id=expediente_meta_id)
+    if bloqueios_encerramento:
+        origens_remarcadas_concluidas = _origens_remarcadas_concluidas_ids(itens_base.values_list("id", flat=True))
+        if origens_remarcadas_concluidas:
+            itens_base = itens_base.exclude(id__in=origens_remarcadas_concluidas)
 
     month_filters: list[dict[str, str | int]] = []
     month_counts_qs = (
@@ -716,7 +735,7 @@ def nao_realizadas_view(request):
     selected_month_key = ""
     if month_param_parsed:
         candidate = f"{month_param_parsed[0]}-{month_param_parsed[1]:02d}"
-        selected_month_key = candidate if candidate in month_keys else ""
+        selected_month_key = candidate if bloqueios_encerramento or candidate in month_keys else ""
     if not selected_month_key:
         today_key = f"{today.year}-{today.month:02d}"
         if today_key in month_keys:

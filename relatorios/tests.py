@@ -782,3 +782,33 @@ class RelatorioProgramacaoTests(TestCase):
         periodo = next(row for row in response.context["programacoes_encerradas_periodos"] if row["mes"].date() == date(2026, 7, 1))
         self.assertEqual(periodo["total_atividades"], 0)
         self.assertEqual(periodo["pendentes"], 0)
+
+    def test_encerrar_programacao_mes_ignora_item_encerrado_automaticamente(self):
+        programacao = Programacao.objects.create(
+            data=date(2026, 7, 10),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=None,
+            cancelada=False,
+            nao_realizada_justificada=False,
+            observacao=f"Encerrado automaticamente ao encerrar a meta. {ENCERRADA_AUTOMATICAMENTE_MARKER}",
+        )
+
+        response = self.client.post(reverse("relatorios:programacao_encerrar_mes"), {"mes": "2026-07"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        programacao.refresh_from_db()
+        self.assertTrue(programacao.concluida)
+
+        response = self.client.get(reverse("relatorios:programacao"), {"report_tab": "encerradas"})
+        periodo = next(row for row in response.context["programacoes_encerradas_periodos"] if row["mes"].date() == date(2026, 7, 1))
+        self.assertEqual(periodo["pendentes"], 0)
+        self.assertEqual(periodo["encerradas_auto"], 1)
+        self.assertEqual(periodo["percentual_solucionado"], 100)

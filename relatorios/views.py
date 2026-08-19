@@ -82,13 +82,29 @@ def _build_programacoes_encerradas_periodos(request):
                 filter=Q(concluido=False, concluido_em__isnull=False, cancelada=False, nao_realizada_justificada=False),
             ),
             encerradas_auto=Count("id", filter=Q(observacao__contains=ENCERRADA_AUTOMATICAMENTE_MARKER)),
-            pendentes=Count("id", filter=Q(concluido=False, concluido_em__isnull=True, cancelada=False, nao_realizada_justificada=False)),
+            encerradas_auto_abertas=Count(
+                "id",
+                filter=Q(
+                    concluido=False,
+                    cancelada=False,
+                    nao_realizada_justificada=False,
+                    observacao__contains=ENCERRADA_AUTOMATICAMENTE_MARKER,
+                ),
+            ),
+            pendentes=Count(
+                "id",
+                filter=(
+                    Q(concluido=False, concluido_em__isnull=True, cancelada=False, nao_realizada_justificada=False)
+                    & ~Q(observacao__contains=ENCERRADA_AUTOMATICAMENTE_MARKER)
+                ),
+            ),
         )
         row.update({key: int(value or 0) for key, value in item_counts.items()})
         solucionadas = (
             row["concluidas"]
             + row["justificadas"]
             + row["canceladas"]
+            + row["encerradas_auto_abertas"]
         )
         row["percentual_solucionado"] = round((solucionadas / row["total_atividades"]) * 100, 1) if row["total_atividades"] else 0
         periodos.append(row)
@@ -241,6 +257,7 @@ def encerrar_programacao_mes(request):
     itens_abertos = ProgramacaoItem.objects.filter(programacao__in=qs).filter(_itens_abertos_bloqueantes_q())
     if meta_expediente_id is not None:
         itens_abertos = itens_abertos.exclude(meta_id=meta_expediente_id)
+    itens_abertos = itens_abertos.exclude(observacao__contains=ENCERRADA_AUTOMATICAMENTE_MARKER)
     origens_remarcadas_concluidas = _origens_remarcadas_concluidas_ids(itens_abertos.values_list("id", flat=True))
     if origens_remarcadas_concluidas:
         itens_abertos = itens_abertos.exclude(id__in=origens_remarcadas_concluidas)
