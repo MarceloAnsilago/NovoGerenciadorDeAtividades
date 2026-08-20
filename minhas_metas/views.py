@@ -173,6 +173,16 @@ def _item_execucao_info(item):
     return "pendentes", ITEM_STATUS_LABELS[PENDENTE]
 
 
+def _mapa_atividade_deve_marcar(status_key: str) -> bool:
+    return status_key in {
+        "concluidas",
+        "remarcadas_concluidas",
+        "canceladas",
+        "nao_realizadas",
+        "nao_realizadas_justificadas",
+    }
+
+
 def _meta_ids_com_itens_abertos(
     unidade_id: int | None,
     *,
@@ -1051,6 +1061,7 @@ def mapa_atividades_view(request):
                     "status_key": status_key,
                     "status_label": status_label,
                     "concluido": bool(getattr(item, "concluido", False)),
+                    "marcado": _mapa_atividade_deve_marcar(status_key),
                 }
             else:
                 atividade = {
@@ -1063,6 +1074,7 @@ def mapa_atividades_view(request):
                     "status_key": "em_andamento",
                     "status_label": "Nao programada",
                     "concluido": False,
+                    "marcado": False,
                 }
             status_key = atividade["status_key"]
             matches_status = (

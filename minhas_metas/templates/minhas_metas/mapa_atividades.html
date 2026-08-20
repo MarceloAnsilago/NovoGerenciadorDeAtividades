@@ -116,7 +116,7 @@
               <td>
                 <div class="activities-grid">
                   {% for atividade in row.atividades %}
-                    <span class="activity-square {% if atividade.concluido %}activity-done{% else %}activity-empty{% endif %}"
+                    <span class="activity-square {% if atividade.marcado %}activity-done{% else %}activity-empty{% endif %}"
                           title="{% if atividade.item_id %}#{{ atividade.item_id }} - {{ atividade.data|date:'d/m/Y' }}{% else %}Diligencia nao programada{% endif %} - {{ atividade.meta_titulo }} - {{ atividade.status_label }}">
                       {{ forloop.counter }}
                     </span>

@@ -355,6 +355,50 @@ class MapaAtividadesViewTests(TestCase):
         self.assertIsNone(atividades[1]["item_id"])
         self.assertContains(response, "Diligencia nao programada", count=2)
 
+    def test_mapa_marca_quadrados_de_status_encerrados_sem_conclusao(self):
+        alocacao = MetaAlocacao.objects.get(meta=self.meta, unidade=self.unidade)
+        alocacao.quantidade_alocada = 4
+        alocacao.save(update_fields=["quantidade_alocada"])
+
+        item_cancelado = ProgramacaoItem.objects.create(
+            programacao=self.programacao,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            cancelada=True,
+            observacao="Cancelada",
+        )
+        item_nao_realizado = ProgramacaoItem.objects.create(
+            programacao=self.programacao,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            observacao="Nao realizada",
+        )
+        item_justificado = ProgramacaoItem.objects.create(
+            programacao=self.programacao,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            nao_realizada_justificada=True,
+            observacao="Justificada",
+        )
+
+        response = self.client.get(
+            reverse("minhas_metas:mapa-atividades"),
+            {"inicio": "2026-03-01", "fim": "2026-03-31", "status": ""},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        atividades = response.context["rows"][0]["atividades"]
+        atividades_por_id = {atividade["item_id"]: atividade for atividade in atividades}
+
+        self.assertTrue(atividades_por_id[self.item_concluido.id]["marcado"])
+        self.assertTrue(atividades_por_id[item_cancelado.id]["marcado"])
+        self.assertTrue(atividades_por_id[item_nao_realizado.id]["marcado"])
+        self.assertTrue(atividades_por_id[item_justificado.id]["marcado"])
+        self.assertContains(response, "activity-done", count=4)
+
     def test_mapa_opcoes_de_atividade_refletem_status_filtrado(self):
         outra_atividade = Atividade.objects.create(
             titulo="Fiscalizacao sem conclusao",
