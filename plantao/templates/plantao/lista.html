@@ -232,8 +232,17 @@
 
   <div id="plantao-detalhe-container" class="mb-3"></div>
 
-  <div class="mb-4">
-    <button id="btn-imprimir-plantao" class="btn btn-outline-secondary no-print" style="display:none;">
+  <div id="plantao-print-controls" class="mb-4 no-print" style="display:none;">
+    <div class="mb-2">
+      <label for="plantao-observacao-impressao" class="form-label small text-muted mb-1">Observa&ccedil;&otilde;es para impress&atilde;o</label>
+      <textarea
+        id="plantao-observacao-impressao"
+        class="form-control"
+        rows="3"
+        maxlength="2000"
+        placeholder="Digite uma observa&ccedil;&atilde;o para aparecer no relat&oacute;rio impresso."></textarea>
+    </div>
+    <button id="btn-imprimir-plantao" class="btn btn-outline-secondary" type="button">
       <i class="bi bi-printer-fill me-1"></i> Imprimir
     </button>
   </div>
@@ -241,6 +250,23 @@
 </div>
 
 <span id="plantao-fragment-url-base" data-url="{% url 'plantao:plantao_detalhe_fragment' pk=0 %}" style="display:none;"></span>
+
+<style>
+  .plantao-print-observacao {
+    border: 1px solid #d7dee8;
+    border-radius: 6px;
+    background: #f8f9fa;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+  .plantao-print-observacao-title {
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .plantao-print-observacao-text {
+    white-space: pre-wrap;
+  }
+</style>
 
 <script>
 (function () {
@@ -262,9 +288,44 @@
   const csrftoken = getCookie('csrftoken');
   let currentPlantaoPk = null;
 
+  function setPrintControlsVisible(visible) {
+    const controls = document.getElementById('plantao-print-controls');
+    if (controls) controls.style.display = visible ? 'block' : 'none';
+  }
+
+  function syncPlantaoPrintObservacao() {
+    const detalheContainer = document.getElementById('plantao-detalhe-container');
+    const obsInput = document.getElementById('plantao-observacao-impressao');
+    if (!detalheContainer || !obsInput) return;
+
+    detalheContainer.querySelectorAll('.plantao-print-observacao').forEach((el) => el.remove());
+    const value = String(obsInput.value || '').trim().slice(0, 2000);
+    if (!value) return;
+
+    const obsBox = document.createElement('div');
+    obsBox.className = 'plantao-print-observacao';
+
+    const title = document.createElement('div');
+    title.className = 'plantao-print-observacao-title';
+    title.textContent = 'Observacoes';
+
+    const text = document.createElement('div');
+    text.className = 'plantao-print-observacao-text';
+    text.textContent = value;
+
+    obsBox.appendChild(title);
+    obsBox.appendChild(text);
+
+    const cardBody = detalheContainer.querySelector('.card-body');
+    if (cardBody) {
+      cardBody.insertBefore(obsBox, cardBody.firstChild);
+    } else {
+      detalheContainer.insertBefore(obsBox, detalheContainer.firstChild);
+    }
+  }
+
   document.addEventListener('click', async (ev) => {
     const detalheContainer = document.getElementById('plantao-detalhe-container');
-    const btnPrint = document.getElementById('btn-imprimir-plantao');
     const baseUrlEl = document.getElementById('plantao-fragment-url-base');
     const baseFragmentUrl = baseUrlEl ? baseUrlEl.getAttribute('data-url') : null;
 
@@ -291,7 +352,7 @@
         const resp = await fetch(url, { credentials: 'same-origin' });
         if (!resp.ok) {
           if (detalheContainer) detalheContainer.innerHTML = `<div class="alert alert-danger">Erro ao carregar escala (HTTP ${resp.status}).</div>`;
-          if (btnPrint) btnPrint.style.display = 'none';
+          setPrintControlsVisible(false);
           currentPlantaoPk = null;
           clearRowHighlights();
         } else {
@@ -299,13 +360,13 @@
           if (detalheContainer) detalheContainer.innerHTML = html || '<div class="alert alert-warning">Fragmento vazio.</div>';
           detalheContainer?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           currentPlantaoPk = pk;
-          if (btnPrint) btnPrint.style.display = 'inline-block';
+          setPrintControlsVisible(true);
           clearRowHighlights();
           highlightRows(pk);
         }
       } catch (err) {
         if (detalheContainer) detalheContainer.innerHTML = '<div class="alert alert-danger">Erro inesperado ao carregar escala.</div>';
-        if (btnPrint) btnPrint.style.display = 'none';
+        setPrintControlsVisible(false);
         currentPlantaoPk = null;
         clearRowHighlights();
       } finally {
@@ -348,7 +409,7 @@
           if (String(currentPlantaoPk) === String(pk)) {
             if (detalheContainer) detalheContainer.innerHTML = '';
             currentPlantaoPk = null;
-            if (btnPrint) btnPrint.style.display = 'none';
+            setPrintControlsVisible(false);
           }
         } else {
           const serverMsg = data && data.erro ? data.erro : null;
@@ -366,12 +427,15 @@
   });
 
   const btnPrint = document.getElementById('btn-imprimir-plantao');
+  const obsInput = document.getElementById('plantao-observacao-impressao');
+  obsInput?.addEventListener('input', syncPlantaoPrintObservacao);
   btnPrint?.addEventListener('click', (ev) => {
     ev.preventDefault();
     if (!currentPlantaoPk) {
       alert('Nenhum plantão carregado para imprimir.');
       return;
     }
+    syncPlantaoPrintObservacao();
 
     const printCss = `
       @media print {
