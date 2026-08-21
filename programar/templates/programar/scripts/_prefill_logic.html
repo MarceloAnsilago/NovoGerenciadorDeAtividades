@@ -161,6 +161,7 @@
       ev.preventDefault();
       chip.remove();
       updateCounts();
+      try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
     });
 
     target.appendChild(chip);

@@ -234,6 +234,7 @@
       allocations[sid] = Math.max(0, (allocations[sid] || 0) - 1);
       if ((allocations[sid] || 0) === 0) appendToAvailableIfMissing(sid, name);
       updateCounts();
+      try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
     });
 
     dz.appendChild(chip);

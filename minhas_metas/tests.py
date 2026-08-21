@@ -106,6 +106,12 @@ class NaoRealizadasViewTests(TestCase):
             reverse("programar:concluir-item-form", args=[self.item.id]),
         )
 
+    def test_concluir_item_exibe_data_com_dia_da_semana(self):
+        response = self.client.get(reverse("programar:concluir-item-form", args=[self.item.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Quarta-feira, 11/03/2026")
+
     def test_bloqueios_encerramento_nao_lista_origem_remarcada_e_concluida(self):
         programacao_remarcada = Programacao.objects.create(
             data=date(2026, 3, 12),
