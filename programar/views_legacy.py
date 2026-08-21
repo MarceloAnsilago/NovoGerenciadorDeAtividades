@@ -1998,9 +1998,9 @@ def relatorios_parcial(request):
     period_label = _period_label_br(start, end)
 
     html_out = f"""
-    <div id="relatorioPrintArea" class="card border-0 shadow-sm">
-      <div class="card-body">
-        <div class="container mt-3 report-container px-0">
+    <div id="relatorioPrintArea" class="container mt-3 report-container px-0">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="mb-0">
               <i class="bi bi-list-check me-2"></i> Programação de atividades
@@ -2022,11 +2022,11 @@ def relatorios_parcial(request):
               <hr class="my-3">
               {tabela_semana_html}
               {observacao_html}
-              {mapa_atividades_html}
             </div>
           </div>
         </div>
       </div>
+      {mapa_atividades_html}
     </div>
     """
     # Override do wrapper quando pedirem apenas justificativas (sem cabeçalho)
@@ -2349,13 +2349,14 @@ def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str
           }}
         }}
       </style>
-      <div class="mt-3 px-3 pb-3 programar-mapa-wrapper">
-        <div class="d-flex justify-content-end mb-2 no-print">
-          <button id="relatorio-btn-print-mapa" type="button" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-ui-checks-grid me-1"></i> Imprimir mapa
-          </button>
-        </div>
-        <div id="programarMapaAtividadesPrintArea" class="programar-mapa-print">
+      <div class="card border-0 shadow-sm mt-3 programar-mapa-wrapper">
+        <div class="card-body">
+          <div class="d-flex justify-content-end mb-2 no-print">
+            <button id="relatorio-btn-print-mapa" type="button" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-ui-checks-grid me-1"></i> Imprimir mapa
+            </button>
+          </div>
+          <div id="programarMapaAtividadesPrintArea" class="programar-mapa-print">
           <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <h2 class="mb-0">
               <i class="bi bi-ui-checks-grid me-2"></i> Mapa de atividades
@@ -2376,6 +2377,7 @@ def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str
               </thead>
               <tbody>{tbody_html}</tbody>
             </table>
+          </div>
           </div>
         </div>
       </div>
