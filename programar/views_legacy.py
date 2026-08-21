@@ -1986,6 +1986,7 @@ def relatorios_parcial(request):
     end = request.GET.get("end", "")
     observacao = _relatorio_observacao_from_request(request)
     observacao_html = _render_relatorio_observacao_html(observacao)
+    mapa_atividades_html = _render_programar_mapa_atividades_html(request, start, end)
 
     # ORM primeiro: garante periodos por servidor de forma consistente no relatorio mensal.
     servidores = _fetch_plantonistas_via_orm(request, start, end)
@@ -2021,6 +2022,7 @@ def relatorios_parcial(request):
               <hr class="my-3">
               {tabela_semana_html}
               {observacao_html}
+              {mapa_atividades_html}
             </div>
           </div>
         </div>
@@ -2139,17 +2141,15 @@ def _programar_mapa_status_label(status_execucao: str | None) -> str:
     return labels.get(status_execucao or "", "Pendente")
 
 
-@login_required
-@require_GET
-def print_mapa_atividades(request):
+def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str:
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
-        return HttpResponseBadRequest("Unidade nao definida.")
+        return ""
 
-    dt_start = _parse_iso(request.GET.get("start") or request.GET.get("inicio") or "")
-    dt_end = _parse_iso(request.GET.get("end") or request.GET.get("fim") or "")
+    dt_start = _parse_iso(start or "")
+    dt_end = _parse_iso(end or "")
     if not dt_start or not dt_end:
-        return HttpResponseBadRequest("Periodo invalido.")
+        return ""
     if dt_end < dt_start:
         dt_end = dt_start
 
@@ -2222,15 +2222,164 @@ def print_mapa_atividades(request):
         except Exception:
             unidade = None
 
-    return render(request, "programar/mapa_atividades_print.html", {
-        "unidade": unidade,
-        "dt_start": dt_start,
-        "dt_end": dt_end,
-        "periodo_label": f"{dt_start:%d/%m/%Y} -> {dt_end:%d/%m/%Y}",
-        "rows": rows,
-        "total_atividades": total_atividades,
-        "autoprint": str(request.GET.get("autoprint") or "").strip().lower() in {"1", "true", "yes", "on"},
-    })
+    unidade_nome = html.escape(getattr(unidade, "nome", "") or "-")
+    periodo_label = f"{dt_start:%d/%m/%Y} -> {dt_end:%d/%m/%Y}"
+    if rows:
+        body_rows = []
+        for row in rows:
+            atividade_nome = html.escape(str(row.get("atividade_nome") or "Atividade"))
+            data_limite = row.get("data_limite")
+            data_limite_html = (
+                f'<span class="text-muted small atividade-inline">Data limite: {data_limite:%d/%m/%Y}</span>'
+                if data_limite
+                else ""
+            )
+            squares = []
+            for idx, atividade in enumerate(row.get("atividades") or [], start=1):
+                data_ref = atividade.get("data")
+                data_label = f"{data_ref:%d/%m/%Y}" if data_ref else "-"
+                status_label = html.escape(str(atividade.get("status_label") or "Pendente"))
+                item_id = html.escape(str(atividade.get("item_id") or ""))
+                square_class = "activity-done" if atividade.get("marcado") else "activity-empty"
+                squares.append(
+                    f'<span class="activity-square {square_class}" '
+                    f'title="#{item_id} - {html.escape(data_label)} - {status_label}">{idx}</span>'
+                )
+            body_rows.append(
+                "<tr>"
+                f'<td class="text-start atividade-cell"><strong>{atividade_nome}</strong>{data_limite_html}</td>'
+                f'<td><div class="activities-grid">{"".join(squares)}</div></td>'
+                "</tr>"
+            )
+        tbody_html = "".join(body_rows)
+    else:
+        tbody_html = (
+            '<tr><td colspan="2" class="text-center text-muted py-3">'
+            "Nenhuma atividade programada para este periodo."
+            "</td></tr>"
+        )
+
+    return f"""
+      <style data-print-include>
+        .mapa-summary {{
+          display: flex;
+          flex-wrap: wrap;
+          gap: 14px;
+          color: #495057;
+          font-size: .95rem;
+        }}
+        .mapa-table {{ font-size: .95rem; }}
+        .atividade-cell {{
+          min-width: 300px;
+          width: 360px;
+        }}
+        .atividade-inline {{
+          margin-left: 8px;
+          white-space: nowrap;
+        }}
+        .activities-grid {{
+          display: flex;
+          flex-wrap: wrap;
+          gap: 9px;
+        }}
+        .activity-square {{
+          display: inline-flex;
+          width: 24px;
+          height: 24px;
+          align-items: center;
+          justify-content: center;
+          font-size: .7rem;
+          border-radius: 4px;
+          border: 1px solid #dee2e6;
+          background: #fff;
+          color: #555;
+          line-height: 1;
+          font-weight: 700;
+        }}
+        .activity-empty {{ background: #f8f9fa; }}
+        .activity-done {{
+          background: #222;
+          border-color: #222;
+          color: #fff;
+        }}
+        @media print {{
+          @page {{ size: A4 landscape; margin: 10mm 10mm 14mm 10mm; }}
+          .report-toolbar, .btn, .no-print {{ display: none !important; }}
+          .programar-mapa-print {{
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+          }}
+          .table-responsive {{
+            display: block !important;
+            width: 100% !important;
+            overflow: visible !important;
+          }}
+          .mapa-table {{
+            width: 100% !important;
+            font-size: 10.5px;
+            page-break-inside: auto;
+          }}
+          .mapa-table thead {{ display: table-header-group; }}
+          .mapa-table tbody {{ display: table-row-group; }}
+          .mapa-table tr {{
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }}
+          .mapa-table th,
+          .mapa-table td {{
+            border-color: #000 !important;
+            padding: 4px 5px !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }}
+          .atividade-cell {{
+            min-width: 260px;
+            width: 320px;
+          }}
+          .activity-square {{
+            border-color: #000 !important;
+            color: #000 !important;
+            background: #fff !important;
+          }}
+          .activity-done {{
+            background: #000 !important;
+            color: #fff !important;
+          }}
+        }}
+      </style>
+      <div class="mt-3 px-3 pb-3 programar-mapa-wrapper">
+        <div class="d-flex justify-content-end mb-2 no-print">
+          <button id="relatorio-btn-print-mapa" type="button" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-ui-checks-grid me-1"></i> Imprimir mapa
+          </button>
+        </div>
+        <div id="programarMapaAtividadesPrintArea" class="programar-mapa-print">
+          <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h2 class="mb-0">
+              <i class="bi bi-ui-checks-grid me-2"></i> Mapa de atividades
+            </h2>
+          </div>
+          <div class="mapa-summary mb-3">
+            <span>Unidade: <strong>{unidade_nome}</strong></span>
+            <span>Periodo: <strong>{html.escape(periodo_label)}</strong></span>
+            <span>Atividades: <strong>{total_atividades}</strong></span>
+          </div>
+          <div class="table-responsive mb-3">
+            <table class="table table-bordered table-sm text-center align-middle w-100 mapa-table">
+              <thead class="table-secondary">
+                <tr>
+                  <th>Atividade / Meta</th>
+                  <th>Execucoes programadas</th>
+                </tr>
+              </thead>
+              <tbody>{tbody_html}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    """
 
 
 @login_required

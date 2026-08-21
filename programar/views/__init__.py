@@ -15,7 +15,6 @@ from .programacao_api import (
 from .relatorios_views import (
     relatorios_parcial,
     print_relatorio_semana,
-    print_mapa_atividades,
     print_relatorio_justificativas,
 )
 from .servidores_api import servidores_por_intervalo
@@ -33,7 +32,6 @@ __all__ = [
     "concluir_item_form",
     "relatorios_parcial",
     "print_relatorio_semana",
-    "print_mapa_atividades",
     "print_relatorio_justificativas",
     "servidores_por_intervalo",
 ]

@@ -140,14 +140,7 @@
       btn.className = 'btn btn-outline-secondary';
       btn.innerHTML = '<i class="bi bi-printer me-1"></i> Imprimir';
 
-      const mapBtn = document.createElement('button');
-      mapBtn.id = 'relatorio-btn-print-mapa';
-      mapBtn.type = 'button';
-      mapBtn.className = 'btn btn-outline-secondary';
-      mapBtn.innerHTML = '<i class="bi bi-ui-checks-grid me-1"></i> Imprimir mapa';
-
       group.appendChild(btn);
-      group.appendChild(mapBtn);
       wrap.appendChild(group);
       area.insertBefore(wrap, area.firstChild);
     }catch(_e){}
