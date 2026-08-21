@@ -885,6 +885,9 @@ def mapa_atividades_view(request):
     dt_end = _parse_iso(request.GET.get("fim")) or dt_start
     if dt_end < dt_start:
         dt_end = dt_start
+    observacao_relatorio = str(request.GET.get("observacao") or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if len(observacao_relatorio) > 2000:
+        observacao_relatorio = observacao_relatorio[:2000].rstrip()
     expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
     area_selected = (request.GET.get("area") or "").strip()
     areas_qs = Area.objects.filter(ativo=True).order_by("nome")
@@ -1128,6 +1131,7 @@ def mapa_atividades_view(request):
         "has_activity_filter": has_activity_filter,
         "status_mapa": status_mapa,
         "status_mapa_label": status_labels.get(status_mapa, ""),
+        "observacao_relatorio": observacao_relatorio,
         "rows": rows,
         "total_atividades": total_atividades,
         "total_quadrados": total_quadrados,

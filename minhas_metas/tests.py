@@ -361,6 +361,22 @@ class MapaAtividadesViewTests(TestCase):
         self.assertIsNone(atividades[1]["item_id"])
         self.assertContains(response, "Diligencia nao programada", count=2)
 
+    def test_mapa_exibe_observacao_para_relatorio_de_impressao(self):
+        response = self.client.get(
+            reverse("minhas_metas:mapa-atividades"),
+            {
+                "inicio": "2026-03-01",
+                "fim": "2026-03-31",
+                "status": "",
+                "observacao": "Observacao operacional do mapa",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["observacao_relatorio"], "Observacao operacional do mapa")
+        self.assertContains(response, "Observacao operacional do mapa")
+        self.assertContains(response, "mapaAtividadesObservacaoReport")
+
     def test_mapa_marca_quadrados_de_status_encerrados_sem_conclusao(self):
         alocacao = MetaAlocacao.objects.get(meta=self.meta, unidade=self.unidade)
         alocacao.quantidade_alocada = 4
