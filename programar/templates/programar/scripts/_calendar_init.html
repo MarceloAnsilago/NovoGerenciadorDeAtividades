@@ -95,7 +95,6 @@ document.addEventListener('DOMContentLoaded', function(){
   // desabilita botoes de gerar/imprimir ate escolher uma semana
   const printBtns = [
     'programar-btnImprimirProgramacao','btnImprimirProgramacao',
-    'programar-btnImprimirMapa','btnImprimirMapa',
     'programar-btnImprimirJustificativas','btnImprimirJustificativas'
   ].map(id => document.getElementById(id));
   printBtns.forEach(b => { if (b) b.disabled = true; });
