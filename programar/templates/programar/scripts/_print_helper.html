@@ -196,7 +196,31 @@
     }catch(_e){}
   }, true);
 
-  // Botão de imprimir dentro do relatório gerado
+  // Botao de imprimir mapa da programacao gerada.
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest?.('#programar-btnImprimirMapa, #btnImprimirMapa');
+    if (!btn) return;
+    ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation?.();
+    try{
+      let range = null;
+      const cont = document.getElementById('programar-relatoriosContainer');
+      const generatedStart = cont?.dataset?.start;
+      const generatedEnd = cont?.dataset?.end;
+      if (generatedStart && generatedEnd) {
+        range = { start: generatedStart, end: generatedEnd };
+      } else {
+        range = resolveRange(btn);
+      }
+      if (!range) { showSelectFeedback('Selecione um perÃ­odo.'); return; }
+      const url = new URL('{% url "programar:print_mapa_atividades" %}', window.location.origin);
+      url.searchParams.set('start', range.start);
+      url.searchParams.set('end', range.end);
+      url.searchParams.set('autoprint', '1');
+      window.open(url.toString(), '_blank', 'noopener');
+    }catch(_e){}
+  }, true);
+
+  // BotÃ£o de imprimir dentro do relatÃ³rio gerado
   document.addEventListener('click', (ev) => {
     const btn = ev.target.closest?.('#relatorio-btn-print');
     if (!btn) return;

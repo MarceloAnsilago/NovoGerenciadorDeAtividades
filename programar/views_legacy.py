@@ -2118,6 +2118,121 @@ def print_relatorio_semana(request):
     return HttpResponse(html_out)
 
 
+def _programar_mapa_deve_marcar(status_execucao: str | None) -> bool:
+    return (status_execucao or "") in {
+        EXECUTADA,
+        REMARCADA_CONCLUIDA,
+        ENCERRADA_AUTOMATICAMENTE,
+    }
+
+
+def _programar_mapa_status_label(status_execucao: str | None) -> str:
+    labels = {
+        EXECUTADA: "Concluida",
+        REMARCADA_CONCLUIDA: "Remarcada e concluida",
+        ENCERRADA_AUTOMATICAMENTE: "Encerrada automaticamente",
+        CANCELADA: "Cancelada",
+        NAO_REALIZADA: "Nao realizada",
+        NAO_REALIZADA_JUSTIFICADA: "Nao realizada justificada",
+        PENDENTE: "Pendente",
+    }
+    return labels.get(status_execucao or "", "Pendente")
+
+
+@login_required
+@require_GET
+def print_mapa_atividades(request):
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return HttpResponseBadRequest("Unidade nao definida.")
+
+    dt_start = _parse_iso(request.GET.get("start") or request.GET.get("inicio") or "")
+    dt_end = _parse_iso(request.GET.get("end") or request.GET.get("fim") or "")
+    if not dt_start or not dt_end:
+        return HttpResponseBadRequest("Periodo invalido.")
+    if dt_end < dt_start:
+        dt_end = dt_start
+
+    expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    itens_qs = (
+        ProgramacaoItem.objects
+        .select_related("programacao", "programacao__unidade", "meta", "meta__atividade", "veiculo")
+        .filter(
+            programacao__unidade_id=unidade_id,
+            programacao__data__gte=dt_start,
+            programacao__data__lte=dt_end,
+        )
+        .order_by("meta__titulo", "programacao__data", "id")
+    )
+    if expediente_meta_id:
+        itens_qs = itens_qs.exclude(meta_id=expediente_meta_id)
+
+    itens = [
+        item for item in itens_qs
+        if not _is_expediente(
+            getattr(getattr(item, "meta", None), "display_titulo", "")
+            or getattr(getattr(item, "meta", None), "titulo", "")
+        )
+    ]
+    item_ids = [item.id for item in itens]
+    servidores_por_item: dict[int, list[str]] = defaultdict(list)
+    if item_ids:
+        links = (
+            ProgramacaoItemServidor.objects
+            .select_related("servidor")
+            .filter(item_id__in=item_ids)
+            .order_by("servidor__nome", "item_id")
+        )
+        for link in links:
+            servidor = getattr(link, "servidor", None)
+            if servidor:
+                servidores_por_item[link.item_id].append(getattr(servidor, "nome", "") or f"Servidor {servidor.id}")
+
+    rows_map: dict[int, dict[str, Any]] = {}
+    for item in itens:
+        meta = getattr(item, "meta", None)
+        meta_id = int(getattr(meta, "id", 0) or 0)
+        if not meta_id:
+            continue
+        row = rows_map.setdefault(
+            meta_id,
+            {
+                "atividade_nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Atividade"),
+                "data_limite": getattr(meta, "data_limite", None),
+                "atividades": [],
+            },
+        )
+        status_key = _item_execucao_status(item)
+        row["atividades"].append({
+            "item_id": item.id,
+            "data": getattr(getattr(item, "programacao", None), "data", None),
+            "veiculo": getattr(getattr(item, "veiculo", None), "nome", "") or "",
+            "servidores": servidores_por_item.get(item.id, []),
+            "status_label": _programar_mapa_status_label(status_key),
+            "marcado": _programar_mapa_deve_marcar(status_key),
+        })
+
+    rows = list(rows_map.values())
+    total_atividades = sum(len(row["atividades"]) for row in rows)
+    unidade = getattr(itens[0].programacao, "unidade", None) if itens else None
+    if unidade is None:
+        try:
+            from core.models import No
+            unidade = No.objects.filter(pk=unidade_id).first()
+        except Exception:
+            unidade = None
+
+    return render(request, "programar/mapa_atividades_print.html", {
+        "unidade": unidade,
+        "dt_start": dt_start,
+        "dt_end": dt_end,
+        "periodo_label": f"{dt_start:%d/%m/%Y} -> {dt_end:%d/%m/%Y}",
+        "rows": rows,
+        "total_atividades": total_atividades,
+        "autoprint": str(request.GET.get("autoprint") or "").strip().lower() in {"1", "true", "yes", "on"},
+    })
+
+
 @login_required
 @require_GET
 def print_relatorio_justificativas(request):

@@ -236,6 +236,77 @@ class ExpedienteAdminReportTest(unittest.TestCase):
         )
 
 
+@override_settings(META_EXPEDIENTE_ID=777909)
+class MapaAtividadesProgramarPrintTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="tester_mapa_programar", password="123456")
+        self.unidade = No.objects.create(nome="ULSAV Mapa Programar", tipo="setor")
+        self.area = Area.objects.create(code="AREA_MAPA_PROGRAMAR", nome="Area Mapa Programar")
+        self.atividade = Atividade.objects.create(
+            titulo="Fiscalizacao volante",
+            descricao="",
+            area=self.area,
+            unidade_origem=self.unidade,
+            criado_por=self.user,
+        )
+        self.meta = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=self.atividade,
+            titulo="Fiscalizacao volante",
+            descricao="",
+            quantidade_alvo=2,
+            criado_por=self.user,
+        )
+        self.meta_expediente = Meta.objects.create(
+            id=777909,
+            unidade_criadora=self.unidade,
+            atividade=None,
+            titulo="Expediente Administrativo",
+            descricao="",
+            quantidade_alvo=0,
+            criado_por=self.user,
+        )
+        self.programacao = Programacao.objects.create(
+            data=date(2026, 8, 3),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=self.programacao,
+            meta=self.meta,
+            concluido=True,
+            concluido_em=timezone.now(),
+        )
+        ProgramacaoItem.objects.create(
+            programacao=self.programacao,
+            meta=self.meta_expediente,
+        )
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["contexto_atual"] = self.unidade.id
+        session.save()
+
+    def test_mapa_programar_usa_periodo_e_ignora_expediente_administrativo(self):
+        response = self.client.get(
+            reverse("programar:print_mapa_atividades"),
+            {"start": "2026-08-01", "end": "2026-08-07"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Mapa de atividades")
+        self.assertContains(response, "01/08/2026 -&gt; 07/08/2026")
+        self.assertContains(response, "Fiscalizacao volante")
+        self.assertContains(response, "activity-done")
+        self.assertNotContains(response, "Expediente Administrativo")
+
+    def test_calendario_exibe_botao_imprimir_mapa(self):
+        response = self.client.get(reverse("programar:calendario"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="programar-btnImprimirMapa"')
+
+
 class PlantonistasRelatorioTest(TestCase):
     def setUp(self):
         user_model = get_user_model()

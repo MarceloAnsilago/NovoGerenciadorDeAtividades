@@ -16,6 +16,7 @@ urlpatterns = [
     path("api/excluir/", views.excluir_programacao_secure, name="excluir_programacao"),
     path("api/relatorios/", views.relatorios_parcial, name="relatorios_parcial"),
     path("print/relatorio-semana/", views.print_relatorio_semana, name="print_relatorio_semana"),
+    path("print/mapa-atividades/", views.print_mapa_atividades, name="print_mapa_atividades"),
     path("print/relatorio-justificativas/", views.print_relatorio_justificativas, name="print_relatorio_justificativas"),
     path("api/plantao/servidores-intervalo/", views.servidores_por_intervalo, name="servidores_por_intervalo"),
     path("itens/<int:item_id>/realizada/", views.marcar_item_realizada, name="marcar-item-realizada"),
