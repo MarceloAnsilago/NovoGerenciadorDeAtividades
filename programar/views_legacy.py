@@ -75,6 +75,15 @@ def _relatorio_status_deve_marcar_x(status_execucao: str | None) -> bool:
     }
 
 
+def _relatorio_status_opcao_realizada(status_execucao: str | None) -> str | None:
+    status = status_execucao or ""
+    if status in {EXECUTADA, REMARCADA_CONCLUIDA, ENCERRADA_AUTOMATICAMENTE}:
+        return "sim"
+    if status in {NAO_REALIZADA, NAO_REALIZADA_JUSTIFICADA}:
+        return "nao"
+    return None
+
+
 def _meta_status_info(meta: Any) -> tuple[str, str]:
     if not meta:
         return "andamento", "Em andamento"
@@ -1493,7 +1502,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             )
         return "".join(parts)
 
-    def _realizada_boxes(*, checked: bool = False) -> str:
+    def _realizada_boxes_legacy(*, checked: bool = False) -> str:
         checked_class = " is-checked" if checked else ""
         checked_mark = "x" if checked else ""
         return (
@@ -1508,6 +1517,22 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         if not label:
             return "-"
         return html.escape(label).replace(" (", "<br>(")
+
+    def _realizada_boxes(*, checked: bool = False, opcao: str | None = None) -> str:
+        if opcao is None:
+            opcao = "sim" if checked else None
+        sim_checked = opcao == "sim"
+        nao_checked = opcao == "nao"
+        sim_class = " is-checked" if sim_checked else ""
+        nao_class = " is-checked" if nao_checked else ""
+        sim_mark = "x" if sim_checked else ""
+        nao_mark = "x" if nao_checked else ""
+        return (
+            "<div class='choice'>"
+            f"<span class='print-cbx{sim_class}'>{sim_mark}</span><small>Sim</small>"
+            f"<span class='print-cbx{nao_class}'>{nao_mark}</span><small>Nao</small>"
+            "</div>"
+        )
 
     tem_algum = False
 
@@ -1653,7 +1678,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 
             elif b["kind"] == "atividade":
                 status_execucao = b.get("status_execucao") or ""
-                atividade_concluida = _relatorio_status_deve_marcar_x(status_execucao)
+                realizada_opcao = _relatorio_status_opcao_realizada(status_execucao)
                 marcada_com_x = status_execucao == CANCELADA
                 auto_x_class = " auto-closed-x-cell" if marcada_com_x else ""
                 # acumula para rel. atividades
@@ -1683,7 +1708,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     + f"<td class='atividade-cell{auto_x_class}'><div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
                     + f"<td class='{auto_x_class.strip()}'>{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=False)}{meta_desc_html}</td>"
                     + f"<td class='veiculo-cell{auto_x_class}'>{_veiculo_html(b['veiculo'])}</td>"
-                    + f"<td class='realizada-cell{auto_x_class}'>{_realizada_boxes(checked=atividade_concluida)}</td>"
+                    + f"<td class='realizada-cell{auto_x_class}'>{_realizada_boxes(opcao=realizada_opcao)}</td>"
                     + "</tr>"
                 )
 

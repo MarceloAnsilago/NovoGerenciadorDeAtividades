@@ -29,6 +29,7 @@ from programar.status import (
 )
 from programar.views_legacy import (
     _fetch_plantonistas_via_orm,
+    _relatorio_status_opcao_realizada,
     _relatorio_status_deve_marcar_x,
     _resolve_expediente_admin_report,
 )
@@ -126,6 +127,15 @@ class ItemStatusTest(unittest.TestCase):
         self.assertFalse(_relatorio_status_deve_marcar_x(CANCELADA))
         self.assertFalse(_relatorio_status_deve_marcar_x(NAO_REALIZADA))
         self.assertFalse(_relatorio_status_deve_marcar_x(NAO_REALIZADA_JUSTIFICADA))
+
+    def test_relatorio_marca_opcao_realizada_por_status(self):
+        self.assertEqual(_relatorio_status_opcao_realizada(EXECUTADA), "sim")
+        self.assertEqual(_relatorio_status_opcao_realizada(REMARCADA_CONCLUIDA), "sim")
+        self.assertEqual(_relatorio_status_opcao_realizada(ENCERRADA_AUTOMATICAMENTE), "sim")
+        self.assertEqual(_relatorio_status_opcao_realizada(NAO_REALIZADA), "nao")
+        self.assertEqual(_relatorio_status_opcao_realizada(NAO_REALIZADA_JUSTIFICADA), "nao")
+        self.assertIsNone(_relatorio_status_opcao_realizada(PENDENTE))
+        self.assertIsNone(_relatorio_status_opcao_realizada(CANCELADA))
 
     def test_auto_conclui_expediente_when_past_and_pending(self):
         today = date(2026, 3, 9)
