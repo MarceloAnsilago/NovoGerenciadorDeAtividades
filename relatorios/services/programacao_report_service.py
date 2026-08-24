@@ -281,7 +281,12 @@ def _build_activity_map_section(unidade_id: int, data_inicial: date, data_final:
     for meta_id, meta_info in metas_info.items():
         meta = meta_info["meta"]
         meta_items = items_by_meta.get(meta_id) or []
-        total = max(int(meta_info.get("total") or 0), len(meta_items))
+        meta_deadline = getattr(meta, "data_limite", None)
+        allocation_total = int(meta_info.get("total") or 0)
+        if meta_deadline and meta_deadline > data_final:
+            total = len(meta_items)
+        else:
+            total = max(allocation_total, len(meta_items))
         if total <= 0:
             continue
 

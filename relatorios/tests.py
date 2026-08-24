@@ -121,6 +121,32 @@ class RelatorioProgramacaoTests(TestCase):
         self.assertContains(response, "Mapa de atividades")
         self.assertContains(response, "Execu&ccedil;&otilde;es do per&iacute;odo")
 
+    def test_relatorio_mapa_nao_projeta_alocacao_com_data_limite_apos_periodo(self):
+        self.meta.data_limite = date(2026, 12, 31)
+        self.meta.save()
+        MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=13,
+            atribuida_por=self.user,
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_desempenho": "1",
+                "sec_historico": "0",
+                "sec_indicadores": "0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mapa = response.context["report"]["desempenho"]["mapa_atividades"]
+        self.assertEqual(mapa["total_atividades"], 2)
+        self.assertEqual(len(mapa["rows"][0]["atividades"]), 2)
+
     def test_relatorio_destaca_remarcada_e_concluida(self):
         item_original = ProgramacaoItem.objects.create(
             programacao=self.programacao_1,
