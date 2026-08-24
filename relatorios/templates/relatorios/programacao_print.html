@@ -221,6 +221,51 @@
     .nao-realizadas-group-title {
       font-weight: 700;
     }
+    .mapa-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+    .mapa-table {
+      font-size: 10.5px;
+      table-layout: fixed;
+    }
+    .mapa-table th:nth-child(1) { width: 32%; }
+    .mapa-table th:nth-child(2) { width: 68%; }
+    .mapa-atividade-cell {
+      min-width: 260px;
+    }
+    .mapa-inline {
+      display: inline-block;
+      margin-left: 6px;
+      white-space: nowrap;
+    }
+    .mapa-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+    .mapa-square {
+      display: inline-flex;
+      width: 22px;
+      height: 22px;
+      align-items: center;
+      justify-content: center;
+      font-size: .66rem;
+      border-radius: 4px;
+      border: 1px solid #000;
+      background: #fff;
+      color: #000;
+      line-height: 1;
+      font-weight: 700;
+    }
+    .mapa-square.is-done {
+      background: #000;
+      color: #fff;
+    }
     .observacao-box {
       border: 1px solid var(--line);
       border-radius: 10px;
@@ -243,6 +288,16 @@
       .meta { font-size: .9rem; }
       table { font-size: 11px; }
       th, td { padding: 5px 6px; }
+      .mapa-table { font-size: 10.5px; }
+      .mapa-square {
+        border-color: #000 !important;
+        color: #000 !important;
+        background: #fff !important;
+      }
+      .mapa-square.is-done {
+        background: #000 !important;
+        color: #fff !important;
+      }
     }
   </style>
 </head>
@@ -335,6 +390,56 @@
               {% endfor %}
             </tbody>
           </table>
+
+          {% if report.desempenho.mapa_atividades %}
+            <div style="margin-top: 14px;">
+              <h3 style="margin: 0 0 8px; font-size: 1.15rem;">Mapa de atividades</h3>
+              <div class="mapa-summary">
+                <span>Per&iacute;odo: <strong>{{ report.periodo_label }}</strong></span>
+                <span>Atividades: <strong>{{ report.desempenho.mapa_atividades.total_atividades }}</strong></span>
+                <span>Marcadas: <strong>{{ report.desempenho.mapa_atividades.total_marcadas }}</strong></span>
+              </div>
+              <table class="mapa-table">
+                <thead>
+                  <tr>
+                    <th>Atividade / Meta</th>
+                    <th>Execu&ccedil;&otilde;es do per&iacute;odo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in report.desempenho.mapa_atividades.rows %}
+                    <tr>
+                      <td class="mapa-atividade-cell">
+                        <strong>{{ row.atividade_nome }}</strong>
+                        {% if row.atividade_secundaria %}
+                          <span class="muted mapa-inline">({{ row.atividade_secundaria }})</span>
+                        {% endif %}
+                        {% if row.data_limite %}
+                          <span class="muted mapa-inline">Data limite: {{ row.data_limite|date:"d/m/Y" }}</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <div class="mapa-grid">
+                          {% for atividade in row.atividades %}
+                            <span
+                              class="mapa-square {% if atividade.marcado %}is-done{% else %}is-empty{% endif %}"
+                              title="{% if atividade.item_id %}#{{ atividade.item_id }} - {{ atividade.data|date:'d/m/Y' }}{% else %}Atividade nao programada{% endif %} - {{ atividade.meta_titulo }} - {{ atividade.status_label }}"
+                            >
+                              {{ forloop.counter }}
+                            </span>
+                          {% endfor %}
+                        </div>
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="2" class="muted">Nenhuma atividade encontrada para o mapa no periodo.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
 
           {% if report.desempenho.resumo_por_atividade %}
             <div style="margin-top: 14px;">

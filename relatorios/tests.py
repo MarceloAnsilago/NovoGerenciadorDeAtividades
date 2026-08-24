@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from atividades.models import Area, Atividade
 from core.models import No
-from metas.models import Meta
+from metas.models import Meta, MetaAlocacao
 from programar.models import Programacao, ProgramacaoItem
 from programar.status import CANCELADA, ENCERRADA_AUTOMATICAMENTE_MARKER, EXECUTADA, PENDENTE
 from relatorios.models import ProgramacaoHistorico
@@ -92,6 +92,34 @@ class RelatorioProgramacaoTests(TestCase):
         self.assertContains(response, "Primeira nao realizada")
         self.assertContains(response, "Segunda nao realizada")
         self.assertNotContains(response, "Atividade: Fiscalizacao de viveiros")
+
+    def test_relatorio_desempenho_inclui_mapa_de_atividades(self):
+        MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=3,
+            atribuida_por=self.user,
+        )
+
+        response = self.client.get(
+            reverse("relatorios:programacao"),
+            {
+                "data_inicial": "2026-03-01",
+                "data_final": "2026-03-31",
+                "sec_desempenho": "1",
+                "sec_historico": "0",
+                "sec_indicadores": "0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mapa = response.context["report"]["desempenho"]["mapa_atividades"]
+        self.assertEqual(mapa["total_atividades"], 3)
+        self.assertEqual(len(mapa["rows"]), 1)
+        self.assertEqual(len(mapa["rows"][0]["atividades"]), 3)
+        self.assertEqual(mapa["rows"][0]["atividades"][2]["status_label"], "Nao programada")
+        self.assertContains(response, "Mapa de atividades")
+        self.assertContains(response, "Execu&ccedil;&otilde;es do per&iacute;odo")
 
     def test_relatorio_destaca_remarcada_e_concluida(self):
         item_original = ProgramacaoItem.objects.create(

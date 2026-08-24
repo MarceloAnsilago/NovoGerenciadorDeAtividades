@@ -196,6 +196,58 @@
       font-weight: 600;
       color: #162033;
     }
+    .relatorio-mapa-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      color: #495057;
+      font-size: .92rem;
+      margin-bottom: .75rem;
+    }
+    .relatorio-mapa-table {
+      font-size: .9rem;
+    }
+    .relatorio-mapa-table th,
+    .relatorio-mapa-table td {
+      border: 1px solid #d7dee8 !important;
+      vertical-align: middle;
+    }
+    .relatorio-mapa-atividade-cell {
+      min-width: 280px;
+      width: 340px;
+    }
+    .relatorio-mapa-inline {
+      display: inline-block;
+      margin-left: 8px;
+      white-space: nowrap;
+    }
+    .relatorio-mapa-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .relatorio-mapa-square {
+      display: inline-flex;
+      width: 24px;
+      height: 24px;
+      align-items: center;
+      justify-content: center;
+      font-size: .68rem;
+      border-radius: 4px;
+      border: 1px solid #dee2e6;
+      background: #fff;
+      color: #555;
+      line-height: 1;
+      font-weight: 700;
+    }
+    .relatorio-mapa-square.is-empty {
+      background: #f8f9fa;
+    }
+    .relatorio-mapa-square.is-done {
+      background: #222;
+      border-color: #222;
+      color: #fff;
+    }
     @media print {
       @page {
         margin: 1.2cm 1cm;
@@ -288,6 +340,23 @@
       .relatorio-resumo-table th:nth-child(11) { width: 9% !important; }
       .relatorio-nao-realizadas-table .group-row td {
         border-top: 1.4pt solid #495057 !important;
+      }
+      .relatorio-mapa-table {
+        font-size: 10.5px !important;
+      }
+      .relatorio-mapa-table th,
+      .relatorio-mapa-table td {
+        border-color: #000 !important;
+        padding: 4px 5px !important;
+      }
+      .relatorio-mapa-square {
+        border-color: #000 !important;
+        color: #000 !important;
+        background: #fff !important;
+      }
+      .relatorio-mapa-square.is-done {
+        background: #000 !important;
+        color: #fff !important;
       }
     }
     @media (max-width: 768px) {
@@ -721,6 +790,62 @@
                   </tbody>
                 </table>
               </div>
+
+              {% if report.desempenho.mapa_atividades %}
+                <div class="mt-4">
+                  <h6 class="fw-semibold mb-2">
+                    <i class="bi bi-ui-checks-grid me-1"></i> Mapa de atividades
+                  </h6>
+                  <div class="relatorio-mapa-summary">
+                    <span>Per&iacute;odo: <strong>{{ report.periodo_label }}</strong></span>
+                    <span>Atividades: <strong>{{ report.desempenho.mapa_atividades.total_atividades }}</strong></span>
+                    <span>Marcadas: <strong>{{ report.desempenho.mapa_atividades.total_marcadas }}</strong></span>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="table table-bordered table-sm text-center align-middle w-100 relatorio-mapa-table">
+                      <thead class="table-secondary">
+                        <tr>
+                          <th>Atividade / Meta</th>
+                          <th>Execu&ccedil;&otilde;es do per&iacute;odo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for row in report.desempenho.mapa_atividades.rows %}
+                          <tr>
+                            <td class="text-start relatorio-mapa-atividade-cell">
+                              <strong>{{ row.atividade_nome }}</strong>
+                              {% if row.atividade_secundaria %}
+                                <span class="text-muted small relatorio-mapa-inline">({{ row.atividade_secundaria }})</span>
+                              {% endif %}
+                              {% if row.data_limite %}
+                                <span class="text-muted small relatorio-mapa-inline">Data limite: {{ row.data_limite|date:"d/m/Y" }}</span>
+                              {% endif %}
+                            </td>
+                            <td>
+                              <div class="relatorio-mapa-grid">
+                                {% for atividade in row.atividades %}
+                                  <span
+                                    class="relatorio-mapa-square {% if atividade.marcado %}is-done{% else %}is-empty{% endif %}"
+                                    title="{% if atividade.item_id %}#{{ atividade.item_id }} - {{ atividade.data|date:'d/m/Y' }}{% else %}Atividade nao programada{% endif %} - {{ atividade.meta_titulo }} - {{ atividade.status_label }}"
+                                  >
+                                    {{ forloop.counter }}
+                                  </span>
+                                {% endfor %}
+                              </div>
+                            </td>
+                          </tr>
+                        {% empty %}
+                          <tr>
+                            <td colspan="2" class="text-center text-muted py-3">
+                              Nenhuma atividade encontrada para o mapa no per&iacute;odo.
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              {% endif %}
 
               {% if report.desempenho.resumo_por_atividade %}
                 <div class="mt-3">

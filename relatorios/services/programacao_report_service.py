@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from datetime import date, datetime, time
 from typing import Any
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 
 from core.utils import get_unidade_atual_id
-from programar.models import ProgramacaoItem
+from metas.models import MetaAlocacao
+from programar.models import ProgramacaoItem, ProgramacaoItemServidor
 from programar.status import (
     CANCELADA,
     ENCERRADA_AUTOMATICAMENTE,
@@ -42,6 +44,54 @@ def _format_periodo(data_inicial: date, data_final: date) -> str:
 
 def _status_label(status: str) -> str:
     return ITEM_STATUS_LABELS.get(status, ITEM_STATUS_LABELS[PENDENTE])
+
+
+def _activity_map_status_info(item: ProgramacaoItem) -> tuple[str, str]:
+    status = item_execucao_status_from_fields(
+        bool(getattr(item, "concluido", False)),
+        getattr(item, "concluido_em", None),
+        bool(getattr(item, "cancelada", False)),
+        bool(getattr(item, "nao_realizada_justificada", False)),
+        getattr(item, "remarcado_de_id", None),
+        getattr(item, "observacao", "") or "",
+    )
+    if status == ENCERRADA_AUTOMATICAMENTE:
+        return "encerradas_automaticamente", ITEM_STATUS_LABELS[ENCERRADA_AUTOMATICAMENTE]
+    if status == REMARCADA_CONCLUIDA:
+        return "remarcadas_concluidas", ITEM_STATUS_LABELS[REMARCADA_CONCLUIDA]
+    if status == EXECUTADA:
+        return "concluidas", ITEM_STATUS_LABELS[EXECUTADA]
+    if status == CANCELADA:
+        return "canceladas", ITEM_STATUS_LABELS[CANCELADA]
+    if status == NAO_REALIZADA_JUSTIFICADA:
+        return "nao_realizadas_justificadas", ITEM_STATUS_LABELS[NAO_REALIZADA_JUSTIFICADA]
+    if status == NAO_REALIZADA:
+        return "nao_realizadas", ITEM_STATUS_LABELS[NAO_REALIZADA]
+    return "pendentes", ITEM_STATUS_LABELS[PENDENTE]
+
+
+def _activity_map_should_mark(status_key: str) -> bool:
+    return status_key in {
+        "concluidas",
+        "remarcadas_concluidas",
+        "canceladas",
+        "nao_realizadas",
+        "nao_realizadas_justificadas",
+    }
+
+
+def _secondary_activity_name(meta) -> str | None:
+    activity = getattr(meta, "atividade", None)
+    activity_name = getattr(activity, "titulo", None) or getattr(activity, "nome", None)
+    activity_name = str(activity_name or "").strip()
+    if not activity_name:
+        return None
+
+    main_title = getattr(meta, "display_titulo", None) or getattr(meta, "titulo", None)
+    main_title = str(main_title or "").strip()
+    if main_title and main_title == activity_name:
+        return None
+    return activity_name
 
 
 def _normalize_snapshot(snapshot: dict[str, Any] | None) -> dict[str, Any]:
@@ -157,6 +207,134 @@ def _current_programacao_indicator_counts(unidade_id: int, data_inicial: date, d
             counters["atrasada"] += 1
 
     return {"total": total, "counters": counters}
+
+
+def _build_activity_map_section(unidade_id: int, data_inicial: date, data_final: date) -> dict[str, Any]:
+    items_qs = (
+        ProgramacaoItem.objects
+        .select_related("programacao", "meta", "meta__atividade", "veiculo")
+        .filter(
+            programacao__unidade_id=unidade_id,
+            programacao__data__gte=data_inicial,
+            programacao__data__lte=data_final,
+        )
+        .order_by("meta__titulo", "programacao__data", "id")
+    )
+    meta_expediente_id = _meta_expediente_id()
+    if meta_expediente_id is not None:
+        items_qs = items_qs.exclude(meta_id=meta_expediente_id)
+    items = list(items_qs)
+
+    allocations_qs = (
+        MetaAlocacao.objects
+        .select_related("meta", "meta__atividade")
+        .filter(
+            unidade_id=unidade_id,
+            quantidade_alocada__gt=0,
+        )
+        .filter(
+            Q(meta__data_inicio__isnull=True) | Q(meta__data_inicio__lte=data_final),
+            Q(meta__data_limite__isnull=True) | Q(meta__data_limite__gte=data_inicial),
+        )
+        .order_by("meta__titulo", "id")
+    )
+    if meta_expediente_id is not None:
+        allocations_qs = allocations_qs.exclude(meta_id=meta_expediente_id)
+    allocations = list(allocations_qs)
+
+    metas_info: dict[int, dict[str, Any]] = OrderedDict()
+    for allocation in allocations:
+        meta = getattr(allocation, "meta", None)
+        meta_id = int(getattr(meta, "id", 0) or 0)
+        if not meta_id:
+            continue
+        info = metas_info.setdefault(meta_id, {"meta": meta, "total": 0})
+        info["total"] = int(info["total"] or 0) + int(getattr(allocation, "quantidade_alocada", 0) or 0)
+
+    items_by_meta: dict[int, list[ProgramacaoItem]] = defaultdict(list)
+    for item in items:
+        meta = getattr(item, "meta", None)
+        meta_id = int(getattr(meta, "id", 0) or 0)
+        if not meta_id:
+            continue
+        items_by_meta[meta_id].append(item)
+        if meta_id not in metas_info:
+            metas_info[meta_id] = {
+                "meta": meta,
+                "total": int(getattr(meta, "quantidade_alvo", 0) or 0),
+            }
+
+    item_ids = [item.id for item in items if item.id]
+    servers_by_item: dict[int, list[object]] = defaultdict(list)
+    if item_ids:
+        links = (
+            ProgramacaoItemServidor.objects
+            .select_related("servidor")
+            .filter(item_id__in=item_ids)
+            .order_by("servidor__nome", "item_id")
+        )
+        for link in links:
+            if link.servidor:
+                servers_by_item[link.item_id].append(link.servidor)
+
+    rows: list[dict[str, Any]] = []
+    for meta_id, meta_info in metas_info.items():
+        meta = meta_info["meta"]
+        meta_items = items_by_meta.get(meta_id) or []
+        total = max(int(meta_info.get("total") or 0), len(meta_items))
+        if total <= 0:
+            continue
+
+        row = {
+            "meta_id": meta_id,
+            "atividade_nome": getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "Atividade"),
+            "atividade_secundaria": _secondary_activity_name(meta),
+            "data_limite": getattr(meta, "data_limite", None),
+            "atividades": [],
+        }
+        for index in range(total):
+            item = meta_items[index] if index < len(meta_items) else None
+            if item:
+                status_key, status_label = _activity_map_status_info(item)
+                servers = servers_by_item.get(item.id) or []
+                vehicle = getattr(item, "veiculo", None)
+                vehicle_name = getattr(vehicle, "nome", "") or getattr(vehicle, "placa", "") or ""
+                activity = {
+                    "item_id": item.id,
+                    "data": getattr(getattr(item, "programacao", None), "data", None),
+                    "meta_titulo": row["atividade_nome"],
+                    "atividade_nome": row["atividade_secundaria"],
+                    "veiculo": vehicle_name,
+                    "servidores": [
+                        getattr(server, "nome", f"Servidor {getattr(server, 'id', '')}")
+                        for server in servers
+                    ],
+                    "status_key": status_key,
+                    "status_label": status_label,
+                    "marcado": _activity_map_should_mark(status_key),
+                }
+            else:
+                activity = {
+                    "item_id": None,
+                    "data": None,
+                    "meta_titulo": row["atividade_nome"],
+                    "atividade_nome": row["atividade_secundaria"],
+                    "veiculo": "",
+                    "servidores": [],
+                    "status_key": "nao_programada",
+                    "status_label": "Nao programada",
+                    "marcado": False,
+                }
+            row["atividades"].append(activity)
+        rows.append(row)
+
+    total_atividades = sum(len(row["atividades"]) for row in rows)
+    total_marcadas = sum(1 for row in rows for activity in row["atividades"] if activity["marcado"])
+    return {
+        "rows": rows,
+        "total_atividades": total_atividades,
+        "total_marcadas": total_marcadas,
+    }
 
 
 def _history_items_map(unidade_id: int, data_inicial: date, data_final: date):
@@ -416,6 +594,7 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         data_inicial=data_inicial,
         data_final=data_final,
     )
+    mapa_atividades = _build_activity_map_section(unidade_id, data_inicial, data_final)
 
     return {
         "rows": rows,
@@ -423,6 +602,7 @@ def _build_performance_section(unidade_id: int, data_inicial: date, data_final: 
         "total": len(rows),
         "resumo_por_atividade": resumo_por_atividade,
         "nao_realizadas_grupos": nao_realizadas_grupos,
+        "mapa_atividades": mapa_atividades,
     }
 
 
