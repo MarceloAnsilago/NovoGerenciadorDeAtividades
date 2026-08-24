@@ -2372,7 +2372,7 @@ def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str
               <thead class="table-secondary">
                 <tr>
                   <th>Atividade / Meta</th>
-                  <th>Execucoes programadas</th>
+                  <th>Execu&ccedil;&otilde;es programadas</th>
                 </tr>
               </thead>
               <tbody>{tbody_html}</tbody>
