@@ -1056,6 +1056,48 @@ class MetasDisponiveisApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         meta_payload = response.json()["metas"][0]
         self.assertEqual(meta_payload["programadas_total"], 1)
+        self.assertEqual(meta_payload["descontadas_total"], 1)
+        self.assertEqual(meta_payload["canceladas_total"], 1)
+        self.assertEqual(meta_payload["justificadas_total"], 0)
+
+    def test_metas_disponiveis_nao_conta_justificadas_como_programadas(self):
+        MetaAlocacao.objects.create(
+            meta=self.meta,
+            unidade=self.unidade,
+            quantidade_alocada=2,
+            atribuida_por=self.user,
+        )
+        programacao = Programacao.objects.create(
+            data=timezone.localdate(),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=timezone.now(),
+            cancelada=False,
+            nao_realizada_justificada=True,
+            observacao="Nao realizada justificada.",
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=self.meta,
+            cancelada=False,
+        )
+
+        response = self.client.get(
+            reverse("programar:metas_disponiveis"),
+            {"data": timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        meta_payload = response.json()["metas"][0]
+        self.assertEqual(meta_payload["programadas_total"], 1)
+        self.assertEqual(meta_payload["descontadas_total"], 1)
+        self.assertEqual(meta_payload["canceladas_total"], 0)
+        self.assertEqual(meta_payload["justificadas_total"], 1)
 
     def test_metas_disponiveis_nao_conta_nao_realizada_aberta_como_programada(self):
         MetaAlocacao.objects.create(

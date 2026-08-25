@@ -2744,11 +2744,17 @@ def metas_disponiveis(request):
                     and limite_meta < reference_month_start
                     and mid in metas_com_itens_abertos_ids
                 ),
+                "descontadas_total": 0,
+                "canceladas_total": 0,
+                "justificadas_total": 0,
             }
         bucket[mid]["alocado_unidade"] += int(getattr(al, "quantidade_alocada", 0) or 0)
         prog_sum = getattr(al, "executado_total", 0) or 0
         bucket[mid]["executado_unidade"] += int(prog_sum)
         bucket[mid].setdefault("programadas_total", 0)
+        bucket[mid].setdefault("descontadas_total", 0)
+        bucket[mid].setdefault("canceladas_total", 0)
+        bucket[mid].setdefault("justificadas_total", 0)
 
     metas_sem_alocacao_qs = (
         Meta.objects
@@ -2805,6 +2811,9 @@ def metas_disponiveis(request):
                 and mid in metas_com_itens_abertos_ids
             ),
             "programadas_total": 0,
+            "descontadas_total": 0,
+            "canceladas_total": 0,
+            "justificadas_total": 0,
         }
 
     metas_cadastradas_qs = Meta.objects.filter(
@@ -2830,6 +2839,8 @@ def metas_disponiveis(request):
             .values("meta_id")
             .annotate(
                 total=Count("id", filter=item_conta_como_programado_q()),
+                canceladas=Count("id", filter=Q(cancelada=True)),
+                justificadas=Count("id", filter=Q(cancelada=False, nao_realizada_justificada=True)),
                 nao_realizadas_atrasadas=Count(
                     "id",
                     filter=Q(
@@ -2852,6 +2863,11 @@ def metas_disponiveis(request):
             mid = int(row.get("meta_id") or 0)
             if mid in bucket:
                 bucket[mid]["programadas_total"] = int(row.get("total") or 0)
+                bucket[mid]["canceladas_total"] = int(row.get("canceladas") or 0)
+                bucket[mid]["justificadas_total"] = int(row.get("justificadas") or 0)
+                bucket[mid]["descontadas_total"] = (
+                    bucket[mid]["canceladas_total"] + bucket[mid]["justificadas_total"]
+                )
                 if (
                     bucket[mid].get("status") == "andamento"
                     and (

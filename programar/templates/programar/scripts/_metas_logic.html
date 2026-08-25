@@ -161,6 +161,13 @@
         const programadas = Number(m.programadas_total || 0);
         const alocado = Number(m.alocado_unidade || 0);
         const executado = Number(m.executado_unidade || 0);
+        const canceladas = Number(m.canceladas_total || 0);
+        const justificadas = Number(m.justificadas_total || 0);
+        const descontadas = Number(m.descontadas_total || 0);
+        const descontoPartes = [];
+        if (canceladas > 0) descontoPartes.push(`${canceladas} cancelada${canceladas === 1 ? "" : "s"}`);
+        if (justificadas > 0) descontoPartes.push(`${justificadas} justificada${justificadas === 1 ? "" : "s"}`);
+        const descontoTexto = descontoPartes.join(", ");
         const dInicio = parseIsoDateLocal(m.data_inicio);
         const dLimite = parseIsoDateLocal(m.data_limite);
         const startMonthKey = dInicio ? (dInicio.getFullYear() + "-" + String(dInicio.getMonth() + 1).padStart(2, "0")) : "nodate";
@@ -224,6 +231,12 @@
               <div class="meta-small">Em programaÃ§Ã£o: <b>${programadas}</b></div>
               <div class="meta-small">Alocado nesta unidade: <b>${alocado}</b></div>
             </div>
+            ${descontadas > 0 ? `
+              <div class="meta-discount">
+                <i class="bi bi-dash-circle"></i>
+                <span>Descontadas: <b>${descontadas}</b> (${escapeHtml(descontoTexto)})</span>
+              </div>
+            ` : ""}
             <div class="meta-progress">
               <div class="d-flex justify-content-between summary mb-1">
                 <span>Executado (unidade)</span>
