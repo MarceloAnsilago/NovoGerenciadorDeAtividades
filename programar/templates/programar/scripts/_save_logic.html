@@ -24,11 +24,13 @@
         cont.id = 'toast-stack';
         cont.className = 'toast-container position-fixed end-0 p-3';
         cont.style.top = 'var(--navbar-height, 56px)';
+        cont.style.pointerEvents = 'none';
         document.body.appendChild(cont);
       }
       cont.style.zIndex = toastZIndex;
       const el = document.createElement('div');
       el.className = `toast text-bg-${variant} border-0`;
+      el.style.pointerEvents = 'auto';
       el.setAttribute('role','alert');
       el.setAttribute('aria-live','assertive');
       el.setAttribute('aria-atomic','true');
@@ -42,7 +44,13 @@
       cont.appendChild(el);
       const t = bootstrap.Toast.getOrCreateInstance(el, { delay, autohide: true });
       t.show();
+      const closeToast = () => {
+        try { bootstrap.Toast.getInstance(el)?.hide(); } catch (_e) {}
+        window.setTimeout(() => el.remove(), 250);
+      };
+      el.querySelector('.btn-close')?.addEventListener('click', closeToast);
       el.addEventListener('hidden.bs.toast', () => el.remove());
+      window.setTimeout(closeToast, delay + 250);
     } else {
       const el = document.createElement('div');
       el.style.cssText = `position:fixed;right:1rem;top:calc(var(--navbar-height, 56px) + 1rem);background:#198754;color:#fff;padding:.6rem .8rem;border-radius:.5rem;z-index:${toastZIndex}`;

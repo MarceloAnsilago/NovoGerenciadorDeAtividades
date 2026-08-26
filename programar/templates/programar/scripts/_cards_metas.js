@@ -30,7 +30,7 @@
     const mensagem =
       "A alocacao dessa meta ja foi atingida. Cancele alguma atividade desta meta se quiser adicionar outra.";
     if (typeof NS.toast === "function") {
-      NS.toast(mensagem, { variant: "warning", title: "Meta atingida" });
+      NS.toast(mensagem, { variant: "warning", title: "Meta atingida", delay: 2500 });
     } else {
       window.alert(mensagem);
     }
