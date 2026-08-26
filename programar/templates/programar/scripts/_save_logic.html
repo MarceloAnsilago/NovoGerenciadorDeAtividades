@@ -16,6 +16,7 @@
   // ---------- Toast (com fallback) ----------
   NS.toast = NS.toast || function(message, opts = {}) {
     const { variant = 'success', title = null, delay = 3500 } = opts;
+    const toastZIndex = 3100;
     if (window.bootstrap?.Toast) {
       let cont = document.getElementById('toast-stack');
       if (!cont) {
@@ -23,9 +24,9 @@
         cont.id = 'toast-stack';
         cont.className = 'toast-container position-fixed end-0 p-3';
         cont.style.top = 'var(--navbar-height, 56px)';
-        cont.style.zIndex = 1080;
         document.body.appendChild(cont);
       }
+      cont.style.zIndex = toastZIndex;
       const el = document.createElement('div');
       el.className = `toast text-bg-${variant} border-0`;
       el.setAttribute('role','alert');
@@ -44,7 +45,7 @@
       el.addEventListener('hidden.bs.toast', () => el.remove());
     } else {
       const el = document.createElement('div');
-      el.style.cssText = 'position:fixed;right:1rem;top:calc(var(--navbar-height, 56px) + 1rem);background:#198754;color:#fff;padding:.6rem .8rem;border-radius:.5rem;z-index:1080';
+      el.style.cssText = `position:fixed;right:1rem;top:calc(var(--navbar-height, 56px) + 1rem);background:#198754;color:#fff;padding:.6rem .8rem;border-radius:.5rem;z-index:${toastZIndex}`;
       if (opts.variant === 'danger') el.style.background = '#dc3545';
       el.textContent = message;
       document.body.appendChild(el);
