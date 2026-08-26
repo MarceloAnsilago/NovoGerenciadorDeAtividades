@@ -28,7 +28,7 @@
   function confirmLimite(programadasAtual, alocado) {
     if (alocado <= 0 || programadasAtual < alocado) return true;
     const mensagem =
-      "Esta meta ja foi atingida. Cancele alguma atividade desta meta se quiser adicionar outra.";
+      "A alocacao dessa meta ja foi atingida. Cancele alguma atividade desta meta se quiser adicionar outra.";
     if (typeof NS.toast === "function") {
       NS.toast(mensagem, { variant: "warning", title: "Meta atingida" });
     } else {

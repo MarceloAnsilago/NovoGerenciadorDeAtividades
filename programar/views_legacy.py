@@ -697,7 +697,7 @@ def _erro_limite_meta_programacao(
 
     meta = Meta.objects.filter(id__in=excedidas).order_by("titulo").first()
     nome = (getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "") or "selecionada").strip()
-    return f'A meta "{nome}" ja foi atingida. Cancele alguma atividade desta meta se quiser adicionar outra.'
+    return f'A alocacao da meta "{nome}" ja foi atingida. Cancele alguma atividade desta meta se quiser adicionar outra.'
 
 @login_required
 @csrf_protect

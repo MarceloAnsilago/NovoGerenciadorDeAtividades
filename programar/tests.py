@@ -553,7 +553,7 @@ class SalvarProgramacaoExpedienteTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("ja foi atingida", response.json()["error"])
+        self.assertIn("alocacao da meta", response.json()["error"])
         self.assertEqual(ProgramacaoItem.objects.filter(meta=self.meta_campo).count(), 1)
 
 
