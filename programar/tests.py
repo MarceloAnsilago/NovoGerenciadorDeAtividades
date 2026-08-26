@@ -516,6 +516,46 @@ class SalvarProgramacaoExpedienteTest(TestCase):
         self.assertTrue(ProgramacaoItem.objects.filter(pk=item_presente.pk).exists())
         self.assertTrue(ProgramacaoItem.objects.filter(pk=item_omitido.pk).exists())
 
+    def test_bloqueia_nova_atividade_quando_meta_ja_atingiu_alocacao(self):
+        MetaAlocacao.objects.create(
+            meta=self.meta_campo,
+            unidade=self.unidade,
+            quantidade_alocada=1,
+            atribuida_por=self.user,
+        )
+        programacao_existente = Programacao.objects.create(
+            data=date(2026, 6, 11),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao_existente,
+            meta=self.meta_campo,
+        )
+
+        payload = {
+            "data": "2026-06-12",
+            "observacao": "",
+            "incluir_expediente": False,
+            "itens": [
+                {
+                    "meta_id": self.meta_campo.id,
+                    "observacao": "Tentativa excedente",
+                    "veiculo_id": None,
+                    "servidores_ids": [self.servidor.id],
+                }
+            ],
+        }
+        response = self.client.post(
+            reverse("programar:salvar_programacao"),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("ja foi atingida", response.json()["error"])
+        self.assertEqual(ProgramacaoItem.objects.filter(meta=self.meta_campo).count(), 1)
+
 
 class EventsFeedStatusTests(TestCase):
     def setUp(self):

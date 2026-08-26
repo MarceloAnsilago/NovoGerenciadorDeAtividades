@@ -27,10 +27,14 @@
 
   function confirmLimite(programadasAtual, alocado) {
     if (alocado <= 0 || programadasAtual < alocado) return true;
-    return window.confirm(
-      `Esta meta ja possui ${programadasAtual} atividade${programadasAtual === 1 ? "" : "s"} em programacao ` +
-      `para a unidade, igual ou maior que o total alocado (${alocado}). Deseja programar mesmo assim?`
-    );
+    const mensagem =
+      "Esta meta ja foi atingida. Cancele alguma atividade desta meta se quiser adicionar outra.";
+    if (typeof NS.toast === "function") {
+      NS.toast(mensagem, { variant: "warning", title: "Meta atingida" });
+    } else {
+      window.alert(mensagem);
+    }
+    return false;
   }
 
   function confirmDuplicado(existingCards) {

@@ -574,6 +574,131 @@ def _programacao_title_br(start: str, end: str) -> str:
 def _justificativas_title_br(start: str, end: str) -> str:
     return f"Justificativas do dia {_format_iso_to_br(start)} a {_format_iso_to_br(end)}"
 
+
+def _item_conta_como_programado_instance(item: ProgramacaoItem) -> bool:
+    return (
+        not bool(getattr(item, "cancelada", False))
+        and not bool(getattr(item, "nao_realizada_justificada", False))
+        and (bool(getattr(item, "concluido", False)) or getattr(item, "concluido_em", None) is None)
+    )
+
+
+def _erro_limite_meta_programacao(
+    *,
+    unidade_id: int,
+    itens_in: list[dict[str, Any]],
+    existentes: Dict[int, ProgramacaoItem],
+    existentes_servidores_por_item: Dict[int, set[int]],
+    metas_permitidas: set[int],
+    veiculos_permitidos: set[int],
+    ativos_ids: set[int],
+    meta_expediente_id: int | None,
+    incluir_expediente: bool,
+) -> str | None:
+    initial_counts: Dict[int, int] = defaultdict(int)
+    final_counts: Dict[int, int] = defaultdict(int)
+    item_meta_counted: Dict[int, int] = {}
+
+    for item in existentes.values():
+        if not _item_conta_como_programado_instance(item):
+            continue
+        mid = int(getattr(item, "meta_id", 0) or 0)
+        if meta_expediente_id is not None and mid == meta_expediente_id:
+            continue
+        initial_counts[mid] += 1
+        final_counts[mid] += 1
+        item_meta_counted[int(item.id)] = mid
+
+    for it in itens_in:
+        try:
+            meta_id = int(it.get("meta_id"))
+        except (TypeError, ValueError):
+            continue
+        is_expediente = meta_expediente_id is not None and meta_id == meta_expediente_id
+        if meta_id not in metas_permitidas:
+            continue
+        if is_expediente and not incluir_expediente:
+            continue
+        if is_expediente:
+            continue
+
+        raw_item_id = it.get("id")
+        item_id: int | None = None
+        pi: ProgramacaoItem | None = None
+        if raw_item_id not in (None, "", "null"):
+            try:
+                item_id = int(raw_item_id)
+            except (TypeError, ValueError):
+                item_id = None
+            if item_id and item_id in existentes:
+                pi = existentes[item_id]
+
+        obs = it.get("observacao") or ""
+        raw_veiculo = it.get("veiculo_id")
+        try:
+            veiculo_id = int(raw_veiculo) if raw_veiculo not in (None, "", "null") else None
+        except (TypeError, ValueError):
+            veiculo_id = None
+        if veiculo_id is not None and veiculo_id not in veiculos_permitidos:
+            veiculo_id = None
+
+        allowed_existing_ids = existentes_servidores_por_item.get(item_id or 0, set())
+        servidores_ids: list[int] = []
+        vistos_servidores: set[int] = set()
+        for sid in (it.get("servidores_ids") or []):
+            try:
+                sid_int = int(sid)
+            except (TypeError, ValueError):
+                continue
+            if sid_int in vistos_servidores:
+                continue
+            vistos_servidores.add(sid_int)
+            if ativos_ids and sid_int not in ativos_ids and sid_int not in allowed_existing_ids:
+                continue
+            servidores_ids.append(sid_int)
+
+        if (not servidores_ids) and veiculo_id is None and not obs:
+            continue
+
+        if pi:
+            old_meta_id = item_meta_counted.get(int(pi.id))
+            if old_meta_id is not None:
+                final_counts[old_meta_id] = max(0, final_counts[old_meta_id] - 1)
+                final_counts[meta_id] += 1
+                item_meta_counted[int(pi.id)] = meta_id
+            continue
+
+        final_counts[meta_id] += 1
+
+    candidate_ids = [
+        mid
+        for mid, total in final_counts.items()
+        if total > initial_counts.get(mid, 0)
+    ]
+    if not candidate_ids:
+        return None
+
+    alocados = {
+        int(row["meta_id"]): int(row["total"] or 0)
+        for row in (
+            MetaAlocacao.objects
+            .filter(unidade_id=unidade_id, meta_id__in=candidate_ids)
+            .values("meta_id")
+            .annotate(total=Sum("quantidade_alocada"))
+        )
+    }
+    excedidas = [
+        mid
+        for mid in candidate_ids
+        if alocados.get(mid, 0) > 0 and final_counts.get(mid, 0) > alocados.get(mid, 0)
+    ]
+    if not excedidas:
+        return None
+
+    meta = Meta.objects.filter(id__in=excedidas).order_by("titulo").first()
+    nome = (getattr(meta, "display_titulo", None) or getattr(meta, "titulo", "") or "selecionada").strip()
+    return f'A meta "{nome}" ja foi atingida. Cancele alguma atividade desta meta se quiser adicionar outra.'
+
 @login_required
 @csrf_protect
 @require_POST
@@ -664,22 +789,12 @@ def salvar_programacao(request):
             .filter(data=dia, unidade_id=unidade_id)
             .first()
         )
-        if not prog:
-            prog = Programacao.objects.create(
-                data=dia,
-                unidade_id=unidade_id,
-                observacao=observacao_programacao,
-                criado_por=getattr(request, "user", None),
-            )
-
-        if body.get("observacao") is not None:
-            Programacao.objects.filter(pk=prog.pk).update(
-                observacao=observacao_programacao
-            )
-
         # itens já existentes
-        existentes_qs = ProgramacaoItem.objects.filter(programacao=prog).select_related("programacao")
-        existentes: Dict[int, ProgramacaoItem] = {pi.id: pi for pi in existentes_qs}
+        if prog:
+            existentes_qs = ProgramacaoItem.objects.filter(programacao=prog).select_related("programacao")
+            existentes: Dict[int, ProgramacaoItem] = {pi.id: pi for pi in existentes_qs}
+        else:
+            existentes = {}
         existentes_servidores_por_item: Dict[int, set[int]] = {}
         if existentes:
             for item_id, servidor_id in ProgramacaoItemServidor.objects.filter(
@@ -692,6 +807,33 @@ def salvar_programacao(request):
 
         # mapa de servidores ativos por unidade para validar entrada
         ativos_ids = set(Servidor.objects.filter(unidade_id=unidade_id, ativo=True).values_list("id", flat=True)) if unidade_id else set()
+
+        erro_limite = _erro_limite_meta_programacao(
+            unidade_id=unidade_id,
+            itens_in=itens_in,
+            existentes=existentes,
+            existentes_servidores_por_item=existentes_servidores_por_item,
+            metas_permitidas=metas_permitidas,
+            veiculos_permitidos=veiculos_permitidos,
+            ativos_ids=ativos_ids,
+            meta_expediente_id=meta_expediente_id,
+            incluir_expediente=incluir_expediente,
+        )
+        if erro_limite:
+            return JsonResponse({"ok": False, "error": erro_limite}, status=400)
+
+        if not prog:
+            prog = Programacao.objects.create(
+                data=dia,
+                unidade_id=unidade_id,
+                observacao=observacao_programacao,
+                criado_por=getattr(request, "user", None),
+            )
+
+        if body.get("observacao") is not None:
+            Programacao.objects.filter(pk=prog.pk).update(
+                observacao=observacao_programacao
+            )
 
         for it in itens_in:
             raw_meta_id = it.get("meta_id")
