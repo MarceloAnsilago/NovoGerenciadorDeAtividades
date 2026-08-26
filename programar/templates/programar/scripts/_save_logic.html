@@ -38,7 +38,7 @@
         <div class="toast-header border-0">
           <strong class="me-auto">${title ?? (variant === 'success' ? 'Sucesso' : 'Aviso')}</strong>
           <small class="text-white-50">agora</small>
-          <button type="button" class="btn-close btn-close-white ms-2 mb-1" data-bs-dismiss="toast" aria-label="Fechar"></button>
+          <button type="button" class="btn-close ms-2 mb-1" data-bs-dismiss="toast" aria-label="Fechar"></button>
         </div>
         <div class="toast-body">${message}</div>`;
       cont.appendChild(el);
@@ -53,9 +53,21 @@
       window.setTimeout(closeToast, delay + 250);
     } else {
       const el = document.createElement('div');
-      el.style.cssText = `position:fixed;right:1rem;top:calc(var(--navbar-height, 56px) + 1rem);background:#198754;color:#fff;padding:.6rem .8rem;border-radius:.5rem;z-index:${toastZIndex}`;
+      el.style.cssText = `position:fixed;right:1rem;top:calc(var(--navbar-height, 56px) + 1rem);display:flex;align-items:flex-start;gap:.75rem;max-width:360px;background:#198754;color:#fff;padding:.6rem .8rem;border-radius:.5rem;z-index:${toastZIndex}`;
       if (opts.variant === 'danger') el.style.background = '#dc3545';
-      el.textContent = message;
+      if (opts.variant === 'warning') {
+        el.style.background = '#ffc107';
+        el.style.color = '#000';
+      }
+      const text = document.createElement('span');
+      text.textContent = message;
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.setAttribute('aria-label', 'Fechar');
+      close.textContent = '×';
+      close.style.cssText = 'border:0;background:transparent;color:inherit;font-size:1.25rem;line-height:1;padding:0;cursor:pointer';
+      close.addEventListener('click', () => el.remove());
+      el.append(text, close);
       document.body.appendChild(el);
       setTimeout(() => el.remove(), delay);
     }
