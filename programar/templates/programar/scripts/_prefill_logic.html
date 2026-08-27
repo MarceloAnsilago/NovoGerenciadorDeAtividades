@@ -202,9 +202,6 @@
     if (!expEl || !container) return;
     const alocados = new Set();
     container.querySelectorAll('.meta-dropzone .servidor-chip[data-id], .meta-dropzone .servidor-card[data-id]').forEach(node => {
-      const metaCard = node.closest('[data-status-execucao]');
-      const statusExecucao = String(metaCard?.dataset?.statusExecucao || '').trim().toLowerCase();
-      if (statusExecucao === 'cancelada' || statusExecucao === 'cancelado') return;
       const sid = String(node.dataset.id || node.dataset.servidorId || '').trim();
       if (sid) alocados.add(sid);
     });

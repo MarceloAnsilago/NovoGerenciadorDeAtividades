@@ -76,17 +76,15 @@
       badge.title = "";
     }
   }
-  function isActivelyAllocated(sid) {
+  function isAllocatedInAnyActivity(sid) {
     const container = el("metaCardsContainer");
     if (!container || !sid) return false;
     return Array.from(container.querySelectorAll("[data-meta-id]")).some((card) => {
-      const statusExecucao = String(card.dataset.statusExecucao || "").trim().toLowerCase();
-      if (statusExecucao === "cancelada" || statusExecucao === "cancelado") return false;
       return !!card.querySelector(`.meta-dropzone [data-id="${sid}"], .meta-dropzone [data-servidor-id="${sid}"]`);
     });
   }
   function syncExpedienteManualBadge(card, sid) {
-    if (isActivelyAllocated(sid)) ensureExpedienteManualBadge(card);
+    if (isAllocatedInAnyActivity(sid)) ensureExpedienteManualBadge(card);
     else clearExpedienteManualBadge(card);
   }
   function appendToExpedienteIfMissing(sid, name) {
