@@ -141,6 +141,8 @@
     const { cardsWrap } = getEl();
     const alocados = new Set();
     cardsWrap?.querySelectorAll('[data-meta-id]').forEach(card => {
+      const statusExecucao = String(card.dataset.statusExecucao || '').trim().toLowerCase();
+      if (statusExecucao === 'cancelada' || statusExecucao === 'cancelado') return;
       const drop = card.querySelector('.meta-dropzone') || card;
       getServidoresIdsFrom(drop).forEach(id => alocados.add(String(id)));
     });

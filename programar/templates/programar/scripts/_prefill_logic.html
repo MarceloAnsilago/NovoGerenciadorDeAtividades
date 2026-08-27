@@ -225,6 +225,40 @@
     });
   }
 
+  function collectActiveAllocatedIds(){
+    const container = document.getElementById('metaCardsContainer');
+    const alocados = new Set();
+    if (!container) return alocados;
+    container.querySelectorAll('.meta-dropzone .servidor-chip[data-id], .meta-dropzone .servidor-card[data-id]').forEach(node => {
+      const metaCard = node.closest('[data-status-execucao]');
+      const statusExecucao = String(metaCard?.dataset?.statusExecucao || '').trim().toLowerCase();
+      if (statusExecucao === 'cancelada' || statusExecucao === 'cancelado') return;
+      const sid = String(node.dataset.id || node.dataset.servidorId || '').trim();
+      if (sid) alocados.add(sid);
+    });
+    return alocados;
+  }
+
+  function mergeExpedienteWithUnallocatedLivres(){
+    const expEl = document.getElementById('expedienteAdmin');
+    const incluirExpediente = getIncluirExpedienteEl();
+    if (!expEl || (incluirExpediente && !incluirExpediente.checked)) return;
+
+    const alocados = collectActiveAllocatedIds();
+    const livres = Array.isArray(NS._lastLivres) && NS._lastLivres.length
+      ? NS._lastLivres
+      : Array.from(document.querySelectorAll('#servidoresLivres .servidor-card[data-id]')).map(card => ({
+        id: card.dataset.id,
+        nome: card.querySelector('.srv-name')?.textContent || card.textContent || '',
+      }));
+
+    livres.forEach((srv) => {
+      const sid = String(srv?.id || '').trim();
+      if (!sid || alocados.has(sid)) return;
+      ensureChipIn(expEl, sid, srv?.nome);
+    });
+  }
+
   // guarda ltimo prefill
   NS._lastPrefill = { date: null, itens: [] };
 
@@ -365,6 +399,9 @@
       if (isStalePrefill(runId, requestedDate)) return;
       if (NS._allowExpedienteFromLivres && getIncluirExpedienteEl()?.checked) {
         try { NS.refreshExpedienteFromLivres?.(); } catch (_) {}
+      }
+      if (getIncluirExpedienteEl()?.checked) {
+        mergeExpedienteWithUnallocatedLivres();
       }
       markExpedienteManualForAllocatedServers();
       (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();

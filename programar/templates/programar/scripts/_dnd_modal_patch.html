@@ -94,6 +94,9 @@
     const container = el("metaCardsContainer");
     if (!container) return allocations;
     container.querySelectorAll(".meta-dropzone .servidor-chip, .meta-dropzone .servidor-card").forEach((node) => {
+      const metaCard = node.closest("[data-status-execucao]");
+      const statusExecucao = String(metaCard?.dataset?.statusExecucao || "").trim().toLowerCase();
+      if (statusExecucao === "cancelada" || statusExecucao === "cancelado") return;
       const sid = String(node.dataset.id || node.dataset.servidorId || "").trim();
       if (!sid) return;
       allocations[sid] = (allocations[sid] || 0) + 1;
