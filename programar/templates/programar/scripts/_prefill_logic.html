@@ -225,6 +225,17 @@
     });
   }
 
+  function clearExpedienteManualBadge(card){
+    if (!card) return;
+    delete card.dataset.expedienteManual;
+    card.classList.remove('expediente-manual', 'has-count');
+    const badge = card.querySelector('.srv-count-badge');
+    if (badge) {
+      badge.textContent = '';
+      badge.title = '';
+    }
+  }
+
   function collectActiveAllocatedIds(){
     const container = document.getElementById('metaCardsContainer');
     const alocados = new Set();
@@ -256,6 +267,8 @@
       const sid = String(srv?.id || '').trim();
       if (!sid || alocados.has(sid)) return;
       ensureChipIn(expEl, sid, srv?.nome);
+      const card = expEl.querySelector(`.servidor-card[data-id="${sid}"], [data-servidor-id="${sid}"]`);
+      clearExpedienteManualBadge(card);
     });
   }
 

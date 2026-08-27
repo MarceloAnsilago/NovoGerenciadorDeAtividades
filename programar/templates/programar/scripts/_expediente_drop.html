@@ -112,6 +112,29 @@
     badge.textContent = '';
     badge.title = 'Readicionado manualmente ao expediente';
   }
+  function clearManualBadge(el){
+    if (!el) return;
+    delete el.dataset.expedienteManual;
+    el.classList.remove('has-count', 'expediente-manual');
+    const badge = el.querySelector('.srv-count-badge');
+    if (badge) {
+      badge.textContent = '';
+      badge.title = '';
+    }
+  }
+  function isActivelyAllocated(sid){
+    const container = document.getElementById('metaCardsContainer');
+    if (!container || !sid) return false;
+    return Array.from(container.querySelectorAll('[data-meta-id]')).some(card => {
+      const statusExecucao = String(card.dataset.statusExecucao || '').trim().toLowerCase();
+      if (statusExecucao === 'cancelada' || statusExecucao === 'cancelado') return false;
+      return !!card.querySelector(`.meta-dropzone [data-id="${sid}"], .meta-dropzone [data-servidor-id="${sid}"]`);
+    });
+  }
+  function syncManualBadge(el, sid){
+    if (isActivelyAllocated(sid)) ensureManualBadge(el);
+    else clearManualBadge(el);
+  }
 
   // ---------- util: pegar sid do DataTransfer ----------
   const DT_KEY = 'application/x-sid';
@@ -211,7 +234,7 @@
     if (alreadyInExp) {
       const el = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
       if (el) {
-        ensureManualBadge(el);
+        syncManualBadge(el, sid);
         el.classList.add('flash-exp');
         setTimeout(() => el.classList.remove('flash-exp'), 800);
       }
@@ -238,13 +261,13 @@
         // garante o X mesmo sem wrapper: agora e no prximo tick
         let elNow = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
         if (elNow) {
-          ensureManualBadge(elNow);
+          syncManualBadge(elNow, sid);
           ensureCloseButton(elNow, sid, name);
         }
         setTimeout(() => {
           const elLater = exp.querySelector(`${SEL.srvCard}[data-id="${sid}"]`);
           if (elLater) {
-            ensureManualBadge(elLater);
+            syncManualBadge(elLater, sid);
             ensureCloseButton(elLater, sid, name);
           }
         }, 0);
@@ -265,7 +288,7 @@
           <span class="srv-count-badge"></span>`;
         exp.appendChild(el);
       }
-      ensureManualBadge(el);
+      syncManualBadge(el, sid);
       ensureCloseButton(el, sid, name);
     }
 

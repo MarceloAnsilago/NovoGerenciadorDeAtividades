@@ -66,6 +66,29 @@
     badge.textContent = "";
     badge.title = "Readicionado manualmente ao expediente";
   }
+  function clearExpedienteManualBadge(card) {
+    if (!card) return;
+    delete card.dataset.expedienteManual;
+    card.classList.remove("expediente-manual", "has-count");
+    const badge = card.querySelector(".srv-count-badge");
+    if (badge) {
+      badge.textContent = "";
+      badge.title = "";
+    }
+  }
+  function isActivelyAllocated(sid) {
+    const container = el("metaCardsContainer");
+    if (!container || !sid) return false;
+    return Array.from(container.querySelectorAll("[data-meta-id]")).some((card) => {
+      const statusExecucao = String(card.dataset.statusExecucao || "").trim().toLowerCase();
+      if (statusExecucao === "cancelada" || statusExecucao === "cancelado") return false;
+      return !!card.querySelector(`.meta-dropzone [data-id="${sid}"], .meta-dropzone [data-servidor-id="${sid}"]`);
+    });
+  }
+  function syncExpedienteManualBadge(card, sid) {
+    if (isActivelyAllocated(sid)) ensureExpedienteManualBadge(card);
+    else clearExpedienteManualBadge(card);
+  }
   function appendToExpedienteIfMissing(sid, name) {
     const list = el("expedienteAdmin");
     if (!list) return;
@@ -81,9 +104,9 @@
         <span class="srv-count-badge"></span>
       `;
       list.appendChild(d);
-      ensureExpedienteManualBadge(d);
+      syncExpedienteManualBadge(d, sid);
     } else {
-      ensureExpedienteManualBadge(existing);
+      syncExpedienteManualBadge(existing, sid);
     }
   }
   function removeFromExpediente(sid) {
