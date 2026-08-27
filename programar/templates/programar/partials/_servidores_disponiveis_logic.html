@@ -93,6 +93,9 @@
 
     const ids = new Set();
     metasScope.querySelectorAll('.servidor-chip, [data-servidor-id], .servidor-card').forEach(el => {
+      const metaCard = el.closest('[data-status-execucao]');
+      const statusExecucao = String(metaCard?.dataset?.statusExecucao || '').trim().toLowerCase();
+      if (statusExecucao === 'cancelada' || statusExecucao === 'cancelado') return;
       const sid = el.getAttribute(opts.cardIdAttr) || el.dataset.id || el.dataset.servidorId;
       if (sid) ids.add(String(sid));
     });
