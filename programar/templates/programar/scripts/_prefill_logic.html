@@ -208,10 +208,12 @@
       const sid = String(node.dataset.id || node.dataset.servidorId || '').trim();
       if (sid) alocados.add(sid);
     });
-    if (!alocados.size) return;
     expEl.querySelectorAll('.servidor-card[data-id], [data-servidor-id]').forEach(card => {
       const sid = String(card.dataset.id || card.dataset.servidorId || '').trim();
-      if (!sid || !alocados.has(sid)) return;
+      if (!sid || !alocados.has(sid)) {
+        clearExpedienteManualBadge(card);
+        return;
+      }
       card.dataset.expedienteManual = '1';
       card.classList.add('has-count', 'expediente-manual');
       let badge = card.querySelector('.srv-count-badge');
@@ -418,6 +420,7 @@
       }
       markExpedienteManualForAllocatedServers();
       (NS.updateCounts || window.ProgramarCards?.updateCounts || function(){})();
+      markExpedienteManualForAllocatedServers();
       NS._obsDirty = false;
       document.dispatchEvent(new CustomEvent('programar:prefilled', { detail:{ data: requestedDate, count: itens.length }}));
       if (DEBUG) console.debug('[prefill] aplicado', itens.length, 'itens');
