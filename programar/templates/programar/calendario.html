@@ -1,19 +1,32 @@
 {% extends "programar/base.html" %}
 
 {% block page_header %}
-  <div class="container my-4 programar-header d-flex flex-wrap align-items-start justify-content-between gap-3">
-    <div>
+  <div class="container my-4 programar-header d-flex flex-wrap align-items-start gap-3">
+    <div class="programar-header-title">
       <h1 class="mb-0">Programação</h1>
     </div>
-    <div id="programar-impedidosMesCard" class="card border-0 shadow-sm">
-      <div class="card-body p-2">
-        <div class="d-flex align-items-center justify-content-between gap-2">
-          <span class="fw-semibold text-uppercase programar-impedidos-mes-title">Servidores impedidos</span>
-          <span id="programar-impedidos-mes-count" class="badge bg-secondary">0</span>
+    <div class="programar-header-widgets">
+      <div id="programar-mapaAtividadesCard" class="card border-0 shadow-sm">
+        <div class="card-body p-2">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <span class="fw-semibold text-uppercase programar-top-card-title">Mapa de atividades</span>
+            <span id="programar-mapa-atividades-count" class="badge bg-secondary">0</span>
+          </div>
+          <div id="programar-mapa-atividades-label" class="programar-top-card-label text-muted"></div>
+          <div id="programar-mapa-atividades-list" class="programar-mapa-atividades-list"></div>
+          <div id="programar-mapa-atividades-empty" class="programar-top-card-empty text-muted">Carregando...</div>
         </div>
-        <div id="programar-impedidos-mes-label" class="programar-impedidos-mes-label text-muted"></div>
-        <ul id="programar-impedidos-mes-list" class="programar-impedidos-mes-list"></ul>
-        <div id="programar-impedidos-mes-empty" class="programar-impedidos-mes-empty text-muted">Carregando...</div>
+      </div>
+      <div id="programar-impedidosMesCard" class="card border-0 shadow-sm">
+        <div class="card-body p-2">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <span class="fw-semibold text-uppercase programar-impedidos-mes-title">Servidores impedidos</span>
+            <span id="programar-impedidos-mes-count" class="badge bg-secondary">0</span>
+          </div>
+          <div id="programar-impedidos-mes-label" class="programar-impedidos-mes-label text-muted"></div>
+          <ul id="programar-impedidos-mes-list" class="programar-impedidos-mes-list"></ul>
+          <div id="programar-impedidos-mes-empty" class="programar-impedidos-mes-empty text-muted">Carregando...</div>
+        </div>
       </div>
     </div>
   </div>

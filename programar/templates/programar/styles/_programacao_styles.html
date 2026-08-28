@@ -37,21 +37,48 @@
     font-weight:700;
   }
 
-  /* ===== Resumo de impedidos no topo ===== */
+  /* ===== Quadros do topo ===== */
+  .programar-header-title{
+    flex:1 1 320px;
+    min-width:240px;
+  }
+  .programar-header-widgets{
+    display:flex;
+    flex:0 1 auto;
+    align-items:flex-start;
+    justify-content:flex-end;
+    gap:1rem;
+    margin-left:auto;
+    max-width:760px;
+  }
+  #programar-mapaAtividadesCard,
   #programar-impedidosMesCard{
     min-width:240px;
     max-width:360px;
     background:#fbfcfe;
     border:1px solid #eef2f6;
   }
+  #programar-mapaAtividadesCard{
+    width:340px;
+  }
+  #programar-impedidosMesCard{
+    width:360px;
+  }
+  #programar-mapaAtividadesCard .programar-top-card-title,
   #programar-impedidosMesCard .programar-impedidos-mes-title{
     font-size:.7rem;
     letter-spacing:.06em;
     color:#6c757d;
   }
+  #programar-mapaAtividadesCard .programar-top-card-label,
   #programar-impedidosMesCard .programar-impedidos-mes-label{
     font-size:.72rem;
     margin-top:.15rem;
+  }
+  #programar-mapaAtividadesCard .programar-top-card-empty,
+  #programar-impedidosMesCard .programar-impedidos-mes-empty{
+    font-size:.78rem;
+    margin-top:.35rem;
   }
   #programar-impedidosMesCard .programar-impedidos-mes-list{
     list-style:none;
@@ -72,12 +99,94 @@
     color:#6c757d;
     margin-right:.35rem;
   }
-  #programar-impedidosMesCard .programar-impedidos-mes-empty{
-    font-size:.78rem;
+  .programar-mapa-atividades-list{
+    display:flex;
+    flex-direction:column;
+    gap:.3rem;
     margin-top:.35rem;
+    max-height:120px;
+    overflow-y:auto;
+  }
+  .programar-mapa-atividade-row{
+    display:grid;
+    grid-template-columns:minmax(92px, 1fr) auto;
+    align-items:center;
+    gap:.45rem;
+    min-width:0;
+  }
+  .programar-mapa-atividade-name{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:.76rem;
+    color:#243044;
+  }
+  .programar-mapa-squares{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+    gap:.18rem;
+    max-width:150px;
+  }
+  .programar-mapa-square{
+    width:1em;
+    height:1em;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border:1px solid #cfd7e2;
+    border-radius:2px;
+    background:#fff;
+    color:#334155;
+    font-size:.76rem;
+    line-height:1;
+  }
+  .programar-mapa-square.is-done{
+    background:#1f2937;
+    border-color:#1f2937;
+    color:#fff;
+  }
+  .programar-mapa-square.is-justified{
+    background:#e7f5f7;
+    border-color:#9fd7df;
+    color:#0c5460;
+  }
+  .programar-mapa-square.is-not-executed{
+    background:#f1f3f5;
+    border-color:#c6ccd2;
+    color:#343a40;
+  }
+  .programar-mapa-square.is-cancelled,
+  .programar-mapa-square.is-auto-closed{
+    background:#e9ecef;
+    border-color:#adb5bd;
+    color:#212529;
+  }
+  .programar-mapa-square.is-overdue{
+    background:#ffe1bf;
+    border-color:#ffb977;
+    color:#7a2f00;
+  }
+  .programar-mapa-square.is-pending{
+    background:#fdecef;
+    border-color:#f1aeb5;
+    color:#842029;
   }
   @media (max-width: 768px){
-    #programar-impedidosMesCard{ width:100%; }
+    .programar-header-title,
+    .programar-header-widgets,
+    #programar-mapaAtividadesCard,
+    #programar-impedidosMesCard{
+      width:100%;
+      max-width:none;
+    }
+    .programar-header-widgets{
+      flex-direction:column;
+      margin-left:0;
+    }
+    .programar-mapa-squares{
+      max-width:55%;
+    }
   }
 
   /* ===== Barra de controles ===== */
