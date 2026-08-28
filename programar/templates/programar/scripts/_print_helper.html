@@ -167,6 +167,30 @@
     return null;
   }
 
+  async function fetchMapaHtml(range) {
+    if (!range?.start || !range?.end || !NS?.urls?.relatorios) return "";
+    const url = new URL(NS.urls.relatorios, window.location.origin);
+    url.searchParams.set("start", range.start);
+    url.searchParams.set("end", range.end);
+    url.searchParams.set("only_mapa", "1");
+    const resp = await fetch(url.toString(), { headers: { "X-Requested-With": "XMLHttpRequest" } });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    return String(data?.html || "");
+  }
+
+  function extractMapaPrintParts(rawHtml) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(String(rawHtml || ""), "text/html");
+    const styles = Array.from(doc.querySelectorAll("style[data-print-include], style"))
+      .map((el) => el.outerHTML)
+      .join("\n");
+    const target = doc.getElementById("programarMapaAtividadesPrintArea")
+      || doc.querySelector(".programar-mapa-wrapper")
+      || doc.body;
+    return { styles, html: target?.outerHTML || "" };
+  }
+
   // Botões principais da barra (agora: gerar na tela)
   document.addEventListener('click', (ev) => {
     const btn = ev.target.closest?.('#programar-btnImprimirProgramacao, #btnImprimirProgramacao');
@@ -197,13 +221,23 @@
   }, true);
 
   // Botao de imprimir mapa da programacao gerada.
-  document.addEventListener('click', (ev) => {
+  document.addEventListener('click', async (ev) => {
     const btn = ev.target.closest?.('#programar-btnImprimirMapa, #btnImprimirMapa, #relatorio-btn-print-mapa');
     if (!btn) return;
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation?.();
     try{
-      const target = document.getElementById('programarMapaAtividadesPrintArea');
-      if (!target) { alert('Gere a programaÃ§Ã£o antes de imprimir o mapa.'); return; }
+      let target = document.getElementById('programarMapaAtividadesPrintArea');
+      let fetchedStyles = "";
+      let fetchedHtml = "";
+      if (!target) {
+        const range = resolveRange(btn);
+        if (!range) { showSelectFeedback('Selecione um periodo.'); return; }
+        const rawMapa = await fetchMapaHtml(range);
+        const parts = extractMapaPrintParts(rawMapa);
+        fetchedStyles = parts.styles;
+        fetchedHtml = parts.html;
+        if (!fetchedHtml.trim()) { alert('Nenhum mapa encontrado para imprimir.'); return; }
+      }
 
       const iframe = document.createElement('iframe');
       iframe.setAttribute('aria-hidden', 'true');
@@ -224,7 +258,7 @@
         } catch(_) { cleanup(); }
       };
 
-      const styles = collectStylesHtml();
+      const styles = collectStylesHtml() + "\n" + fetchedStyles;
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
       if (!doc) { cleanup(); return; }
       doc.open();
@@ -240,7 +274,7 @@
     @media print{ .no-print{ display:none!important } }
   </style>
 </head>
-<body>${target.outerHTML}</body>
+<body>${target ? target.outerHTML : fetchedHtml}</body>
 </html>`);
       doc.close();
     }catch(_e){}

@@ -287,10 +287,21 @@ class MapaAtividadesProgramarPrintTests(TestCase):
         session["contexto_atual"] = self.unidade.id
         session.save()
 
-    def test_relatorio_inclui_mapa_no_mesmo_html_e_ignora_expediente_administrativo(self):
+    def test_relatorio_nao_inclui_mapa_no_html_da_programacao(self):
         response = self.client.get(
             reverse("programar:relatorios_parcial"),
             {"start": "2026-08-01", "end": "2026-08-07"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html_out = response.json()["html"]
+        self.assertNotIn("programarMapaAtividadesPrintArea", html_out)
+        self.assertNotIn("relatorio-btn-print-mapa", html_out)
+
+    def test_relatorio_mapa_isolado_ignora_expediente_administrativo(self):
+        response = self.client.get(
+            reverse("programar:relatorios_parcial"),
+            {"start": "2026-08-01", "end": "2026-08-07", "only_mapa": "1"},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -303,11 +314,11 @@ class MapaAtividadesProgramarPrintTests(TestCase):
         self.assertIn("activity-done", html_out)
         self.assertNotIn("Expediente Administrativo</strong>", html_out)
 
-    def test_calendario_nao_exibe_botao_imprimir_mapa_antes_de_gerar_relatorio(self):
+    def test_calendario_exibe_botao_imprimir_mapa_na_barra_de_controles(self):
         response = self.client.get(reverse("programar:calendario"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'id="programar-btnImprimirMapa"')
+        self.assertContains(response, 'id="programar-btnImprimirMapa"')
 
 
 class PlantonistasRelatorioTest(TestCase):

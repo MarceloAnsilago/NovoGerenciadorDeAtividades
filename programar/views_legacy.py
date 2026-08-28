@@ -1924,18 +1924,15 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
 
         "/* ====== IMPRESSAO ====== */"
         "@media print{"
-        "  .programacao-semana-table .dia-bucket{"
-        "    break-inside: avoid; page-break-inside: avoid;"
-        "  }"
-        "  .programacao-semana-table tr, .programacao-semana-table td{"
-        "    break-inside: avoid; page-break-inside: avoid;"
-        "  }"
-
         "  .programacao-semana-table{"
         "    border-collapse: collapse !important;"
         "    table-layout: fixed;"
+        "    page-break-inside: auto;"
         "    font-size: 11px;"
         "  }"
+        "  .programacao-semana-table thead{ display: table-header-group; }"
+        "  .programacao-semana-table tbody{ page-break-inside: auto; break-inside: auto; }"
+        "  .programacao-semana-table tr{ page-break-inside: auto; break-inside: auto; }"
         "  .programacao-semana-table th, .programacao-semana-table td{"
         "    padding: 2pt 4pt !important;"
         "    line-height: 1.15 !important;"
@@ -2128,7 +2125,14 @@ def relatorios_parcial(request):
     end = request.GET.get("end", "")
     observacao = _relatorio_observacao_from_request(request)
     observacao_html = _render_relatorio_observacao_html(observacao)
-    mapa_atividades_html = _render_programar_mapa_atividades_html(request, start, end)
+
+    try:
+        only_mapa = str(request.GET.get("only_mapa", "")).strip().lower() in {"1", "true", "yes", "on", "y"}
+    except Exception:
+        only_mapa = False
+    if only_mapa:
+        mapa_atividades_html = _render_programar_mapa_atividades_html(request, start, end)
+        return JsonResponse({"ok": True, "html": mapa_atividades_html})
 
     # ORM primeiro: garante periodos por servidor de forma consistente no relatorio mensal.
     servidores = _fetch_plantonistas_via_orm(request, start, end)
@@ -2168,7 +2172,6 @@ def relatorios_parcial(request):
           </div>
         </div>
       </div>
-      {mapa_atividades_html}
     </div>
     """
     # Override do wrapper quando pedirem apenas justificativas (sem cabeçalho)
