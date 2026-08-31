@@ -81,6 +81,16 @@ def _gerar_ciclos_plantao(dt_ini, dt_fim, duracao_ciclo):
     return weeks
 
 
+def _itens_servidores_ativos_qs(semana):
+    if hasattr(semana, "itens"):
+        itens_qs = semana.itens.all()
+    elif hasattr(semana, "semanaservidor_set"):
+        itens_qs = semana.semanaservidor_set.all()
+    else:
+        itens_qs = SemanaServidor.objects.filter(semana=semana)
+    return itens_qs.filter(servidor__ativo=True).select_related("servidor").order_by("ordem")
+
+
 def _pick_plantao_id_by_date(request, d_ref):
     if not d_ref:
         return None
@@ -381,6 +391,7 @@ def lista_plantao(request):
     # -------------------------------------------
     descansos = (Descanso.objects
                  .filter(servidor__unidade_id=unidade_id,
+                         servidor__ativo=True,
                          data_inicio__lte=dt_fim,
                          data_fim__gte=dt_ini)
                  .select_related("servidor")
@@ -569,11 +580,10 @@ def lista_plantao(request):
                             srv = Servidor.objects.get(pk=sid, **servidor_scope_filter)
                             tel = getattr(srv, "telefone", None) or getattr(srv, "celular", None) or ""
                         except Servidor.DoesNotExist:
-                            srv = None
-                            tel = ""
+                            continue
                         SemanaServidor.objects.create(
                             semana=semana,
-                            servidor_id=sid,
+                            servidor=srv,
                             telefone_snapshot=tel,
                             ordem=ordem
                         )
@@ -638,6 +648,7 @@ def servidores_em_descanso(request):
                 else:
                     qs = (Descanso.objects
                           .filter(servidor__unidade_id=unidade_id,
+                                  servidor__ativo=True,
                                   data_inicio__lte=dt_fim,
                                   data_fim__gte=dt_ini)
                           .select_related("servidor")
@@ -734,22 +745,8 @@ def plantao_detalhe_fragment(request, pk):
 
         grupos = []
         for i, semana in enumerate(semanas_qs, start=1):
-            # detecta nome correto do relacionamento de itens e cria queryset seguro
-            if hasattr(semana, "itens"):
-                try:
-                    itens_qs = semana.itens.all().order_by("ordem")
-                except Exception:
-                    itens_qs = semana.itens.all()
-            elif hasattr(semana, "semanaservidor_set"):
-                try:
-                    itens_qs = semana.semanaservidor_set.all().order_by("ordem")
-                except Exception:
-                    itens_qs = semana.semanaservidor_set.all()
-            else:
-                itens_qs = []
-
             itens = []
-            for item in itens_qs:
+            for item in _itens_servidores_ativos_qs(semana):
                 servidor = getattr(item, "servidor", None)
 
                 # snapshot do telefone no item (se existir), senão pega do servidor
@@ -836,15 +833,8 @@ def plantao_imprimir(request, pk):
 
     grupos = []
     for i, semana in enumerate(semanas_qs, start=1):
-        if hasattr(semana, "itens"):
-            itens_qs = semana.itens.order_by("ordem").all()
-        elif hasattr(semana, "semanaservidor_set"):
-            itens_qs = semana.semanaservidor_set.order_by("ordem").all()
-        else:
-            itens_qs = []
-
         servidores = []
-        for item in itens_qs:
+        for item in _itens_servidores_ativos_qs(semana):
             servidor = getattr(item, "servidor", None)
             nome = getattr(servidor, "nome", "") if servidor else ""
             telefone_snapshot = getattr(item, "telefone_snapshot", "") or ""
@@ -935,15 +925,7 @@ def servidores_por_intervalo(request):
                 continue
             servidores = []
             seen_servidores = set()
-            # tenta vários relacionamentos
-            if hasattr(semana, 'itens'):
-                itens_qs = getattr(semana, 'itens').all()
-            elif hasattr(semana, 'semanaservidor_set'):
-                itens_qs = getattr(semana, 'semanaservidor_set').all()
-            else:
-                itens_qs = SemanaServidor.objects.filter(semana=semana)
-
-            for item in itens_qs.order_by('ordem'):
+            for item in _itens_servidores_ativos_qs(semana):
                 srv = getattr(item, 'servidor', None)
                 nome = getattr(srv, 'nome', '') if srv else ''
                 telefone_snapshot = getattr(item, 'telefone_snapshot', '') or ''
