@@ -62,8 +62,8 @@
     border:1px solid #eef2f6;
   }
   #programar-mapaAtividadesCard{
-    flex:1 1 720px;
-    width:720px;
+    flex:0 1 auto;
+    width:fit-content;
     max-width:720px;
   }
   #programar-impedidosMesCard{
@@ -112,14 +112,18 @@
     gap:.3rem;
     margin-top:.35rem;
     max-height:120px;
+    width:max-content;
+    max-width:100%;
     overflow-x:hidden;
     overflow-y:auto;
   }
   .programar-mapa-atividade-row{
     display:grid;
-    grid-template-columns:minmax(0, 1fr) auto;
+    grid-template-columns:minmax(0, max-content) auto;
     align-items:center;
     gap:.45rem;
+    width:max-content;
+    max-width:100%;
     min-width:0;
   }
   .programar-mapa-atividade-name{
