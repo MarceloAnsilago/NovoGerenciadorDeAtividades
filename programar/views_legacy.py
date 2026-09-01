@@ -84,7 +84,18 @@ def _relatorio_status_opcao_realizada(status_execucao: str | None) -> str | None
     return None
 
 
-def _meta_status_info(meta: Any) -> tuple[str, str]:
+def _meta_atrasada_em(meta: Any, reference_date: date | None = None) -> bool:
+    limite = getattr(meta, "data_limite", None)
+    if limite and hasattr(limite, "date") and not isinstance(limite, date):
+        limite = limite.date()
+    return bool(
+        limite
+        and (reference_date or timezone.localdate()) > limite
+        and not getattr(meta, "concluida", False)
+    )
+
+
+def _meta_status_info(meta: Any, reference_date: date | None = None) -> tuple[str, str]:
     if not meta:
         return "andamento", "Em andamento"
     try:
@@ -92,7 +103,7 @@ def _meta_status_info(meta: Any) -> tuple[str, str]:
             return "encerrada", "Encerrada"
         if getattr(meta, "concluida", False):
             return "concluida", "Concluída"
-        if getattr(meta, "atrasada", False):
+        if _meta_atrasada_em(meta, reference_date):
             return "atrasada", "Atrasada"
     except Exception:
         pass
@@ -2849,7 +2860,7 @@ def metas_disponiveis(request):
         # tenham itens pendentes/nao realizadas, para que continuem nos meses seguintes.
         q_periodo = (
             Q(meta__data_limite__isnull=True)
-            | Q(meta__data_limite__gte=data_ref)
+            | Q(meta__data_limite__gte=reference_month_start)
             | Q(meta_id__in=metas_com_itens_abertos_ids)
         )
         if include_all_status:
@@ -2867,7 +2878,7 @@ def metas_disponiveis(request):
             atividade_nome = None
             if atividade:
                 atividade_nome = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
-            status_key, status_label = _meta_status_info(meta)
+            status_key, status_label = _meta_status_info(meta, data_ref)
             limite_meta = getattr(meta, "data_limite", None)
             if limite_meta and hasattr(limite_meta, "date") and not isinstance(limite_meta, date):
                 limite_meta = limite_meta.date()
@@ -2916,7 +2927,7 @@ def metas_disponiveis(request):
     if data_ref and not only_encerradas:
         q_periodo_sem_aloc = (
             Q(data_limite__isnull=True)
-            | Q(data_limite__gte=data_ref)
+            | Q(data_limite__gte=reference_month_start)
             | Q(id__in=metas_com_itens_abertos_ids)
         )
         if include_all_status:
@@ -2933,7 +2944,7 @@ def metas_disponiveis(request):
         atividade_nome = None
         if atividade:
             atividade_nome = getattr(atividade, "titulo", None) or getattr(atividade, "nome", None)
-        status_key, status_label = _meta_status_info(meta)
+        status_key, status_label = _meta_status_info(meta, data_ref)
         limite_meta = getattr(meta, "data_limite", None)
         if limite_meta and hasattr(limite_meta, "date") and not isinstance(limite_meta, date):
             limite_meta = limite_meta.date()
@@ -3000,7 +3011,12 @@ def metas_disponiveis(request):
                 ),
                 pendentes_atrasadas=Count(
                     "id",
-                    filter=Q(concluido=False, concluido_em__isnull=True, cancelada=False, programacao__data__lt=today),
+                    filter=Q(
+                        concluido=False,
+                        concluido_em__isnull=True,
+                        cancelada=False,
+                        programacao__data__lt=(data_ref or today),
+                    ),
                 ),
             )
         )

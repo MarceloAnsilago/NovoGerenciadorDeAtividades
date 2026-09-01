@@ -72,6 +72,12 @@
     return "";
   }
 
+  function emptyMetasMessage(statusKey, statusLabels) {
+    const normalizedStatus = normalizeStatusFilter(statusKey);
+    const label = normalizedStatus ? (statusLabels[normalizedStatus] || normalizedStatus) : "";
+    return label ? `Nenhuma meta disponível para ${label}.` : "Nenhuma meta disponível.";
+  }
+
   function highlightExistingCard(metaId) {
     const container = document.getElementById("metaCardsContainer");
     if (!container) return;
@@ -128,6 +134,12 @@
       concluida: "Concluída",
       encerrada: "Encerrada",
     };
+    const EMPTY_STATUS_LABELS = {
+      andamento: "Em andamento",
+      atrasada: "Atrasadas",
+      concluida: "Concluídas",
+      encerrada: "Encerradas",
+    };
     metasGrid.innerHTML = `
       <div class="placeholder-glow">
         <span class="placeholder col-12 mb-2"></span>
@@ -157,7 +169,8 @@
         : {};
 
       if (!data.metas || !Array.isArray(data.metas) || data.metas.length === 0) {
-        metasGrid.innerHTML = `<div class="alert alert-light border mb-0">Nenhuma meta disponível.</div>`;
+        const message = emptyMetasMessage(selectedStatusForRequest, EMPTY_STATUS_LABELS);
+        metasGrid.innerHTML = `<div class="alert alert-light border mb-0">${escapeHtml(message)}</div>`;
         return;
       }
 

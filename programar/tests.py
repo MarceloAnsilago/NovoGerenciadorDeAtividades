@@ -1076,6 +1076,63 @@ class MetasDisponiveisApiTests(TestCase):
         self.assertEqual(meta_payload["alocado_unidade"], 5)
         self.assertEqual(meta_payload["executado_unidade"], 3)
 
+    def test_metas_disponiveis_filtra_status_pela_data_programada(self):
+        meta_antiga = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=self.atividade,
+            titulo="Meta antiga",
+            descricao="meta antiga",
+            quantidade_alvo=2,
+            criado_por=self.user,
+            data_inicio=date(2000, 8, 1),
+            data_limite=date(2000, 8, 31),
+        )
+        MetaAlocacao.objects.create(
+            meta=meta_antiga,
+            unidade=self.unidade,
+            quantidade_alocada=2,
+            atribuida_por=self.user,
+        )
+
+        response = self.client.get(
+            reverse("programar:metas_disponiveis"),
+            {"data": "2000-08-12", "meta_status": "andamento"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        metas = response.json()["metas"]
+        metas_ids = {item["id"] for item in metas}
+        self.assertIn(meta_antiga.id, metas_ids)
+        meta_payload = next(item for item in metas if item["id"] == meta_antiga.id)
+        self.assertEqual(meta_payload["status"], "andamento")
+
+    def test_metas_disponiveis_inclui_meta_do_mes_com_limite_antes_do_dia(self):
+        meta_agosto = Meta.objects.create(
+            unidade_criadora=self.unidade,
+            atividade=self.atividade,
+            titulo="Meta agosto",
+            descricao="meta agosto",
+            quantidade_alvo=2,
+            criado_por=self.user,
+            data_inicio=date(2000, 8, 1),
+            data_limite=date(2000, 8, 9),
+        )
+        MetaAlocacao.objects.create(
+            meta=meta_agosto,
+            unidade=self.unidade,
+            quantidade_alocada=2,
+            atribuida_por=self.user,
+        )
+
+        response = self.client.get(
+            reverse("programar:metas_disponiveis"),
+            {"data": "2000-08-12", "meta_status": "atrasada"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        metas_ids = {item["id"] for item in response.json()["metas"]}
+        self.assertIn(meta_agosto.id, metas_ids)
+
     def test_metas_disponiveis_nao_conta_canceladas_como_programadas(self):
         MetaAlocacao.objects.create(
             meta=self.meta,
