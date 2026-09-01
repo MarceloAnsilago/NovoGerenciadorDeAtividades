@@ -48,24 +48,28 @@
   .programar-header-widgets{
     display:flex;
     flex:0 1 auto;
+    flex-wrap:wrap;
     align-items:flex-start;
     justify-content:flex-end;
     gap:1rem;
     margin-left:auto;
-    max-width:760px;
+    max-width:1120px;
   }
   #programar-mapaAtividadesCard,
   #programar-impedidosMesCard{
     min-width:240px;
-    max-width:360px;
     background:#fbfcfe;
     border:1px solid #eef2f6;
   }
   #programar-mapaAtividadesCard{
-    width:360px;
+    flex:1 1 720px;
+    width:720px;
+    max-width:720px;
   }
   #programar-impedidosMesCard{
+    flex:0 0 360px;
     width:360px;
+    max-width:360px;
   }
   #programar-mapaAtividadesCard .programar-top-card-title,
   #programar-impedidosMesCard .programar-impedidos-mes-title{
@@ -108,14 +112,15 @@
     gap:.3rem;
     margin-top:.35rem;
     max-height:120px;
-    overflow:auto;
+    overflow-x:hidden;
+    overflow-y:auto;
   }
   .programar-mapa-atividade-row{
     display:grid;
-    grid-template-columns:minmax(92px, 1fr) auto;
+    grid-template-columns:minmax(0, 1fr) auto;
     align-items:center;
     gap:.45rem;
-    min-width:420px;
+    min-width:0;
   }
   .programar-mapa-atividade-name{
     overflow:hidden;
