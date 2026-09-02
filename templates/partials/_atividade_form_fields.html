@@ -2,19 +2,19 @@
 {% load widget_tweaks %}
 
 <div class="row g-3">
-  <div class="col-md-6">
+  <div class="col-md-5">
     <label for="{{ form.titulo.id_for_label }}" class="form-label">Título</label>
     {% render_field form.titulo class="form-control" placeholder="Ex.: Barreira" %}
     <div class="text-danger small">{{ form.titulo.errors }}</div>
   </div>
 
-  <div class="col-md-3">
+  <div class="col-md-5">
     <label for="{{ form.area.id_for_label }}" class="form-label">Área</label>
-    <div class="d-flex gap-2">
-      <div class="flex-grow-1">
+    <div class="d-flex gap-2 align-items-stretch flex-wrap flex-sm-nowrap">
+      <div class="flex-grow-1" style="min-width: 190px;">
         {% render_field form.area class="form-select" %}
       </div>
-      <a class="btn btn-outline-secondary d-flex align-items-center gap-1" href="{% url 'atividades:areas_lista' %}?next={{ request.get_full_path|urlencode }}">
+      <a class="btn btn-outline-secondary d-flex align-items-center justify-content-center gap-1 px-3 text-nowrap" style="min-width: 285px;" href="{% url 'atividades:areas_lista' %}?next={{ request.get_full_path|urlencode }}">
         <i class="bi bi-plus-circle"></i> Novo: Inserir nova area de atuação
       </a>
     </div>
@@ -22,7 +22,7 @@
     <div class="text-danger small">{{ form.area.errors }}</div>
   </div>
 
-  <div class="col-md-3 d-flex align-items-end">
+  <div class="col-md-2 d-flex align-items-end">
     <div class="form-check">
       {% render_field form.ativo class="form-check-input" id="id_atividade_ativa" %}
       <label class="form-check-label" for="id_atividade_ativa">Ativa</label>
