@@ -890,8 +890,8 @@ def mapa_atividades_view(request):
         observacao_relatorio = observacao_relatorio[:2000].rstrip()
     expediente_meta_id = getattr(settings, "META_EXPEDIENTE_ID", None)
     area_selected = (request.GET.get("area") or "").strip()
-    areas_qs = Area.objects.filter(ativo=True).order_by("nome")
-    area_labels = dict(Area.objects.values_list("code", "nome"))
+    areas_qs = Area.visible_to_unidade(unidade, active_only=True)
+    area_labels = dict(areas_qs.values_list("code", "nome"))
     if area_selected not in area_labels:
         area_selected = ""
     area_selected_label = area_labels.get(area_selected, "")

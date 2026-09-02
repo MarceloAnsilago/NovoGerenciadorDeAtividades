@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models import Q
 
 from .models import Area, Atividade
 
@@ -12,10 +13,14 @@ class AtividadeForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        unidade = kwargs.pop("unidade", None)
         super().__init__(*args, **kwargs)
         if "area" in self.fields:
             self.fields["area"].label = "Área"
-            self.fields["area"].queryset = Area.objects.filter(ativo=True).order_by("nome")
+            qs = Area.visible_to_unidade(unidade, active_only=True)
+            if self.instance.pk and self.instance.area_id:
+                qs = Area.objects.filter(pk=self.instance.area_id) | qs
+            self.fields["area"].queryset = qs.distinct().order_by("nome")
             self.fields["area"].empty_label = "Selecione uma área"
             self.fields["area"].widget.attrs.update({"class": "form-select"})
 
@@ -31,6 +36,7 @@ class AreaForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        self.unidade = kwargs.pop("unidade", None)
         super().__init__(*args, **kwargs)
         self.fields["nome"].label = "Nome da área"
         self.fields["nome"].widget.attrs.update({"class": "form-control", "placeholder": "Ex.: Fiscalização"})
@@ -42,7 +48,10 @@ class AreaForm(forms.ModelForm):
     def clean_nome(self):
         nome = self.cleaned_data["nome"]
         code = Area.build_code(nome)
-        qs = Area.objects.filter(code=code)
+        filters = Q(unidade__isnull=True, code__in=Area.default_codes())
+        if self.unidade is not None:
+            filters |= Q(unidade=self.unidade)
+        qs = Area.objects.filter(code=code).filter(filters)
         if self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
@@ -52,6 +61,8 @@ class AreaForm(forms.ModelForm):
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.code = Area.build_code(instance.nome)
+        if not instance.pk:
+            instance.unidade = self.unidade
         if commit:
             instance.save()
             self.save_m2m()

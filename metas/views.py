@@ -321,7 +321,7 @@ def atividades_lista_view(request):
             "atividades": page_obj.object_list,
             "page_obj": page_obj,
             "atividades_filters_qs": atividades_filters_qs,
-            "areas": Area.objects.filter(ativo=True).order_by("nome"),
+            "areas": Area.visible_to_unidade(unidade, active_only=True),
             "area_selected": area,
             "q": q,
             "alocacoes": metas_context.get("alocacoes", []),

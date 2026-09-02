@@ -59,7 +59,7 @@ def lista(request):
             messages.warning(request, "Selecione uma unidade no contexto antes de cadastrar atividades.")
             return redirect("atividades:lista")
 
-        form = AtividadeForm(request.POST)
+        form = AtividadeForm(request.POST, unidade=unidade)
         if form.is_valid():
             atividade = form.save(commit=False)
             atividade.unidade_origem = unidade
@@ -72,7 +72,7 @@ def lista(request):
                 messages.success(request, "Atividade cadastrada com sucesso.")
                 return redirect("atividades:lista")
     else:
-        form = AtividadeForm()
+        form = AtividadeForm(unidade=unidade)
 
     # --- Paginação ---
     paginator = Paginator(qs, 10)  # ajuste o tamanho da página se quiser
@@ -84,7 +84,7 @@ def lista(request):
         "atividades": page_obj.object_list,
         "page_obj": page_obj,
         "unidade": unidade,
-        "areas": Area.objects.filter(ativo=True).order_by("nome"),
+        "areas": Area.visible_to_unidade(unidade, active_only=True),
         "area_selected": area,
         "status_selected": status,
         "q": q,
@@ -102,7 +102,7 @@ def editar(request, pk: int):
         return redirect("atividades:lista")
 
     if request.method == "POST":
-        form = AtividadeForm(request.POST, instance=obj)
+        form = AtividadeForm(request.POST, instance=obj, unidade=unidade)
         if form.is_valid():
             try:
                 form.save()
@@ -113,7 +113,7 @@ def editar(request, pk: int):
                 next_url = _get_safe_next(request) or "atividades:lista"
                 return redirect(next_url)
     else:
-        form = AtividadeForm(instance=obj)
+        form = AtividadeForm(instance=obj, unidade=unidade)
 
     return render(request, "atividades/editar.html", {
         "form": form,
@@ -143,9 +143,10 @@ def toggle_ativo(request, pk: int):
 
 @login_required
 def areas_lista(request):
+    unidade = _get_unidade_atual(request)
     next_url = _get_safe_next(request)
-    form = AreaForm(request.POST or None)
-    areas = Area.objects.all().order_by("nome")
+    form = AreaForm(request.POST or None, unidade=unidade)
+    areas = Area.objects.all().order_by("nome") if request.user.is_superuser else Area.visible_to_unidade(unidade)
 
     if request.method == "POST":
         if form.is_valid():
@@ -170,10 +171,17 @@ def areas_lista(request):
 
 @login_required
 def area_editar(request, pk: int):
-    area = get_object_or_404(Area, pk=pk)
+    unidade = _get_unidade_atual(request)
+    if request.user.is_superuser:
+        area = get_object_or_404(Area, pk=pk)
+    else:
+        area = get_object_or_404(Area.visible_to_unidade(unidade), pk=pk)
+        if area.is_global_default:
+            messages.warning(request, "Areas padrao nao podem ser editadas pela unidade.")
+            return redirect("atividades:areas_lista")
     next_url = _get_safe_next(request)
     if request.method == "POST":
-        form = AreaForm(request.POST, instance=area)
+        form = AreaForm(request.POST, instance=area, unidade=unidade)
         if form.is_valid():
             try:
                 form.save()
@@ -186,7 +194,7 @@ def area_editar(request, pk: int):
                 return redirect("atividades:areas_lista")
         messages.error(request, "Corrija os erros abaixo.")
     else:
-        form = AreaForm(instance=area)
+        form = AreaForm(instance=area, unidade=unidade)
 
     return render(request, "atividades/areas/editar.html", {
         "form": form,

@@ -75,13 +75,17 @@
                       <td>{{ area.nome }}</td>
                       <td>{{ area.ativo|yesno:"Sim,Não" }}</td>
                       <td class="text-end">
-                        {% if next_url %}
-                          <a class="btn btn-sm btn-outline-primary" href="{% url 'atividades:area_editar' area.id %}?next={{ next_url|urlencode }}">
+                        {% if request.user.is_superuser or not area.is_global_default %}
+                          {% if next_url %}
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'atividades:area_editar' area.id %}?next={{ next_url|urlencode }}">
+                          {% else %}
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'atividades:area_editar' area.id %}">
+                          {% endif %}
+                              <i class="bi bi-pencil"></i> Editar
+                            </a>
                         {% else %}
-                          <a class="btn btn-sm btn-outline-primary" href="{% url 'atividades:area_editar' area.id %}">
+                          <span class="text-muted small">Padrao</span>
                         {% endif %}
-                            <i class="bi bi-pencil"></i> Editar
-                          </a>
                       </td>
                     </tr>
                   {% endfor %}

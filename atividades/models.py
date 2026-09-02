@@ -1,6 +1,7 @@
 # atividades/models.py
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils.text import slugify
 
 from core.models import No as Unidade
@@ -21,9 +22,16 @@ class Area(models.Model):
         (CODE_OUTROS, "Outros"),
     ]
 
-    code = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=50)
     nome = models.CharField(max_length=120)
     descricao = models.TextField(blank=True)
+    unidade = models.ForeignKey(
+        Unidade,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="areas_atividade",
+    )
     ativo = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -32,6 +40,18 @@ class Area(models.Model):
         ordering = ["nome"]
         verbose_name = "Área"
         verbose_name_plural = "Áreas"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["code"],
+                condition=Q(unidade__isnull=True),
+                name="area_unique_global_code",
+            ),
+            models.UniqueConstraint(
+                fields=["code", "unidade"],
+                condition=Q(unidade__isnull=False),
+                name="area_unique_code_unidade",
+            ),
+        ]
 
     def __str__(self):
         return self.nome
@@ -40,6 +60,24 @@ class Area(models.Model):
     def build_code(cls, nome):
         raw = slugify(nome or "")
         return raw.upper().replace("-", "_") or (nome or "").upper().replace(" ", "_")
+
+    @classmethod
+    def default_codes(cls):
+        return [code for code, _ in cls.DEFAULT_AREAS]
+
+    @classmethod
+    def visible_to_unidade(cls, unidade, active_only=False):
+        filters = Q(unidade__isnull=True, code__in=cls.default_codes())
+        if unidade is not None:
+            filters |= Q(unidade=unidade)
+        qs = cls.objects.filter(filters)
+        if active_only:
+            qs = qs.filter(ativo=True)
+        return qs.order_by("nome")
+
+    @property
+    def is_global_default(self):
+        return self.unidade_id is None and self.code in self.default_codes()
 
     def save(self, *args, **kwargs):
         if not self.code:
