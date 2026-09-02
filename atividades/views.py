@@ -149,11 +149,15 @@ def areas_lista(request):
 
     if request.method == "POST":
         if form.is_valid():
-            form.save()
-            messages.success(request, "Área cadastrada com sucesso.")
-            if next_url:
-                return redirect(next_url)
-            return redirect("atividades:areas_lista")
+            try:
+                form.save()
+            except IntegrityError:
+                form.add_error("nome", "Já existe uma área cadastrada com este nome.")
+            else:
+                messages.success(request, "Área cadastrada com sucesso.")
+                if next_url:
+                    return redirect(next_url)
+                return redirect("atividades:areas_lista")
         messages.error(request, "Corrija os erros abaixo.")
 
     context = {
@@ -171,11 +175,15 @@ def area_editar(request, pk: int):
     if request.method == "POST":
         form = AreaForm(request.POST, instance=area)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Área atualizada com sucesso.")
-            if next_url:
-                return redirect(next_url)
-            return redirect("atividades:areas_lista")
+            try:
+                form.save()
+            except IntegrityError:
+                form.add_error("nome", "Já existe uma área cadastrada com este nome.")
+            else:
+                messages.success(request, "Área atualizada com sucesso.")
+                if next_url:
+                    return redirect(next_url)
+                return redirect("atividades:areas_lista")
         messages.error(request, "Corrija os erros abaixo.")
     else:
         form = AreaForm(instance=area)

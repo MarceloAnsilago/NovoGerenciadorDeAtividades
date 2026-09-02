@@ -38,3 +38,21 @@ class AreaForm(forms.ModelForm):
         self.fields["descricao"].required = False
         self.fields["descricao"].widget.attrs.update({"class": "form-control", "placeholder": "Detalhes opcionais"})
         self.fields["ativo"].label = "Ativa"
+
+    def clean_nome(self):
+        nome = self.cleaned_data["nome"]
+        code = Area.build_code(nome)
+        qs = Area.objects.filter(code=code)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("Já existe uma área cadastrada com este nome.")
+        return nome
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.code = Area.build_code(instance.nome)
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance

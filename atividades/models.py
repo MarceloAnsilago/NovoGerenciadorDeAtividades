@@ -36,10 +36,14 @@ class Area(models.Model):
     def __str__(self):
         return self.nome
 
+    @classmethod
+    def build_code(cls, nome):
+        raw = slugify(nome or "")
+        return raw.upper().replace("-", "_") or (nome or "").upper().replace(" ", "_")
+
     def save(self, *args, **kwargs):
         if not self.code:
-            raw = slugify(self.nome or "")
-            self.code = raw.upper().replace("-", "_") or self.nome.upper().replace(" ", "_")
+            self.code = self.build_code(self.nome)
         super().save(*args, **kwargs)
 
 
