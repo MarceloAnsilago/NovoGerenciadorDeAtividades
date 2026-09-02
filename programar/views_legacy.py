@@ -2658,8 +2658,8 @@ def events_feed(request):
 
         title_counts: Dict[int, Dict[str, int]] = {pid: {} for pid in prog_ids}
         title_order: Dict[int, list[str]] = {pid: [] for pid in prog_ids}
-        activity_counts: Dict[int, Dict[tuple[str, str], int]] = {pid: {} for pid in prog_ids}
-        activity_order: Dict[int, list[tuple[str, str]]] = {pid: [] for pid in prog_ids}
+        activity_counts: Dict[int, Dict[tuple[int, str, str, str], int]] = {pid: {} for pid in prog_ids}
+        activity_order: Dict[int, list[tuple[int, str, str, str]]] = {pid: [] for pid in prog_ids}
         itens_com_meta = list(
             itens_qs.select_related("meta", "meta__atividade").order_by("programacao_id", "meta__titulo")
         )
@@ -2720,7 +2720,10 @@ def events_feed(request):
                     counts[pid]["nao_realizadas"] += 1
                 elif status_item == NAO_REALIZADA_JUSTIFICADA:
                     counts[pid]["nao_realizadas_justificadas"] += 1
-            key = (titulo, status_item)
+            meta_id = int(getattr(meta, "id", 0) or 0)
+            data_limite = getattr(meta, "data_limite", None)
+            data_limite_iso = data_limite.isoformat() if data_limite else ""
+            key = (meta_id, titulo, status_item, data_limite_iso)
             if key not in activity_counts[pid]:
                 activity_counts[pid][key] = 0
                 activity_order[pid].append(key)
@@ -2732,12 +2735,14 @@ def events_feed(request):
                 label = f"{titulo} ({count})" if count > 1 else titulo
                 metas_por_programacao[pid].append(label)
             for key in activity_order[pid]:
-                titulo, status_item = key
+                meta_id, titulo, status_item, data_limite_iso = key
                 count = activity_counts[pid].get(key, 0)
                 atividades_por_programacao[pid].append({
+                    "meta_id": meta_id,
                     "titulo": titulo,
                     "status": status_item,
                     "quantidade": count,
+                    "data_limite": data_limite_iso,
                 })
 
     data = []

@@ -251,11 +251,20 @@ document.addEventListener('DOMContentLoaded', function(){
         atividades.forEach((atividade) => {
           if (!atividade || typeof atividade !== "object") return;
           const title = String(atividade.titulo || "Atividade").trim() || "Atividade";
+          const metaKey = String(atividade.meta_id || title).trim() || title;
+          const dataLimite = String(atividade.data_limite || "").trim();
+          const rowKey = `${metaKey}|${dataLimite}`;
           const qtyRaw = Number(atividade.quantidade || 1);
-          const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.min(Math.floor(qtyRaw), 30) : 1;
-          if (!rowsByTitle.has(title)) rowsByTitle.set(title, []);
+          const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.floor(qtyRaw) : 1;
+          if (!rowsByTitle.has(rowKey)) {
+            rowsByTitle.set(rowKey, {
+              title,
+              dataLimite,
+              squares: [],
+            });
+          }
           for (let i = 0; i < qty; i += 1) {
-            rowsByTitle.get(title).push({
+            rowsByTitle.get(rowKey).squares.push({
               className: mapaSquareClass(atividade.status || (atividade.concluido ? "executada" : "pendente"), eventStatus),
               label: `${eventDay.split("-").reverse().join("/")} - ${mapaSquareLabel(atividade.status || (atividade.concluido ? "executada" : "pendente"), eventStatus)}`,
             });
@@ -266,11 +275,17 @@ document.addEventListener('DOMContentLoaded', function(){
       }
 
       const fallbackTitle = String(ev?.title || "Atividades").trim() || "Atividades";
-      if (!rowsByTitle.has(fallbackTitle)) rowsByTitle.set(fallbackTitle, []);
+      if (!rowsByTitle.has(fallbackTitle)) {
+        rowsByTitle.set(fallbackTitle, {
+          title: fallbackTitle,
+          dataLimite: "",
+          squares: [],
+        });
+      }
       const qtyRaw = Number(props.total_programadas || 1);
-      const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.min(Math.floor(qtyRaw), 30) : 1;
+      const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.floor(qtyRaw) : 1;
       for (let i = 0; i < qty; i += 1) {
-        rowsByTitle.get(fallbackTitle).push({
+        rowsByTitle.get(fallbackTitle).squares.push({
           className: mapaSquareClass("", eventStatus),
           label: `${eventDay.split("-").reverse().join("/")} - ${mapaSquareLabel("", eventStatus)}`,
         });
@@ -278,7 +293,11 @@ document.addEventListener('DOMContentLoaded', function(){
       }
     });
 
-    const rows = Array.from(rowsByTitle.entries()).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+    const rows = Array.from(rowsByTitle.values()).sort((a, b) => {
+      const titleCompare = a.title.localeCompare(b.title, "pt-BR");
+      if (titleCompare) return titleCompare;
+      return String(a.dataLimite || "").localeCompare(String(b.dataLimite || ""), "pt-BR");
+    });
     if (count) count.textContent = String(totalSquares);
     if (!rows.length) {
       if (empty) {
@@ -289,19 +308,20 @@ document.addEventListener('DOMContentLoaded', function(){
     }
     if (empty) empty.classList.add("d-none");
 
-    rows.slice(0, 8).forEach(([title, squares]) => {
+    rows.forEach(({ title, dataLimite, squares }) => {
       const row = document.createElement("div");
       row.className = "programar-mapa-atividade-row";
 
       const name = document.createElement("div");
       name.className = "programar-mapa-atividade-name";
-      name.textContent = title;
-      name.title = title;
+      const titleText = dataLimite ? `${title} - limite ${dataLimite.split("-").reverse().join("/")}` : title;
+      name.textContent = titleText;
+      name.title = titleText;
       row.appendChild(name);
 
       const grid = document.createElement("div");
       grid.className = "programar-mapa-squares";
-      squares.slice(0, 24).forEach((sq) => {
+      squares.forEach((sq) => {
         const square = document.createElement("span");
         square.className = `programar-mapa-square ${sq.className}`;
         square.title = sq.label;
