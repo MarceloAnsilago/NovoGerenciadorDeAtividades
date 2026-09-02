@@ -118,6 +118,40 @@
     return true;
   }
 
+  async function fetchMapaHtml(startISO, endISO){
+    const url = `${NS.urls.relatorios}?start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&only_mapa=1`;
+    const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const ctype = (resp.headers.get('content-type')||'').toLowerCase();
+    if (ctype.includes('application/json')){
+      const data = await resp.json().catch(()=>null);
+      return String(data?.html || '');
+    }
+    return await resp.text();
+  }
+
+  NS.loadMapaForRange = async function(startISO, endISO){
+    const container = document.getElementById('programar-relatoriosContainer');
+    if (!container) return;
+    if (!NS.urls || !NS.urls.relatorios){ showError(container, 'Endpoint de relatorios nao configurado.'); return; }
+
+    setLoading(container);
+    delete container.dataset.start; delete container.dataset.end;
+    container.dataset.mode = 'mapa';
+
+    try{
+      const rawHtml = await fetchMapaHtml(startISO, endISO);
+      if (!renderReportHtml(container, rawHtml)) return;
+      container.dataset.start = startISO;
+      container.dataset.end = endISO;
+      container.dataset.mode = 'mapa';
+      document.title = `Mapa de atividades do dia ${formatDateBR(startISO)} a ${formatDateBR(endISO)}`;
+    }catch(err){
+      if (DEBUG) console.error('[programar] mapa fetch error', err);
+      showError(container, 'Erro ao carregar mapa de atividades.');
+    }
+  };
+
   function injectRelatorioToolbar(){
     try{
       const area = document.querySelector('#relatorioPrintArea .card-body') || document.querySelector('#relatorioPrintArea');
@@ -239,6 +273,41 @@
       const range = monthRangeFromCalendar() || fallbackMonthRange();
       NS.reportMode = 'programacao-only';
       NS.loadRelatoriosForRange(isoDate(range.start), isoDate(range.end));
+    }catch(_e){}
+  });
+
+  document.addEventListener('click', function(ev){
+    const btn = ev.target.closest?.('#programar-btnMapaMes');
+    if (!btn) return;
+    ev.preventDefault();
+    try{
+      const range = monthRangeFromCalendar() || fallbackMonthRange();
+      NS.loadMapaForRange(isoDate(range.start), isoDate(range.end));
+    }catch(_e){}
+  });
+
+  document.addEventListener('click', function(ev){
+    const btn = ev.target.closest?.('#programar-btnImprimirMapa');
+    if (!btn) return;
+    ev.preventDefault();
+    try{
+      const startISO = btn.dataset.start;
+      const endISO = btn.dataset.end;
+      if (!startISO || !endISO){
+        const sel = document.getElementById('programar-select-semana');
+        if (sel) {
+          sel.classList.add('is-invalid');
+          let fb = sel.nextElementSibling;
+          if (!fb || !fb.classList?.contains('invalid-feedback')){
+            fb = document.createElement('div');
+            fb.className = 'invalid-feedback d-block';
+            sel.insertAdjacentElement('afterend', fb);
+          }
+          fb.textContent = 'Selecione uma semana.';
+        }
+        return;
+      }
+      NS.loadMapaForRange(startISO, endISO);
     }catch(_e){}
   });
 })();

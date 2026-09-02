@@ -222,7 +222,7 @@
 
   // Botao de imprimir mapa da programacao gerada.
   document.addEventListener('click', async (ev) => {
-    const btn = ev.target.closest?.('#programar-btnImprimirMapa, #btnImprimirMapa, #relatorio-btn-print-mapa');
+    const btn = ev.target.closest?.('#relatorio-btn-print-mapa');
     if (!btn) return;
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation?.();
     try{
