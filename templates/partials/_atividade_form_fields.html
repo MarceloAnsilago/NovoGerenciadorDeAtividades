@@ -15,7 +15,7 @@
         {% render_field form.area class="form-select" %}
       </div>
       <a class="btn btn-outline-secondary d-flex align-items-center gap-1" href="{% url 'atividades:areas_lista' %}?next={{ request.get_full_path|urlencode }}">
-        <i class="bi bi-plus-circle"></i> Novo
+        <i class="bi bi-plus-circle"></i> Novo: Inserir nova area de atuação
       </a>
     </div>
     <div class="form-text">Não encontrou? Abra em nova aba para cadastrar uma nova área.</div>
