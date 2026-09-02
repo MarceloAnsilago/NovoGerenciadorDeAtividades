@@ -2400,7 +2400,7 @@ def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str
                 square_class = "activity-done" if atividade.get("marcado") else "activity-empty"
                 squares.append(
                     f'<span class="activity-square {square_class}" '
-                    f'title="{square_title}" aria-label="{square_title}">&nbsp;</span>'
+                    f'title="{square_title}" aria-label="{square_title}">{idx}</span>'
                 )
             body_rows.append(
                 "<tr>"
@@ -2437,26 +2437,23 @@ def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str
         .activities-grid {{
           display: flex;
           flex-wrap: wrap;
-          gap: 5px;
-          align-items: center;
-          min-height: 18px;
+          gap: 9px;
         }}
         .activity-square {{
           display: inline-flex;
-          width: 14px;
-          min-width: 14px;
-          height: 14px;
-          flex: 0 0 14px;
+          width: 24px;
+          height: 24px;
           align-items: center;
           justify-content: center;
-          border-radius: 2px;
-          border: 1.5px solid #111;
+          font-size: .7rem;
+          border-radius: 4px;
+          border: 1px solid #dee2e6;
           background: #fff;
+          color: #555;
           line-height: 1;
-          box-sizing: border-box;
-          vertical-align: middle;
+          font-weight: 700;
         }}
-        .activity-empty {{ background: #fff; }}
+        .activity-empty {{ background: #f8f9fa; }}
         .activity-done {{
           background: #222;
           border-color: #222;
