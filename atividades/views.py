@@ -146,7 +146,10 @@ def areas_lista(request):
     unidade = _get_unidade_atual(request)
     next_url = _get_safe_next(request)
     form = AreaForm(request.POST or None, unidade=unidade)
-    areas = Area.objects.all().order_by("nome") if request.user.is_superuser else Area.visible_to_unidade(unidade)
+    if request.user.is_superuser and unidade is None:
+        areas = Area.objects.all().order_by("nome")
+    else:
+        areas = Area.visible_to_unidade(unidade)
 
     if request.method == "POST":
         if form.is_valid():

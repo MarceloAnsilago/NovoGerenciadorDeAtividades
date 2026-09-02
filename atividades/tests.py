@@ -112,3 +112,28 @@ class AreaViewsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFormError(response.context["form"], "nome", "Já existe uma área cadastrada com este nome.")
+
+    def test_superuser_with_unit_context_sees_only_scoped_areas(self):
+        admin = get_user_model().objects.create_superuser(
+            username="root_areas",
+            email="root_areas@example.com",
+            password="secret123",
+        )
+        smg = No.objects.create(nome="SMG")
+        Area.objects.get_or_create(code=Area.CODE_APOIO, defaults={"nome": "Apoio"})
+        Area.objects.create(code="AREA_DEBUG_AUTO", nome="Area Debug", ativo=False)
+        Area.objects.create(code="AREA_SMG", nome="Area SMG", unidade=smg)
+        sda_area = Area.objects.create(code="AREA_SDA", nome="Area SDA", unidade=self.unidade)
+        self.client.force_login(admin)
+        session = self.client.session
+        session["contexto_atual"] = self.unidade.id
+        session.save()
+
+        response = self.client.get(reverse("atividades:areas_lista"))
+        visible = list(response.context["areas"].values_list("code", flat=True))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(Area.CODE_APOIO, visible)
+        self.assertIn(sda_area.code, visible)
+        self.assertNotIn("AREA_DEBUG_AUTO", visible)
+        self.assertNotIn("AREA_SMG", visible)
