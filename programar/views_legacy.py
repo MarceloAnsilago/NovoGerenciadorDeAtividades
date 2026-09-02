@@ -2386,7 +2386,7 @@ def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str
             atividade_nome = html.escape(str(row.get("atividade_nome") or "Atividade"))
             data_limite = row.get("data_limite")
             data_limite_html = (
-                f'<span class="text-muted small atividade-inline">Data limite: {data_limite:%d/%m/%Y}</span>'
+                f' <span class="text-muted small atividade-inline">Data limite: {data_limite:%d/%m/%Y}</span>'
                 if data_limite
                 else ""
             )
@@ -2400,7 +2400,7 @@ def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str
                 square_class = "activity-done" if atividade.get("marcado") else "activity-empty"
                 squares.append(
                     f'<span class="activity-square {square_class}" '
-                    f'title="{square_title}" aria-label="{square_title}"></span>'
+                    f'title="{square_title}" aria-label="{square_title}">&nbsp;</span>'
                 )
             body_rows.append(
                 "<tr>"
@@ -2439,19 +2439,24 @@ def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str
           flex-wrap: wrap;
           gap: 5px;
           align-items: center;
+          min-height: 18px;
         }}
         .activity-square {{
           display: inline-flex;
           width: 14px;
+          min-width: 14px;
           height: 14px;
+          flex: 0 0 14px;
           align-items: center;
           justify-content: center;
           border-radius: 2px;
-          border: 1px solid #cfd7e2;
+          border: 1.5px solid #111;
           background: #fff;
           line-height: 1;
+          box-sizing: border-box;
+          vertical-align: middle;
         }}
-        .activity-empty {{ background: #f8f9fa; }}
+        .activity-empty {{ background: #fff; }}
         .activity-done {{
           background: #222;
           border-color: #222;
