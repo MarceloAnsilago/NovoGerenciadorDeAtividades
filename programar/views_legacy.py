@@ -2396,10 +2396,11 @@ def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str
                 data_label = f"{data_ref:%d/%m/%Y}" if data_ref else "-"
                 status_label = html.escape(str(atividade.get("status_label") or "Pendente"))
                 item_id = html.escape(str(atividade.get("item_id") or ""))
+                square_title = f"#{item_id} - {html.escape(data_label)} - {status_label}"
                 square_class = "activity-done" if atividade.get("marcado") else "activity-empty"
                 squares.append(
                     f'<span class="activity-square {square_class}" '
-                    f'title="#{item_id} - {html.escape(data_label)} - {status_label}">{idx}</span>'
+                    f'title="{square_title}" aria-label="{square_title}"></span>'
                 )
             body_rows.append(
                 "<tr>"
@@ -2436,21 +2437,19 @@ def _render_programar_mapa_atividades_html(request, start: str, end: str) -> str
         .activities-grid {{
           display: flex;
           flex-wrap: wrap;
-          gap: 9px;
+          gap: 5px;
+          align-items: center;
         }}
         .activity-square {{
           display: inline-flex;
-          width: 24px;
-          height: 24px;
+          width: 14px;
+          height: 14px;
           align-items: center;
           justify-content: center;
-          font-size: .7rem;
-          border-radius: 4px;
-          border: 1px solid #dee2e6;
+          border-radius: 2px;
+          border: 1px solid #cfd7e2;
           background: #fff;
-          color: #555;
           line-height: 1;
-          font-weight: 700;
         }}
         .activity-empty {{ background: #f8f9fa; }}
         .activity-done {{
