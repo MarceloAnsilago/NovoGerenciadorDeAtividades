@@ -117,7 +117,7 @@ def _build_descansos_unidade_context(unidade_id, hoje, ano, month_param=""):
     qs = (
         Descanso.objects
         .select_related("servidor", "servidor__unidade")
-        .filter(servidor__unidade_id=unidade_id)
+        .filter(servidor__unidade_id=unidade_id, servidor__ativo=True)
         .filter(data_inicio__lte=fim_ano, data_fim__gte=inicio_ano)
         .order_by("-data_inicio", "-id")
     )
@@ -151,7 +151,10 @@ def _build_descansos_unidade_context(unidade_id, hoje, ano, month_param=""):
             month_default = month_keys[0]
 
     anos_disponiveis = set()
-    q_anos = Descanso.objects.filter(servidor__unidade_id=unidade_id).values_list(
+    q_anos = Descanso.objects.filter(
+        servidor__unidade_id=unidade_id,
+        servidor__ativo=True,
+    ).values_list(
         "data_inicio__year", "data_fim__year"
     )
     for inicio_ano_val, fim_ano_val in q_anos:
