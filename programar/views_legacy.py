@@ -1833,16 +1833,18 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 status_execucao = b.get("status_execucao") or ""
                 realizada_opcao = _relatorio_status_opcao_realizada(status_execucao)
                 status_badge_labels = {
-                    CANCELADA: "Cancelada",
-                    NAO_REALIZADA: "Não realizada - mas continua em aberto",
-                    NAO_REALIZADA_JUSTIFICADA: "Não realizada justificada",
+                    CANCELADA: ("Cancelada",),
+                    NAO_REALIZADA: ("Não realizada", "mas continua em aberto"),
+                    NAO_REALIZADA_JUSTIFICADA: ("Não realizada", "justificada"),
                 }
-                status_badge_label = status_badge_labels.get(status_execucao)
-                status_badge_class = f" atividade-status-{status_execucao.replace('_', '-')}" if status_badge_label else ""
-                status_cell_class = " atividade-status-cell" if status_badge_label else ""
+                status_badge_lines = status_badge_labels.get(status_execucao)
+                status_badge_class = f" atividade-status-{status_execucao.replace('_', '-')}" if status_badge_lines else ""
+                status_cell_class = " atividade-status-cell" if status_badge_lines else ""
                 status_chip = (
-                    f"<div class='atividade-status-badge{status_badge_class}'>{html.escape(status_badge_label)}</div>"
-                    if status_badge_label else ""
+                    f"<div class='atividade-status-badge{status_badge_class}'>"
+                    + "<br>".join(html.escape(line) for line in status_badge_lines)
+                    + "</div>"
+                    if status_badge_lines else ""
                 )
                 if status_execucao == CANCELADA:
                     realizada_opcao = "nao"
@@ -1929,7 +1931,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table .print-cbx.is-checked{ text-align:center; font-weight:700; line-height:10px; color:#000; }"
         ".programacao-semana-table td.realizada-cell .print-cbx.is-checked{ font-size:14px; line-height:9px; }"
         ".programacao-semana-table .atividade-status-cell{ background:#f8f9fa; color:#6c757d; }"
-        ".programacao-semana-table .atividade-status-badge{ display:block; width:max-content; max-width:100%; margin:0 auto .25rem; padding:.04rem .32rem; border:1px solid #ced4da; border-radius:999px; font-size:.68em; font-weight:600; line-height:1.2; text-align:center; text-transform:uppercase; letter-spacing:0; }"
+        ".programacao-semana-table .atividade-status-badge{ display:block; width:max-content; max-width:100%; margin:0 auto .25rem; padding:.04rem .32rem; border:1px solid #ced4da; border-radius:7px; font-size:.68em; font-weight:600; line-height:1.15; text-align:center; text-transform:uppercase; letter-spacing:0; white-space:normal; }"
         ".programacao-semana-table .atividade-status-cancelada{ color:#495057; background:#fff; }"
         ".programacao-semana-table .atividade-status-nao-realizada{ color:#7a4f00; border-color:#e5b454; background:#fff8e6; }"
         ".programacao-semana-table .atividade-status-nao-realizada-justificada{ color:#5f3dc4; border-color:#b8a7f2; background:#f3f0ff; }"
