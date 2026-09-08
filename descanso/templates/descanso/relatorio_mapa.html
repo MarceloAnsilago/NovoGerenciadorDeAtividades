@@ -1,25 +1,34 @@
 {% extends "core/base.html" %}
 
-{% block title %}Mapa de Férias/Descanso — {{ ano }}{% endblock %}
+{% block title %}Mapa de Férias/Descanso — {{ titulo_periodo }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4 report-container">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0">
-      <i class="bi bi-calendar3 me-2"></i> Mapa de Férias/Descanso — {{ ano }}
+      <i class="bi bi-calendar3 me-2"></i> Mapa de Férias/Descanso — {{ titulo_periodo }}
     </h2>
 
     <div class="report-toolbar d-flex gap-2">
-      <form method="get" class="d-flex align-items-center gap-2">
+      <form method="get" class="d-flex align-items-center gap-2 flex-wrap">
         <label class="form-label mb-0 small">Ano</label>
         <select name="ano" class="form-select form-select-sm">
           {% for a in anos_opcoes %}
             <option value="{{ a }}" {% if a == ano %}selected{% endif %}>{{ a }}</option>
           {% endfor %}
         </select>
-        <button class="btn btn-sm btn-outline-primary" type="submit" title="Atualizar ano">
+        <label for="mapaDescansoInicio" class="form-label mb-0 small">Inicial</label>
+        <input id="mapaDescansoInicio" type="date" name="inicio" value="{{ data_inicio_param }}" class="form-control form-control-sm report-date-input">
+        <label for="mapaDescansoFim" class="form-label mb-0 small">Final</label>
+        <input id="mapaDescansoFim" type="date" name="fim" value="{{ data_fim_param }}" class="form-control form-control-sm report-date-input">
+        <button class="btn btn-sm btn-outline-primary" type="submit" title="Atualizar mapa">
           <i class="bi bi-arrow-repeat me-1"></i> Atualizar
         </button>
+        {% if periodo_customizado %}
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'descanso:relatorio_mapa' %}?ano={{ ano }}" title="Voltar ao mapa anual">
+            <i class="bi bi-calendar3 me-1"></i> Anual
+          </a>
+        {% endif %}
       </form>
 
       <button class="btn btn-sm btn-outline-secondary" type="button" onclick="window.print()">
@@ -51,9 +60,9 @@
                   <td class="text-start" style="min-width:220px;">{{ row.servidor.nome }}</td>
                   <td>
                     <div class="days-grid">
-                      {% for marcado in row.dias %}
-                        <span class="day-square {% if marcado %}day-marked{% else %}day-empty{% endif %}" title="Dia {{ forloop.counter }}{% if marcado %} em descanso{% endif %}">
-                          {{ forloop.counter }}
+                      {% for dia in row.dias %}
+                        <span class="day-square {% if dia.marcado %}day-marked{% else %}day-empty{% endif %}" title="Dia {{ dia.numero }}{% if dia.marcado %} em descanso{% endif %}">
+                          {{ dia.numero }}
                         </span>
                       {% endfor %}
                     </div>
@@ -73,6 +82,7 @@
 <style>
 /* visual na tela (igual ao seu) */
 .days-grid { display:flex; flex-wrap:wrap; gap:2px; }
+.report-date-input { width: 9.5rem; }
 .day-square {
   display:inline-flex;
   width:24px;

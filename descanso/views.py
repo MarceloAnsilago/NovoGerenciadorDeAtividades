@@ -11,6 +11,7 @@ from django.db.models import Exists, OuterRef, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_protect
@@ -70,6 +71,18 @@ def _get_requested_year(request):
         return int(request.GET.get("ano") or timezone.localdate().year)
     except (TypeError, ValueError):
         return timezone.localdate().year
+
+
+def _iter_months(data_inicio, data_fim):
+    ano_atual = data_inicio.year
+    mes_atual = data_inicio.month
+    while (ano_atual, mes_atual) <= (data_fim.year, data_fim.month):
+        yield ano_atual, mes_atual
+        if mes_atual == 12:
+            ano_atual += 1
+            mes_atual = 1
+        else:
+            mes_atual += 1
 
 
 def _build_descanso_month_filters(year, include_nodate=False):
@@ -771,11 +784,22 @@ def excluir_descanso(request, pk: int):
 
 @login_required
 def relatorio_mapa(request):
-    # ano escolhido (GET ?ano=YYYY) ou ano atual
-    try:
-        ano = int(request.GET.get("ano") or timezone.localdate().year)
-    except (TypeError, ValueError):
-        ano = timezone.localdate().year
+    ano = _get_requested_year(request)
+
+    data_inicio_param = (request.GET.get("inicio") or "").strip()
+    data_fim_param = (request.GET.get("fim") or "").strip()
+    data_inicio_periodo = parse_date(data_inicio_param) if data_inicio_param else None
+    data_fim_periodo = parse_date(data_fim_param) if data_fim_param else None
+    periodo_customizado = False
+
+    if data_inicio_param or data_fim_param:
+        if data_inicio_periodo and data_fim_periodo:
+            if data_inicio_periodo <= data_fim_periodo:
+                periodo_customizado = True
+            else:
+                messages.error(request, "A data inicial do período não pode ser posterior à data final.")
+        else:
+            messages.warning(request, "Informe a data inicial e a data final para gerar o mapa por período.")
 
     unidade_id = get_unidade_atual_id(request)
     servidores_qs = Servidor.objects.select_related("unidade").filter(ativo=True)
@@ -785,53 +809,69 @@ def relatorio_mapa(request):
         messages.warning(request, "Contexto de unidade não definido. Exibindo todas as unidades.")
     servidores_qs = servidores_qs.order_by("nome")
 
-    # janela do ano
-    inicio_ano = date(ano, 1, 1)
-    fim_ano = date(ano, 12, 31)
+    if periodo_customizado:
+        data_inicio_mapa = data_inicio_periodo
+        data_fim_mapa = data_fim_periodo
+        ano = data_inicio_mapa.year
+    else:
+        data_inicio_mapa = date(ano, 1, 1)
+        data_fim_mapa = date(ano, 12, 31)
+        data_inicio_param = ""
+        data_fim_param = ""
 
-    # descansos que tocam o ano selecionado
     descansos = (
         Descanso.objects
-        .filter(servidor__in=servidores_qs, data_inicio__lte=fim_ano, data_fim__gte=inicio_ano)
+        .filter(servidor__in=servidores_qs, data_inicio__lte=data_fim_mapa, data_fim__gte=data_inicio_mapa)
         .select_related("servidor")
     )
 
-    meses_label = [
-        (1, "Janeiro"), (2, "Fevereiro"), (3, "Março"), (4, "Abril"),
-        (5, "Maio"), (6, "Junho"), (7, "Julho"), (8, "Agosto"),
-        (9, "Setembro"), (10, "Outubro"), (11, "Novembro"), (12, "Dezembro"),
-    ]
+    meses_label = []
+    for mes_ano, mes in _iter_months(data_inicio_mapa, data_fim_mapa):
+        nome = MONTH_NAMES_PT[mes - 1]
+        if periodo_customizado and data_inicio_mapa.year != data_fim_mapa.year:
+            nome = f"{nome}/{mes_ano}"
+        meses_label.append((mes_ano, mes, nome))
 
-    # mes_mapa[mes] = {"ndias": N, "rows": {servidor_id: {"servidor": Servidor, "dias":[bool]*N}}}
     mes_mapa = {}
-    for mes, _ in meses_label:
-        mes_mapa[mes] = {"ndias": monthrange(ano, mes)[1], "rows": {}}
+    for mes_ano, mes, _ in meses_label:
+        ndias = monthrange(mes_ano, mes)[1]
+        mes_inicio = max(date(mes_ano, mes, 1), data_inicio_mapa)
+        mes_fim = min(date(mes_ano, mes, ndias), data_fim_mapa)
+        mes_mapa[(mes_ano, mes)] = {
+            "dias_numeros": list(range(mes_inicio.day, mes_fim.day + 1)),
+            "rows": {},
+        }
 
-    # marca os dias de cada descanso nos meses correspondentes
-    for d in descansos:
-        inicio = max(d.data_inicio, inicio_ano)
-        fim = min(d.data_fim, fim_ano)
-        for mes, _ in meses_label:
-            ndias = mes_mapa[mes]["ndias"]
-            mes_inicio = date(ano, mes, 1)
-            mes_fim = date(ano, mes, ndias)
-            s = max(inicio, mes_inicio)
-            e = min(fim, mes_fim)
-            if s <= e:
-                rows = mes_mapa[mes]["rows"]
-                row = rows.get(d.servidor_id)
-                if row is None:
-                    row = {"servidor": d.servidor, "dias": [False] * ndias}
-                for dia in range(s.day, e.day + 1):
-                    row["dias"][dia - 1] = True
-                rows[d.servidor_id] = row
+    for descanso in descansos:
+        inicio = max(descanso.data_inicio, data_inicio_mapa)
+        fim = min(descanso.data_fim, data_fim_mapa)
+        for mes_ano, mes, _ in meses_label:
+            ndias = monthrange(mes_ano, mes)[1]
+            mes_inicio = max(date(mes_ano, mes, 1), data_inicio_mapa)
+            mes_fim = min(date(mes_ano, mes, ndias), data_fim_mapa)
+            inicio_mes_descanso = max(inicio, mes_inicio)
+            fim_mes_descanso = min(fim, mes_fim)
+            if inicio_mes_descanso > fim_mes_descanso:
+                continue
 
-    # prepara dados ordenados por nome p/ template (lista, não dict)
+            rows = mes_mapa[(mes_ano, mes)]["rows"]
+            row = rows.get(descanso.servidor_id)
+            if row is None:
+                row = {
+                    "servidor": descanso.servidor,
+                    "dias": [
+                        {"numero": dia, "marcado": False}
+                        for dia in mes_mapa[(mes_ano, mes)]["dias_numeros"]
+                    ],
+                }
+            for dia in range(inicio_mes_descanso.day, fim_mes_descanso.day + 1):
+                row["dias"][dia - mes_inicio.day]["marcado"] = True
+            rows[descanso.servidor_id] = row
+
     meses_data = []
-    for mes, nome in meses_label:
-        rows_dict = mes_mapa[mes]["rows"]
-        rows = list(rows_dict.values())
-        rows.sort(key=lambda r: r["servidor"].nome.lower())
+    for mes_ano, mes, nome in meses_label:
+        rows = list(mes_mapa[(mes_ano, mes)]["rows"].values())
+        rows.sort(key=lambda row: row["servidor"].nome.lower())
         meses_data.append((mes, nome, rows))
 
     anos_disponiveis = set()
@@ -841,11 +881,24 @@ def relatorio_mapa(request):
             anos_disponiveis.add(inicio_ano_val)
         if fim_ano_val:
             anos_disponiveis.add(fim_ano_val)
-    if not anos_disponiveis:
-        anos_disponiveis.add(ano)
-    else:
-        anos_disponiveis.add(ano)
+    anos_disponiveis.add(ano)
     anos_opcoes = sorted(anos_disponiveis)
 
-    ctx = {"ano": ano, "anos_opcoes": anos_opcoes, "meses_data": meses_data}
+    titulo_periodo = (
+        f"{data_inicio_mapa:%d/%m/%Y} a {data_fim_mapa:%d/%m/%Y}"
+        if periodo_customizado
+        else str(ano)
+    )
+
+    ctx = {
+        "ano": ano,
+        "anos_opcoes": anos_opcoes,
+        "meses_data": meses_data,
+        "data_inicio": data_inicio_mapa,
+        "data_fim": data_fim_mapa,
+        "data_inicio_param": data_inicio_param,
+        "data_fim_param": data_fim_param,
+        "periodo_customizado": periodo_customizado,
+        "titulo_periodo": titulo_periodo,
+    }
     return render(request, "descanso/relatorio_mapa.html", ctx)
