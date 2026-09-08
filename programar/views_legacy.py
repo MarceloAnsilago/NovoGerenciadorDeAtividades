@@ -1865,7 +1865,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     open_tr
                     + dia_td
                     + f"<td class='atividade-cell{cancelada_cell_class}'><div class='atividade-main'>{html.escape(b['meta'])}</div>{cancelada_chip}{obs_html}</td>"
-                    + f"<td class='{cancelada_cell_class.strip()}'>{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=False)}{meta_desc_html}{cancelada_chip}</td>"
+                    + f"<td class='{cancelada_cell_class.strip()}'>{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=False)}{cancelada_chip}{meta_desc_html}</td>"
                     + f"<td class='veiculo-cell{cancelada_cell_class}'>{_veiculo_html(b['veiculo'])}{cancelada_chip}</td>"
                     + f"<td class='realizada-cell{cancelada_cell_class}'>{_realizada_boxes(opcao=realizada_opcao)}{cancelada_chip}</td>"
                     + "</tr>"
