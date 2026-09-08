@@ -1832,13 +1832,19 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
             elif b["kind"] == "atividade":
                 status_execucao = b.get("status_execucao") or ""
                 realizada_opcao = _relatorio_status_opcao_realizada(status_execucao)
-                cancelada = status_execucao == CANCELADA
-                cancelada_cell_class = " atividade-cancelada-cell" if cancelada else ""
-                cancelada_chip = (
-                    "<div class='atividade-status-badge atividade-status-cancelada'>Cancelada</div>"
-                    if cancelada else ""
+                status_badge_labels = {
+                    CANCELADA: "Cancelada",
+                    NAO_REALIZADA: "Não realizada - mas continua em aberto",
+                    NAO_REALIZADA_JUSTIFICADA: "Não realizada justificada",
+                }
+                status_badge_label = status_badge_labels.get(status_execucao)
+                status_badge_class = f" atividade-status-{status_execucao.replace('_', '-')}" if status_badge_label else ""
+                status_cell_class = " atividade-status-cell" if status_badge_label else ""
+                status_chip = (
+                    f"<div class='atividade-status-badge{status_badge_class}'>{html.escape(status_badge_label)}</div>"
+                    if status_badge_label else ""
                 )
-                if cancelada:
+                if status_execucao == CANCELADA:
                     realizada_opcao = "nao"
                 # acumula para rel. atividades
                 for nome in (b.get("servidores") or []):
@@ -1864,10 +1870,10 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 day_rows.append(
                     open_tr
                     + dia_td
-                    + f"<td class='atividade-cell{cancelada_cell_class}'>{cancelada_chip}<div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
-                    + f"<td class='{cancelada_cell_class.strip()}'>{cancelada_chip}{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=False)}{meta_desc_html}</td>"
-                    + f"<td class='veiculo-cell{cancelada_cell_class}'>{cancelada_chip}{_veiculo_html(b['veiculo'])}</td>"
-                    + f"<td class='realizada-cell{cancelada_cell_class}'>{cancelada_chip}{_realizada_boxes(opcao=realizada_opcao)}</td>"
+                    + f"<td class='atividade-cell{status_cell_class}'>{status_chip}<div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
+                    + f"<td class='{status_cell_class.strip()}'>{status_chip}{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=False)}{meta_desc_html}</td>"
+                    + f"<td class='veiculo-cell{status_cell_class}'>{status_chip}{_veiculo_html(b['veiculo'])}</td>"
+                    + f"<td class='realizada-cell{status_cell_class}'>{status_chip}{_realizada_boxes(opcao=realizada_opcao)}</td>"
                     + "</tr>"
                 )
 
@@ -1922,9 +1928,11 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table .atividade-obs{ display:block; margin-top:.15rem; font-style:italic; font-size:.82em; line-height:1.25; color:#6c757d; }"
         ".programacao-semana-table .print-cbx.is-checked{ text-align:center; font-weight:700; line-height:10px; color:#000; }"
         ".programacao-semana-table td.realizada-cell .print-cbx.is-checked{ font-size:14px; line-height:9px; }"
-        ".programacao-semana-table .atividade-cancelada-cell{ background:#f8f9fa; color:#6c757d; }"
+        ".programacao-semana-table .atividade-status-cell{ background:#f8f9fa; color:#6c757d; }"
         ".programacao-semana-table .atividade-status-badge{ display:block; width:max-content; max-width:100%; margin:0 auto .25rem; padding:.04rem .32rem; border:1px solid #ced4da; border-radius:999px; font-size:.68em; font-weight:600; line-height:1.2; text-align:center; text-transform:uppercase; letter-spacing:0; }"
         ".programacao-semana-table .atividade-status-cancelada{ color:#495057; background:#fff; }"
+        ".programacao-semana-table .atividade-status-nao-realizada{ color:#7a4f00; border-color:#e5b454; background:#fff8e6; }"
+        ".programacao-semana-table .atividade-status-nao-realizada-justificada{ color:#5f3dc4; border-color:#b8a7f2; background:#f3f0ff; }"
 
         "/* Relatório 'Justificativa' */"
         ".rel-atividades .card-ativ{ page-break-inside: avoid; }"
@@ -1964,7 +1972,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "  .print-cbx{ width:10px; height:10px; margin:0 3px 0 4px; border-width:1.2px; }"
         "  .print-cbx.is-checked{ line-height:9px; }"
         "  .programacao-semana-table td.realizada-cell .print-cbx.is-checked{ font-size:14px; line-height:8px; }"
-        "  .programacao-semana-table .atividade-cancelada-cell{ background:#f6f6f6 !important; color:#555 !important; }"
+        "  .programacao-semana-table .atividade-status-cell{ background:#f6f6f6 !important; color:#555 !important; }"
         "  .programacao-semana-table .atividade-status-badge{ border-color:#777 !important; color:#333 !important; background:#fff !important; }"
         "  .programacao-semana-table thead th{"
         "    border-bottom: 0.75pt solid #000 !important;"
