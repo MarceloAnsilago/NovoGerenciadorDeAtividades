@@ -1864,10 +1864,10 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 day_rows.append(
                     open_tr
                     + dia_td
-                    + f"<td class='atividade-cell{cancelada_cell_class}'><div class='atividade-main'>{html.escape(b['meta'])}</div>{cancelada_chip}{obs_html}</td>"
-                    + f"<td class='{cancelada_cell_class.strip()}'>{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=False)}{cancelada_chip}{meta_desc_html}</td>"
-                    + f"<td class='veiculo-cell{cancelada_cell_class}'>{_veiculo_html(b['veiculo'])}{cancelada_chip}</td>"
-                    + f"<td class='realizada-cell{cancelada_cell_class}'>{_realizada_boxes(opcao=realizada_opcao)}{cancelada_chip}</td>"
+                    + f"<td class='atividade-cell{cancelada_cell_class}'>{cancelada_chip}<div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
+                    + f"<td class='{cancelada_cell_class.strip()}'>{cancelada_chip}{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=False)}{meta_desc_html}</td>"
+                    + f"<td class='veiculo-cell{cancelada_cell_class}'>{cancelada_chip}{_veiculo_html(b['veiculo'])}</td>"
+                    + f"<td class='realizada-cell{cancelada_cell_class}'>{cancelada_chip}{_realizada_boxes(opcao=realizada_opcao)}</td>"
                     + "</tr>"
                 )
 
@@ -1923,7 +1923,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table .print-cbx.is-checked{ text-align:center; font-weight:700; line-height:10px; color:#000; }"
         ".programacao-semana-table td.realizada-cell .print-cbx.is-checked{ font-size:14px; line-height:9px; }"
         ".programacao-semana-table .atividade-cancelada-cell{ background:#f8f9fa; color:#6c757d; }"
-        ".programacao-semana-table .atividade-status-badge{ display:inline-block; margin-top:.2rem; padding:.04rem .32rem; border:1px solid #ced4da; border-radius:999px; font-size:.68em; font-weight:600; line-height:1.2; text-transform:uppercase; letter-spacing:0; }"
+        ".programacao-semana-table .atividade-status-badge{ display:block; width:max-content; max-width:100%; margin:0 auto .25rem; padding:.04rem .32rem; border:1px solid #ced4da; border-radius:999px; font-size:.68em; font-weight:600; line-height:1.2; text-align:center; text-transform:uppercase; letter-spacing:0; }"
         ".programacao-semana-table .atividade-status-cancelada{ color:#495057; background:#fff; }"
 
         "/* Relatório 'Justificativa' */"
