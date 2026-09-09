@@ -55,6 +55,15 @@
   function applyConclusionStyles(link, status) {
     if (!link) return;
     const execStatus = String(status || "").trim().toLowerCase();
+    const card = link.closest("[data-meta-id]");
+    if (card) {
+      card.classList.toggle(
+        "has-crossed-title",
+        execStatus === "cancelada" ||
+          execStatus === "nao_realizada_justificada" ||
+          execStatus === "nao_realizada"
+      );
+    }
     link.classList.remove(
       "btn-success",
       "btn-outline-success",
