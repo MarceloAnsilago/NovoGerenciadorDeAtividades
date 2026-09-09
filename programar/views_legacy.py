@@ -1840,6 +1840,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 status_badge_lines = status_badge_labels.get(status_execucao)
                 status_badge_class = f" atividade-status-{status_execucao.replace('_', '-')}" if status_badge_lines else ""
                 status_cell_class = " atividade-status-cell" if status_badge_lines else ""
+                atividade_main_class = "atividade-main atividade-main-crossed" if status_badge_lines else "atividade-main"
                 status_chip = (
                     f"<div class='atividade-status-badge{status_badge_class}'>"
                     + "<br>".join(html.escape(line) for line in status_badge_lines)
@@ -1872,7 +1873,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 day_rows.append(
                     open_tr
                     + dia_td
-                    + f"<td class='atividade-cell{status_cell_class}'>{status_chip}<div class='atividade-main'>{html.escape(b['meta'])}</div>{obs_html}</td>"
+                    + f"<td class='atividade-cell{status_cell_class}'>{status_chip}<div class='{atividade_main_class}'>{html.escape(b['meta'])}</div>{obs_html}</td>"
                     + f"<td class='{status_cell_class.strip()}'>{status_chip}{_srv_list_html(b['servidores'], with_boxes=True, inline=False, checked=False)}{meta_desc_html}</td>"
                     + f"<td class='veiculo-cell{status_cell_class}'>{status_chip}{_veiculo_html(b['veiculo'])}</td>"
                     + f"<td class='realizada-cell{status_cell_class}'>{status_chip}{_realizada_boxes(opcao=realizada_opcao)}</td>"
@@ -1927,6 +1928,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table th.col-veiculo, .programacao-semana-table th.col-realizada{ white-space:nowrap; }"
         ".programacao-semana-table td, .programacao-semana-table th{ vertical-align: top; }"
         ".programacao-semana-table .atividade-main{ font-weight:600; }"
+        ".programacao-semana-table .atividade-main-crossed{ text-decoration-line:line-through; text-decoration-thickness:2px; text-decoration-color:#dc3545; }"
         ".programacao-semana-table .atividade-obs{ display:block; margin-top:.15rem; font-style:italic; font-size:.82em; line-height:1.25; color:#6c757d; }"
         ".programacao-semana-table .print-cbx.is-checked{ text-align:center; font-weight:700; line-height:10px; color:#000; }"
         ".programacao-semana-table td.realizada-cell .print-cbx.is-checked{ font-size:14px; line-height:9px; }"
