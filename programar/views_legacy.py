@@ -1928,7 +1928,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table th.col-veiculo, .programacao-semana-table th.col-realizada{ white-space:nowrap; }"
         ".programacao-semana-table td, .programacao-semana-table th{ vertical-align: top; }"
         ".programacao-semana-table .atividade-main{ font-weight:600; }"
-        ".programacao-semana-table .atividade-main-crossed{ text-decoration-line:line-through; text-decoration-thickness:1px; }"
+        ".programacao-semana-table .atividade-main-crossed{ text-decoration-line:line-through; text-decoration-thickness:1px; text-decoration-color:#000; }"
         ".programacao-semana-table .atividade-obs{ display:block; margin-top:.15rem; font-style:italic; font-size:.82em; line-height:1.25; color:#6c757d; }"
         ".programacao-semana-table .print-cbx.is-checked{ text-align:center; font-weight:700; line-height:10px; color:#000; }"
         ".programacao-semana-table td.realizada-cell .print-cbx.is-checked{ font-size:14px; line-height:9px; }"
