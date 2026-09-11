@@ -1133,6 +1133,34 @@ class MetasDisponiveisApiTests(TestCase):
         metas_ids = {item["id"] for item in response.json()["metas"]}
         self.assertIn(meta_agosto.id, metas_ids)
 
+    def test_metas_disponiveis_nao_marca_atrasada_antes_da_data_limite_por_pendente_antiga(self):
+        self.meta.data_inicio = date(2026, 9, 11)
+        self.meta.data_limite = date(2026, 12, 14)
+        self.meta.save(update_fields=["data_inicio", "data_limite"])
+        programacao_antiga = Programacao.objects.create(
+            data=date(2026, 9, 11),
+            unidade=self.unidade,
+            criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(
+            programacao=programacao_antiga,
+            meta=self.meta,
+            concluido=False,
+            concluido_em=None,
+            cancelada=False,
+            nao_realizada_justificada=False,
+        )
+
+        response = self.client.get(
+            reverse("programar:metas_disponiveis"),
+            {"data": "2026-11-12"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        meta_payload = next(item for item in response.json()["metas"] if item["id"] == self.meta.id)
+        self.assertEqual(meta_payload["status"], "andamento")
+        self.assertEqual(meta_payload["status_label"], "Em andamento")
+
     def test_metas_disponiveis_nao_conta_canceladas_como_programadas(self):
         MetaAlocacao.objects.create(
             meta=self.meta,

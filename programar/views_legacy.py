@@ -3033,6 +3033,8 @@ def metas_disponiveis(request):
                         concluido_em__isnull=True,
                         cancelada=False,
                         programacao__data__lt=(data_ref or today),
+                        meta__data_limite__isnull=False,
+                        meta__data_limite__lt=(data_ref or today),
                     ),
                 ),
             )
