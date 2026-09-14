@@ -28,10 +28,12 @@ from programar.status import (
     item_permanece_aberto,
 )
 from programar.views_legacy import (
+    _deve_exibir_servidor_no_item,
     _fetch_plantonistas_via_orm,
     _relatorio_status_opcao_realizada,
     _relatorio_status_deve_marcar_x,
     _resolve_expediente_admin_report,
+    _servidores_alocados_ids_para_expediente,
 )
 from servidores.models import Servidor
 
@@ -234,6 +236,21 @@ class ExpedienteAdminReportTest(unittest.TestCase):
             ),
             [],
         )
+
+    def test_servidores_de_atividade_cancelada_nao_saem_do_expediente(self):
+        self.assertEqual(
+            _servidores_alocados_ids_para_expediente([
+                {"servidor_ids": [1, "2"], "cancelada": True},
+                {"servidor_ids": [3, None, ""], "cancelada": False},
+                {"servidor_ids": [4]},
+            ]),
+            {"3", "4"},
+        )
+
+    def test_nao_exibe_servidor_inativo_em_atividade_cancelada(self):
+        self.assertFalse(_deve_exibir_servidor_no_item(cancelada=True, servidor_ativo=False))
+        self.assertTrue(_deve_exibir_servidor_no_item(cancelada=True, servidor_ativo=True))
+        self.assertTrue(_deve_exibir_servidor_no_item(cancelada=False, servidor_ativo=False))
 
 
 @override_settings(META_EXPEDIENTE_ID=777909)

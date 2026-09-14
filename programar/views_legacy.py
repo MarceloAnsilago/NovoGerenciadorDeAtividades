@@ -1419,6 +1419,7 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
         return []
 
     item_ids = [it.id for it in itens]
+    item_cancelada_map = {int(it.id): bool(getattr(it, "cancelada", False)) for it in itens}
     serv_nomes: Dict[int, List[str]] = {}
     serv_ids: Dict[int, List[str]] = {}
     if item_ids:
@@ -1430,7 +1431,13 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
         ):
             iid = int(getattr(link, "item_id"))
             sid = int(getattr(link, "servidor_id"))
-            nome = getattr(getattr(link, "servidor", None), "nome", "") or f"Servidor {sid}"
+            servidor = getattr(link, "servidor", None)
+            if not _deve_exibir_servidor_no_item(
+                item_cancelada_map.get(iid, False),
+                bool(getattr(servidor, "ativo", True)),
+            ):
+                continue
+            nome = getattr(servidor, "nome", "") or f"Servidor {sid}"
             serv_nomes.setdefault(iid, []).append(nome)
             serv_ids.setdefault(iid, []).append(str(sid))
 
@@ -1468,6 +1475,7 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
             "meta": meta_nome,
             "servidores": serv_nomes.get(it.id, []),
             "servidor_ids": serv_ids.get(it.id, []),
+            "cancelada": bool(getattr(it, "cancelada", False)),
             "veiculo": veiculo_label,
             "observacao": (getattr(it, "observacao", "") or "").strip(),
             "meta_descricao": (getattr(meta, "descricao", "") or "").strip() if meta else "",
@@ -1482,6 +1490,10 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
         })
 
     return out
+
+
+def _deve_exibir_servidor_no_item(cancelada: bool, servidor_ativo: bool) -> bool:
+    return (not cancelada) or servidor_ativo
 
 
 def _fetch_expediente_admin(
@@ -1537,12 +1549,23 @@ def _resolve_expediente_admin_report(
 
     expediente: list[str] = []
     seen: set[str] = set()
-    fonte = expediente_salvo if expediente_salvo else expediente_calculado
-    for nome in fonte:
-        if nome and nome not in seen:
-            seen.add(nome)
-            expediente.append(nome)
+    for fonte in (expediente_salvo, expediente_calculado):
+        for nome in fonte:
+            if nome and nome not in seen:
+                seen.add(nome)
+                expediente.append(nome)
     return expediente
+
+
+def _servidores_alocados_ids_para_expediente(itens: list[dict[str, Any]]) -> set[str]:
+    alocados_ids: set[str] = set()
+    for it in itens:
+        if it.get("cancelada"):
+            continue
+        for sid in it.get("servidor_ids", []):
+            if sid:
+                alocados_ids.add(str(sid))
+    return alocados_ids
 
 
 def _daterange_inclusive(d0: date, d1: date):
@@ -1714,12 +1737,8 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 and _expediente_desativado_explicitamente(getattr(programacao, "observacao", ""))
             )
 
-        # ids alocados em qualquer atividade do dia
-        alocados_ids: set[str] = set()
-        for it in itens:
-            for sid in it.get("servidor_ids", []):
-                if sid:
-                    alocados_ids.add(str(sid))
+        # ids alocados em atividades validas do dia
+        alocados_ids = _servidores_alocados_ids_para_expediente(itens)
 
         # Calcula o expediente a partir dos servidores livres para absorver ajustes
         # posteriores na programacao. A ausencia so prevalece quando foi salva de forma explicita.
@@ -1850,15 +1869,16 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 if status_execucao == CANCELADA:
                     realizada_opcao = "nao"
                 # acumula para rel. atividades
-                for nome in (b.get("servidores") or []):
-                    if nome and isinstance(nome, str):
-                        atividades_por_servidor[nome].append({
-                            "dia_label": dia_label,
-                            "iso": iso,
-                            "atividade": b["meta"],
-                            "veiculo": b["veiculo"],
-                            "observacao": b.get("observacao") or "",
-                        })
+                if status_execucao != CANCELADA:
+                    for nome in (b.get("servidores") or []):
+                        if nome and isinstance(nome, str):
+                            atividades_por_servidor[nome].append({
+                                "dia_label": dia_label,
+                                "iso": iso,
+                                "atividade": b["meta"],
+                                "veiculo": b["veiculo"],
+                                "observacao": b.get("observacao") or "",
+                            })
 
                 obs_txt = (b.get("observacao") or "").strip()
                 obs_html = (
