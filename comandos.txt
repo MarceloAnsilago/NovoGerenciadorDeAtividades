@@ -10,7 +10,6 @@ python manage.py auditar_vinculos_metas
 python manage.py auditar_vinculos_metas --include-especiais
 python manage.py auditar_vinculos_metas --meta-id 68 --include-ok
 
-
 flyctl deploy -a gerenciador-de-atividades
 
 supabase 
