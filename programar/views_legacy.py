@@ -1939,6 +1939,11 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         ".programacao-semana-table .atividade-status-nao-realizada-justificada{ color:#5f3dc4; border-color:#b8a7f2; background:#f3f0ff; }"
 
         "/* Relatório 'Justificativa' */"
+        ".programar-observacao-wrap{ break-inside:avoid; page-break-inside:avoid; margin-top:.45rem !important; padding:.25rem .5rem .5rem !important; }"
+        ".programar-observacao-box{ break-inside:avoid; page-break-inside:avoid; padding:.45rem .6rem !important; }"
+        ".programar-observacao-box > .small:first-child{ margin-bottom:.15rem !important; font-size:.68rem; line-height:1.05; }"
+        ".programar-observacao-title{ margin-bottom:.15rem !important; font-size:.68rem; line-height:1.05; }"
+        ".programar-observacao-text{ font-size:.72rem; line-height:1.25; }"
         ".rel-atividades .card-ativ{ page-break-inside: avoid; }"
         ".rel-atividades .mini-table{ width:100%; border-collapse:collapse; }"
         ".rel-atividades .mini-table td{ border:1px solid var(--bs-border-color); padding:.35rem .5rem; }"
@@ -1995,6 +2000,11 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         "    text-align: center !important;"
         "    vertical-align: middle !important;"
         "  }"
+        "  .programar-observacao-wrap{ break-inside:avoid-page !important; page-break-inside:avoid !important; margin-top:3pt !important; padding:0 4pt 3pt !important; }"
+        "  .programar-observacao-box{ break-inside:avoid-page !important; page-break-inside:avoid !important; padding:4pt 5pt !important; }"
+        "  .programar-observacao-box > .small:first-child{ font-size:6.8pt !important; line-height:1 !important; margin-bottom:1pt !important; }"
+        "  .programar-observacao-title{ font-size:6.8pt !important; line-height:1 !important; margin-bottom:1pt !important; }"
+        "  .programar-observacao-text{ font-size:7.2pt !important; line-height:1.18 !important; }"
         "  div.mt-4.rel-atividades{ break-before: page; page-break-before: always; }"
         "  .report-toolbar, .report-toolbar .btn, .report-toolbar .btn-group, .btn{ display:none !important; }"
         "}"
@@ -2111,6 +2121,13 @@ A divulgação indevida de informações constantes na programação poderá com
 Solicitamos a colaboração de todos os servidores na preservação da confidencialidade deste documento, zelando pela segurança das informações e pelo bom desempenho das atividades institucionais."""
 
 
+DEFAULT_RELATORIO_OBSERVACAO_COMPACTA = """AVISO DE CONFIDENCIALIDADE
+
+A Programacao Mensal de Atividades e documento interno da ULSAV, destinado ao planejamento, coordenacao e execucao das acoes institucionais.
+
+As informacoes sao restritas aos servidores da Unidade e nao devem ser compartilhadas, reproduzidas ou divulgadas a terceiros sem autorizacao da chefia imediata. A divulgacao indevida podera comprometer as acoes de fiscalizacao e sujeitar o responsavel as medidas administrativas cabiveis."""
+
+
 def _relatorio_observacao_from_request(request) -> str:
     try:
         raw = request.GET.get("observacao", "")
@@ -2119,7 +2136,7 @@ def _relatorio_observacao_from_request(request) -> str:
     obs = str(raw or "")
     obs = obs.replace("\r\n", "\n").replace("\r", "\n").strip()
     if not obs:
-        obs = DEFAULT_RELATORIO_OBSERVACAO
+        obs = DEFAULT_RELATORIO_OBSERVACAO_COMPACTA
     if len(obs) > 2000:
         obs = obs[:2000].rstrip()
     return obs
@@ -2131,10 +2148,10 @@ def _render_relatorio_observacao_html(observacao: str) -> str:
         return ""
     safe = html.escape(obs).replace("\n", "<br>")
     return f"""
-      <div class="mt-3 px-3 pb-3">
-        <div class="border rounded p-3 bg-light">
+      <div class="programar-observacao-wrap mt-2 px-2 pb-2">
+        <div class="programar-observacao-box border rounded bg-light">
           <div class="small text-uppercase text-muted fw-semibold mb-1">Observação</div>
-          <div class="small">{safe}</div>
+          <div class="programar-observacao-text small">{safe}</div>
         </div>
       </div>
     """

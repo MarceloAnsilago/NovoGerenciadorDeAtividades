@@ -7,6 +7,30 @@
         <select id="programar-select-semana" class="form-select form-select-sm" style="min-width: 220px;">
           <option value="">Selecione a semana</option>
         </select>
+        <script>
+          (function(){
+            function normalizarObservacaoPadrao(){
+            const ta = document.getElementById("programar-observacao");
+            if (!ta) return false;
+            const compacta = [
+              "AVISO DE CONFIDENCIALIDADE",
+              "",
+              "A Programacao Mensal de Atividades e documento interno da ULSAV, destinado ao planejamento, coordenacao e execucao das acoes institucionais.",
+              "",
+              "As informacoes sao restritas aos servidores da Unidade e nao devem ser compartilhadas, reproduzidas ou divulgadas a terceiros sem autorizacao da chefia imediata. A divulgacao indevida podera comprometer as acoes de fiscalizacao e sujeitar o responsavel as medidas administrativas cabiveis."
+            ].join("\n");
+            const atual = String(ta.value || "");
+            const isDefaultAntigo = atual.includes("AVISO DE CONFIDENCIALIDADE")
+              && atual.includes("Solicitamos a colabora")
+              && atual.includes("bom desempenho das atividades institucionais");
+            if (isDefaultAntigo) ta.value = compacta;
+            return true;
+            }
+            if (!normalizarObservacaoPadrao()) {
+              document.addEventListener("DOMContentLoaded", normalizarObservacaoPadrao, { once: true });
+            }
+          })();
+        </script>
       </div>
 
       <div class="mt-3">
@@ -14,7 +38,7 @@
         <textarea
           id="programar-observacao"
           class="form-control form-control-sm"
-          rows="8"
+          rows="4"
           maxlength="2000"
           placeholder="Escreva aqui uma explicação/observação para ser impressa no final do relatório (se desejar)."
         >AVISO DE CONFIDENCIALIDADE
