@@ -5,11 +5,9 @@ from datetime import date, datetime, time
 from typing import Any
 
 from django.conf import settings
-from django.db.models import Q
 from django.utils import timezone
 
 from core.utils import get_unidade_atual_id
-from metas.models import MetaAlocacao
 from programar.models import ProgramacaoItem, ProgramacaoItemServidor
 from programar.status import (
     CANCELADA,
@@ -225,32 +223,7 @@ def _build_activity_map_section(unidade_id: int, data_inicial: date, data_final:
         items_qs = items_qs.exclude(meta_id=meta_expediente_id)
     items = list(items_qs)
 
-    allocations_qs = (
-        MetaAlocacao.objects
-        .select_related("meta", "meta__atividade")
-        .filter(
-            unidade_id=unidade_id,
-            quantidade_alocada__gt=0,
-        )
-        .filter(
-            Q(meta__data_inicio__isnull=True) | Q(meta__data_inicio__lte=data_final),
-            Q(meta__data_limite__isnull=True) | Q(meta__data_limite__gte=data_inicial),
-        )
-        .order_by("meta__titulo", "id")
-    )
-    if meta_expediente_id is not None:
-        allocations_qs = allocations_qs.exclude(meta_id=meta_expediente_id)
-    allocations = list(allocations_qs)
-
     metas_info: dict[int, dict[str, Any]] = OrderedDict()
-    for allocation in allocations:
-        meta = getattr(allocation, "meta", None)
-        meta_id = int(getattr(meta, "id", 0) or 0)
-        if not meta_id:
-            continue
-        info = metas_info.setdefault(meta_id, {"meta": meta, "total": 0})
-        info["total"] = int(info["total"] or 0) + int(getattr(allocation, "quantidade_alocada", 0) or 0)
-
     items_by_meta: dict[int, list[ProgramacaoItem]] = defaultdict(list)
     for item in items:
         meta = getattr(item, "meta", None)
@@ -259,10 +232,7 @@ def _build_activity_map_section(unidade_id: int, data_inicial: date, data_final:
             continue
         items_by_meta[meta_id].append(item)
         if meta_id not in metas_info:
-            metas_info[meta_id] = {
-                "meta": meta,
-                "total": int(getattr(meta, "quantidade_alvo", 0) or 0),
-            }
+            metas_info[meta_id] = {"meta": meta}
 
     item_ids = [item.id for item in items if item.id]
     servers_by_item: dict[int, list[object]] = defaultdict(list)
@@ -281,12 +251,7 @@ def _build_activity_map_section(unidade_id: int, data_inicial: date, data_final:
     for meta_id, meta_info in metas_info.items():
         meta = meta_info["meta"]
         meta_items = items_by_meta.get(meta_id) or []
-        meta_deadline = getattr(meta, "data_limite", None)
-        allocation_total = int(meta_info.get("total") or 0)
-        if meta_deadline and meta_deadline > data_final:
-            total = len(meta_items)
-        else:
-            total = max(allocation_total, len(meta_items))
+        total = len(meta_items)
         if total <= 0:
             continue
 
@@ -317,18 +282,6 @@ def _build_activity_map_section(unidade_id: int, data_inicial: date, data_final:
                     "status_key": status_key,
                     "status_label": status_label,
                     "marcado": _activity_map_should_mark(status_key),
-                }
-            else:
-                activity = {
-                    "item_id": None,
-                    "data": None,
-                    "meta_titulo": row["atividade_nome"],
-                    "atividade_nome": row["atividade_secundaria"],
-                    "veiculo": "",
-                    "servidores": [],
-                    "status_key": "nao_programada",
-                    "status_label": "Nao programada",
-                    "marcado": False,
                 }
             row["atividades"].append(activity)
         rows.append(row)

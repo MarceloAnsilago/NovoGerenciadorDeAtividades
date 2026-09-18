@@ -93,7 +93,7 @@ class RelatorioProgramacaoTests(TestCase):
         self.assertContains(response, "Segunda nao realizada")
         self.assertNotContains(response, "Atividade: Fiscalizacao de viveiros")
 
-    def test_relatorio_desempenho_inclui_mapa_de_atividades(self):
+    def test_relatorio_desempenho_mapa_usa_apenas_itens_do_periodo(self):
         MetaAlocacao.objects.create(
             meta=self.meta,
             unidade=self.unidade,
@@ -114,10 +114,10 @@ class RelatorioProgramacaoTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         mapa = response.context["report"]["desempenho"]["mapa_atividades"]
-        self.assertEqual(mapa["total_atividades"], 3)
+        self.assertEqual(mapa["total_atividades"], 2)
         self.assertEqual(len(mapa["rows"]), 1)
-        self.assertEqual(len(mapa["rows"][0]["atividades"]), 3)
-        self.assertEqual(mapa["rows"][0]["atividades"][2]["status_label"], "Nao programada")
+        self.assertEqual(len(mapa["rows"][0]["atividades"]), 2)
+        self.assertTrue(all(activity["item_id"] for activity in mapa["rows"][0]["atividades"]))
         self.assertContains(response, "Mapa de atividades")
         self.assertContains(response, "Execu&ccedil;&otilde;es do per&iacute;odo")
 
