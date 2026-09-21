@@ -13,9 +13,10 @@ from core.services.dashboard_queries import (
     get_atividades_por_area,
     get_progresso_mensal,
     get_programacoes_status_mensal,
+    get_top_servidores,
 )
 from metas.models import Meta, MetaAlocacao, ProgressoMeta
-from programar.models import Programacao, ProgramacaoItem
+from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from servidores.models import Servidor
 from atividades.models import Area, Atividade
 
@@ -310,6 +311,43 @@ class DashboardMetasPorUnidadeTest(TestCase):
         datasets = {dataset["label"]: dataset["data"] for dataset in result["datasets"]}
         self.assertEqual(datasets["Canceladas"], [1])
         self.assertEqual(datasets["NÃ£o realizadas"], [0])
+
+
+    def test_top_servidores_counts_only_completed_items(self):
+        meta = Meta.objects.create(
+            unidade_criadora=self.root,
+            titulo="Meta Servidor",
+            descricao="",
+            quantidade_alvo=2,
+            criado_por=self.user,
+        )
+        programacao = Programacao.objects.create(
+            data=date(2026, 2, 18),
+            unidade=self.child,
+            criado_por=self.user,
+        )
+        concluido = ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=meta,
+            concluido=True,
+        )
+        pendente = ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=meta,
+            concluido=False,
+        )
+        ProgramacaoItemServidor.objects.create(item=concluido, servidor=self.servidor_child)
+        ProgramacaoItemServidor.objects.create(item=pendente, servidor=self.servidor_child)
+
+        result = get_top_servidores(
+            self.user,
+            unidade_ids=[self.child.id],
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 2, 28),
+        )
+
+        self.assertEqual(result["labels"], ["Servidor A"])
+        self.assertEqual(result["datasets"][0]["data"], [1])
 
 
 class DashboardProgressoMensalTest(TestCase):

@@ -664,7 +664,7 @@ def get_top_servidores(
             "servidor",
             "item__programacao",
             "item__meta",
-        ).filter(servidor__ativo=True),
+        ).filter(servidor__ativo=True, item__concluido=True),
         unidade_ids,
         "item__programacao__unidade_id",
     )
