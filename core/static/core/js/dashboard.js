@@ -165,11 +165,45 @@
   function renderAtividadesServidorChart(payload) {
     atividadesServidorPayloadCache = payload;
     populateAtividadeServidorSelect(payload);
+    const barValueLabelsPlugin = {
+      id: "barValueLabelsAtividadesServidor",
+      afterDatasetsDraw(chart) {
+        const { ctx, chartArea } = chart;
+        ctx.save();
+        ctx.font = "600 11px sans-serif";
+        ctx.textBaseline = "middle";
+
+        chart.data.datasets.forEach((dataset, datasetIndex) => {
+          const meta = chart.getDatasetMeta(datasetIndex);
+          if (!meta || meta.hidden) {
+            return;
+          }
+          meta.data.forEach((bar, index) => {
+            const value = Number(dataset.data[index] || 0);
+            if (!value) {
+              return;
+            }
+
+            const text = value.toLocaleString("pt-BR");
+            const textWidth = ctx.measureText(text).width;
+            const outsideX = bar.x + 6;
+            const fitsOutside = outsideX + textWidth <= chartArea.right;
+            ctx.textAlign = fitsOutside ? "left" : "right";
+            ctx.fillStyle = fitsOutside ? "#343a40" : "#ffffff";
+            ctx.fillText(text, fitsOutside ? outsideX : bar.x - 6, bar.y);
+          });
+        });
+
+        ctx.restore();
+      },
+    };
+
     renderChart(
       "chartAtividadesServidor",
       filterAtividadesServidorPayload(payload),
       {
         type: "bar",
+        plugins: [barValueLabelsPlugin],
         options: {
           indexAxis: "y",
           responsive: true,
