@@ -9,9 +9,11 @@
   const startInput = document.getElementById("dashboardStartMonth");
   const endInput = document.getElementById("dashboardEndMonth");
   const currentMonthBtn = document.getElementById("dashboardCurrentMonthBtn");
+  const atividadeServidorSelect = document.getElementById("atividadeServidorSelect");
   let refreshTimer = null;
   let activeRequestController = null;
   let latestRefreshToken = 0;
+  let atividadesServidorPayloadCache = null;
 
   async function fetchJson(url, { signal } = {}) {
     if (!url) {
@@ -111,6 +113,102 @@
     }
 
     charts[canvasId] = new Chart(canvas, config);
+  }
+
+  function populateAtividadeServidorSelect(payload) {
+    if (!atividadeServidorSelect || !payload) {
+      return;
+    }
+
+    const selected = atividadeServidorSelect.value || "";
+    const atividades = (payload.datasets || []).map((dataset) => dataset.label).filter(Boolean);
+    atividadeServidorSelect.innerHTML = "";
+
+    atividades.forEach((atividade) => {
+      const option = document.createElement("option");
+      option.value = atividade;
+      option.textContent = atividade;
+      atividadeServidorSelect.appendChild(option);
+    });
+
+    if (atividades.length) {
+      atividadeServidorSelect.value = atividades.includes(selected) ? selected : atividades[0];
+      atividadeServidorSelect.disabled = false;
+    } else {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "Nenhuma atividade concluida";
+      atividadeServidorSelect.appendChild(option);
+      atividadeServidorSelect.value = "";
+      atividadeServidorSelect.disabled = true;
+    }
+  }
+
+  function filterAtividadesServidorPayload(payload) {
+    if (!payload || !atividadeServidorSelect || !atividadeServidorSelect.value) {
+      return payload;
+    }
+
+    const selected = atividadeServidorSelect.value;
+    const dataset = (payload.datasets || []).find((item) => item.label === selected);
+    if (!dataset) {
+      return { ...payload, datasets: [], hints: [] };
+    }
+
+    return {
+      ...payload,
+      datasets: [dataset],
+      hints: (dataset.data || []).map((value) => (value ? `${selected}: ${value}` : "")),
+    };
+  }
+
+  function renderAtividadesServidorChart(payload) {
+    atividadesServidorPayloadCache = payload;
+    populateAtividadeServidorSelect(payload);
+    renderChart(
+      "chartAtividadesServidor",
+      filterAtividadesServidorPayload(payload),
+      {
+        type: "bar",
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false,
+              labels: { boxWidth: 0 },
+            },
+            tooltip: {
+              callbacks: {
+                label(context) {
+                  const dsLabel = context.dataset?.label || "";
+                  const value = context.parsed?.x ?? context.parsed ?? 0;
+                  return value ? `${dsLabel}: ${value}` : "";
+                },
+                footer(items) {
+                  if (!items || !items.length) return "";
+                  const idx = items[0].dataIndex;
+                  const filteredPayload = filterAtividadesServidorPayload(payload);
+                  const hints = filteredPayload?.hints || [];
+                  return hints[idx] || "";
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              stacked: true,
+              beginAtZero: true,
+              ticks: { precision: 0 },
+            },
+            y: {
+              stacked: true,
+            },
+          },
+        },
+      }
+    );
   }
 
   function getRangeValues() {
@@ -506,46 +604,7 @@
       if (signal.aborted || refreshToken !== latestRefreshToken) {
         return;
       }
-      renderChart(
-        "chartAtividadesServidor",
-        atividadesServidorPayload,
-        {
-          type: "bar",
-          options: {
-            indexAxis: "y",
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { position: "bottom" },
-              tooltip: {
-                callbacks: {
-                  label(context) {
-                    const dsLabel = context.dataset?.label || "";
-                    const value = context.parsed?.x ?? context.parsed ?? 0;
-                    return value ? `${dsLabel}: ${value}` : "";
-                  },
-                  footer(items) {
-                    if (!items || !items.length) return "";
-                    const idx = items[0].dataIndex;
-                    const hints = atividadesServidorPayload?.hints || [];
-                    return hints[idx] || "";
-                  },
-                },
-              },
-            },
-            scales: {
-              x: {
-                stacked: true,
-                beginAtZero: true,
-                ticks: { precision: 0 },
-              },
-              y: {
-                stacked: true,
-              },
-            },
-          },
-        }
-      );
+      renderAtividadesServidorChart(atividadesServidorPayload);
 
       renderChart(
         "chartPlantaoSemanal",
@@ -610,6 +669,12 @@
     if (currentMonthBtn) {
       currentMonthBtn.addEventListener("click", () => {
         applyCurrentMonth();
+      });
+    }
+
+    if (atividadeServidorSelect) {
+      atividadeServidorSelect.addEventListener("change", () => {
+        renderAtividadesServidorChart(atividadesServidorPayloadCache);
       });
     }
 

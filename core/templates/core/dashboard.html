@@ -228,7 +228,12 @@
   <div class="row g-4 mt-1">
     <div class="col-12">
       <div class="card shadow-sm h-100">
-        <div class="card-header bg-white fw-semibold">Servidores por atividades concluidas</div>
+        <div class="card-header bg-white fw-semibold d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <span>Servidores por atividades concluidas</span>
+          <select id="atividadeServidorSelect" class="form-select form-select-sm" style="max-width: 28rem;">
+            <option value="">Carregando atividades...</option>
+          </select>
+        </div>
         <div class="card-body">
           <canvas id="chartAtividadesServidor" data-endpoint="{% url 'core:dashboard_atividades_por_servidor' %}" height="320"></canvas>
         </div>
@@ -268,6 +273,6 @@
       servidorDashboardTemplate: "{% url 'core:dashboard_servidor' 0 %}",
     };
   </script>
-  <script src="{% static 'core/js/dashboard.js' %}?v=20260921-atividades-legenda" defer></script>
+  <script src="{% static 'core/js/dashboard.js' %}?v=20260921-atividades-select-v2" defer></script>
 {% endblock %}
 
