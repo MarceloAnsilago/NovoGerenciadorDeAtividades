@@ -163,9 +163,24 @@
     };
   }
 
+  function getAtividadeServidorSelectedTotal() {
+    if (!atividadesServidorPayloadCache || !atividadeServidorSelect || !atividadeServidorSelect.value) {
+      return null;
+    }
+
+    const selected = atividadeServidorSelect.value;
+    const dataset = (atividadesServidorPayloadCache.datasets || []).find((item) => item.label === selected);
+    if (!dataset) {
+      return null;
+    }
+
+    return (dataset.data || []).reduce((total, value) => total + Number(value || 0), 0);
+  }
+
   function renderAtividadesServidorChart(payload) {
     atividadesServidorPayloadCache = payload;
     populateAtividadeServidorSelect(payload);
+    updateAtividadesServidorTitle();
     const barValueLabelsPlugin = {
       id: "barValueLabelsAtividadesServidor",
       afterDatasetsDraw(chart) {
@@ -284,9 +299,14 @@
     }
     const { start, end } = getRangeValues();
     const period = formatMonthPeriod(start, end);
+    const selectedTotal = getAtividadeServidorSelectedTotal();
+    const totalText =
+      selectedTotal === null
+        ? ""
+        : ` - ${selectedTotal.toLocaleString("pt-BR")} atividades concluidas da selecionada`;
     atividadesServidorTitle.textContent = period
-      ? `Servidores por atividades concluidas - periodo de ${period}`
-      : "Servidores por atividades concluidas";
+      ? `Servidores por atividades concluidas - periodo de ${period}${totalText}`
+      : `Servidores por atividades concluidas${totalText}`;
   }
 
   function buildEndpoint(url) {
@@ -750,6 +770,7 @@
     if (atividadeServidorSelect) {
       atividadeServidorSelect.addEventListener("change", () => {
         renderAtividadesServidorChart(atividadesServidorPayloadCache);
+        updateAtividadesServidorTitle();
       });
     }
 
