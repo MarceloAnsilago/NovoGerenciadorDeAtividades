@@ -72,7 +72,7 @@
       return;
     }
 
-    if (canvasId === "chartTopServidores") {
+    if (canvasId === "chartTopServidores" || canvasId === "chartAtividadesServidor") {
       try {
         const totalBars = (payload.labels && payload.labels.length) || 0;
         const targetHeight = Math.max(280, totalBars * 28);
@@ -495,6 +495,52 @@
               },
               y: {
                 stacked: hasStack,
+              },
+            },
+          },
+        }
+      );
+
+      const atividadesServidorPayload =
+        bundlePayload?.atividadesPorServidor || await fetchJson(buildEndpoint(endpoints.atividadesPorServidor), { signal });
+      if (signal.aborted || refreshToken !== latestRefreshToken) {
+        return;
+      }
+      renderChart(
+        "chartAtividadesServidor",
+        atividadesServidorPayload,
+        {
+          type: "bar",
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: "bottom" },
+              tooltip: {
+                callbacks: {
+                  label(context) {
+                    const dsLabel = context.dataset?.label || "";
+                    const value = context.parsed?.x ?? context.parsed ?? 0;
+                    return value ? `${dsLabel}: ${value}` : "";
+                  },
+                  footer(items) {
+                    if (!items || !items.length) return "";
+                    const idx = items[0].dataIndex;
+                    const hints = atividadesServidorPayload?.hints || [];
+                    return hints[idx] || "";
+                  },
+                },
+              },
+            },
+            scales: {
+              x: {
+                stacked: true,
+                beginAtZero: true,
+                ticks: { precision: 0 },
+              },
+              y: {
+                stacked: true,
               },
             },
           },

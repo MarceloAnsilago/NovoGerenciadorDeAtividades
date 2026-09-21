@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from typing import List
 
 from django.conf import settings
-from django.db.models import Count, Sum, Q, IntegerField, Value, Exists, OuterRef
+from django.db.models import Count, Sum, Q, IntegerField, Value, Exists, OuterRef, CharField
 from django.db.models.functions import Coalesce, TruncMonth, TruncWeek, ExtractYear, ExtractMonth
 from django.utils import timezone
 
@@ -776,6 +776,99 @@ def get_top_servidores(
     return {
         "labels": labels,
         "servidor_ids": servidor_ids,
+        "datasets": datasets,
+        "hints": hints,
+    }
+
+
+def get_atividades_por_servidor(
+    user,
+    *,
+    unidade_ids=None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
+    base_qs = _filter_by_unidades(
+        ProgramacaoItemServidor.objects.select_related(
+            "servidor",
+            "item__programacao",
+            "item__meta",
+            "item__meta__atividade",
+        ).filter(servidor__ativo=True, item__concluido=True),
+        unidade_ids,
+        "item__programacao__unidade_id",
+    )
+    base_qs = _apply_date_range(base_qs, "item__programacao__data", start_date, end_date)
+
+    qs = (
+        base_qs.annotate(
+            atividade_nome=Coalesce(
+                "item__meta__atividade__titulo",
+                "item__meta__titulo",
+                Value("Sem titulo"),
+                output_field=CharField(),
+            )
+        )
+        .values("atividade_nome", "servidor_id", "servidor__nome")
+        .annotate(total=Count("id"))
+        .order_by("atividade_nome", "servidor__nome", "servidor_id")
+    )
+
+    activity_totals: dict[str, int] = {}
+    server_totals: dict[int, int] = {}
+    server_names: dict[int, str] = {}
+    matrix: dict[str, dict[int, int]] = {}
+
+    for row in qs:
+        atividade = row.get("atividade_nome") or "Sem titulo"
+        servidor_id = int(row.get("servidor_id") or 0)
+        servidor_nome = row.get("servidor__nome") or "Servidor"
+        total = int(row.get("total") or 0)
+        if not servidor_id or total <= 0:
+            continue
+
+        activity_totals[atividade] = activity_totals.get(atividade, 0) + total
+        server_totals[servidor_id] = server_totals.get(servidor_id, 0) + total
+        server_names[servidor_id] = servidor_nome
+        matrix.setdefault(atividade, {})[servidor_id] = total
+
+    labels = sorted(activity_totals, key=lambda nome: (-activity_totals[nome], nome))
+    server_ids = sorted(server_totals, key=lambda sid: (-server_totals[sid], server_names.get(sid, ""), sid))
+    palette = [
+        "#0d6efd",
+        "#198754",
+        "#ffc107",
+        "#dc3545",
+        "#6f42c1",
+        "#20c997",
+        "#0dcaf0",
+        "#fd7e14",
+        "#6c757d",
+        "#6610f2",
+    ]
+
+    datasets = []
+    for idx, servidor_id in enumerate(server_ids):
+        datasets.append(
+            {
+                "label": server_names.get(servidor_id, "Servidor"),
+                "backgroundColor": palette[idx % len(palette)],
+                "data": [matrix.get(label, {}).get(servidor_id, 0) for label in labels],
+                "stack": "total",
+            }
+        )
+
+    hints = []
+    for label in labels:
+        parts = []
+        for servidor_id in server_ids:
+            total = matrix.get(label, {}).get(servidor_id, 0)
+            if total:
+                parts.append(f"{server_names.get(servidor_id, 'Servidor')}: {total}")
+        hints.append(", ".join(parts))
+
+    return {
+        "labels": labels,
         "datasets": datasets,
         "hints": hints,
     }

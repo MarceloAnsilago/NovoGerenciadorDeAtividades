@@ -55,6 +55,11 @@ urlpatterns = [
         views.dashboard_top_servidores,
         name="dashboard_top_servidores",
     ),
+    path(
+        "api/dashboard/atividades_por_servidor/",
+        views.dashboard_atividades_por_servidor,
+        name="dashboard_atividades_por_servidor",
+    ),
     path("estrutura/", views.admin_arvore, name="admin_arvore"),
     path("perfis/", views.perfis, name="perfis"),
     path("perfis/criar/", views.criar_perfil, name="criar_perfil"),

@@ -41,6 +41,7 @@ from .services.dashboard_queries import (
     get_plantao_heatmap,
     get_uso_veiculos,
     get_top_servidores,
+    get_atividades_por_servidor,
 )
 from programar.status import remarcacao_origem_label
 # from .forms import UserProfileForm  # removido: não utilizado
@@ -627,6 +628,18 @@ def _dashboard_bundle_payload(request, *, unidade_scope, start_value=None, end_v
             start_value=start_value,
             end_value=end_value,
             extra={"limit": int(top_limit)},
+        ),
+        "atividadesPorServidor": _dashboard_cached(
+            "atividades_por_servidor",
+            lambda: get_atividades_por_servidor(
+                request.user,
+                unidade_ids=unidade_scope,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+            unidade_scope=unidade_scope,
+            start_value=start_value,
+            end_value=end_value,
         ),
     }
 
@@ -1457,6 +1470,27 @@ def dashboard_top_servidores(request):
         start_value=start_value,
         end_value=end_value,
         extra={"limit": limit},
+    )
+    return JsonResponse(data)
+
+
+@login_required
+@require_GET
+def dashboard_atividades_por_servidor(request):
+    unidade_scope = get_unidade_scope_ids(request)
+    start_value, end_value = _dashboard_range_inputs(request)
+    start_date, end_date = _dashboard_period_range(start_value, end_value)
+    data = _dashboard_cached(
+        "atividades_por_servidor",
+        lambda: get_atividades_por_servidor(
+            request.user,
+            unidade_ids=unidade_scope,
+            start_date=start_date,
+            end_date=end_date,
+        ),
+        unidade_scope=unidade_scope,
+        start_value=start_value,
+        end_value=end_value,
     )
     return JsonResponse(data)
 

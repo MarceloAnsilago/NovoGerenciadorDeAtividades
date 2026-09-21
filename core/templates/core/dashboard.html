@@ -228,6 +228,17 @@
   <div class="row g-4 mt-1">
     <div class="col-12">
       <div class="card shadow-sm h-100">
+        <div class="card-header bg-white fw-semibold">Atividades concluidas por servidor</div>
+        <div class="card-body">
+          <canvas id="chartAtividadesServidor" data-endpoint="{% url 'core:dashboard_atividades_por_servidor' %}" height="320"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div class="card shadow-sm h-100">
         <div class="card-header bg-white fw-semibold">Plantoes por semana</div>
         <div class="card-body">
           <canvas id="chartPlantaoSemanal" data-endpoint="{% url 'core:dashboard_plantao_heatmap' %}" height="260"></canvas>
@@ -253,6 +264,7 @@
       plantaoHeatmap: "{% url 'core:dashboard_plantao_heatmap' %}",
       usoVeiculos: "{% url 'core:dashboard_uso_veiculos' %}",
       topServidores: "{% url 'core:dashboard_top_servidores' %}",
+      atividadesPorServidor: "{% url 'core:dashboard_atividades_por_servidor' %}",
       servidorDashboardTemplate: "{% url 'core:dashboard_servidor' 0 %}",
     };
   </script>

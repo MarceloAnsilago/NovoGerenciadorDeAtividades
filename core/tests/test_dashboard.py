@@ -14,6 +14,7 @@ from core.services.dashboard_queries import (
     get_progresso_mensal,
     get_programacoes_status_mensal,
     get_top_servidores,
+    get_atividades_por_servidor,
 )
 from metas.models import Meta, MetaAlocacao, ProgressoMeta
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
@@ -347,6 +348,50 @@ class DashboardMetasPorUnidadeTest(TestCase):
         )
 
         self.assertEqual(result["labels"], ["Servidor A"])
+        self.assertEqual(result["datasets"][0]["data"], [1])
+
+    def test_atividades_por_servidor_counts_completed_items_by_activity(self):
+        meta_barreira = Meta.objects.create(
+            unidade_criadora=self.root,
+            titulo="Barreira",
+            descricao="",
+            quantidade_alvo=2,
+            criado_por=self.user,
+        )
+        meta_pvbr = Meta.objects.create(
+            unidade_criadora=self.root,
+            titulo="PVBR",
+            descricao="",
+            quantidade_alvo=1,
+            criado_por=self.user,
+        )
+        programacao = Programacao.objects.create(
+            data=date(2026, 2, 18),
+            unidade=self.child,
+            criado_por=self.user,
+        )
+        barreira_concluida = ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=meta_barreira,
+            concluido=True,
+        )
+        pvbr_pendente = ProgramacaoItem.objects.create(
+            programacao=programacao,
+            meta=meta_pvbr,
+            concluido=False,
+        )
+        ProgramacaoItemServidor.objects.create(item=barreira_concluida, servidor=self.servidor_child)
+        ProgramacaoItemServidor.objects.create(item=pvbr_pendente, servidor=self.servidor_child)
+
+        result = get_atividades_por_servidor(
+            self.user,
+            unidade_ids=[self.child.id],
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 2, 28),
+        )
+
+        self.assertEqual(result["labels"], ["Barreira"])
+        self.assertEqual(result["datasets"][0]["label"], "Servidor A")
         self.assertEqual(result["datasets"][0]["data"], [1])
 
 
