@@ -10,6 +10,7 @@
   const endInput = document.getElementById("dashboardEndMonth");
   const currentMonthBtn = document.getElementById("dashboardCurrentMonthBtn");
   const atividadeServidorSelect = document.getElementById("atividadeServidorSelect");
+  const atividadesServidorTitle = document.getElementById("atividadesServidorTitle");
   let refreshTimer = null;
   let activeRequestController = null;
   let latestRefreshToken = 0;
@@ -251,6 +252,43 @@
     return { start, end };
   }
 
+  function parseMonthValue(value) {
+    const match = /^(\d{4})-(\d{2})$/.exec(String(value || ""));
+    if (!match) {
+      return null;
+    }
+    return {
+      year: Number(match[1]),
+      month: Number(match[2]),
+    };
+  }
+
+  function formatDateBR(year, month, day) {
+    return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
+  }
+
+  function formatMonthPeriod(startValue, endValue) {
+    const start = parseMonthValue(startValue);
+    const end = parseMonthValue(endValue || startValue);
+    if (!start || !end) {
+      return "";
+    }
+
+    const lastDay = new Date(end.year, end.month, 0).getDate();
+    return `${formatDateBR(start.year, start.month, 1)} a ${formatDateBR(end.year, end.month, lastDay)}`;
+  }
+
+  function updateAtividadesServidorTitle() {
+    if (!atividadesServidorTitle) {
+      return;
+    }
+    const { start, end } = getRangeValues();
+    const period = formatMonthPeriod(start, end);
+    atividadesServidorTitle.textContent = period
+      ? `Servidores por atividades concluidas - periodo de ${period}`
+      : "Servidores por atividades concluidas";
+  }
+
   function buildEndpoint(url) {
     if (!url) {
       return url;
@@ -382,6 +420,7 @@
     startInput.value = clampMonthValue(currentMonth, startInput);
     endInput.value = clampMonthValue(currentMonth, endInput);
     normalizeRange();
+    updateAtividadesServidorTitle();
     syncUrlParams();
     await refreshDashboard();
   }
@@ -687,6 +726,7 @@
     if (startInput) {
       startInput.addEventListener("change", () => {
         normalizeRange();
+        updateAtividadesServidorTitle();
         syncUrlParams();
         scheduleRefresh();
       });
@@ -695,6 +735,7 @@
     if (endInput) {
       endInput.addEventListener("change", () => {
         normalizeRange();
+        updateAtividadesServidorTitle();
         syncUrlParams();
         scheduleRefresh();
       });
@@ -713,6 +754,7 @@
     }
 
     normalizeRange();
+    updateAtividadesServidorTitle();
     syncUrlParams();
     await refreshDashboard();
   }
