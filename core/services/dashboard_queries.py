@@ -810,11 +810,28 @@ def get_atividades_por_servidor(
             )
         )
         .values("atividade_nome", "servidor_id", "servidor__nome")
-        .annotate(total=Count("id"))
+        .annotate(total=Count("item_id", distinct=True))
         .order_by("atividade_nome", "servidor__nome", "servidor_id")
     )
 
-    activity_totals: dict[str, int] = {}
+    activity_item_totals_qs = (
+        base_qs.annotate(
+            atividade_nome=Coalesce(
+                "item__meta__atividade__titulo",
+                "item__meta__titulo",
+                Value("Sem titulo"),
+                output_field=CharField(),
+            )
+        )
+        .values("atividade_nome")
+        .annotate(total=Count("item_id", distinct=True))
+        .order_by("atividade_nome")
+    )
+
+    activity_totals: dict[str, int] = {
+        (row.get("atividade_nome") or "Sem titulo"): int(row.get("total") or 0)
+        for row in activity_item_totals_qs
+    }
     server_totals: dict[int, int] = {}
     server_names: dict[int, str] = {}
     matrix: dict[str, dict[int, int]] = {}
@@ -827,7 +844,6 @@ def get_atividades_por_servidor(
         if not servidor_id or total <= 0:
             continue
 
-        activity_totals[atividade] = activity_totals.get(atividade, 0) + total
         server_totals[servidor_id] = server_totals.get(servidor_id, 0) + total
         server_names[servidor_id] = servidor_nome
         matrix.setdefault(atividade, {})[servidor_id] = total
@@ -872,4 +888,5 @@ def get_atividades_por_servidor(
         "labels": labels,
         "datasets": datasets,
         "hints": hints,
+        "activity_totals": activity_totals,
     }

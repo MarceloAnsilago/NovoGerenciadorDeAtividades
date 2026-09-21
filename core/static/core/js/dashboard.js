@@ -169,12 +169,12 @@
     }
 
     const selected = atividadeServidorSelect.value;
-    const dataset = (atividadesServidorPayloadCache.datasets || []).find((item) => item.label === selected);
-    if (!dataset) {
-      return null;
+    const activityTotals = atividadesServidorPayloadCache.activity_totals || {};
+    if (Object.prototype.hasOwnProperty.call(activityTotals, selected)) {
+      return Number(activityTotals[selected] || 0);
     }
 
-    return (dataset.data || []).reduce((total, value) => total + Number(value || 0), 0);
+    return null;
   }
 
   function renderAtividadesServidorChart(payload) {

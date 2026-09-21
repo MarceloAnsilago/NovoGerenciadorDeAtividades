@@ -630,7 +630,7 @@ def _dashboard_bundle_payload(request, *, unidade_scope, start_value=None, end_v
             extra={"limit": int(top_limit)},
         ),
         "atividadesPorServidor": _dashboard_cached(
-            "atividades_por_servidor_v2",
+            "atividades_por_servidor_v3",
             lambda: get_atividades_por_servidor(
                 request.user,
                 unidade_ids=unidade_scope,
@@ -1481,7 +1481,7 @@ def dashboard_atividades_por_servidor(request):
     start_value, end_value = _dashboard_range_inputs(request)
     start_date, end_date = _dashboard_period_range(start_value, end_value)
     data = _dashboard_cached(
-        "atividades_por_servidor_v2",
+        "atividades_por_servidor_v3",
         lambda: get_atividades_por_servidor(
             request.user,
             unidade_ids=unidade_scope,

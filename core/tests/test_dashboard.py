@@ -381,6 +381,8 @@ class DashboardMetasPorUnidadeTest(TestCase):
             concluido=False,
         )
         ProgramacaoItemServidor.objects.create(item=barreira_concluida, servidor=self.servidor_child)
+        servidor_child_2 = Servidor.objects.create(unidade=self.child, nome="Servidor C", ativo=True)
+        ProgramacaoItemServidor.objects.create(item=barreira_concluida, servidor=servidor_child_2)
         ProgramacaoItemServidor.objects.create(item=pvbr_pendente, servidor=self.servidor_child)
 
         result = get_atividades_por_servidor(
@@ -390,9 +392,10 @@ class DashboardMetasPorUnidadeTest(TestCase):
             end_date=date(2026, 2, 28),
         )
 
-        self.assertEqual(result["labels"], ["Servidor A"])
+        self.assertEqual(result["labels"], ["Servidor A", "Servidor C"])
         self.assertEqual(result["datasets"][0]["label"], "Barreira")
-        self.assertEqual(result["datasets"][0]["data"], [1])
+        self.assertEqual(result["datasets"][0]["data"], [1, 1])
+        self.assertEqual(result["activity_totals"]["Barreira"], 1)
 
 
 class DashboardProgressoMensalTest(TestCase):
