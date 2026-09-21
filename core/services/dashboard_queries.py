@@ -832,8 +832,9 @@ def get_atividades_por_servidor(
         server_names[servidor_id] = servidor_nome
         matrix.setdefault(atividade, {})[servidor_id] = total
 
-    labels = sorted(activity_totals, key=lambda nome: (-activity_totals[nome], nome))
+    activity_labels = sorted(activity_totals, key=lambda nome: (-activity_totals[nome], nome))
     server_ids = sorted(server_totals, key=lambda sid: (-server_totals[sid], server_names.get(sid, ""), sid))
+    labels = [server_names.get(servidor_id, "Servidor") for servidor_id in server_ids]
     palette = [
         "#0d6efd",
         "#198754",
@@ -848,23 +849,23 @@ def get_atividades_por_servidor(
     ]
 
     datasets = []
-    for idx, servidor_id in enumerate(server_ids):
+    for idx, atividade in enumerate(activity_labels):
         datasets.append(
             {
-                "label": server_names.get(servidor_id, "Servidor"),
+                "label": atividade,
                 "backgroundColor": palette[idx % len(palette)],
-                "data": [matrix.get(label, {}).get(servidor_id, 0) for label in labels],
+                "data": [matrix.get(atividade, {}).get(servidor_id, 0) for servidor_id in server_ids],
                 "stack": "total",
             }
         )
 
     hints = []
-    for label in labels:
+    for servidor_id in server_ids:
         parts = []
-        for servidor_id in server_ids:
-            total = matrix.get(label, {}).get(servidor_id, 0)
+        for atividade in activity_labels:
+            total = matrix.get(atividade, {}).get(servidor_id, 0)
             if total:
-                parts.append(f"{server_names.get(servidor_id, 'Servidor')}: {total}")
+                parts.append(f"{atividade}: {total}")
         hints.append(", ".join(parts))
 
     return {

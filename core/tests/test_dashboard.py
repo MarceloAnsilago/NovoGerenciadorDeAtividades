@@ -390,8 +390,8 @@ class DashboardMetasPorUnidadeTest(TestCase):
             end_date=date(2026, 2, 28),
         )
 
-        self.assertEqual(result["labels"], ["Barreira"])
-        self.assertEqual(result["datasets"][0]["label"], "Servidor A")
+        self.assertEqual(result["labels"], ["Servidor A"])
+        self.assertEqual(result["datasets"][0]["label"], "Barreira")
         self.assertEqual(result["datasets"][0]["data"], [1])
 
 
