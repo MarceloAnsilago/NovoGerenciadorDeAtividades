@@ -286,7 +286,7 @@ function syncConclusionLink(card) {
     }
   }
 
-  function renderBarChart({ canvasId, emptyId, payload, chartRef, onChart }) {
+  function renderBarChart({ canvasId, emptyId, payload, chartRef, onChart, fullBarLabel = false }) {
     const canvas = document.getElementById(canvasId);
     const empty = document.getElementById(emptyId);
     if (!canvas || !payload) return;
@@ -295,6 +295,7 @@ function syncConclusionLink(card) {
     const datasets = payload.datasets || [];
     const displayLabels = labels.map((label) => {
       const text = String(label || "").trim();
+      if (fullBarLabel) return text;
       return text.split(/\s+/)[0] || text;
     });
     const wrap = canvas.parentElement;
@@ -432,6 +433,7 @@ function syncConclusionLink(card) {
       payload: payload?.veiculos,
       chartRef: graficoVeiculosChart,
       onChart(chart) { graficoVeiculosChart = chart; },
+      fullBarLabel: true,
     });
   }
 
