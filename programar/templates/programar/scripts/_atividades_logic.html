@@ -255,9 +255,12 @@ function syncConclusionLink(card) {
     canvas: "programar-graficoAtividadeCanvas",
     geralEmpty: "programar-graficoAlocacoesGeralEmpty",
     geralCanvas: "programar-graficoAlocacoesGeralCanvas",
+    veiculosEmpty: "programar-graficoVeiculosEmpty",
+    veiculosCanvas: "programar-graficoVeiculosCanvas",
   };
   let graficoAtividadeChart = null;
   let graficoAlocacoesGeralChart = null;
+  let graficoVeiculosChart = null;
 
   function currentModalMonth() {
     const selectedDate = String(document.getElementById("programar-dataAtividade")?.value || "").trim();
@@ -273,6 +276,7 @@ function syncConclusionLink(card) {
     const empties = [
       document.getElementById(GRAFICO_IDS.empty),
       document.getElementById(GRAFICO_IDS.geralEmpty),
+      document.getElementById(GRAFICO_IDS.veiculosEmpty),
     ].filter(Boolean);
     if (loading) {
       empties.forEach((empty) => {
@@ -422,6 +426,13 @@ function syncConclusionLink(card) {
       chartRef: graficoAlocacoesGeralChart,
       onChart(chart) { graficoAlocacoesGeralChart = chart; },
     });
+    renderBarChart({
+      canvasId: GRAFICO_IDS.veiculosCanvas,
+      emptyId: GRAFICO_IDS.veiculosEmpty,
+      payload: payload?.veiculos,
+      chartRef: graficoVeiculosChart,
+      onChart(chart) { graficoVeiculosChart = chart; },
+    });
   }
 
   async function carregarGraficoAtividade() {
@@ -447,6 +458,7 @@ function syncConclusionLink(card) {
       const empties = [
         document.getElementById(GRAFICO_IDS.empty),
         document.getElementById(GRAFICO_IDS.geralEmpty),
+        document.getElementById(GRAFICO_IDS.veiculosEmpty),
       ].filter(Boolean);
       empties.forEach((empty) => {
         empty.textContent = err.message || "Erro ao carregar alocacoes.";
@@ -454,6 +466,7 @@ function syncConclusionLink(card) {
       });
       document.getElementById(GRAFICO_IDS.canvas)?.parentElement?.classList.add("d-none");
       document.getElementById(GRAFICO_IDS.geralCanvas)?.parentElement?.classList.add("d-none");
+      document.getElementById(GRAFICO_IDS.veiculosCanvas)?.parentElement?.classList.add("d-none");
       console.error("[programar] grafico atividade:", err);
     }
   }

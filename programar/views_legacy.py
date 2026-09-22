@@ -3388,6 +3388,49 @@ def alocacoes_servidores_atividade(request):
             geral_hints_by_servidor[servidor_id].append(f"{data_prog.strftime('%d/%m')}: {total}")
     geral_hints = ["; ".join(geral_hints_by_servidor.get(servidor_id, [])) for servidor_id in geral_servidor_ids]
 
+    veiculos_qs = (
+        ProgramacaoItem.objects
+        .select_related("veiculo", "programacao")
+        .filter(
+            programacao__unidade_id=unidade_id,
+            programacao__data__gte=start_date,
+            programacao__data__lte=end_date,
+            veiculo_id__isnull=False,
+        )
+    )
+    if meta_expediente_id:
+        veiculos_qs = veiculos_qs.exclude(meta_id=meta_expediente_id)
+
+    veiculo_rows = list(
+        veiculos_qs.values("veiculo_id", "veiculo__nome", "veiculo__placa")
+        .annotate(total=Count("id"))
+        .order_by("-total", "veiculo__nome", "veiculo__placa", "veiculo_id")
+    )
+    veiculo_labels: list[str] = []
+    veiculo_data: list[int] = []
+    veiculo_ids: list[int] = []
+    for row in veiculo_rows:
+        nome = (row.get("veiculo__nome") or "").strip()
+        placa = (row.get("veiculo__placa") or "").strip()
+        label = f"{nome} ({placa})" if nome and placa else (nome or placa or "Veiculo")
+        veiculo_labels.append(label)
+        veiculo_data.append(int(row.get("total") or 0))
+        veiculo_ids.append(int(row.get("veiculo_id") or 0))
+
+    veiculo_day_rows = (
+        veiculos_qs.values("veiculo_id", "programacao__data")
+        .annotate(total=Count("id"))
+        .order_by("veiculo_id", "programacao__data")
+    )
+    veiculo_hints_by_id: dict[int, list[str]] = defaultdict(list)
+    for row in veiculo_day_rows:
+        veiculo_id = int(row.get("veiculo_id") or 0)
+        data_prog = row.get("programacao__data")
+        total = int(row.get("total") or 0)
+        if veiculo_id and data_prog and total:
+            veiculo_hints_by_id[veiculo_id].append(f"{data_prog.strftime('%d/%m')}: {total}")
+    veiculo_hints = ["; ".join(veiculo_hints_by_id.get(veiculo_id, [])) for veiculo_id in veiculo_ids]
+
     return JsonResponse({
         "ok": True,
         "mes": mes,
@@ -3416,6 +3459,19 @@ def alocacoes_servidores_atividade(request):
             ],
             "hints": geral_hints,
             "total_alocacoes": sum(geral_data),
+        },
+        "veiculos": {
+            "labels": veiculo_labels,
+            "datasets": [
+                {
+                    "label": "Alocacoes de veiculos",
+                    "backgroundColor": "#6f42c1",
+                    "borderColor": "#59359a",
+                    "data": veiculo_data,
+                }
+            ],
+            "hints": veiculo_hints,
+            "total_alocacoes": sum(veiculo_data),
         },
     })
 

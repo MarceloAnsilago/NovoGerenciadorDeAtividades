@@ -136,9 +136,17 @@
           </div>
           <div class="col-12 col-xl-4">
             <div class="card h-100 programar-grafico-card">
-              <div class="card-header bg-white fw-semibold">Grafico 3</div>
-              <div class="card-body d-flex align-items-center justify-content-center text-muted small">
-                Em preparacao
+              <div class="card-header bg-white">
+                <div class="fw-semibold">Alocacao de veiculos</div>
+                <div class="text-muted small">Atividades com veiculo informado</div>
+              </div>
+              <div class="card-body">
+                <div id="programar-graficoVeiculosEmpty" class="alert alert-light border text-muted d-none mb-0">
+                  Nenhuma alocacao de veiculo encontrada para este mes.
+                </div>
+                <div class="programar-grafico-atividade-wrap">
+                  <canvas id="programar-graficoVeiculosCanvas" height="320"></canvas>
+                </div>
               </div>
             </div>
           </div>
