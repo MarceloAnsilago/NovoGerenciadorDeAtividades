@@ -598,6 +598,20 @@
     border-color:#dfe5ec;
     box-shadow:0 .25rem .75rem rgba(15, 23, 42, .06);
   }
+  #programar-modalGraficoAtividade .programar-grafico-summary{
+    display:grid;
+    grid-template-columns:minmax(0, 1fr) auto;
+    align-items:end;
+    gap:1rem;
+  }
+  #programar-modalGraficoAtividade .programar-grafico-atividade-info{
+    min-width:0;
+  }
+  #programar-modalGraficoAtividade .programar-grafico-controls{
+    display:flex;
+    align-items:end;
+    gap:.75rem;
+  }
   #programar-modalGraficoAtividade .programar-grafico-card .card-header{
     border-bottom-color:#edf1f5;
     padding:.8rem .95rem;
@@ -622,6 +636,12 @@
     #programar-modalAtividade .meta-date, 
     #programar-modalAtividade .meta-progress .summary{ font-size:.82rem; }
     #programar-modalAtividade .meta-progress .progress{ height:5px; }
+    #programar-modalGraficoAtividade .programar-grafico-summary{
+      grid-template-columns:1fr;
+    }
+    #programar-modalGraficoAtividade .programar-grafico-controls{
+      flex-wrap:wrap;
+    }
   }
 
   /* Impressão: ocultar grid de seleção de metas */

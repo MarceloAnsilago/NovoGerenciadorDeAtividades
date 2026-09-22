@@ -85,19 +85,19 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
-        <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
-          <div>
+        <div class="programar-grafico-summary mb-3">
+          <div class="programar-grafico-atividade-info">
             <div class="text-muted small">Atividade</div>
-            <div id="programar-graficoAtividadeNome" class="fw-semibold">-</div>
+            <div class="fw-semibold">
+              <span id="programar-graficoAtividadeNome">-</span>
+              <span class="text-muted">-</span>
+              <span id="programar-graficoAtividadeTotal">0</span>
+            </div>
           </div>
-          <div class="d-flex align-items-end gap-2">
+          <div class="programar-grafico-controls">
             <div>
               <label class="form-label small mb-1" for="programar-graficoAtividadeMes">Mes</label>
               <input id="programar-graficoAtividadeMes" type="month" class="form-control form-control-sm">
-            </div>
-            <div class="text-end">
-              <div class="text-muted small">Atividades no mes</div>
-              <div id="programar-graficoAtividadeTotal" class="fw-semibold">0</div>
             </div>
           </div>
         </div>
