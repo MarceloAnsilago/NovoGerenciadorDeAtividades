@@ -293,11 +293,18 @@ function syncConclusionLink(card) {
 
     const labels = payload.labels || [];
     const datasets = payload.datasets || [];
-    const displayLabels = labels.map((label) => {
+    const barLabelParts = labels.map((label) => {
       const text = String(label || "").trim();
-      if (fullBarLabel) return text;
-      return text.split(/\s+/)[0] || text;
+      if (fullBarLabel) {
+        const match = text.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+        return {
+          main: (match ? match[1] : text).trim(),
+          detail: (match ? match[2] : "").trim(),
+        };
+      }
+      return { main: text.split(/\s+/)[0] || text, detail: "" };
     });
+    const displayLabels = barLabelParts.map((item) => item.main);
     const wrap = canvas.parentElement;
     const hasData = labels.length > 0 && datasets.some((ds) => (ds.data || []).some((value) => Number(value || 0) > 0));
     if (empty) {
@@ -326,7 +333,6 @@ function syncConclusionLink(card) {
           afterDatasetsDraw(chart) {
             const { ctx, chartArea } = chart;
             ctx.save();
-            ctx.font = "600 10px sans-serif";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             chart.data.datasets.forEach((dataset, datasetIndex) => {
@@ -335,8 +341,8 @@ function syncConclusionLink(card) {
               meta.data.forEach((bar, index) => {
                 const value = Number(dataset.data[index] || 0);
                 if (!value) return;
-                const label = displayLabels[index] || "";
-                if (!label) return;
+                const labelParts = barLabelParts[index] || { main: "", detail: "" };
+                if (!labelParts.main && !labelParts.detail) return;
                 const barHeight = chartArea.bottom - bar.y;
                 const inside = barHeight >= 54;
                 ctx.save();
@@ -344,7 +350,15 @@ function syncConclusionLink(card) {
                 ctx.rotate(inside ? -Math.PI / 2 : 0);
                 ctx.textAlign = inside ? "left" : "center";
                 ctx.fillStyle = inside ? "#ffffff" : "#495057";
-                ctx.fillText(label, 0, 0);
+                if (fullBarLabel && labelParts.detail) {
+                  ctx.font = "700 10px sans-serif";
+                  ctx.fillText(labelParts.main, 0, -5);
+                  ctx.font = "700 9px sans-serif";
+                  ctx.fillText(labelParts.detail, 0, 7);
+                } else {
+                  ctx.font = "600 10px sans-serif";
+                  ctx.fillText(labelParts.main, 0, 0);
+                }
                 ctx.restore();
               });
             });
