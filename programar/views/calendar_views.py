@@ -5,4 +5,5 @@ from programar.views_legacy import (
     servidores_para_data,
     servidores_impedidos_mes,
     programacao_do_dia_orm,
+    alocacoes_servidores_atividade,
 )

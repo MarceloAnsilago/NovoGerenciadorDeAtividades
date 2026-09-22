@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/impedidos-mes/", views.servidores_impedidos_mes, name="servidores_impedidos_mes"),
     path("api/salvar/", views.salvar_programacao, name="salvar_programacao"),
     path("api/programacao-dia/", views.programacao_do_dia_orm, name="programacao_do_dia"),
+    path("api/alocacoes-servidores-atividade/", views.alocacoes_servidores_atividade, name="alocacoes_servidores_atividade"),
     path("api/excluir/", views.excluir_programacao_secure, name="excluir_programacao"),
     path("api/relatorios/", views.relatorios_parcial, name="relatorios_parcial"),
     path("print/relatorio-semana/", views.print_relatorio_semana, name="print_relatorio_semana"),

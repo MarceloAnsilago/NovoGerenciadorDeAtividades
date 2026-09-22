@@ -76,3 +76,41 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="programar-modalGraficoAtividade" tabindex="-1" aria-labelledby="programar-modalGraficoAtividadeLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="programar-modalGraficoAtividadeLabel">Alocacoes por servidor</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+          <div>
+            <div class="text-muted small">Atividade</div>
+            <div id="programar-graficoAtividadeNome" class="fw-semibold">-</div>
+          </div>
+          <div class="d-flex align-items-end gap-2">
+            <div>
+              <label class="form-label small mb-1" for="programar-graficoAtividadeMes">Mes</label>
+              <input id="programar-graficoAtividadeMes" type="month" class="form-control form-control-sm">
+            </div>
+            <div class="text-end">
+              <div class="text-muted small">Total</div>
+              <div id="programar-graficoAtividadeTotal" class="fw-semibold">0</div>
+            </div>
+          </div>
+        </div>
+        <div id="programar-graficoAtividadeEmpty" class="alert alert-light border text-muted d-none mb-0">
+          Nenhuma alocacao encontrada para este mes.
+        </div>
+        <div class="programar-grafico-atividade-wrap">
+          <canvas id="programar-graficoAtividadeCanvas" height="320"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>

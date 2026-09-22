@@ -5,6 +5,7 @@ from .calendar_views import (
     servidores_para_data,
     servidores_impedidos_mes,
     programacao_do_dia_orm,
+    alocacoes_servidores_atividade,
 )
 from .programacao_api import (
     salvar_programacao,
@@ -26,6 +27,7 @@ __all__ = [
     "servidores_para_data",
     "servidores_impedidos_mes",
     "programacao_do_dia_orm",
+    "alocacoes_servidores_atividade",
     "salvar_programacao",
     "excluir_programacao_secure",
     "marcar_item_realizada",

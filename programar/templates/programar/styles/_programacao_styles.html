@@ -269,6 +269,7 @@
   /* modal sempre acima da navbar */
   body[data-app="programar"] #programar-modalAtividade{ z-index:3000; }
   body[data-app="programar"] #programar-modalObservacao{ z-index:3010; }
+  body[data-app="programar"] #programar-modalGraficoAtividade{ z-index:3020; }
   body[data-app="programar"] .modal-backdrop.show{ z-index:2990; }
 
   /* ===== Caixinha para marcação (impressão) ===== */
@@ -591,6 +592,12 @@
   }
   #programar-modalAtividade .meta-actions .count-meta{
     font-weight:600;
+  }
+  #programar-modalGraficoAtividade .programar-grafico-atividade-wrap{
+    min-height:320px;
+    max-height:560px;
+    overflow-y:auto;
+    padding-right:8px;
   }
 
   /* Modo compacto (telas menores) */

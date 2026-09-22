@@ -3265,6 +3265,100 @@ def programacao_do_dia_orm(request):
     })
 
 
+@require_GET
+@login_required
+def alocacoes_servidores_atividade(request):
+    meta_id = request.GET.get("meta_id")
+    mes = (request.GET.get("mes") or "").strip()
+
+    try:
+        meta_id_int = int(meta_id)
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Atividade invalida."}, status=400)
+
+    if not mes:
+        hoje = timezone.localdate()
+        mes = f"{hoje.year:04d}-{hoje.month:02d}"
+    try:
+        mes_dt = datetime.strptime(mes, "%Y-%m").date()
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "Mes invalido."}, status=400)
+
+    unidade_id = get_unidade_atual_id(request)
+    if not unidade_id:
+        return JsonResponse({"ok": False, "error": "Unidade nao definida."}, status=400)
+
+    start_date = date(mes_dt.year, mes_dt.month, 1)
+    end_date = date(mes_dt.year, mes_dt.month, monthrange(mes_dt.year, mes_dt.month)[1])
+    meta = Meta.objects.filter(pk=meta_id_int).select_related("atividade").first()
+    atividade_titulo = ""
+    if meta:
+        atividade_titulo = (
+            getattr(meta, "display_titulo", None)
+            or getattr(getattr(meta, "atividade", None), "titulo", None)
+            or getattr(meta, "titulo", "")
+            or "Atividade"
+        )
+
+    base_qs = (
+        ProgramacaoItemServidor.objects
+        .select_related("servidor", "item", "item__programacao")
+        .filter(
+            servidor__ativo=True,
+            item__meta_id=meta_id_int,
+            item__programacao__unidade_id=unidade_id,
+            item__programacao__data__gte=start_date,
+            item__programacao__data__lte=end_date,
+        )
+        .filter(
+            Q(item__cancelada=False, item__nao_realizada_justificada=False)
+            & (Q(item__concluido=True) | Q(item__concluido_em__isnull=True))
+        )
+    )
+
+    rows = list(
+        base_qs.values("servidor_id", "servidor__nome")
+        .annotate(total=Count("item_id", distinct=True))
+        .order_by("-total", "servidor__nome", "servidor_id")
+    )
+
+    labels = [(row.get("servidor__nome") or "Servidor") for row in rows]
+    data = [int(row.get("total") or 0) for row in rows]
+    servidor_ids = [int(row.get("servidor_id") or 0) for row in rows]
+
+    day_rows = (
+        base_qs.values("servidor_id", "item__programacao__data")
+        .annotate(total=Count("item_id", distinct=True))
+        .order_by("servidor_id", "item__programacao__data")
+    )
+    hints_by_servidor: dict[int, list[str]] = defaultdict(list)
+    for row in day_rows:
+        servidor_id = int(row.get("servidor_id") or 0)
+        data_prog = row.get("item__programacao__data")
+        total = int(row.get("total") or 0)
+        if servidor_id and data_prog and total:
+            hints_by_servidor[servidor_id].append(f"{data_prog.strftime('%d/%m')}: {total}")
+
+    hints = ["; ".join(hints_by_servidor.get(servidor_id, [])) for servidor_id in servidor_ids]
+
+    return JsonResponse({
+        "ok": True,
+        "mes": mes,
+        "atividade": atividade_titulo,
+        "labels": labels,
+        "datasets": [
+            {
+                "label": "Alocacoes",
+                "backgroundColor": "#0dcaf0",
+                "borderColor": "#0aa2c0",
+                "data": data,
+            }
+        ],
+        "hints": hints,
+        "total": sum(data),
+    })
+
+
 @login_required
 @csrf_protect
 @require_POST

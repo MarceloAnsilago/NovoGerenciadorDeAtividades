@@ -245,6 +245,168 @@ function syncConclusionLink(card) {
     if (input) setTimeout(() => input.focus(), 50);
   }
 
+  const GRAFICO_IDS = {
+    modal: "programar-modalGraficoAtividade",
+    title: "programar-modalGraficoAtividadeLabel",
+    nome: "programar-graficoAtividadeNome",
+    mes: "programar-graficoAtividadeMes",
+    total: "programar-graficoAtividadeTotal",
+    empty: "programar-graficoAtividadeEmpty",
+    canvas: "programar-graficoAtividadeCanvas",
+  };
+  let graficoAtividadeChart = null;
+
+  function currentModalMonth() {
+    const selectedDate = String(document.getElementById("programar-dataAtividade")?.value || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      return selectedDate.slice(0, 7);
+    }
+    const calendarDate = NS?.calendar?.view?.currentStart;
+    const d = calendarDate instanceof Date ? calendarDate : new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  function setGraficoLoading(loading) {
+    const empty = document.getElementById(GRAFICO_IDS.empty);
+    if (!empty) return;
+    if (loading) {
+      empty.textContent = "Carregando alocacoes...";
+      empty.classList.remove("d-none");
+    }
+  }
+
+  function renderGraficoAtividade(payload) {
+    const canvas = document.getElementById(GRAFICO_IDS.canvas);
+    const empty = document.getElementById(GRAFICO_IDS.empty);
+    const totalEl = document.getElementById(GRAFICO_IDS.total);
+    const nomeEl = document.getElementById(GRAFICO_IDS.nome);
+    const titleEl = document.getElementById(GRAFICO_IDS.title);
+    if (!canvas || !payload) return;
+
+    const labels = payload.labels || [];
+    const datasets = payload.datasets || [];
+    const total = Number(payload.total || 0);
+    if (totalEl) totalEl.textContent = total.toLocaleString("pt-BR");
+    if (nomeEl) nomeEl.textContent = payload.atividade || NS._graficoAtividadeTitulo || "-";
+    if (titleEl) titleEl.textContent = "Alocacoes por servidor";
+
+    const wrap = canvas.parentElement;
+    const hasData = labels.length > 0 && datasets.some((ds) => (ds.data || []).some((value) => Number(value || 0) > 0));
+    if (empty) {
+      empty.textContent = hasData ? "" : "Nenhuma alocacao encontrada para este mes.";
+      empty.classList.toggle("d-none", hasData);
+    }
+    if (wrap) {
+      wrap.classList.toggle("d-none", !hasData);
+      const targetHeight = Math.max(320, labels.length * 32);
+      canvas.height = targetHeight;
+      wrap.style.maxHeight = `${Math.max(360, Math.min(targetHeight, 560))}px`;
+    }
+
+    if (!hasData) {
+      if (graficoAtividadeChart) {
+        graficoAtividadeChart.destroy();
+        graficoAtividadeChart = null;
+      }
+      return;
+    }
+
+    const config = {
+      type: "bar",
+      data: { labels, datasets },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label(context) {
+                const value = context.parsed?.x ?? context.parsed ?? 0;
+                return `Alocacoes: ${value}`;
+              },
+              footer(items) {
+                if (!items || !items.length) return "";
+                const idx = items[0].dataIndex;
+                return (payload.hints || [])[idx] || "";
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: { precision: 0 },
+          },
+        },
+      },
+    };
+
+    if (graficoAtividadeChart) {
+      graficoAtividadeChart.data = config.data;
+      graficoAtividadeChart.options = config.options;
+      graficoAtividadeChart.update();
+    } else if (typeof Chart !== "undefined") {
+      graficoAtividadeChart = new Chart(canvas, config);
+    } else if (empty) {
+      empty.textContent = "Chart.js nao encontrado.";
+      empty.classList.remove("d-none");
+      wrap?.classList.add("d-none");
+    }
+  }
+
+  async function carregarGraficoAtividade() {
+    const metaId = String(NS._graficoAtividadeMetaId || "").trim();
+    const mes = String(document.getElementById(GRAFICO_IDS.mes)?.value || currentModalMonth()).trim();
+    const urlBase = NS?.urls?.alocacoesServidoresAtividade;
+    if (!metaId || !urlBase) return;
+    setGraficoLoading(true);
+    try {
+      const url = new URL(urlBase, window.location.origin);
+      url.searchParams.set("meta_id", metaId);
+      url.searchParams.set("mes", mes);
+      const resp = await fetch(url.toString(), {
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      const json = await resp.json();
+      if (!resp.ok || json.ok === false) {
+        throw new Error(json.error || `HTTP ${resp.status}`);
+      }
+      renderGraficoAtividade(json);
+    } catch (err) {
+      const empty = document.getElementById(GRAFICO_IDS.empty);
+      const canvas = document.getElementById(GRAFICO_IDS.canvas);
+      if (empty) {
+        empty.textContent = err.message || "Erro ao carregar alocacoes.";
+        empty.classList.remove("d-none");
+      }
+      canvas?.parentElement?.classList.add("d-none");
+      console.error("[programar] grafico atividade:", err);
+    }
+  }
+
+  function openGraficoAtividade(card) {
+    if (!card) return;
+    const metaId = String(card.dataset.metaId || "").trim();
+    if (!metaId) return;
+    NS._graficoAtividadeMetaId = metaId;
+    NS._graficoAtividadeTitulo = (card.querySelector(".meta-title-text")?.textContent || "Atividade").trim();
+
+    const modalEl = document.getElementById(GRAFICO_IDS.modal);
+    if (!modalEl) return;
+    const nomeEl = document.getElementById(GRAFICO_IDS.nome);
+    const totalEl = document.getElementById(GRAFICO_IDS.total);
+    const mesEl = document.getElementById(GRAFICO_IDS.mes);
+    if (nomeEl) nomeEl.textContent = NS._graficoAtividadeTitulo;
+    if (totalEl) totalEl.textContent = "0";
+    if (mesEl) mesEl.value = currentModalMonth();
+    setGraficoLoading(true);
+    if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    carregarGraficoAtividade();
+  }
+
   NS.ensureMetaCard = function (metaId, metaTitle, options = {}) {
     const cont = metaCardsContainer();
     if (!cont) return null;
@@ -278,8 +440,8 @@ function syncConclusionLink(card) {
           existing.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
         }
         return existing;
-      }
     }
+  }
 
     const card = document.createElement("div");
     card.className = "card shadow-sm servidor-cardbox";
@@ -380,6 +542,19 @@ function syncConclusionLink(card) {
     ev.preventDefault();
     const card = btn.closest("[data-meta-id]");
     openObsModal(card);
+  });
+
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target.closest?.(".meta-grafico");
+    if (!btn) return;
+    ev.preventDefault();
+    const card = btn.closest("[data-meta-id]");
+    openGraficoAtividade(card);
+  });
+
+  document.addEventListener("change", (ev) => {
+    if (ev.target?.id !== GRAFICO_IDS.mes) return;
+    carregarGraficoAtividade();
   });
 
   document.addEventListener("click", (ev) => {
