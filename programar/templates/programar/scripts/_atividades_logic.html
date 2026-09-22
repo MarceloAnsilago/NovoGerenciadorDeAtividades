@@ -169,7 +169,7 @@ function syncConclusionLink(card) {
       opt.value = value;
       const nome = (v.nome || "").trim();
       const placa = (v.placa || "").trim();
-      opt.textContent = placa ? `${nome} - ${placa}` : (nome || placa || `Veiculo #${value}`);
+      opt.textContent = placa ? `${nome} - ${placa}` : (nome || placa || `Veículo #${value}`);
       select.appendChild(opt);
     });
     select.dataset.veiculosPopulado = "1";
@@ -217,7 +217,7 @@ function syncConclusionLink(card) {
     try { syncConclusionLink(card); } catch (_) {}
     const href = card.querySelector(".meta-concluir")?.href || "";
     if (!href || href.endsWith("#")) {
-      window.alert("Nao foi possivel abrir a tela de cancelamento deste item.");
+        window.alert("Não foi possível abrir a tela de cancelamento deste item.");
       return true;
     }
     try {
@@ -280,7 +280,7 @@ function syncConclusionLink(card) {
     ].filter(Boolean);
     if (loading) {
       empties.forEach((empty) => {
-        empty.textContent = "Carregando alocacoes...";
+        empty.textContent = "Carregando alocações...";
         empty.classList.remove("d-none");
       });
     }
@@ -301,7 +301,7 @@ function syncConclusionLink(card) {
     const wrap = canvas.parentElement;
     const hasData = labels.length > 0 && datasets.some((ds) => (ds.data || []).some((value) => Number(value || 0) > 0));
     if (empty) {
-      empty.textContent = hasData ? "" : "Nenhuma alocacao encontrada para este mes.";
+      empty.textContent = hasData ? "" : "Nenhuma alocação encontrada para este mês.";
       empty.classList.toggle("d-none", hasData);
     }
     if (wrap) {
@@ -361,7 +361,7 @@ function syncConclusionLink(card) {
             callbacks: {
               label(context) {
                 const value = context.parsed?.y ?? context.parsed ?? 0;
-                return `Alocacoes: ${value}`;
+                return `Alocações: ${value}`;
               },
               title(items) {
                 if (!items || !items.length) return "";
@@ -399,7 +399,7 @@ function syncConclusionLink(card) {
     } else if (typeof Chart !== "undefined") {
       onChart(new Chart(canvas, config));
     } else if (empty) {
-      empty.textContent = "Chart.js nao encontrado.";
+      empty.textContent = "Chart.js não encontrado.";
       empty.classList.remove("d-none");
       wrap?.classList.add("d-none");
     }
@@ -412,7 +412,7 @@ function syncConclusionLink(card) {
     const total = Number(payload?.total || 0);
     if (totalEl) totalEl.textContent = total.toLocaleString("pt-BR");
     if (nomeEl) nomeEl.textContent = payload?.atividade || NS._graficoAtividadeTitulo || "-";
-    if (titleEl) titleEl.textContent = "Alocacoes por servidor";
+    if (titleEl) titleEl.textContent = "Alocações por servidor";
 
     renderBarChart({
       canvasId: GRAFICO_IDS.canvas,
@@ -464,7 +464,7 @@ function syncConclusionLink(card) {
         document.getElementById(GRAFICO_IDS.veiculosEmpty),
       ].filter(Boolean);
       empties.forEach((empty) => {
-        empty.textContent = err.message || "Erro ao carregar alocacoes.";
+        empty.textContent = err.message || "Erro ao carregar alocações.";
         empty.classList.remove("d-none");
       });
       document.getElementById(GRAFICO_IDS.canvas)?.parentElement?.classList.add("d-none");
@@ -554,8 +554,8 @@ function syncConclusionLink(card) {
             </a>
             <button type="button"
                     class="btn btn-outline-info btn-sm py-0 px-1 meta-grafico"
-                    title="Ver grafico da atividade"
-                    aria-label="Ver grafico da atividade">
+                    title="Ver gráfico da atividade"
+                    aria-label="Ver gráfico da atividade">
               <i class="bi bi-bar-chart-line"></i>
             </button>
             <button type="button" class="btn-close meta-close" aria-label="Remover" title="Remover card"></button>
@@ -565,12 +565,12 @@ function syncConclusionLink(card) {
       </div>
       <div class="card-body meta-body">
         <p class="meta-description small text-muted mb-2${metaDescription ? "" : " d-none"}">${safeMetaDescription}</p>
-        <!-- area de alocacao dos servidores -->
+        <!-- área de alocação dos servidores -->
         <div class="servidores-grid meta-dropzone dropzone mb-3"></div>
         <div class="mb-2 meta-vehicles-block">
-          <label class="form-label mb-1">Veiculo</label>
-          <select class="form-select form-select-sm card-veiculos" name="card_veiculos" data-placeholder="Nenhum veiculo" data-meta-id="${metaId}">
-            <option value="" data-placeholder="1">Nenhum veiculo</option>
+          <label class="form-label mb-1">Veículo</label>
+          <select class="form-select form-select-sm card-veiculos" name="card_veiculos" data-placeholder="Nenhum veículo" data-meta-id="${metaId}">
+            <option value="" data-placeholder="1">Nenhum veículo</option>
           </select>
         </div>
         <div class="meta-obs-actions">

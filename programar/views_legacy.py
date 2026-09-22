@@ -3274,7 +3274,7 @@ def alocacoes_servidores_atividade(request):
     try:
         meta_id_int = int(meta_id)
     except (TypeError, ValueError):
-        return JsonResponse({"ok": False, "error": "Atividade invalida."}, status=400)
+        return JsonResponse({"ok": False, "error": "Atividade inválida."}, status=400)
 
     if not mes:
         hoje = timezone.localdate()
@@ -3282,11 +3282,11 @@ def alocacoes_servidores_atividade(request):
     try:
         mes_dt = datetime.strptime(mes, "%Y-%m").date()
     except ValueError:
-        return JsonResponse({"ok": False, "error": "Mes invalido."}, status=400)
+        return JsonResponse({"ok": False, "error": "Mês inválido."}, status=400)
 
     unidade_id = get_unidade_atual_id(request)
     if not unidade_id:
-        return JsonResponse({"ok": False, "error": "Unidade nao definida."}, status=400)
+        return JsonResponse({"ok": False, "error": "Unidade não definida."}, status=400)
 
     start_date = date(mes_dt.year, mes_dt.month, 1)
     end_date = date(mes_dt.year, mes_dt.month, monthrange(mes_dt.year, mes_dt.month)[1])
@@ -3412,7 +3412,7 @@ def alocacoes_servidores_atividade(request):
     for row in veiculo_rows:
         nome = (row.get("veiculo__nome") or "").strip()
         placa = (row.get("veiculo__placa") or "").strip()
-        label = f"{nome} ({placa})" if nome and placa else (nome or placa or "Veiculo")
+        label = f"{nome} ({placa})" if nome and placa else (nome or placa or "Veículo")
         veiculo_labels.append(label)
         veiculo_data.append(int(row.get("total") or 0))
         veiculo_ids.append(int(row.get("veiculo_id") or 0))
@@ -3438,7 +3438,7 @@ def alocacoes_servidores_atividade(request):
         "labels": labels,
         "datasets": [
             {
-                "label": "Alocacoes por servidor",
+                "label": "Alocações por servidor",
                 "backgroundColor": "#0dcaf0",
                 "borderColor": "#0aa2c0",
                 "data": data,
@@ -3451,7 +3451,7 @@ def alocacoes_servidores_atividade(request):
             "labels": geral_labels,
             "datasets": [
                 {
-                    "label": "Alocacoes sem expediente",
+                    "label": "Alocações sem expediente",
                     "backgroundColor": "#198754",
                     "borderColor": "#146c43",
                     "data": geral_data,
@@ -3464,7 +3464,7 @@ def alocacoes_servidores_atividade(request):
             "labels": veiculo_labels,
             "datasets": [
                 {
-                    "label": "Alocacoes de veiculos",
+                    "label": "Alocações de veículos",
                     "backgroundColor": "#6f42c1",
                     "borderColor": "#59359a",
                     "data": veiculo_data,
