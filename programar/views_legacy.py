@@ -3310,10 +3310,16 @@ def alocacoes_servidores_atividade(request):
             item__programacao__data__gte=start_date,
             item__programacao__data__lte=end_date,
         )
+    )
+    total_atividades_mes = (
+        ProgramacaoItem.objects
         .filter(
-            Q(item__cancelada=False, item__nao_realizada_justificada=False)
-            & (Q(item__concluido=True) | Q(item__concluido_em__isnull=True))
+            meta_id=meta_id_int,
+            programacao__unidade_id=unidade_id,
+            programacao__data__gte=start_date,
+            programacao__data__lte=end_date,
         )
+        .count()
     )
 
     rows = list(
@@ -3348,14 +3354,15 @@ def alocacoes_servidores_atividade(request):
         "labels": labels,
         "datasets": [
             {
-                "label": "Alocacoes",
+                "label": "Alocacoes por servidor",
                 "backgroundColor": "#0dcaf0",
                 "borderColor": "#0aa2c0",
                 "data": data,
             }
         ],
         "hints": hints,
-        "total": sum(data),
+        "total": total_atividades_mes,
+        "total_alocacoes": sum(data),
     })
 
 
