@@ -285,6 +285,11 @@ function syncConclusionLink(card) {
 
     const labels = payload.labels || [];
     const datasets = payload.datasets || [];
+    const displayLabels = labels.map((label) => {
+      const text = String(label || "").trim();
+      if (text.length <= 14) return text;
+      return `${text.slice(0, 12)}...`;
+    });
     const total = Number(payload.total || 0);
     if (totalEl) totalEl.textContent = total.toLocaleString("pt-BR");
     if (nomeEl) nomeEl.textContent = payload.atividade || NS._graficoAtividadeTitulo || "-";
@@ -298,7 +303,7 @@ function syncConclusionLink(card) {
     }
     if (wrap) {
       wrap.classList.toggle("d-none", !hasData);
-      canvas.height = 320;
+      canvas.height = 340;
     }
 
     if (!hasData) {
@@ -311,7 +316,7 @@ function syncConclusionLink(card) {
 
     const config = {
       type: "bar",
-      data: { labels, datasets },
+      data: { labels: displayLabels, datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -322,6 +327,11 @@ function syncConclusionLink(card) {
               label(context) {
                 const value = context.parsed?.y ?? context.parsed ?? 0;
                 return `Alocacoes: ${value}`;
+              },
+              title(items) {
+                if (!items || !items.length) return "";
+                const idx = items[0].dataIndex;
+                return labels[idx] || "";
               },
               footer(items) {
                 if (!items || !items.length) return "";
@@ -334,13 +344,17 @@ function syncConclusionLink(card) {
         scales: {
           x: {
             ticks: {
-              maxRotation: labels.length > 4 ? 55 : 0,
-              minRotation: labels.length > 4 ? 35 : 0,
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: false,
+              font: { size: 10 },
             },
+            grid: { display: false },
           },
           y: {
             beginAtZero: true,
             ticks: { precision: 0 },
+            grid: { color: "rgba(108, 117, 125, 0.18)" },
           },
         },
       },
