@@ -120,9 +120,17 @@
           </div>
           <div class="col-12 col-xl-4">
             <div class="card h-100 programar-grafico-card">
-              <div class="card-header bg-white fw-semibold">Grafico 2</div>
-              <div class="card-body d-flex align-items-center justify-content-center text-muted small">
-                Em preparacao
+              <div class="card-header bg-white">
+                <div class="fw-semibold">Servidores por alocacoes</div>
+                <div class="text-muted small">Todas as atividades, sem expediente</div>
+              </div>
+              <div class="card-body">
+                <div id="programar-graficoAlocacoesGeralEmpty" class="alert alert-light border text-muted d-none mb-0">
+                  Nenhuma alocacao encontrada para este mes.
+                </div>
+                <div class="programar-grafico-atividade-wrap">
+                  <canvas id="programar-graficoAlocacoesGeralCanvas" height="320"></canvas>
+                </div>
               </div>
             </div>
           </div>

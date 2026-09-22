@@ -3347,6 +3347,47 @@ def alocacoes_servidores_atividade(request):
 
     hints = ["; ".join(hints_by_servidor.get(servidor_id, [])) for servidor_id in servidor_ids]
 
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
+
+    geral_qs = (
+        ProgramacaoItemServidor.objects
+        .select_related("servidor", "item", "item__programacao")
+        .filter(
+            servidor__ativo=True,
+            item__programacao__unidade_id=unidade_id,
+            item__programacao__data__gte=start_date,
+            item__programacao__data__lte=end_date,
+        )
+    )
+    if meta_expediente_id:
+        geral_qs = geral_qs.exclude(item__meta_id=meta_expediente_id)
+
+    geral_rows = list(
+        geral_qs.values("servidor_id", "servidor__nome")
+        .annotate(total=Count("item_id", distinct=True))
+        .order_by("-total", "servidor__nome", "servidor_id")
+    )
+    geral_labels = [(row.get("servidor__nome") or "Servidor") for row in geral_rows]
+    geral_data = [int(row.get("total") or 0) for row in geral_rows]
+    geral_servidor_ids = [int(row.get("servidor_id") or 0) for row in geral_rows]
+    geral_day_rows = (
+        geral_qs.values("servidor_id", "item__programacao__data")
+        .annotate(total=Count("item_id", distinct=True))
+        .order_by("servidor_id", "item__programacao__data")
+    )
+    geral_hints_by_servidor: dict[int, list[str]] = defaultdict(list)
+    for row in geral_day_rows:
+        servidor_id = int(row.get("servidor_id") or 0)
+        data_prog = row.get("item__programacao__data")
+        total = int(row.get("total") or 0)
+        if servidor_id and data_prog and total:
+            geral_hints_by_servidor[servidor_id].append(f"{data_prog.strftime('%d/%m')}: {total}")
+    geral_hints = ["; ".join(geral_hints_by_servidor.get(servidor_id, [])) for servidor_id in geral_servidor_ids]
+
     return JsonResponse({
         "ok": True,
         "mes": mes,
@@ -3363,6 +3404,19 @@ def alocacoes_servidores_atividade(request):
         "hints": hints,
         "total": total_atividades_mes,
         "total_alocacoes": sum(data),
+        "alocacoes_gerais": {
+            "labels": geral_labels,
+            "datasets": [
+                {
+                    "label": "Alocacoes sem expediente",
+                    "backgroundColor": "#198754",
+                    "borderColor": "#146c43",
+                    "data": geral_data,
+                }
+            ],
+            "hints": geral_hints,
+            "total_alocacoes": sum(geral_data),
+        },
     })
 
 

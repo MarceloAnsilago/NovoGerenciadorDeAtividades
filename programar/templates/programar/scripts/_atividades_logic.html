@@ -253,8 +253,11 @@ function syncConclusionLink(card) {
     total: "programar-graficoAtividadeTotal",
     empty: "programar-graficoAtividadeEmpty",
     canvas: "programar-graficoAtividadeCanvas",
+    geralEmpty: "programar-graficoAlocacoesGeralEmpty",
+    geralCanvas: "programar-graficoAlocacoesGeralCanvas",
   };
   let graficoAtividadeChart = null;
+  let graficoAlocacoesGeralChart = null;
 
   function currentModalMonth() {
     const selectedDate = String(document.getElementById("programar-dataAtividade")?.value || "").trim();
@@ -267,20 +270,21 @@ function syncConclusionLink(card) {
   }
 
   function setGraficoLoading(loading) {
-    const empty = document.getElementById(GRAFICO_IDS.empty);
-    if (!empty) return;
+    const empties = [
+      document.getElementById(GRAFICO_IDS.empty),
+      document.getElementById(GRAFICO_IDS.geralEmpty),
+    ].filter(Boolean);
     if (loading) {
-      empty.textContent = "Carregando alocacoes...";
-      empty.classList.remove("d-none");
+      empties.forEach((empty) => {
+        empty.textContent = "Carregando alocacoes...";
+        empty.classList.remove("d-none");
+      });
     }
   }
 
-  function renderGraficoAtividade(payload) {
-    const canvas = document.getElementById(GRAFICO_IDS.canvas);
-    const empty = document.getElementById(GRAFICO_IDS.empty);
-    const totalEl = document.getElementById(GRAFICO_IDS.total);
-    const nomeEl = document.getElementById(GRAFICO_IDS.nome);
-    const titleEl = document.getElementById(GRAFICO_IDS.title);
+  function renderBarChart({ canvasId, emptyId, payload, chartRef, onChart }) {
+    const canvas = document.getElementById(canvasId);
+    const empty = document.getElementById(emptyId);
     if (!canvas || !payload) return;
 
     const labels = payload.labels || [];
@@ -289,11 +293,6 @@ function syncConclusionLink(card) {
       const text = String(label || "").trim();
       return text.split(/\s+/)[0] || text;
     });
-    const total = Number(payload.total || 0);
-    if (totalEl) totalEl.textContent = total.toLocaleString("pt-BR");
-    if (nomeEl) nomeEl.textContent = payload.atividade || NS._graficoAtividadeTitulo || "-";
-    if (titleEl) titleEl.textContent = "Alocacoes por servidor";
-
     const wrap = canvas.parentElement;
     const hasData = labels.length > 0 && datasets.some((ds) => (ds.data || []).some((value) => Number(value || 0) > 0));
     if (empty) {
@@ -306,10 +305,10 @@ function syncConclusionLink(card) {
     }
 
     if (!hasData) {
-      if (graficoAtividadeChart) {
-        graficoAtividadeChart.destroy();
-        graficoAtividadeChart = null;
+      if (chartRef) {
+        chartRef.destroy();
       }
+      onChart(null);
       return;
     }
 
@@ -359,17 +358,42 @@ function syncConclusionLink(card) {
       },
     };
 
-    if (graficoAtividadeChart) {
-      graficoAtividadeChart.data = config.data;
-      graficoAtividadeChart.options = config.options;
-      graficoAtividadeChart.update();
+    if (chartRef) {
+      chartRef.data = config.data;
+      chartRef.options = config.options;
+      chartRef.update();
     } else if (typeof Chart !== "undefined") {
-      graficoAtividadeChart = new Chart(canvas, config);
+      onChart(new Chart(canvas, config));
     } else if (empty) {
       empty.textContent = "Chart.js nao encontrado.";
       empty.classList.remove("d-none");
       wrap?.classList.add("d-none");
     }
+  }
+
+  function renderGraficoAtividade(payload) {
+    const totalEl = document.getElementById(GRAFICO_IDS.total);
+    const nomeEl = document.getElementById(GRAFICO_IDS.nome);
+    const titleEl = document.getElementById(GRAFICO_IDS.title);
+    const total = Number(payload?.total || 0);
+    if (totalEl) totalEl.textContent = total.toLocaleString("pt-BR");
+    if (nomeEl) nomeEl.textContent = payload?.atividade || NS._graficoAtividadeTitulo || "-";
+    if (titleEl) titleEl.textContent = "Alocacoes por servidor";
+
+    renderBarChart({
+      canvasId: GRAFICO_IDS.canvas,
+      emptyId: GRAFICO_IDS.empty,
+      payload,
+      chartRef: graficoAtividadeChart,
+      onChart(chart) { graficoAtividadeChart = chart; },
+    });
+    renderBarChart({
+      canvasId: GRAFICO_IDS.geralCanvas,
+      emptyId: GRAFICO_IDS.geralEmpty,
+      payload: payload?.alocacoes_gerais,
+      chartRef: graficoAlocacoesGeralChart,
+      onChart(chart) { graficoAlocacoesGeralChart = chart; },
+    });
   }
 
   async function carregarGraficoAtividade() {
@@ -392,13 +416,16 @@ function syncConclusionLink(card) {
       }
       renderGraficoAtividade(json);
     } catch (err) {
-      const empty = document.getElementById(GRAFICO_IDS.empty);
-      const canvas = document.getElementById(GRAFICO_IDS.canvas);
-      if (empty) {
+      const empties = [
+        document.getElementById(GRAFICO_IDS.empty),
+        document.getElementById(GRAFICO_IDS.geralEmpty),
+      ].filter(Boolean);
+      empties.forEach((empty) => {
         empty.textContent = err.message || "Erro ao carregar alocacoes.";
         empty.classList.remove("d-none");
-      }
-      canvas?.parentElement?.classList.add("d-none");
+      });
+      document.getElementById(GRAFICO_IDS.canvas)?.parentElement?.classList.add("d-none");
+      document.getElementById(GRAFICO_IDS.geralCanvas)?.parentElement?.classList.add("d-none");
       console.error("[programar] grafico atividade:", err);
     }
   }
