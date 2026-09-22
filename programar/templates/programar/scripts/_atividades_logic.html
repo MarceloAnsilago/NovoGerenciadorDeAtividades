@@ -340,8 +340,9 @@ function syncConclusionLink(card) {
                 const barHeight = chartArea.bottom - bar.y;
                 const inside = barHeight >= 54;
                 ctx.save();
-                ctx.translate(bar.x, inside ? bar.y + Math.min(barHeight / 2, 42) : bar.y - 12);
+                ctx.translate(bar.x, inside ? chartArea.bottom - 8 : bar.y - 12);
                 ctx.rotate(inside ? -Math.PI / 2 : 0);
+                ctx.textAlign = inside ? "left" : "center";
                 ctx.fillStyle = inside ? "#ffffff" : "#495057";
                 ctx.fillText(label, 0, 0);
                 ctx.restore();
