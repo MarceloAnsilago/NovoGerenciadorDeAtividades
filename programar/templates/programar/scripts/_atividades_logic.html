@@ -298,9 +298,7 @@ function syncConclusionLink(card) {
     }
     if (wrap) {
       wrap.classList.toggle("d-none", !hasData);
-      const targetHeight = Math.max(320, labels.length * 32);
-      canvas.height = targetHeight;
-      wrap.style.maxHeight = `${Math.max(360, Math.min(targetHeight, 560))}px`;
+      canvas.height = 320;
     }
 
     if (!hasData) {
@@ -315,7 +313,6 @@ function syncConclusionLink(card) {
       type: "bar",
       data: { labels, datasets },
       options: {
-        indexAxis: "y",
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
@@ -323,7 +320,7 @@ function syncConclusionLink(card) {
           tooltip: {
             callbacks: {
               label(context) {
-                const value = context.parsed?.x ?? context.parsed ?? 0;
+                const value = context.parsed?.y ?? context.parsed ?? 0;
                 return `Alocacoes: ${value}`;
               },
               footer(items) {
@@ -336,6 +333,12 @@ function syncConclusionLink(card) {
         },
         scales: {
           x: {
+            ticks: {
+              maxRotation: labels.length > 4 ? 55 : 0,
+              minRotation: labels.length > 4 ? 35 : 0,
+            },
+          },
+          y: {
             beginAtZero: true,
             ticks: { precision: 0 },
           },

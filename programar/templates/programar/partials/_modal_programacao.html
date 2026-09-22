@@ -101,11 +101,36 @@
             </div>
           </div>
         </div>
-        <div id="programar-graficoAtividadeEmpty" class="alert alert-light border text-muted d-none mb-0">
-          Nenhuma alocacao encontrada para este mes.
-        </div>
-        <div class="programar-grafico-atividade-wrap">
-          <canvas id="programar-graficoAtividadeCanvas" height="320"></canvas>
+        <div class="row g-3 programar-graficos-grid">
+          <div class="col-12 col-xl-4">
+            <div class="card h-100 programar-grafico-card">
+              <div class="card-header bg-white fw-semibold">Servidores por atividade</div>
+              <div class="card-body">
+                <div id="programar-graficoAtividadeEmpty" class="alert alert-light border text-muted d-none mb-0">
+                  Nenhuma alocacao encontrada para este mes.
+                </div>
+                <div class="programar-grafico-atividade-wrap">
+                  <canvas id="programar-graficoAtividadeCanvas" height="320"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-4">
+            <div class="card h-100 programar-grafico-card">
+              <div class="card-header bg-white fw-semibold">Grafico 2</div>
+              <div class="card-body d-flex align-items-center justify-content-center text-muted small">
+                Em preparacao
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-4">
+            <div class="card h-100 programar-grafico-card">
+              <div class="card-header bg-white fw-semibold">Grafico 3</div>
+              <div class="card-body d-flex align-items-center justify-content-center text-muted small">
+                Em preparacao
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
