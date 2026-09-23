@@ -53,6 +53,11 @@
     if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
 
     const attrs = Array.from(node.attributes || []);
+    const svgAttrs = new Set([
+      'viewbox', 'd', 'fill', 'stroke', 'stroke-width',
+      'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r',
+      'width', 'height', 'transform'
+    ]);
     for (const attr of attrs){
       const name = attr.name.toLowerCase();
       const value = attr.value || '';
@@ -76,7 +81,8 @@
         name === 'class' || name === 'id' || name === 'title' || name === 'role' ||
         name === 'colspan' || name === 'rowspan' || name === 'scope' ||
         name === 'href' || name === 'target' || name === 'rel' ||
-        name.startsWith('aria-') || name.startsWith('data-')
+        name.startsWith('aria-') || name.startsWith('data-') ||
+        svgAttrs.has(name)
       ){
         continue;
       }

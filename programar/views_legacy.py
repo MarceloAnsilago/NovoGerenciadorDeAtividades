@@ -2226,34 +2226,60 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         .order_by("-total", "veiculo__nome", "veiculo__placa")[:6]
     )
 
-    def _short_label(value: str, limit: int = 18) -> str:
+    def _short_label(value: str, limit: int = 14) -> str:
         value = " ".join(str(value or "").split())
         if len(value) <= limit:
             return value
         return value[: max(0, limit - 1)].rstrip() + "."
 
     def _chart(title: str, rows: list[dict], label_getter) -> str:
+        import math
+
         data = [(label_getter(row), int(row.get("total") or 0)) for row in rows]
         data = [(label, total) for label, total in data if total > 0]
         if not data:
             data = [("-", 0)]
-        max_total = max([total for _label, total in data] + [1])
-        bars = []
-        for label, total in data:
-            width = max(3, round((total / max_total) * 100)) if total else 3
-            bars.append(
-                "<div class='relatorio-mini-row'>"
-                f"<span class='relatorio-mini-label'>{html.escape(_short_label(label))}</span>"
-                "<span class='relatorio-mini-track'>"
-                f"<span class='relatorio-mini-bar' style='width:{width}%'></span>"
-                "</span>"
-                f"<span class='relatorio-mini-value'>{total}</span>"
-                "</div>"
+        total_geral = sum(total for _label, total in data) or 1
+        cx, cy, r = 58, 52, 38
+        palette = ["#000", "#333", "#666", "#888", "#aaa", "#ccc"]
+
+        def _point(angle: float) -> tuple[float, float]:
+            rad = math.radians(angle - 90)
+            return (cx + r * math.cos(rad), cy + r * math.sin(rad))
+
+        slices = []
+        legend = []
+        angle = 0.0
+        for idx, (label, total) in enumerate(data):
+            sweep = (total / total_geral) * 360
+            fill = palette[idx % len(palette)]
+            if total_geral == total:
+                slices.append(
+                    f"<circle cx='{cx}' cy='{cy}' r='{r}' fill='{fill}' stroke='#000' stroke-width='0.8' />"
+                )
+            else:
+                x1, y1 = _point(angle)
+                x2, y2 = _point(angle + sweep)
+                large = 1 if sweep > 180 else 0
+                slices.append(
+                    f"<path d='M {cx} {cy} L {x1:.2f} {y1:.2f} A {r} {r} 0 {large} 1 {x2:.2f} {y2:.2f} Z' "
+                    f"fill='{fill}' stroke='#fff' stroke-width='0.8' />"
+                )
+            legend_y = 24 + (idx * 13)
+            legend.append(
+                f"<rect x='116' y='{legend_y - 7}' width='8' height='8' fill='{fill}' stroke='#000' stroke-width='0.4' />"
+                f"<text x='130' y='{legend_y}' class='relatorio-mini-legend'>{html.escape(_short_label(label, 22))}</text>"
+                f"<text x='330' y='{legend_y}' class='relatorio-mini-legend-value'>{total}</text>"
             )
+            angle += sweep
         return (
             "<div class='relatorio-mini-chart'>"
             f"<div class='relatorio-mini-title'>{title}</div>"
-            + "".join(bars) +
+            "<svg class='relatorio-mini-pie' viewBox='0 0 345 112' role='img'>"
+            + "".join(slices)
+            + "".join(legend)
+            + f"<text x='{cx}' y='{cy + 3}' class='relatorio-mini-pie-total'>{total_geral}</text>"
+            "</svg>"
             "</div>"
         )
 
@@ -2275,23 +2301,28 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         "<style>"
         ".relatorio-print-header{gap:.75rem;}"
         ".relatorio-print-header h2{flex:0 0 auto;}"
-        ".relatorio-mini-charts{display:flex;gap:.6rem;align-items:stretch;justify-content:flex-end;flex:1 1 auto;min-width:360px;}"
-        ".relatorio-mini-chart{width:245px;min-height:86px;border:1px solid #111;border-radius:2px;padding:5px 6px;background:#fff;color:#111;}"
-        ".relatorio-mini-title{font-weight:700;font-size:10px;line-height:1.1;margin-bottom:3px;white-space:nowrap;}"
-        ".relatorio-mini-row{display:grid;grid-template-columns:72px 1fr 18px;align-items:center;gap:4px;font-size:8.2px;line-height:1.05;margin:2px 0;}"
-        ".relatorio-mini-label{white-space:nowrap;overflow:hidden;text-overflow:clip;text-transform:uppercase;}"
-        ".relatorio-mini-track{height:7px;border:1px solid #111;background:#fff;display:block;}"
-        ".relatorio-mini-bar{height:100%;background:#111;display:block;}"
-        ".relatorio-mini-value{text-align:right;font-weight:700;}"
+        ".relatorio-plantonista-row{display:flex;align-items:flex-start;gap:.75rem;}"
+        ".relatorio-plantonista-box{flex:1 1 auto;min-width:260px;}"
+        ".relatorio-mini-charts{display:flex;gap:.6rem;align-items:stretch;justify-content:flex-end;flex:0 0 52%;min-width:520px;}"
+        ".relatorio-mini-chart{flex:1 1 0;min-width:0;min-height:148px;border:1px solid #111;border-radius:2px;padding:7px 8px;background:#fff;color:#111;}"
+        ".relatorio-mini-title{font-weight:700;font-size:11px;line-height:1.1;margin-bottom:4px;white-space:nowrap;}"
+        ".relatorio-mini-chart{display:flex;flex-direction:column;}"
+        ".relatorio-mini-pie{display:block;width:100%;height:118px;}"
+        ".relatorio-mini-pie-total{font-size:13px;font-weight:700;text-anchor:middle;fill:#fff;}"
+        ".relatorio-mini-legend{font-size:9px;font-weight:700;text-transform:uppercase;fill:#000;}"
+        ".relatorio-mini-legend-value{font-size:9px;font-weight:700;text-anchor:end;fill:#000;}"
         "@media print{"
         "  .relatorio-print-header{align-items:flex-start!important;margin-bottom:4pt!important;}"
         "  .relatorio-print-header h2{font-size:18pt!important;}"
-        "  .relatorio-mini-charts{gap:5pt;min-width:340pt;}"
-        "  .relatorio-mini-chart{width:190pt;min-height:58pt;padding:3pt 4pt;border-color:#000;break-inside:avoid;page-break-inside:avoid;}"
-        "  .relatorio-mini-title{font-size:7.5pt;margin-bottom:2pt;}"
-        "  .relatorio-mini-row{grid-template-columns:52pt 1fr 14pt;gap:3pt;font-size:6.2pt;margin:1pt 0;}"
-        "  .relatorio-mini-track{height:5pt;border-color:#000;}"
-        "  .relatorio-mini-bar{background:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}"
+        "  .relatorio-plantonista-row{display:flex!important;align-items:flex-start!important;gap:5pt!important;margin-bottom:4pt!important;}"
+        "  .relatorio-plantonista-box{flex:1 1 auto!important;min-width:0!important;}"
+        "  .relatorio-mini-charts{gap:5pt;flex:0 0 55%!important;min-width:390pt;}"
+        "  .relatorio-mini-chart{min-height:90pt;padding:4pt 5pt;border-color:#000;break-inside:avoid;page-break-inside:avoid;}"
+        "  .relatorio-mini-title{font-size:8pt;margin-bottom:2pt;}"
+        "  .relatorio-mini-pie{height:75pt;}"
+        "  .relatorio-mini-pie path,.relatorio-mini-pie circle,.relatorio-mini-pie rect{-webkit-print-color-adjust:exact;print-color-adjust:exact;}"
+        "  .relatorio-mini-pie-total{font-size:8pt;fill:#fff!important;}"
+        "  .relatorio-mini-legend,.relatorio-mini-legend-value{font-size:5.8pt;fill:#000!important;}"
         "}"
         "</style>"
         "<div class='relatorio-mini-charts'>"
@@ -2334,7 +2365,6 @@ def relatorios_parcial(request):
             <h2 class="mb-0">
               <i class="bi bi-list-check me-2"></i> Programação de atividades
             </h2>
-            {mini_charts_html}
             <div id="relatorio-toolbar" class="report-toolbar no-print">
               <div class="btn-group btn-group-sm">
                 <button id="relatorio-btn-print" type="button" class="btn btn-outline-secondary" title="Imprimir relatório">
@@ -2348,7 +2378,10 @@ def relatorios_parcial(request):
           </div>
           <div class="card shadow-sm border-0">
             <div class="card-body p-0">
-              <div class="mb-3">{plantonistas_html}</div>
+              <div class="relatorio-plantonista-row mb-3">
+                <div class="relatorio-plantonista-box">{plantonistas_html}</div>
+                {mini_charts_html}
+              </div>
               <hr class="my-3">
               {tabela_semana_html}
               {observacao_html}
@@ -2440,12 +2473,14 @@ def print_relatorio_semana(request):
       <h2 class="mb-0">
         <i class="bi bi-list-check me-2"></i> Programa&ccedil;&atilde;o de atividades
       </h2>
-      {mini_charts_html}
     </div>
     <div class="text-muted small mb-3">Período: <strong>{period_label}</strong></div>
     <div class="card border-0 shadow-sm">
       <div class="card-body p-0">
-        <div class="mb-3">{plantonistas_html}</div>
+        <div class="relatorio-plantonista-row mb-3">
+          <div class="relatorio-plantonista-box">{plantonistas_html}</div>
+          {mini_charts_html}
+        </div>
         <div>{tabela_semana_html}</div>
         {observacao_html}
       </div>
