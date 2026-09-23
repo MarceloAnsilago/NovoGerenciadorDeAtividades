@@ -341,6 +341,14 @@ function syncConclusionLink(card) {
               meta.data.forEach((bar, index) => {
                 const value = Number(dataset.data[index] || 0);
                 if (!value) return;
+                ctx.save();
+                ctx.textBaseline = "bottom";
+                ctx.textAlign = "center";
+                ctx.fillStyle = "#212529";
+                ctx.font = "700 11px sans-serif";
+                ctx.fillText(value.toLocaleString("pt-BR"), bar.x, bar.y - 6);
+                ctx.restore();
+
                 const labelParts = barLabelParts[index] || { main: "", detail: "" };
                 if (!labelParts.main && !labelParts.detail) return;
                 const barHeight = chartArea.bottom - bar.y;
@@ -369,6 +377,9 @@ function syncConclusionLink(card) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        layout: {
+          padding: { top: 20 },
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -399,6 +410,7 @@ function syncConclusionLink(card) {
           },
           y: {
             beginAtZero: true,
+            grace: "8%",
             ticks: { precision: 0 },
             grid: { color: "rgba(108, 117, 125, 0.18)" },
           },
@@ -409,6 +421,7 @@ function syncConclusionLink(card) {
     if (chartRef) {
       chartRef.data = config.data;
       chartRef.options = config.options;
+      chartRef.config.plugins = config.plugins;
       chartRef.update();
     } else if (typeof Chart !== "undefined") {
       onChart(new Chart(canvas, config));
