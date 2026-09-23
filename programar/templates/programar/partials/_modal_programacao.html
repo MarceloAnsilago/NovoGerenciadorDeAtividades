@@ -96,8 +96,19 @@
           </div>
           <div class="programar-grafico-controls">
             <div>
+              <label class="form-label small mb-1" for="programar-graficoAtividadePeriodoTipo">Período</label>
+              <select id="programar-graficoAtividadePeriodoTipo" class="form-select form-select-sm">
+                <option value="mes" selected>Mês</option>
+                <option value="semana">Semana</option>
+              </select>
+            </div>
+            <div id="programar-graficoAtividadeMesWrap">
               <label class="form-label small mb-1" for="programar-graficoAtividadeMes">Mês</label>
               <input id="programar-graficoAtividadeMes" type="month" class="form-control form-control-sm">
+            </div>
+            <div id="programar-graficoAtividadeSemanaWrap" class="d-none">
+              <label class="form-label small mb-1" for="programar-graficoAtividadeSemana">Semana</label>
+              <input id="programar-graficoAtividadeSemana" type="week" class="form-control form-control-sm">
             </div>
           </div>
         </div>
@@ -106,11 +117,11 @@
             <div class="card h-100 programar-grafico-card">
               <div class="card-header bg-white">
                 <div class="fw-semibold">Servidores por atividade</div>
-                <div class="text-muted small">Alocações no mês selecionado</div>
+                <div class="text-muted small">Alocações no período selecionado</div>
               </div>
               <div class="card-body">
                 <div id="programar-graficoAtividadeEmpty" class="alert alert-light border text-muted d-none mb-0">
-                  Nenhuma alocação encontrada para este mês.
+                  Nenhuma alocação encontrada para este período.
                 </div>
                 <div class="programar-grafico-atividade-wrap">
                   <canvas id="programar-graficoAtividadeCanvas" height="320"></canvas>
@@ -126,7 +137,7 @@
               </div>
               <div class="card-body">
                 <div id="programar-graficoAlocacoesGeralEmpty" class="alert alert-light border text-muted d-none mb-0">
-                  Nenhuma alocação encontrada para este mês.
+                  Nenhuma alocação encontrada para este período.
                 </div>
                 <div class="programar-grafico-atividade-wrap">
                   <canvas id="programar-graficoAlocacoesGeralCanvas" height="320"></canvas>
@@ -142,7 +153,7 @@
               </div>
               <div class="card-body">
                 <div id="programar-graficoVeiculosEmpty" class="alert alert-light border text-muted d-none mb-0">
-                  Nenhuma alocação de veículo encontrada para este mês.
+                  Nenhuma alocação de veículo encontrada para este período.
                 </div>
                 <div class="programar-grafico-atividade-wrap">
                   <canvas id="programar-graficoVeiculosCanvas" height="320"></canvas>

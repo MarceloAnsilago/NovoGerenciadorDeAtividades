@@ -3270,6 +3270,7 @@ def programacao_do_dia_orm(request):
 def alocacoes_servidores_atividade(request):
     meta_id = request.GET.get("meta_id")
     mes = (request.GET.get("mes") or "").strip()
+    semana = (request.GET.get("semana") or "").strip()
 
     try:
         meta_id_int = int(meta_id)
@@ -3290,6 +3291,13 @@ def alocacoes_servidores_atividade(request):
 
     start_date = date(mes_dt.year, mes_dt.month, 1)
     end_date = date(mes_dt.year, mes_dt.month, monthrange(mes_dt.year, mes_dt.month)[1])
+    if semana:
+        try:
+            semana_year, semana_num = semana.split("-W", 1)
+            start_date = date.fromisocalendar(int(semana_year), int(semana_num), 1)
+            end_date = start_date + timedelta(days=6)
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "error": "Semana invalida."}, status=400)
     meta = Meta.objects.filter(pk=meta_id_int).select_related("atividade").first()
     atividade_titulo = ""
     if meta:
@@ -3434,6 +3442,10 @@ def alocacoes_servidores_atividade(request):
     return JsonResponse({
         "ok": True,
         "mes": mes,
+        "semana": semana,
+        "periodo_tipo": "semana" if semana else "mes",
+        "periodo_inicio": start_date.isoformat(),
+        "periodo_fim": end_date.isoformat(),
         "atividade": atividade_titulo,
         "labels": labels,
         "datasets": [

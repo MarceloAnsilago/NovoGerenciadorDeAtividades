@@ -249,7 +249,11 @@ function syncConclusionLink(card) {
     modal: "programar-modalGraficoAtividade",
     title: "programar-modalGraficoAtividadeLabel",
     nome: "programar-graficoAtividadeNome",
+    periodoTipo: "programar-graficoAtividadePeriodoTipo",
     mes: "programar-graficoAtividadeMes",
+    mesWrap: "programar-graficoAtividadeMesWrap",
+    semana: "programar-graficoAtividadeSemana",
+    semanaWrap: "programar-graficoAtividadeSemanaWrap",
     total: "programar-graficoAtividadeTotal",
     empty: "programar-graficoAtividadeEmpty",
     canvas: "programar-graficoAtividadeCanvas",
@@ -262,14 +266,41 @@ function syncConclusionLink(card) {
   let graficoAlocacoesGeralChart = null;
   let graficoVeiculosChart = null;
 
-  function currentModalMonth() {
+  function currentModalDate() {
     const selectedDate = String(document.getElementById("programar-dataAtividade")?.value || "").trim();
     if (/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
-      return selectedDate.slice(0, 7);
+      const [year, month, day] = selectedDate.split("-").map(Number);
+      return new Date(year, month - 1, day);
     }
     const calendarDate = NS?.calendar?.view?.currentStart;
-    const d = calendarDate instanceof Date ? calendarDate : new Date();
+    return calendarDate instanceof Date ? calendarDate : new Date();
+  }
+
+  function currentModalMonth() {
+    const d = currentModalDate();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  function dateToWeekValue(date) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() + 4 - day);
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return `${d.getFullYear()}-W${String(week).padStart(2, "0")}`;
+  }
+
+  function currentModalWeek() {
+    return dateToWeekValue(currentModalDate());
+  }
+
+  function syncGraficoPeriodoControls() {
+    const tipoEl = document.getElementById(GRAFICO_IDS.periodoTipo);
+    const mesWrap = document.getElementById(GRAFICO_IDS.mesWrap);
+    const semanaWrap = document.getElementById(GRAFICO_IDS.semanaWrap);
+    const tipo = tipoEl?.value === "semana" ? "semana" : "mes";
+    mesWrap?.classList.toggle("d-none", tipo !== "mes");
+    semanaWrap?.classList.toggle("d-none", tipo !== "semana");
   }
 
   function setGraficoLoading(loading) {
@@ -467,14 +498,20 @@ function syncConclusionLink(card) {
 
   async function carregarGraficoAtividade() {
     const metaId = String(NS._graficoAtividadeMetaId || "").trim();
+    const periodoTipo = document.getElementById(GRAFICO_IDS.periodoTipo)?.value === "semana" ? "semana" : "mes";
     const mes = String(document.getElementById(GRAFICO_IDS.mes)?.value || currentModalMonth()).trim();
+    const semana = String(document.getElementById(GRAFICO_IDS.semana)?.value || currentModalWeek()).trim();
     const urlBase = NS?.urls?.alocacoesServidoresAtividade;
     if (!metaId || !urlBase) return;
     setGraficoLoading(true);
     try {
       const url = new URL(urlBase, window.location.origin);
       url.searchParams.set("meta_id", metaId);
-      url.searchParams.set("mes", mes);
+      if (periodoTipo === "semana") {
+        url.searchParams.set("semana", semana);
+      } else {
+        url.searchParams.set("mes", mes);
+      }
       const resp = await fetch(url.toString(), {
         credentials: "same-origin",
         headers: { "X-Requested-With": "XMLHttpRequest" },
@@ -513,9 +550,14 @@ function syncConclusionLink(card) {
     const nomeEl = document.getElementById(GRAFICO_IDS.nome);
     const totalEl = document.getElementById(GRAFICO_IDS.total);
     const mesEl = document.getElementById(GRAFICO_IDS.mes);
+    const semanaEl = document.getElementById(GRAFICO_IDS.semana);
+    const periodoTipoEl = document.getElementById(GRAFICO_IDS.periodoTipo);
     if (nomeEl) nomeEl.textContent = NS._graficoAtividadeTitulo;
     if (totalEl) totalEl.textContent = "0";
+    if (periodoTipoEl) periodoTipoEl.value = "mes";
     if (mesEl) mesEl.value = currentModalMonth();
+    if (semanaEl) semanaEl.value = currentModalWeek();
+    syncGraficoPeriodoControls();
     setGraficoLoading(true);
     if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).show();
     carregarGraficoAtividade();
@@ -667,7 +709,15 @@ function syncConclusionLink(card) {
   });
 
   document.addEventListener("change", (ev) => {
-    if (ev.target?.id !== GRAFICO_IDS.mes) return;
+    const id = ev.target?.id;
+    if (![GRAFICO_IDS.mes, GRAFICO_IDS.semana, GRAFICO_IDS.periodoTipo].includes(id)) return;
+    if (id === GRAFICO_IDS.periodoTipo) {
+      const mesEl = document.getElementById(GRAFICO_IDS.mes);
+      const semanaEl = document.getElementById(GRAFICO_IDS.semana);
+      if (mesEl && !mesEl.value) mesEl.value = currentModalMonth();
+      if (semanaEl && !semanaEl.value) semanaEl.value = currentModalWeek();
+      syncGraficoPeriodoControls();
+    }
     carregarGraficoAtividade();
   });
 
