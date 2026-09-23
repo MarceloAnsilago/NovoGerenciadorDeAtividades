@@ -2177,6 +2177,129 @@ def _render_relatorio_observacao_html(observacao: str) -> str:
     """
 
 
+def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
+    ds = _parse_iso(start)
+    de = _parse_iso(end)
+    unidade_id = get_unidade_atual_id(request)
+    if not ds or not de or not unidade_id:
+        return ""
+
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    try:
+        meta_expediente_id = int(meta_expediente_id) if meta_expediente_id is not None else None
+    except (TypeError, ValueError):
+        meta_expediente_id = None
+
+    servidores_qs = (
+        ProgramacaoItemServidor.objects
+        .select_related("servidor", "item", "item__programacao")
+        .filter(
+            servidor__ativo=True,
+            item__programacao__unidade_id=unidade_id,
+            item__programacao__data__gte=ds,
+            item__programacao__data__lte=de,
+        )
+    )
+    if meta_expediente_id:
+        servidores_qs = servidores_qs.exclude(item__meta_id=meta_expediente_id)
+    servidores_rows = list(
+        servidores_qs.values("servidor__nome")
+        .annotate(total=Count("item_id", distinct=True))
+        .order_by("-total", "servidor__nome")[:6]
+    )
+
+    veiculos_qs = (
+        ProgramacaoItem.objects
+        .select_related("veiculo", "programacao")
+        .filter(
+            programacao__unidade_id=unidade_id,
+            programacao__data__gte=ds,
+            programacao__data__lte=de,
+            veiculo_id__isnull=False,
+        )
+    )
+    if meta_expediente_id:
+        veiculos_qs = veiculos_qs.exclude(meta_id=meta_expediente_id)
+    veiculo_rows = list(
+        veiculos_qs.values("veiculo__nome", "veiculo__placa")
+        .annotate(total=Count("id"))
+        .order_by("-total", "veiculo__nome", "veiculo__placa")[:6]
+    )
+
+    def _short_label(value: str, limit: int = 18) -> str:
+        value = " ".join(str(value or "").split())
+        if len(value) <= limit:
+            return value
+        return value[: max(0, limit - 1)].rstrip() + "."
+
+    def _chart(title: str, rows: list[dict], label_getter) -> str:
+        data = [(label_getter(row), int(row.get("total") or 0)) for row in rows]
+        data = [(label, total) for label, total in data if total > 0]
+        if not data:
+            data = [("-", 0)]
+        max_total = max([total for _label, total in data] + [1])
+        bars = []
+        for label, total in data:
+            width = max(3, round((total / max_total) * 100)) if total else 3
+            bars.append(
+                "<div class='relatorio-mini-row'>"
+                f"<span class='relatorio-mini-label'>{html.escape(_short_label(label))}</span>"
+                "<span class='relatorio-mini-track'>"
+                f"<span class='relatorio-mini-bar' style='width:{width}%'></span>"
+                "</span>"
+                f"<span class='relatorio-mini-value'>{total}</span>"
+                "</div>"
+            )
+        return (
+            "<div class='relatorio-mini-chart'>"
+            f"<div class='relatorio-mini-title'>{title}</div>"
+            + "".join(bars) +
+            "</div>"
+        )
+
+    servidores_chart = _chart(
+        "Servidores por aloca&ccedil;&otilde;es",
+        servidores_rows,
+        lambda row: row.get("servidor__nome") or "Servidor",
+    )
+    veiculos_chart = _chart(
+        "Aloca&ccedil;&atilde;o de ve&iacute;culos",
+        veiculo_rows,
+        lambda row: (
+            f"{(row.get('veiculo__nome') or '').strip()} {(row.get('veiculo__placa') or '').strip()}".strip()
+            or "Veiculo"
+        ),
+    )
+
+    return (
+        "<style>"
+        ".relatorio-print-header{gap:.75rem;}"
+        ".relatorio-print-header h2{flex:0 0 auto;}"
+        ".relatorio-mini-charts{display:flex;gap:.6rem;align-items:stretch;justify-content:flex-end;flex:1 1 auto;min-width:360px;}"
+        ".relatorio-mini-chart{width:245px;min-height:86px;border:1px solid #111;border-radius:2px;padding:5px 6px;background:#fff;color:#111;}"
+        ".relatorio-mini-title{font-weight:700;font-size:10px;line-height:1.1;margin-bottom:3px;white-space:nowrap;}"
+        ".relatorio-mini-row{display:grid;grid-template-columns:72px 1fr 18px;align-items:center;gap:4px;font-size:8.2px;line-height:1.05;margin:2px 0;}"
+        ".relatorio-mini-label{white-space:nowrap;overflow:hidden;text-overflow:clip;text-transform:uppercase;}"
+        ".relatorio-mini-track{height:7px;border:1px solid #111;background:#fff;display:block;}"
+        ".relatorio-mini-bar{height:100%;background:#111;display:block;}"
+        ".relatorio-mini-value{text-align:right;font-weight:700;}"
+        "@media print{"
+        "  .relatorio-print-header{align-items:flex-start!important;margin-bottom:4pt!important;}"
+        "  .relatorio-print-header h2{font-size:18pt!important;}"
+        "  .relatorio-mini-charts{gap:5pt;min-width:340pt;}"
+        "  .relatorio-mini-chart{width:190pt;min-height:58pt;padding:3pt 4pt;border-color:#000;break-inside:avoid;page-break-inside:avoid;}"
+        "  .relatorio-mini-title{font-size:7.5pt;margin-bottom:2pt;}"
+        "  .relatorio-mini-row{grid-template-columns:52pt 1fr 14pt;gap:3pt;font-size:6.2pt;margin:1pt 0;}"
+        "  .relatorio-mini-track{height:5pt;border-color:#000;}"
+        "  .relatorio-mini-bar{background:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}"
+        "}"
+        "</style>"
+        "<div class='relatorio-mini-charts'>"
+        f"{servidores_chart}{veiculos_chart}"
+        "</div>"
+    )
+
+
 @login_required
 @require_GET
 def relatorios_parcial(request):
@@ -2200,16 +2323,18 @@ def relatorios_parcial(request):
 
     plantonistas_html = _render_plantonistas_html(servidores, start, end)
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
+    mini_charts_html = _render_relatorio_mini_charts_html(request, start, end)
     period_label = _period_label_br(start, end)
 
     html_out = f"""
     <div id="relatorioPrintArea" class="container mt-3 report-container px-0">
       <div class="card border-0 shadow-sm">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="d-flex justify-content-between align-items-start mb-3 relatorio-print-header">
             <h2 class="mb-0">
               <i class="bi bi-list-check me-2"></i> Programação de atividades
             </h2>
+            {mini_charts_html}
             <div id="relatorio-toolbar" class="report-toolbar no-print">
               <div class="btn-group btn-group-sm">
                 <button id="relatorio-btn-print" type="button" class="btn btn-outline-secondary" title="Imprimir relatório">
@@ -2281,6 +2406,7 @@ def print_relatorio_semana(request):
 
     plantonistas_html = _render_plantonistas_html(servidores, start, end)
     tabela_semana_html = _render_programacao_semana_html(request, start, end)
+    mini_charts_html = _render_relatorio_mini_charts_html(request, start, end)
     period_label = _period_label_br(start, end)
     page_title = _programacao_title_br(start, end)
 
@@ -2309,6 +2435,12 @@ def print_relatorio_semana(request):
           <i class="bi bi-printer me-1"></i> Imprimir
         </button>
       </div>
+    </div>
+    <div class="d-flex justify-content-between align-items-start mb-2 relatorio-print-header">
+      <h2 class="mb-0">
+        <i class="bi bi-list-check me-2"></i> Programa&ccedil;&atilde;o de atividades
+      </h2>
+      {mini_charts_html}
     </div>
     <div class="text-muted small mb-3">Período: <strong>{period_label}</strong></div>
     <div class="card border-0 shadow-sm">
