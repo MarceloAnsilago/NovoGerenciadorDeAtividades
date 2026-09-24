@@ -2255,6 +2255,7 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
             return (cx + r * math.cos(rad), cy + r * math.sin(rad))
 
         slices = []
+        callouts = []
         legend = []
         angle = 0.0
         for idx, (label, slice_label, total) in enumerate(data):
@@ -2287,12 +2288,18 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
                 text_anchor = "end" if right_side else "start"
                 text_x = ex - 3 if right_side else ex + 3
                 label_value = _short_label(slice_label, 9)
-                slices.append(
-                    f"<polyline points='{sx:.2f},{sy:.2f} {mx:.2f},{my:.2f} {ex:.2f},{ey:.2f}' "
-                    "class='relatorio-mini-callout-line' />"
-                    f"<text x='{text_x:.2f}' y='{ey + 2:.2f}' text-anchor='{text_anchor}' class='relatorio-mini-callout-text'>"
-                    f"{html.escape(label_value)}</text>"
-                )
+                callouts.append({
+                    "right": right_side,
+                    "sx": sx,
+                    "sy": sy,
+                    "mx": mx,
+                    "my": my,
+                    "ex": ex,
+                    "ey": ey,
+                    "text_x": text_x,
+                    "text_anchor": text_anchor,
+                    "label": label_value,
+                })
             legend_y = 28 + (idx * 15)
             legend.append(
                 f"<rect x='170' y='{legend_y - 8}' width='9' height='9' fill='{fill}' stroke='#000' stroke-width='0.4' />"
@@ -2300,6 +2307,29 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
                 f"<text x='390' y='{legend_y}' class='relatorio-mini-legend-value'>{total}</text>"
             )
             angle += sweep
+        for right_side in (False, True):
+            group = sorted(
+                [item for item in callouts if item["right"] == right_side],
+                key=lambda item: item["ey"],
+            )
+            if not group:
+                continue
+            min_y, max_y, gap = 16, 132, 14
+            next_y = min_y
+            for item in group:
+                item["ey"] = max(item["ey"], next_y)
+                next_y = item["ey"] + gap
+            overflow = group[-1]["ey"] - max_y
+            if overflow > 0:
+                for item in group:
+                    item["ey"] = max(min_y, item["ey"] - overflow)
+            for item in group:
+                slices.append(
+                    f"<polyline points='{item['sx']:.2f},{item['sy']:.2f} {item['mx']:.2f},{item['my']:.2f} {item['ex']:.2f},{item['ey']:.2f}' "
+                    "class='relatorio-mini-callout-line' />"
+                    f"<text x='{item['text_x']:.2f}' y='{item['ey'] + 2:.2f}' text-anchor='{item['text_anchor']}' class='relatorio-mini-callout-text'>"
+                    f"{html.escape(item['label'])}</text>"
+                )
         return (
             "<div class='relatorio-mini-chart'>"
             f"<div class='relatorio-mini-title'>{title}</div>"
