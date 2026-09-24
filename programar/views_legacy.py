@@ -2238,23 +2238,25 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         if not data:
             data = [("-", 0)]
         max_total = max([total for _label, total in data] + [1])
+        chart_height = max(44, 21 + (min(len(data), 6) * 17))
+        bar_x = 178
         bars = [
-            "<line x1='150' y1='118' x2='410' y2='118' stroke='#000' stroke-width='0.8' />"
+            f"<line x1='{bar_x}' y1='{chart_height - 8}' x2='410' y2='{chart_height - 8}' stroke='#000' stroke-width='0.8' />"
         ]
         palette = ["#000", "#333", "#666", "#888", "#aaa", "#ccc"]
         for idx, (label, total) in enumerate(data[:6]):
             y = 20 + (idx * 16)
-            width = max(4, round((total / max_total) * 210)) if total else 4
+            width = max(4, round((total / max_total) * 185)) if total else 4
             fill = palette[idx % len(palette)]
             bars.append(
-                f"<text x='8' y='{y + 9}' class='relatorio-mini-bar-label'>{html.escape(_short_label(label, 26))}</text>"
-                f"<rect x='150' y='{y}' width='{width}' height='11' fill='{fill}' stroke='#000' stroke-width='0.35' />"
+                f"<text x='8' y='{y + 9}' class='relatorio-mini-bar-label'>{html.escape(_short_label(label, 31))}</text>"
+                f"<rect x='{bar_x}' y='{y}' width='{width}' height='11' fill='{fill}' stroke='#000' stroke-width='0.35' />"
                 f"<text x='395' y='{y + 9}' class='relatorio-mini-bar-value'>{total}</text>"
             )
         return (
             "<div class='relatorio-mini-chart'>"
             f"<div class='relatorio-mini-title'>{title}</div>"
-            "<svg class='relatorio-mini-bars' viewBox='0 0 420 150' role='img'>"
+            f"<svg class='relatorio-mini-bars' viewBox='0 0 420 {chart_height}' role='img' style='height:{chart_height}px'>"
             + "".join(bars)
             + "</svg>"
             "</div>"
@@ -2283,11 +2285,11 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         ".relatorio-graficos-inferiores{break-inside:avoid;page-break-inside:avoid;}"
         ".relatorio-mini-charts{display:flex;gap:.75rem;align-items:stretch;justify-content:stretch;width:100%;}"
         ".relatorio-mini-chart{flex:1 1 0;min-width:0;border:1px solid #111;border-radius:2px;padding:5px 7px 3px;background:#fff;color:#111;}"
-        ".relatorio-mini-title{font-weight:400;font-size:11px;line-height:1.1;margin-bottom:1px;white-space:nowrap;}"
+        ".relatorio-mini-title{font-weight:400;font-size:12px;line-height:1.1;margin-bottom:1px;white-space:nowrap;}"
         ".relatorio-mini-chart{display:flex;flex-direction:column;}"
-        ".relatorio-mini-bars{display:block;width:100%;height:122px;}"
-        ".relatorio-mini-bar-label{font-family:Arial,sans-serif;font-size:9px;font-weight:400;text-transform:uppercase;fill:#000;}"
-        ".relatorio-mini-bar-value{font-family:Arial,sans-serif;font-size:9px;font-weight:400;text-anchor:end;fill:#000;}"
+        ".relatorio-mini-bars{display:block;width:100%;}"
+        ".relatorio-mini-bar-label{font-family:Arial,sans-serif;font-size:9.5px;font-weight:400;text-transform:uppercase;fill:#000;}"
+        ".relatorio-mini-bar-value{font-family:Arial,sans-serif;font-size:9.5px;font-weight:400;text-anchor:end;fill:#000;}"
         "@media print{"
         "  .relatorio-print-header{align-items:flex-start!important;margin-bottom:4pt!important;}"
         "  .relatorio-print-header h2{font-size:18pt!important;}"
@@ -2295,7 +2297,6 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         "  .relatorio-mini-charts{gap:6pt;width:100%!important;}"
         "  .relatorio-mini-chart{padding:3pt 4pt 2pt;border-color:#000;break-inside:avoid;page-break-inside:avoid;}"
         "  .relatorio-mini-title{font-size:8pt;font-weight:400;margin-bottom:1pt;}"
-        "  .relatorio-mini-bars{height:72pt;}"
         "  .relatorio-mini-bars rect{-webkit-print-color-adjust:exact;print-color-adjust:exact;}"
         "  .relatorio-mini-bar-label,.relatorio-mini-bar-value{font-size:6pt;fill:#000!important;}"
         "}"
