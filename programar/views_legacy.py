@@ -2233,109 +2233,29 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         return value[: max(0, limit - 1)].rstrip() + "."
 
     def _chart(title: str, rows: list[dict], label_getter, slice_label_getter=None) -> str:
-        import math
-
-        data = [
-            (
-                label_getter(row),
-                (slice_label_getter(row) if slice_label_getter else label_getter(row)),
-                int(row.get("total") or 0),
-            )
-            for row in rows
-        ]
-        data = [(label, slice_label, total) for label, slice_label, total in data if total > 0]
+        data = [(label_getter(row), int(row.get("total") or 0)) for row in rows]
+        data = [(label, total) for label, total in data if total > 0]
         if not data:
-            data = [("-", "-", 0)]
-        total_geral = sum(total for _label, _slice_label, total in data) or 1
-        cx, cy, r = 82, 72, 62
+            data = [("-", 0)]
+        max_total = max([total for _label, total in data] + [1])
+        bars = [
+            "<line x1='150' y1='134' x2='410' y2='134' stroke='#000' stroke-width='0.8' />"
+        ]
         palette = ["#000", "#333", "#666", "#888", "#aaa", "#ccc"]
-
-        def _point(angle: float) -> tuple[float, float]:
-            rad = math.radians(angle - 90)
-            return (cx + r * math.cos(rad), cy + r * math.sin(rad))
-
-        slices = []
-        callouts = []
-        legend = []
-        angle = 0.0
-        for idx, (label, slice_label, total) in enumerate(data):
-            sweep = (total / total_geral) * 360
+        for idx, (label, total) in enumerate(data[:6]):
+            y = 25 + (idx * 19)
+            width = max(4, round((total / max_total) * 210)) if total else 4
             fill = palette[idx % len(palette)]
-            if total_geral == total:
-                slices.append(
-                    f"<circle cx='{cx}' cy='{cy}' r='{r}' fill='{fill}' stroke='#000' stroke-width='0.8' />"
-                )
-            else:
-                x1, y1 = _point(angle)
-                x2, y2 = _point(angle + sweep)
-                large = 1 if sweep > 180 else 0
-                slices.append(
-                    f"<path d='M {cx} {cy} L {x1:.2f} {y1:.2f} A {r} {r} 0 {large} 1 {x2:.2f} {y2:.2f} Z' "
-                    f"fill='{fill}' stroke='#fff' stroke-width='0.8' />"
-                )
-            mid_angle = angle + (sweep / 2)
-            label_rad = math.radians(mid_angle - 90)
-            if sweep >= 30:
-                line_start_r = r * 0.82
-                line_mid_r = r + 7
-                sx = cx + line_start_r * math.cos(label_rad)
-                sy = cy + line_start_r * math.sin(label_rad)
-                mx = cx + line_mid_r * math.cos(label_rad)
-                my = cy + line_mid_r * math.sin(label_rad)
-                right_side = math.cos(label_rad) >= 0
-                ex = 152 if right_side else 10
-                ey = max(15, min(132, my))
-                text_anchor = "end" if right_side else "start"
-                text_x = ex - 3 if right_side else ex + 3
-                label_value = _short_label(slice_label, 9)
-                callouts.append({
-                    "right": right_side,
-                    "sx": sx,
-                    "sy": sy,
-                    "mx": mx,
-                    "my": my,
-                    "ex": ex,
-                    "ey": ey,
-                    "text_x": text_x,
-                    "text_anchor": text_anchor,
-                    "label": label_value,
-                })
-            legend_y = 28 + (idx * 15)
-            legend.append(
-                f"<rect x='170' y='{legend_y - 8}' width='9' height='9' fill='{fill}' stroke='#000' stroke-width='0.4' />"
-                f"<text x='186' y='{legend_y}' class='relatorio-mini-legend'>{html.escape(_short_label(label, 23))}</text>"
-                f"<text x='390' y='{legend_y}' class='relatorio-mini-legend-value'>{total}</text>"
+            bars.append(
+                f"<text x='8' y='{y + 8}' class='relatorio-mini-bar-label'>{html.escape(_short_label(label, 26))}</text>"
+                f"<rect x='150' y='{y}' width='{width}' height='10' fill='{fill}' stroke='#000' stroke-width='0.35' />"
+                f"<text x='395' y='{y + 8}' class='relatorio-mini-bar-value'>{total}</text>"
             )
-            angle += sweep
-        for right_side in (False, True):
-            group = sorted(
-                [item for item in callouts if item["right"] == right_side],
-                key=lambda item: item["ey"],
-            )
-            if not group:
-                continue
-            min_y, max_y, gap = 16, 132, 14
-            next_y = min_y
-            for item in group:
-                item["ey"] = max(item["ey"], next_y)
-                next_y = item["ey"] + gap
-            overflow = group[-1]["ey"] - max_y
-            if overflow > 0:
-                for item in group:
-                    item["ey"] = max(min_y, item["ey"] - overflow)
-            for item in group:
-                slices.append(
-                    f"<polyline points='{item['sx']:.2f},{item['sy']:.2f} {item['mx']:.2f},{item['my']:.2f} {item['ex']:.2f},{item['ey']:.2f}' "
-                    "class='relatorio-mini-callout-line' />"
-                    f"<text x='{item['text_x']:.2f}' y='{item['ey'] + 2:.2f}' text-anchor='{item['text_anchor']}' class='relatorio-mini-callout-text'>"
-                    f"{html.escape(item['label'])}</text>"
-                )
         return (
             "<div class='relatorio-mini-chart'>"
             f"<div class='relatorio-mini-title'>{title}</div>"
-            "<svg class='relatorio-mini-pie' viewBox='0 0 405 150' role='img'>"
-            + "".join(slices)
-            + "".join(legend)
+            "<svg class='relatorio-mini-bars' viewBox='0 0 420 150' role='img'>"
+            + "".join(bars)
             + "</svg>"
             "</div>"
         )
@@ -2365,11 +2285,9 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         ".relatorio-mini-chart{flex:1 1 0;min-width:0;min-height:235px;border:1px solid #111;border-radius:2px;padding:7px 8px;background:#fff;color:#111;}"
         ".relatorio-mini-title{font-weight:400;font-size:11px;line-height:1.1;margin-bottom:4px;white-space:nowrap;}"
         ".relatorio-mini-chart{display:flex;flex-direction:column;}"
-        ".relatorio-mini-pie{display:block;width:100%;height:198px;}"
-        ".relatorio-mini-callout-line{fill:none;stroke:#000;stroke-width:.7;}"
-        ".relatorio-mini-callout-text{font-family:Arial,sans-serif;font-size:7.5px;font-weight:400;text-transform:uppercase;fill:#000;}"
-        ".relatorio-mini-legend{font-family:Arial,sans-serif;font-size:9px;font-weight:400;text-transform:uppercase;fill:#000;}"
-        ".relatorio-mini-legend-value{font-family:Arial,sans-serif;font-size:9px;font-weight:400;text-anchor:end;fill:#000;}"
+        ".relatorio-mini-bars{display:block;width:100%;height:198px;}"
+        ".relatorio-mini-bar-label{font-family:Arial,sans-serif;font-size:9px;font-weight:400;text-transform:uppercase;fill:#000;}"
+        ".relatorio-mini-bar-value{font-family:Arial,sans-serif;font-size:9px;font-weight:400;text-anchor:end;fill:#000;}"
         "@media print{"
         "  .relatorio-print-header{align-items:flex-start!important;margin-bottom:4pt!important;}"
         "  .relatorio-print-header h2{font-size:18pt!important;}"
@@ -2377,11 +2295,9 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         "  .relatorio-mini-charts{gap:6pt;width:100%!important;}"
         "  .relatorio-mini-chart{min-height:145pt;padding:4pt 5pt;border-color:#000;break-inside:avoid;page-break-inside:avoid;}"
         "  .relatorio-mini-title{font-size:8pt;font-weight:400;margin-bottom:2pt;}"
-        "  .relatorio-mini-pie{height:124pt;}"
-        "  .relatorio-mini-pie path,.relatorio-mini-pie circle,.relatorio-mini-pie rect{-webkit-print-color-adjust:exact;print-color-adjust:exact;}"
-        "  .relatorio-mini-callout-line{stroke:#000!important;stroke-width:.6;}"
-        "  .relatorio-mini-callout-text{font-size:5.2pt;fill:#000!important;}"
-        "  .relatorio-mini-legend,.relatorio-mini-legend-value{font-size:5.8pt;fill:#000!important;}"
+        "  .relatorio-mini-bars{height:124pt;}"
+        "  .relatorio-mini-bars rect{-webkit-print-color-adjust:exact;print-color-adjust:exact;}"
+        "  .relatorio-mini-bar-label,.relatorio-mini-bar-value{font-size:6pt;fill:#000!important;}"
         "}"
         "</style>"
         "<div class='relatorio-mini-charts'>"
