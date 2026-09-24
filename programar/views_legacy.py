@@ -2274,14 +2274,24 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
                 )
             mid_angle = angle + (sweep / 2)
             label_rad = math.radians(mid_angle - 90)
-            label_r = r * 0.58
-            label_x = cx + label_r * math.cos(label_rad)
-            label_y = cy + label_r * math.sin(label_rad)
-            label_class = "relatorio-mini-slice-label relatorio-mini-slice-label-dark" if idx >= 4 else "relatorio-mini-slice-label"
-            if sweep >= 42:
+            if sweep >= 30:
+                line_start_r = r * 0.82
+                line_mid_r = r + 7
+                sx = cx + line_start_r * math.cos(label_rad)
+                sy = cy + line_start_r * math.sin(label_rad)
+                mx = cx + line_mid_r * math.cos(label_rad)
+                my = cy + line_mid_r * math.sin(label_rad)
+                right_side = math.cos(label_rad) >= 0
+                ex = 152 if right_side else 10
+                ey = max(15, min(132, my))
+                text_anchor = "end" if right_side else "start"
+                text_x = ex - 3 if right_side else ex + 3
+                label_value = _short_label(slice_label, 9)
                 slices.append(
-                    f"<text x='{label_x:.2f}' y='{label_y:.2f}' class='{label_class}'>"
-                    f"{html.escape(_short_label(slice_label, 9))}</text>"
+                    f"<polyline points='{sx:.2f},{sy:.2f} {mx:.2f},{my:.2f} {ex:.2f},{ey:.2f}' "
+                    "class='relatorio-mini-callout-line' />"
+                    f"<text x='{text_x:.2f}' y='{ey + 2:.2f}' text-anchor='{text_anchor}' class='relatorio-mini-callout-text'>"
+                    f"{html.escape(label_value)}</text>"
                 )
             legend_y = 28 + (idx * 15)
             legend.append(
@@ -2326,8 +2336,8 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         ".relatorio-mini-title{font-weight:400;font-size:11px;line-height:1.1;margin-bottom:4px;white-space:nowrap;}"
         ".relatorio-mini-chart{display:flex;flex-direction:column;}"
         ".relatorio-mini-pie{display:block;width:100%;height:198px;}"
-        ".relatorio-mini-slice-label{font-family:Arial,sans-serif;font-size:8px;font-weight:400;text-anchor:middle;dominant-baseline:middle;text-transform:uppercase;fill:#fff;}"
-        ".relatorio-mini-slice-label-dark{fill:#000;}"
+        ".relatorio-mini-callout-line{fill:none;stroke:#000;stroke-width:.7;}"
+        ".relatorio-mini-callout-text{font-family:Arial,sans-serif;font-size:7.5px;font-weight:400;text-transform:uppercase;fill:#000;}"
         ".relatorio-mini-legend{font-family:Arial,sans-serif;font-size:9px;font-weight:400;text-transform:uppercase;fill:#000;}"
         ".relatorio-mini-legend-value{font-family:Arial,sans-serif;font-size:9px;font-weight:400;text-anchor:end;fill:#000;}"
         "@media print{"
@@ -2339,8 +2349,8 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         "  .relatorio-mini-title{font-size:8pt;font-weight:400;margin-bottom:2pt;}"
         "  .relatorio-mini-pie{height:124pt;}"
         "  .relatorio-mini-pie path,.relatorio-mini-pie circle,.relatorio-mini-pie rect{-webkit-print-color-adjust:exact;print-color-adjust:exact;}"
-        "  .relatorio-mini-slice-label{font-size:5.8pt;fill:#fff!important;}"
-        "  .relatorio-mini-slice-label-dark{fill:#000!important;}"
+        "  .relatorio-mini-callout-line{stroke:#000!important;stroke-width:.6;}"
+        "  .relatorio-mini-callout-text{font-size:5.2pt;fill:#000!important;}"
         "  .relatorio-mini-legend,.relatorio-mini-legend-value{font-size:5.8pt;fill:#000!important;}"
         "}"
         "</style>"
