@@ -2232,15 +2232,22 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
             return value
         return value[: max(0, limit - 1)].rstrip() + "."
 
-    def _chart(title: str, rows: list[dict], label_getter) -> str:
+    def _chart(title: str, rows: list[dict], label_getter, slice_label_getter=None) -> str:
         import math
 
-        data = [(label_getter(row), int(row.get("total") or 0)) for row in rows]
-        data = [(label, total) for label, total in data if total > 0]
+        data = [
+            (
+                label_getter(row),
+                (slice_label_getter(row) if slice_label_getter else label_getter(row)),
+                int(row.get("total") or 0),
+            )
+            for row in rows
+        ]
+        data = [(label, slice_label, total) for label, slice_label, total in data if total > 0]
         if not data:
-            data = [("-", 0)]
-        total_geral = sum(total for _label, total in data) or 1
-        cx, cy, r = 58, 52, 38
+            data = [("-", "-", 0)]
+        total_geral = sum(total for _label, _slice_label, total in data) or 1
+        cx, cy, r = 76, 72, 56
         palette = ["#000", "#333", "#666", "#888", "#aaa", "#ccc"]
 
         def _point(angle: float) -> tuple[float, float]:
@@ -2250,7 +2257,7 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         slices = []
         legend = []
         angle = 0.0
-        for idx, (label, total) in enumerate(data):
+        for idx, (label, slice_label, total) in enumerate(data):
             sweep = (total / total_geral) * 360
             fill = palette[idx % len(palette)]
             if total_geral == total:
@@ -2265,21 +2272,30 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
                     f"<path d='M {cx} {cy} L {x1:.2f} {y1:.2f} A {r} {r} 0 {large} 1 {x2:.2f} {y2:.2f} Z' "
                     f"fill='{fill}' stroke='#fff' stroke-width='0.8' />"
                 )
-            legend_y = 24 + (idx * 13)
+            mid_angle = angle + (sweep / 2)
+            label_rad = math.radians(mid_angle - 90)
+            label_r = r * 0.56
+            label_x = cx + label_r * math.cos(label_rad)
+            label_y = cy + label_r * math.sin(label_rad)
+            label_class = "relatorio-mini-slice-label relatorio-mini-slice-label-dark" if idx >= 4 else "relatorio-mini-slice-label"
+            slices.append(
+                f"<text x='{label_x:.2f}' y='{label_y:.2f}' class='{label_class}'>"
+                f"{html.escape(_short_label(slice_label, 11))}</text>"
+            )
+            legend_y = 28 + (idx * 15)
             legend.append(
-                f"<rect x='116' y='{legend_y - 7}' width='8' height='8' fill='{fill}' stroke='#000' stroke-width='0.4' />"
-                f"<text x='130' y='{legend_y}' class='relatorio-mini-legend'>{html.escape(_short_label(label, 22))}</text>"
-                f"<text x='330' y='{legend_y}' class='relatorio-mini-legend-value'>{total}</text>"
+                f"<rect x='158' y='{legend_y - 8}' width='9' height='9' fill='{fill}' stroke='#000' stroke-width='0.4' />"
+                f"<text x='174' y='{legend_y}' class='relatorio-mini-legend'>{html.escape(_short_label(label, 24))}</text>"
+                f"<text x='390' y='{legend_y}' class='relatorio-mini-legend-value'>{total}</text>"
             )
             angle += sweep
         return (
             "<div class='relatorio-mini-chart'>"
             f"<div class='relatorio-mini-title'>{title}</div>"
-            "<svg class='relatorio-mini-pie' viewBox='0 0 345 112' role='img'>"
+            "<svg class='relatorio-mini-pie' viewBox='0 0 405 150' role='img'>"
             + "".join(slices)
             + "".join(legend)
-            + f"<text x='{cx}' y='{cy + 3}' class='relatorio-mini-pie-total'>{total_geral}</text>"
-            "</svg>"
+            + "</svg>"
             "</div>"
         )
 
@@ -2287,6 +2303,7 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         "Servidores por aloca&ccedil;&otilde;es",
         servidores_rows,
         lambda row: row.get("servidor__nome") or "Servidor",
+        lambda row: (str(row.get("servidor__nome") or "Servidor").strip().split() or ["Servidor"])[0],
     )
     veiculos_chart = _chart(
         "Aloca&ccedil;&atilde;o de ve&iacute;culos",
@@ -2295,6 +2312,7 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
             f"{(row.get('veiculo__nome') or '').strip()} {(row.get('veiculo__placa') or '').strip()}".strip()
             or "Veiculo"
         ),
+        lambda row: (row.get("veiculo__placa") or row.get("veiculo__nome") or "Veiculo"),
     )
 
     return (
@@ -2303,11 +2321,12 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         ".relatorio-print-header h2{flex:0 0 auto;}"
         ".relatorio-graficos-inferiores{break-inside:avoid;page-break-inside:avoid;}"
         ".relatorio-mini-charts{display:flex;gap:.75rem;align-items:stretch;justify-content:stretch;width:100%;}"
-        ".relatorio-mini-chart{flex:1 1 0;min-width:0;min-height:185px;border:1px solid #111;border-radius:2px;padding:7px 8px;background:#fff;color:#111;}"
+        ".relatorio-mini-chart{flex:1 1 0;min-width:0;min-height:235px;border:1px solid #111;border-radius:2px;padding:7px 8px;background:#fff;color:#111;}"
         ".relatorio-mini-title{font-weight:700;font-size:11px;line-height:1.1;margin-bottom:4px;white-space:nowrap;}"
         ".relatorio-mini-chart{display:flex;flex-direction:column;}"
-        ".relatorio-mini-pie{display:block;width:100%;height:148px;}"
-        ".relatorio-mini-pie-total{font-size:13px;font-weight:700;text-anchor:middle;fill:#fff;}"
+        ".relatorio-mini-pie{display:block;width:100%;height:198px;}"
+        ".relatorio-mini-slice-label{font-size:9px;font-weight:800;text-anchor:middle;dominant-baseline:middle;text-transform:uppercase;fill:#fff;}"
+        ".relatorio-mini-slice-label-dark{fill:#000;}"
         ".relatorio-mini-legend{font-size:9px;font-weight:700;text-transform:uppercase;fill:#000;}"
         ".relatorio-mini-legend-value{font-size:9px;font-weight:700;text-anchor:end;fill:#000;}"
         "@media print{"
@@ -2315,11 +2334,12 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         "  .relatorio-print-header h2{font-size:18pt!important;}"
         "  .relatorio-graficos-inferiores{break-inside:avoid!important;page-break-inside:avoid!important;margin-top:5pt!important;margin-bottom:5pt!important;}"
         "  .relatorio-mini-charts{gap:6pt;width:100%!important;}"
-        "  .relatorio-mini-chart{min-height:113pt;padding:4pt 5pt;border-color:#000;break-inside:avoid;page-break-inside:avoid;}"
+        "  .relatorio-mini-chart{min-height:145pt;padding:4pt 5pt;border-color:#000;break-inside:avoid;page-break-inside:avoid;}"
         "  .relatorio-mini-title{font-size:8pt;margin-bottom:2pt;}"
-        "  .relatorio-mini-pie{height:94pt;}"
+        "  .relatorio-mini-pie{height:124pt;}"
         "  .relatorio-mini-pie path,.relatorio-mini-pie circle,.relatorio-mini-pie rect{-webkit-print-color-adjust:exact;print-color-adjust:exact;}"
-        "  .relatorio-mini-pie-total{font-size:8pt;fill:#fff!important;}"
+        "  .relatorio-mini-slice-label{font-size:6.4pt;fill:#fff!important;}"
+        "  .relatorio-mini-slice-label-dark{fill:#000!important;}"
         "  .relatorio-mini-legend,.relatorio-mini-legend-value{font-size:5.8pt;fill:#000!important;}"
         "}"
         "</style>"
