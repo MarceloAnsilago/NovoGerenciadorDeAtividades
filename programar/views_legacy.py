@@ -2247,7 +2247,7 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         if not data:
             data = [("-", "-", 0)]
         total_geral = sum(total for _label, _slice_label, total in data) or 1
-        cx, cy, r = 76, 72, 56
+        cx, cy, r = 82, 72, 62
         palette = ["#000", "#333", "#666", "#888", "#aaa", "#ccc"]
 
         def _point(angle: float) -> tuple[float, float]:
@@ -2274,18 +2274,19 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
                 )
             mid_angle = angle + (sweep / 2)
             label_rad = math.radians(mid_angle - 90)
-            label_r = r * 0.56
+            label_r = r * 0.58
             label_x = cx + label_r * math.cos(label_rad)
             label_y = cy + label_r * math.sin(label_rad)
             label_class = "relatorio-mini-slice-label relatorio-mini-slice-label-dark" if idx >= 4 else "relatorio-mini-slice-label"
-            slices.append(
-                f"<text x='{label_x:.2f}' y='{label_y:.2f}' class='{label_class}'>"
-                f"{html.escape(_short_label(slice_label, 11))}</text>"
-            )
+            if sweep >= 42:
+                slices.append(
+                    f"<text x='{label_x:.2f}' y='{label_y:.2f}' class='{label_class}'>"
+                    f"{html.escape(_short_label(slice_label, 9))}</text>"
+                )
             legend_y = 28 + (idx * 15)
             legend.append(
-                f"<rect x='158' y='{legend_y - 8}' width='9' height='9' fill='{fill}' stroke='#000' stroke-width='0.4' />"
-                f"<text x='174' y='{legend_y}' class='relatorio-mini-legend'>{html.escape(_short_label(label, 24))}</text>"
+                f"<rect x='170' y='{legend_y - 8}' width='9' height='9' fill='{fill}' stroke='#000' stroke-width='0.4' />"
+                f"<text x='186' y='{legend_y}' class='relatorio-mini-legend'>{html.escape(_short_label(label, 23))}</text>"
                 f"<text x='390' y='{legend_y}' class='relatorio-mini-legend-value'>{total}</text>"
             )
             angle += sweep
@@ -2325,7 +2326,7 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         ".relatorio-mini-title{font-weight:700;font-size:11px;line-height:1.1;margin-bottom:4px;white-space:nowrap;}"
         ".relatorio-mini-chart{display:flex;flex-direction:column;}"
         ".relatorio-mini-pie{display:block;width:100%;height:198px;}"
-        ".relatorio-mini-slice-label{font-size:9px;font-weight:800;text-anchor:middle;dominant-baseline:middle;text-transform:uppercase;fill:#fff;}"
+        ".relatorio-mini-slice-label{font-size:8px;font-weight:800;text-anchor:middle;dominant-baseline:middle;text-transform:uppercase;fill:#fff;}"
         ".relatorio-mini-slice-label-dark{fill:#000;}"
         ".relatorio-mini-legend{font-size:9px;font-weight:700;text-transform:uppercase;fill:#000;}"
         ".relatorio-mini-legend-value{font-size:9px;font-weight:700;text-anchor:end;fill:#000;}"
@@ -2338,7 +2339,7 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         "  .relatorio-mini-title{font-size:8pt;margin-bottom:2pt;}"
         "  .relatorio-mini-pie{height:124pt;}"
         "  .relatorio-mini-pie path,.relatorio-mini-pie circle,.relatorio-mini-pie rect{-webkit-print-color-adjust:exact;print-color-adjust:exact;}"
-        "  .relatorio-mini-slice-label{font-size:6.4pt;fill:#fff!important;}"
+        "  .relatorio-mini-slice-label{font-size:5.8pt;fill:#fff!important;}"
         "  .relatorio-mini-slice-label-dark{fill:#000!important;}"
         "  .relatorio-mini-legend,.relatorio-mini-legend-value{font-size:5.8pt;fill:#000!important;}"
         "}"
