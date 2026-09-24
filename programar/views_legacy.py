@@ -2301,9 +2301,8 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         "<style>"
         ".relatorio-print-header{gap:.75rem;}"
         ".relatorio-print-header h2{flex:0 0 auto;}"
-        ".relatorio-plantonista-row{display:flex;align-items:flex-start;gap:.75rem;}"
-        ".relatorio-plantonista-box{flex:1 1 auto;min-width:260px;}"
-        ".relatorio-mini-charts{display:flex;gap:.6rem;align-items:stretch;justify-content:flex-end;flex:0 0 52%;min-width:520px;}"
+        ".relatorio-graficos-inferiores{break-inside:avoid;page-break-inside:avoid;}"
+        ".relatorio-mini-charts{display:flex;gap:.75rem;align-items:stretch;justify-content:stretch;width:100%;}"
         ".relatorio-mini-chart{flex:1 1 0;min-width:0;min-height:148px;border:1px solid #111;border-radius:2px;padding:7px 8px;background:#fff;color:#111;}"
         ".relatorio-mini-title{font-weight:700;font-size:11px;line-height:1.1;margin-bottom:4px;white-space:nowrap;}"
         ".relatorio-mini-chart{display:flex;flex-direction:column;}"
@@ -2314,9 +2313,8 @@ def _render_relatorio_mini_charts_html(request, start: str, end: str) -> str:
         "@media print{"
         "  .relatorio-print-header{align-items:flex-start!important;margin-bottom:4pt!important;}"
         "  .relatorio-print-header h2{font-size:18pt!important;}"
-        "  .relatorio-plantonista-row{display:flex!important;align-items:flex-start!important;gap:5pt!important;margin-bottom:4pt!important;}"
-        "  .relatorio-plantonista-box{flex:1 1 auto!important;min-width:0!important;}"
-        "  .relatorio-mini-charts{gap:5pt;flex:0 0 55%!important;min-width:390pt;}"
+        "  .relatorio-graficos-inferiores{break-inside:avoid!important;page-break-inside:avoid!important;margin-top:5pt!important;margin-bottom:5pt!important;}"
+        "  .relatorio-mini-charts{gap:6pt;width:100%!important;}"
         "  .relatorio-mini-chart{min-height:90pt;padding:4pt 5pt;border-color:#000;break-inside:avoid;page-break-inside:avoid;}"
         "  .relatorio-mini-title{font-size:8pt;margin-bottom:2pt;}"
         "  .relatorio-mini-pie{height:75pt;}"
@@ -2378,12 +2376,12 @@ def relatorios_parcial(request):
           </div>
           <div class="card shadow-sm border-0">
             <div class="card-body p-0">
-              <div class="relatorio-plantonista-row mb-3">
-                <div class="relatorio-plantonista-box">{plantonistas_html}</div>
-                {mini_charts_html}
-              </div>
+              <div class="mb-3">{plantonistas_html}</div>
               <hr class="my-3">
               {tabela_semana_html}
+              <div class="relatorio-graficos-inferiores my-3">
+                {mini_charts_html}
+              </div>
               {observacao_html}
             </div>
           </div>
@@ -2477,11 +2475,11 @@ def print_relatorio_semana(request):
     <div class="text-muted small mb-3">Período: <strong>{period_label}</strong></div>
     <div class="card border-0 shadow-sm">
       <div class="card-body p-0">
-        <div class="relatorio-plantonista-row mb-3">
-          <div class="relatorio-plantonista-box">{plantonistas_html}</div>
+        <div class="mb-3">{plantonistas_html}</div>
+        <div>{tabela_semana_html}</div>
+        <div class="relatorio-graficos-inferiores my-3">
           {mini_charts_html}
         </div>
-        <div>{tabela_semana_html}</div>
         {observacao_html}
       </div>
     </div>
