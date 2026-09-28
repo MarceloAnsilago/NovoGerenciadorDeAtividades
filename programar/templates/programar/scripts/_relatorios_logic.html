@@ -162,17 +162,43 @@
     try{
       const area = document.querySelector('#relatorioPrintArea .card-body') || document.querySelector('#relatorioPrintArea');
       if (!area) return;
-      if (area.querySelector('#relatorio-btn-print')) return;
 
-      const oldToolbar = area.querySelector('#relatorio-toolbar');
-      if (oldToolbar) oldToolbar.remove();
+      let wrap = area.querySelector('#relatorio-toolbar');
+      if (!wrap){
+        wrap = document.createElement('div');
+        wrap.id = 'relatorio-toolbar';
+        area.insertBefore(wrap, area.firstChild);
+      }
+      wrap.className = 'd-flex flex-wrap justify-content-end align-items-center gap-2 mb-2 no-print';
 
-      const wrap = document.createElement('div');
-      wrap.id = 'relatorio-toolbar';
-      wrap.className = 'd-flex justify-content-end mb-2 no-print';
+      let group = wrap.querySelector('.btn-group');
+      if (!wrap.querySelector('#relatorio-incluir-graficos')){
+        const option = document.createElement('div');
+        option.className = 'form-check form-check-sm mb-0';
 
-      const group = document.createElement('div');
-      group.className = 'btn-group btn-group-sm';
+        const checkbox = document.createElement('input');
+        checkbox.id = 'relatorio-incluir-graficos';
+        checkbox.type = 'checkbox';
+        checkbox.className = 'form-check-input';
+
+        const label = document.createElement('label');
+        label.className = 'form-check-label small';
+        label.setAttribute('for', 'relatorio-incluir-graficos');
+        label.textContent = 'Incluir gráficos';
+
+        option.appendChild(checkbox);
+        option.appendChild(label);
+        if (group) wrap.insertBefore(option, group);
+        else wrap.appendChild(option);
+      }
+
+      if (!group){
+        group = document.createElement('div');
+        group.className = 'btn-group btn-group-sm';
+        wrap.appendChild(group);
+      }
+
+      if (group.querySelector('#relatorio-btn-print')) return;
 
       const btn = document.createElement('button');
       btn.id = 'relatorio-btn-print';
@@ -181,8 +207,6 @@
       btn.innerHTML = '<i class="bi bi-printer me-1"></i> Imprimir';
 
       group.appendChild(btn);
-      wrap.appendChild(group);
-      area.insertBefore(wrap, area.firstChild);
     }catch(_e){}
   }
 

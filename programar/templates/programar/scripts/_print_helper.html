@@ -92,7 +92,12 @@
 
     const container = document.getElementById('programar-relatoriosContainer');
     const target = container?.querySelector('#relatorioPrintArea') || container?.firstElementChild || container;
-    let html = target?.outerHTML || '';
+    const includeCharts = document.getElementById('relatorio-incluir-graficos')?.checked === true;
+    const printableTarget = target?.cloneNode(true);
+    if (printableTarget && !includeCharts) {
+      printableTarget.querySelectorAll?.('.relatorio-graficos-inferiores').forEach((el) => el.remove());
+    }
+    let html = printableTarget?.outerHTML || '';
     if (!html.trim()) { alert('Nenhum relatório carregado para imprimir.'); return; }
 
     btn.dataset.printing = "1";
