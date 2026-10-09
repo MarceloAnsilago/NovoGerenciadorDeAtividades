@@ -295,6 +295,31 @@
     return { start, end };
   }
 
+  document.addEventListener('input', function(ev){
+    if (!ev.target.matches('#programar-data-inicial, #programar-data-final')) return;
+    const start = document.getElementById('programar-data-inicial');
+    const end = document.getElementById('programar-data-final');
+    end.min = start.value;
+    end.setCustomValidity('');
+  });
+
+  document.addEventListener('submit', function(ev){
+    if (ev.target.id !== 'programar-periodo-personalizado') return;
+    ev.preventDefault();
+    const start = document.getElementById('programar-data-inicial');
+    const end = document.getElementById('programar-data-final');
+    end.setCustomValidity(end.value && start.value && end.value < start.value
+      ? 'A data final deve ser igual ou posterior à data inicial.' : '');
+    if (!ev.target.reportValidity()) return;
+    const mode = ev.submitter?.dataset.reportMode || 'programacao-only';
+    NS.periodo = 'personalizado';
+    if (mode === 'mapa') NS.loadMapaForRange(start.value, end.value);
+    else {
+      NS.reportMode = mode;
+      NS.loadRelatoriosForRange(start.value, end.value);
+    }
+  });
+
   document.addEventListener('click', function(ev){
     const btn = ev.target.closest?.('#programar-btnImprimirMes');
     if (!btn) return;

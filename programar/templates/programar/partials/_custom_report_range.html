@@ -1,0 +1,19 @@
+<form id="programar-periodo-personalizado" class="mt-3 border-top pt-3">
+  <fieldset>
+    <legend class="small fw-semibold">Período personalizado</legend>
+    <div class="d-flex flex-wrap align-items-end gap-2">
+      <div>
+        <label for="programar-data-inicial" class="form-label small mb-1">Data inicial</label>
+        <input id="programar-data-inicial" type="date" class="form-control form-control-sm" required>
+      </div>
+      <div>
+        <label for="programar-data-final" class="form-label small mb-1">Data final</label>
+        <input id="programar-data-final" type="date" class="form-control form-control-sm" required>
+      </div>
+      <button type="submit" class="btn btn-outline-primary btn-sm" data-report-mode="programacao-only">Gerar programação</button>
+      <button type="submit" class="btn btn-outline-secondary btn-sm" data-report-mode="mapa">Gerar mapa de atividades</button>
+      <button type="submit" class="btn btn-outline-dark btn-sm" data-report-mode="just-only">Gerar justificativas</button>
+    </div>
+    <div class="form-text">O relatório inclui a data inicial e a data final.</div>
+  </fieldset>
+</form>

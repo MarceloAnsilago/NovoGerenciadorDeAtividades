@@ -65,12 +65,9 @@
       return { start: opt.dataset.inicio, end: opt.dataset.fim };
     }
     function resolveRangeLocal(b) {
-      const fromSelect = getRangeFromSelect();
-      if (fromSelect?.start && fromSelect?.end) return fromSelect;
-      if (!b) return null;
-      const { start, end } = b.dataset || {};
+      const { start, end } = b?.dataset || {};
       if (start && end) return { start, end };
-      return null;
+      return getRangeFromSelect();
     }
 
     const range = resolveRangeLocal(btn);
