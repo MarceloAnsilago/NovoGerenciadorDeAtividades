@@ -11,6 +11,10 @@ __pycache__/
 
 # VSCode settings
 .vscode/
+!.vscode/
+.vscode/*
+!.vscode/tasks.json
+deploy/oracle.local.json
 
 # Django & pytest cache
 *.log

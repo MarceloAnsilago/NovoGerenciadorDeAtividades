@@ -1,5 +1,11 @@
 # Gerenciador de Atividades
 
+## Deploy na Oracle e no Fly pelo VS Code
+
+Use as tarefas **Deploy: Oracle**, **Deploy: Fly** ou **Deploy: Oracle e Fly**.
+As instrucoes de acesso SSH e publicacao estao em [deploy/README.md](deploy/README.md).
+O Fly permanece disponivel durante a transicao para a Oracle.
+
 ## Desenvolvimento local
 
 1. Crie um ambiente virtual e instale as dependências:

@@ -1,0 +1,8 @@
+{
+  "Host": "147.15.25.68",
+  "User": "PREENCHER_USUARIO_SSH",
+  "IdentityFile": "",
+  "ProjectPath": "/srv/gerenciador/app",
+  "VenvPath": "/srv/gerenciador/venv",
+  "Service": "gerenciador.service"
+}

@@ -12,6 +12,44 @@ python manage.py auditar_vinculos_metas --meta-id 68 --include-ok
 
 flyctl deploy -a gerenciador-de-atividades
 
+# DEPLOY ORACLE E FLY PELO VS CODE
+# Configuracao inicial da Oracle (executar apenas uma vez):
+Copy-Item deploy/oracle.example.json deploy/oracle.local.json
+# Preencher User e IdentityFile em deploy/oracle.local.json.
+# User: resultado de whoami no terminal da Oracle.
+# IdentityFile: caminho da chave privada no Windows, com barras / no JSON.
+# Exemplo de caminho: C:/Users/seu-usuario/.ssh/oracle.key
+# Nao colocar o conteudo da chave no arquivo nem no Git.
+# IP Oracle: 147.15.25.68
+# Dominio: https://gerenciador.celosmg.com.br
+# Projeto: /srv/gerenciador/app | Venv: /srv/gerenciador/venv
+# Servico: gerenciador.service
+
+# Primeiro acesso SSH: conferir a identidade do servidor.
+ssh -i "CAMINHO_DA_CHAVE_PRIVADA" USUARIO@147.15.25.68
+
+# Antes de publicar: salvar e fazer commit das alteracoes.
+# Verificar acesso Oracle sem executar deploy:
+.\deploy.ps1 -Target Oracle -CheckOnly
+
+# Publicar somente na Oracle (tambem envia a branch atual ao GitHub):
+.\deploy.ps1 -Target Oracle
+
+# Publicar somente no Fly:
+.\deploy.ps1 -Target Fly
+
+# Publicar na Oracle e depois no Fly:
+.\deploy.ps1 -Target Ambos
+
+# Alternativa no VS Code: Terminal > Executar Tarefa >
+# Deploy: Oracle / Deploy: Fly / Deploy: Oracle e Fly
+# Deploy: verificar acesso Oracle
+# O deploy Oracle preserva .env e Nginx e nao aplica migracoes no Supabase.
+# Se houver migracoes pendentes, para antes de reiniciar o servico.
+# O usuario SSH precisa de acesso ao GitHub e permissao para reiniciar
+# gerenciador.service com sudo sem senha. Detalhes: deploy/README.md.
+# A conexao Oracle ainda depende da confirmacao do usuario e da chave SSH.
+
 supabase 
 celosmg@hotmail.com
 Sup@celo321
