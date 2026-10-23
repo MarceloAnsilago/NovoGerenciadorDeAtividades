@@ -33,7 +33,10 @@ ssh -i "CAMINHO_DA_CHAVE_PRIVADA" USUARIO@147.15.25.68
 .\deploy.ps1 -Target Oracle -CheckOnly
 
 # Publicar somente na Oracle (tambem envia a branch atual ao GitHub):
+
+
 .\deploy.ps1 -Target Oracle
+
 
 # Publicar somente no Fly:
 .\deploy.ps1 -Target Fly

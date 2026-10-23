@@ -1,4 +1,4 @@
-{# antes a barra estava "solta"; agora ela fica dentro de um card com botoes no rodape #}
+{# Controles de semana, botoes e opcoes adicionais #}
 <div class="container">
   <div class="card shadow-sm my-3 programar-controls">
     <div class="card-body">
@@ -33,6 +33,16 @@
         </script>
       </div>
 
+      <div class="mt-3 d-flex justify-content-end">
+        <div class="btn-group text-nowrap">
+          <button id="programar-btnImprimirMes" class="btn btn-outline-secondary btn-sm">Gerar programação de atividades mensais</button>
+          <button id="programar-btnImprimirProgramacao" class="btn btn-outline-primary btn-sm">Gerar programação de atividades semanal</button>
+          <button id="programar-btnMapaMes" class="btn btn-outline-secondary btn-sm">Gerar mapa de atividades mensal</button>
+          <button id="programar-btnImprimirMapa" class="btn btn-outline-secondary btn-sm">Gerar mapa de atividades semanal</button>
+          <button id="programar-btnImprimirJustificativas" class="btn btn-outline-dark btn-sm">Gerar justificativas</button>
+        </div>
+      </div>
+
       {% include "programar/partials/_custom_report_range.html" %}
 
       <div class="mt-3">
@@ -52,15 +62,6 @@ As informações nela contidas são de caráter restrito e destinam-se exclusiva
 A divulgação indevida de informações constantes na programação poderá comprometer a eficácia das ações de fiscalização, bem como sujeitar o responsável às medidas administrativas cabíveis.
 
 Solicitamos a colaboração de todos os servidores na preservação da confidencialidade deste documento, zelando pela segurança das informações e pelo bom desempenho das atividades institucionais.</textarea>
-      </div>
-    </div>
-    <div class="card-footer bg-transparent d-flex justify-content-end">
-      <div class="btn-group text-nowrap">
-        <button id="programar-btnImprimirMes" class="btn btn-outline-secondary btn-sm">Gerar programação de atividades mensais</button>
-        <button id="programar-btnImprimirProgramacao" class="btn btn-outline-primary btn-sm">Gerar programação de atividades semanal</button>
-        <button id="programar-btnMapaMes" class="btn btn-outline-secondary btn-sm">Gerar mapa de atividades mensal</button>
-        <button id="programar-btnImprimirMapa" class="btn btn-outline-secondary btn-sm">Gerar mapa de atividades semanal</button>
-        <button id="programar-btnImprimirJustificativas" class="btn btn-outline-dark btn-sm">Gerar justificativas</button>
       </div>
     </div>
   </div>
