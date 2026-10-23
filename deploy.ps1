@@ -68,7 +68,7 @@ if ($oracle) {
     Invoke-Native ssh ($sshArgs + @('true'))
     Invoke-Native git @('push', 'origin', "HEAD:refs/heads/$branch")
     $remoteArgs = @($config.ProjectPath, $config.VenvPath, $config.Service, $revision, $branch) | ForEach-Object { Quote-Sh $_ }
-    $command = 'bash -s -- ' + ($remoteArgs -join ' ')
+    $command = "tr -d '\r' | bash -s -- " + ($remoteArgs -join ' ')
     $script = (Get-Content (Join-Path $PSScriptRoot 'deploy/oracle.sh') -Raw).Replace("`r`n", "`n")
     $script | & ssh @sshArgs $command
     if ($LASTEXITCODE -ne 0) { throw 'Deploy Oracle falhou. Verifique a saida; o Fly ainda nao foi atualizado nesta execucao.' }
