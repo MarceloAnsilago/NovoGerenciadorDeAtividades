@@ -9,15 +9,31 @@ branch="$5"
 cd "$project"
 test -f .env || { echo 'Arquivo .env ausente no servidor.' >&2; exit 1; }
 test -x "$venv/bin/python"
-test -z "$(git status --porcelain)" || { echo 'Existem alteracoes locais na Oracle; deploy interrompido.' >&2; exit 1; }
+test -z "$(git status --porcelain -- . ":(exclude).env")" || { echo 'Existem alteracoes locais na Oracle; deploy interrompido.' >&2; exit 1; }
 # Nunca permitir que a atualizacao sobrescreva configuracao ou uploads.
-test -z "$(git ls-files -- .env media)" || { echo '.env ou media versionados; revise antes do deploy.' >&2; exit 1; }
+test -z "$(git ls-files -- media)" || { echo 'media versionados; revise antes do deploy.' >&2; exit 1; }
 sudo -n -l /usr/bin/systemctl restart "$service" >/dev/null
 git fetch origin "$branch"
 test "$(git rev-parse FETCH_HEAD)" = "$revision" || { echo 'O GitHub mudou durante o deploy. Execute novamente.' >&2; exit 1; }
 test -z "$(git ls-tree -r --name-only "$revision" -- .env media)" || { echo 'Revisao inclui .env ou media; deploy interrompido.' >&2; exit 1; }
 git merge-base --is-ancestor HEAD "$revision" || { echo 'Historico divergente na Oracle; revise manualmente.' >&2; exit 1; }
+# Preserve the server configuration when removing the legacy tracked .env.
+if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+    env_backup=$(mktemp)
+    chmod 600 "$env_backup"
+    cp -p .env "$env_backup"
+    restore_env() {
+        cp -p "$env_backup" .env
+        rm -f "$env_backup"
+    }
+    trap restore_env EXIT
+    git restore --source=HEAD --worktree -- .env
+fi
 git merge --ff-only "$revision"
+if [ -n "${env_backup:-}" ]; then
+    restore_env
+    trap - EXIT
+fi
 "$venv/bin/python" -m pip install -r requirements.txt
 "$venv/bin/python" manage.py check
 # Nao aplicar alteracoes no Supabase automaticamente.

@@ -27,7 +27,7 @@ db.sqlite3
 __pycache__/
 .pytest_cache/
 
-# Static & media (gerados em produção)
+# Static & media (gerados em produÃ§Ã£o)
 staticfiles/
 media/
 static/
@@ -38,6 +38,8 @@ static/
 
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # Compiled files / OS
 .DS_Store
