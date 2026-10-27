@@ -4,6 +4,7 @@ from collections import Counter
 from datetime import date
 import json
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -418,11 +419,17 @@ def feriados_registrar(request):
     if not data_ref:
         return JsonResponse({"ok": False, "error": "Data invalida."}, status=400)
 
-    if ProgramacaoItem.objects.filter(
+    atividades_nao_canceladas = ProgramacaoItem.objects.filter(
         programacao__unidade_id=unidade_id,
         programacao__data=data_ref,
         cancelada=False,
-    ).exists():
+    )
+    # O expediente administrativo e substituido pelo feriado, nao e uma
+    # atividade que precise ser cancelada para registrar a data.
+    meta_expediente_id = getattr(settings, "META_EXPEDIENTE_ID", None)
+    if meta_expediente_id is not None:
+        atividades_nao_canceladas = atividades_nao_canceladas.exclude(meta_id=meta_expediente_id)
+    if atividades_nao_canceladas.exists():
         return JsonResponse(
             {
                 "ok": False,

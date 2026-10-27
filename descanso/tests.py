@@ -70,6 +70,22 @@ class FeriadoAtividadeTests(TestCase):
         self.assertEqual(self.registrar().status_code, 200)
         self.assertEqual(Feriado.objects.count(), 1)
 
+    def test_expediente_administrativo_nao_bloqueia_feriado(self):
+        expediente = Meta.objects.create(
+            unidade_criadora=self.unidade, criado_por=self.user,
+            titulo="Expediente administrativo",
+        )
+        ProgramacaoItem.objects.create(programacao=self.programacao, meta=expediente)
+        item = self.atividade(cancelada=True)
+        with self.settings(META_EXPEDIENTE_ID=expediente.id):
+            self.assertEqual(self.registrar().status_code, 200)
+            self.assertEqual(Feriado.objects.count(), 1)
+            Feriado.objects.all().delete()
+            item.cancelada = False
+            item.save(update_fields=["cancelada"])
+            self.assertEqual(self.registrar().status_code, 400)
+            self.assertFalse(Feriado.objects.exists())
+
     def test_bloqueia_se_restar_atividade_nao_cancelada(self):
         self.atividade(cancelada=True)
         item = self.atividade(cancelada=False)
