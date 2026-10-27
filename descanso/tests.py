@@ -1,7 +1,8 @@
 from datetime import date
+import re
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from core.models import No
@@ -42,6 +43,26 @@ class FeriadoAtividadeTests(TestCase):
     def test_permite_dia_sem_atividade(self):
         self.assertEqual(self.registrar().status_code, 200)
         self.assertTrue(Feriado.objects.filter(data=date(2026, 11, 2)).exists())
+
+    @override_settings(CSRF_COOKIE_HTTPONLY=True)
+    def test_cadastro_com_token_da_pagina_e_cookie_httponly(self):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.user)
+        session = client.session
+        session["contexto_atual"] = self.unidade.id
+        session.save()
+        page = client.get(reverse("descanso:feriados"))
+        self.assertEqual(page.status_code, 200)
+        token = re.search(r'const csrfToken = "([a-zA-Z0-9]+)";', page.content.decode())
+        self.assertIsNotNone(token)
+        self.assertTrue(page.cookies["csrftoken"]["httponly"])
+        response = client.post(
+            reverse("descanso:feriados_registrar"),
+            data={"cadastro_id": self.cadastro.id, "data": "2026-11-02", "descricao": "Finados"},
+            content_type="application/json",
+            HTTP_X_CSRFTOKEN=token.group(1),
+        )
+        self.assertEqual(response.status_code, 200)
 
     def test_permite_atividades_canceladas(self):
         self.atividade(cancelada=True)

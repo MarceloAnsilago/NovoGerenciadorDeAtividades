@@ -196,12 +196,7 @@
         pendingDate = `${initialMonth}-01`;
       }
 
-      const getCookie = (name) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop().split(";").shift();
-        return "";
-      };
+      const csrfToken = "{{ csrf_token }}";
 
       const urls = {
         feed: "{% url 'descanso:feriados_feed' %}",
@@ -324,7 +319,7 @@
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": getCookie("csrftoken"),
+            "X-CSRFToken": csrfToken,
           },
           body: JSON.stringify({ descricao: label }),
         })
@@ -359,7 +354,7 @@
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": getCookie("csrftoken"),
+            "X-CSRFToken": csrfToken,
           },
           body: JSON.stringify({
             cadastro_id: cadastroAtual.id,
@@ -390,7 +385,7 @@
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": getCookie("csrftoken"),
+            "X-CSRFToken": csrfToken,
           },
           body: JSON.stringify({ feriado_id: feriadoParaExcluir }),
         })
