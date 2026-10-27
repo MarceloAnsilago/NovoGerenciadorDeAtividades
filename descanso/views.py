@@ -21,7 +21,7 @@ from .models import Descanso, Feriado, FeriadoCadastro
 from .forms import DescansoForm
 from core.utils import get_unidade_atual_id
 from core.utils.security import safe_next_url
-from programar.models import ProgramacaoItemServidor
+from programar.models import ProgramacaoItem, ProgramacaoItemServidor
 
 
 def _get_programacao_conflicts(servidor, data_inicio, data_fim):
@@ -417,6 +417,19 @@ def feriados_registrar(request):
     data_ref = _parse_iso_date(data_str)
     if not data_ref:
         return JsonResponse({"ok": False, "error": "Data invalida."}, status=400)
+
+    if ProgramacaoItem.objects.filter(
+        programacao__unidade_id=unidade_id,
+        programacao__data=data_ref,
+        cancelada=False,
+    ).exists():
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Existe atividade nao cancelada nesta data. Cancele todas as atividades do dia antes de cadastrar o feriado.",
+            },
+            status=400,
+        )
 
     feriado, created = Feriado.objects.get_or_create(
         cadastro=cadastro,

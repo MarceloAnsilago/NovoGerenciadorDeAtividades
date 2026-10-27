@@ -7,8 +7,63 @@ from django.urls import reverse
 from core.models import No
 from servidores.models import Servidor
 
-from .models import Descanso
+from .models import Descanso, Feriado, FeriadoCadastro
+from metas.models import Meta
+from programar.models import Programacao, ProgramacaoItem
 from .views import _build_descansos_unidade_context
+
+
+class FeriadoAtividadeTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="feriados")
+        self.unidade = No.objects.create(nome="Unidade Feriados")
+        self.cadastro = FeriadoCadastro.objects.create(unidade=self.unidade, descricao="2026")
+        self.meta = Meta.objects.create(
+            unidade_criadora=self.unidade, criado_por=self.user, titulo="Atividade"
+        )
+        self.programacao = Programacao.objects.create(unidade=self.unidade, data=date(2026, 11, 2))
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["contexto_atual"] = self.unidade.id
+        session.save()
+
+    def registrar(self):
+        return self.client.post(
+            reverse("descanso:feriados_registrar"),
+            data={"cadastro_id": self.cadastro.id, "data": "2026-11-02", "descricao": "Finados"},
+            content_type="application/json",
+        )
+
+    def atividade(self, cancelada):
+        return ProgramacaoItem.objects.create(
+            programacao=self.programacao, meta=self.meta, cancelada=cancelada
+        )
+
+    def test_permite_dia_sem_atividade(self):
+        self.assertEqual(self.registrar().status_code, 200)
+        self.assertTrue(Feriado.objects.filter(data=date(2026, 11, 2)).exists())
+
+    def test_permite_atividades_canceladas(self):
+        self.atividade(cancelada=True)
+        self.atividade(cancelada=True)
+        self.assertEqual(self.registrar().status_code, 200)
+        self.assertEqual(Feriado.objects.count(), 1)
+
+    def test_bloqueia_se_restar_atividade_nao_cancelada(self):
+        self.atividade(cancelada=True)
+        item = self.atividade(cancelada=False)
+        self.assertEqual(self.registrar().status_code, 400)
+        self.assertFalse(Feriado.objects.exists())
+        item.cancelada = True
+        item.save(update_fields=["cancelada"])
+        self.assertEqual(self.registrar().status_code, 200)
+
+    def test_ignora_atividade_de_outra_unidade_ou_data(self):
+        outra = No.objects.create(nome="Outra unidade")
+        for unidade, data in [(outra, date(2026, 11, 2)), (self.unidade, date(2026, 11, 3))]:
+            programacao = Programacao.objects.create(unidade=unidade, data=data)
+            ProgramacaoItem.objects.create(programacao=programacao, meta=self.meta)
+        self.assertEqual(self.registrar().status_code, 200)
 
 
 class DescansosUnidadeContextTests(TestCase):
