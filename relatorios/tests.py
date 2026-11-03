@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+import re
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -66,6 +67,36 @@ class RelatorioProgramacaoTests(TestCase):
         session = self.client.session
         session["contexto_atual"] = self.unidade.id
         session.save()
+
+    @override_settings(CSRF_COOKIE_HTTPONLY=True, SECURE_SSL_REDIRECT=False)
+    def test_fechamento_usa_token_renderizado_com_cookie_httponly(self):
+        self.client.handler.enforce_csrf_checks = True
+        programacao = Programacao.objects.create(
+            data=date(2026, 10, 10), unidade=self.unidade, criado_por=self.user,
+        )
+        ProgramacaoItem.objects.create(programacao=programacao, meta=self.meta, concluido=True)
+        response = self.client.get(reverse("relatorios:programacao"), {"report_tab": "encerradas"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.cookies["csrftoken"]["httponly"])
+        html = response.content.decode()
+        token = re.search(r'name="csrfmiddlewaretoken" value="([^"]+)"', html).group(1)
+        self.assertContains(response, 'data-programacao-total-atividades="1"')
+        self.assertContains(response, 'data-programacao-concluidas="1"')
+        self.assertContains(response, 'data-programacao-mes-label="Outubro/2026"')
+        endpoint = reverse("relatorios:programacao_encerrar_mes")
+        self.assertEqual(self.client.post(endpoint, {"mes": "2026-10"}).status_code, 403)
+        response = self.client.post(endpoint, {"mes": "2026-10"}, HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(response.status_code, 200)
+        programacao.refresh_from_db()
+        self.assertTrue(programacao.concluida)
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        response = self.client.post(
+            reverse("relatorios:programacao_reabrir_mes"), {"mes": "2026-10"}, HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(response.status_code, 200)
+        programacao.refresh_from_db()
+        self.assertFalse(programacao.concluida)
 
     def test_relatorio_agrupar_nao_realizadas_por_meta_sem_duplicar_atividade(self):
         response = self.client.get(

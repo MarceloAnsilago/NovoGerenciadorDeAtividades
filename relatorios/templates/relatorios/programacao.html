@@ -572,6 +572,7 @@
        aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
+        {% csrf_token %}
         <div class="modal-header">
           <h5 class="modal-title" id="confirmarEncerrarProgramacaoMesModalLabel" data-programacao-modal-title>Confirmar encerramento</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
@@ -1006,11 +1007,8 @@
         return `${year}-${month}-${day}`;
       }
 
-      function getCookie(name) {
-        const value = `; ${document.cookie || ""}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return decodeURIComponent(parts.pop().split(";").shift() || "");
-        return "";
+      function getCsrfToken() {
+        return document.querySelector("#confirmarEncerrarProgramacaoMesModal [name=csrfmiddlewaretoken]")?.value || "";
       }
 
       document.addEventListener("click", function (ev) {
@@ -1166,7 +1164,7 @@
               headers: {
                 "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
                 "X-Requested-With": "XMLHttpRequest",
-                "X-CSRFToken": getCookie("csrftoken"),
+                "X-CSRFToken": getCsrfToken(),
               },
               body: body.toString(),
             });
