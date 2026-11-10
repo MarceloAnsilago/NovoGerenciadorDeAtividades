@@ -198,6 +198,74 @@
         wrap.appendChild(group);
       }
 
+
+      // O termo acompanha apenas o relatorio principal de justificativas.
+      if (NS.reportMode === 'just-only' && !wrap.querySelector('#relatorio-incluir-termo-ciencia')){
+        const option = document.createElement('div');
+        option.className = 'form-check form-check-sm mb-0';
+        const checkbox = document.createElement('input');
+        checkbox.id = 'relatorio-incluir-termo-ciencia';
+        checkbox.type = 'checkbox';
+        checkbox.className = 'form-check-input';
+        const label = document.createElement('label');
+        label.className = 'form-check-label small';
+        label.htmlFor = checkbox.id;
+        label.textContent = 'Incluir termo de ci\u00eancia';
+        option.append(checkbox, label);
+        wrap.insertBefore(option, group);
+
+        checkbox.addEventListener('change', async () => {
+          const report = document.getElementById('programar-relatoriosContainer');
+          const section = area.querySelector('#relatorio-termo-ciencia');
+          if (!checkbox.checked){
+            section?.classList.add('d-none');
+            return;
+          }
+          if (section){
+            section.classList.remove('d-none');
+            return;
+          }
+          const printButton = wrap.querySelector('#relatorio-btn-print');
+          const originalLabel = label.textContent;
+          checkbox.disabled = true;
+          if (printButton) printButton.disabled = true;
+          label.textContent = 'Carregando termo de ci\u00eancia...';
+          wrap.querySelector('.termo-ciencia-error')?.remove();
+          try{
+            const start = report?.dataset.start;
+            const end = report?.dataset.end;
+            if (!start || !end) throw new Error('Periodo indisponivel.');
+            const url = new URL(NS.urls.relatorios, window.location.origin);
+            url.searchParams.set('start', start);
+            url.searchParams.set('end', end);
+            url.searchParams.set('only_ciencia', '1');
+            const response = await fetch(url.toString(), {
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) throw new Error('Falha ao gerar termo.');
+            const data = await response.json();
+            const fragment = parseAndSanitizeHtml(data.html || '');
+            if (!data.ok || !fragment.querySelector('#relatorio-termo-ciencia')){
+              throw new Error('Resposta invalida.');
+            }
+            if (!checkbox.isConnected || !report?.contains(area)) return;
+            area.appendChild(fragment);
+          }catch(_error){
+            if (!checkbox.isConnected) return;
+            checkbox.checked = false;
+            const error = document.createElement('div');
+            error.className = 'termo-ciencia-error text-danger small';
+            error.setAttribute('role', 'alert');
+            error.textContent = 'N\u00e3o foi poss\u00edvel gerar o termo. Tente novamente.';
+            wrap.appendChild(error);
+          }finally{
+            checkbox.disabled = false;
+            label.textContent = originalLabel;
+            if (printButton && printButton.dataset.printing !== '1') printButton.disabled = false;
+          }
+        });
+      }
+
       if (group.querySelector('#relatorio-btn-print')) return;
 
       const btn = document.createElement('button');

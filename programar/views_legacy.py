@@ -12,17 +12,19 @@ from typing import Any, Dict, List
 from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.test.client import RequestFactory
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET
 from django.contrib.auth.decorators import login_required
-from core.utils import get_unidade_atual_id
+from core.utils import get_unidade_atual_id, get_unidade_atual
 from core.utils.security import safe_next_url
 from servidores.models import Servidor
 from descanso.models import Descanso, Feriado
 from programar.models import Programacao, ProgramacaoItem, ProgramacaoItemServidor
 from programar.querysets import item_conta_como_programado_q
+from programar.services.termo_ciencia import montar_termo_ciencia
 from programar.status import (
     CANCELADA,
     ENCERRADA_AUTOMATICAMENTE,
@@ -2314,6 +2316,26 @@ def relatorios_parcial(request):
     end = request.GET.get("end", "")
     observacao = _relatorio_observacao_from_request(request)
     observacao_html = _render_relatorio_observacao_html(observacao)
+
+    if str(request.GET.get("only_ciencia", "")).strip().lower() in {"1", "true", "yes", "on", "y"}:
+        inicio, fim = _parse_iso(start), _parse_iso(end)
+        unidade_id = get_unidade_atual_id(request)
+        if not inicio or not fim or fim < inicio:
+            return JsonResponse({"ok": False, "error": "Informe um periodo valido."}, status=400)
+        if not unidade_id:
+            return JsonResponse({"ok": False, "error": "Selecione uma unidade."}, status=400)
+        servidores_ciencia = montar_termo_ciencia(
+            unidade_id, inicio, fim,
+            status_para_data=_servidores_status_para_data,
+            expediente_desativado=_expediente_desativado_explicitamente,
+        )
+        html_termo = render_to_string("programar/partials/_termo_ciencia.html", {
+            "servidores": servidores_ciencia,
+            "unidade": get_unidade_atual(request),
+            "inicio": inicio,
+            "fim": fim,
+        })
+        return JsonResponse({"ok": True, "html": html_termo})
 
     try:
         only_mapa = str(request.GET.get("only_mapa", "")).strip().lower() in {"1", "true", "yes", "on", "y"}
