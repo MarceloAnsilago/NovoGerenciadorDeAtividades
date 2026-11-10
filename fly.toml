@@ -7,7 +7,7 @@ primary_region = "gru"
 [env]
   PORT = "8080"
   DJANGO_SETTINGS_MODULE = "config.settings"
-  DJANGO_ALLOWED_HOSTS = "novogerenciadordeatividades.fly.dev,gerenciador-de-atividades.fly.dev"
+  DJANGO_ALLOWED_HOSTS = "novogerenciadordeatividades.fly.dev,gerenciador-de-atividades.fly.dev,gerenciador.celosmg.com.br"
 
 [[services]]
   internal_port = 8080
