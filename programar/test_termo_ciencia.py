@@ -11,8 +11,8 @@ from programar.services.termo_ciencia import montar_termo_ciencia
 from programar.views_legacy import relatorios_parcial
 
 
-def servidor(pk=1, nome="Marcelo", matricula="123"):
-    return SimpleNamespace(pk=pk, nome=nome, matricula=matricula)
+def servidor(pk=1, nome="Marcelo", matricula="123", ativo=True):
+    return SimpleNamespace(pk=pk, nome=nome, matricula=matricula, ativo=ativo)
 
 
 def item(pk, dia, atividade="PVBR", meta_id=1, cancelada=False):
@@ -123,6 +123,15 @@ class TermoCienciaDadosTest(SimpleTestCase):
             status=lambda *_: ([{"id": 2, "nome": "Ana"}], [{"id": 2}], [], []),
         )
         self.assertEqual(result, [])
+
+    def test_desconsidera_inativo_vinculado_a_atividade(self):
+        dia = date(2026, 11, 3)
+        result = self.montar(
+            dia, dia, itens=[item(10, dia)],
+            vinculos=[vinculo(10, servidor(1, ativo=False)), vinculo(10, servidor(2, "Ana"))],
+        )
+        self.assertEqual([s["nome"] for s in result], ["Ana"])
+        self.assertIs(self.filtros[2].kwargs["servidor__ativo"], True)
 
     def test_pessoas_com_mesmo_nome_tem_assinaturas_separadas(self):
         dia = date(2026, 11, 3)

@@ -1496,7 +1496,7 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
 
 
 def _deve_exibir_servidor_no_item(cancelada: bool, servidor_ativo: bool) -> bool:
-    return (not cancelada) or servidor_ativo
+    return servidor_ativo
 
 
 def _fetch_expediente_admin(

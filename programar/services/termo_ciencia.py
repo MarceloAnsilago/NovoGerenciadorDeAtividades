@@ -32,8 +32,10 @@ def montar_termo_ciencia(unidade_id, inicio, fim, *, status_para_data, expedient
     if itens:
         for vinculo in ProgramacaoItemServidor.objects.filter(
             item_id__in=[item.pk for item in itens],
+            servidor__ativo=True,
         ).select_related("servidor"):
-            vinculos[vinculo.item_id].append(vinculo.servidor)
+            if vinculo.servidor.ativo:
+                vinculos[vinculo.item_id].append(vinculo.servidor)
 
     servidores = {}
     expediente_nome = "Expediente administrativo"
