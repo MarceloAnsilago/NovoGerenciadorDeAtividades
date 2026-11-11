@@ -2,7 +2,11 @@ from datetime import date
 import re
 
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase, override_settings
+from django.apps import apps
+from django.db.migrations.autodetector import MigrationAutodetector
+from django.db.migrations.loader import MigrationLoader
+from django.db.migrations.state import ProjectState
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from core.models import No
@@ -12,6 +16,24 @@ from .models import Descanso, Feriado, FeriadoCadastro
 from metas.models import Meta
 from programar.models import Programacao, ProgramacaoItem
 from .views import _build_descansos_unidade_context
+
+
+class DescansoMigrationStateTests(SimpleTestCase):
+    def test_modelos_correspondem_as_migracoes_sem_acessar_banco(self):
+        loader = MigrationLoader(None)
+        changes = MigrationAutodetector(
+            loader.project_state(), ProjectState.from_apps(apps)
+        ).changes(graph=loader.graph)
+        self.assertNotIn("descanso", changes)
+
+    def test_detector_continua_identificando_alteracao_real_do_indice(self):
+        loader = MigrationLoader(None)
+        candidate = ProjectState.from_apps(apps)
+        candidate.models[("descanso", "feriado")].options["indexes"][0].fields = ["data"]
+        changes = MigrationAutodetector(
+            loader.project_state(), candidate
+        ).changes(graph=loader.graph)
+        self.assertIn("descanso", changes)
 
 
 class FeriadoAtividadeTests(TestCase):
