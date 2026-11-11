@@ -1,12 +1,43 @@
 from datetime import date
+import re
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from atividades.models import Area, Atividade
 from core.models import No
 from metas.models import Meta, MetaAlocacao
+
+
+@override_settings(CSRF_COOKIE_HTTPONLY=True)
+class MetaExclusaoCsrfTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="excluir-meta")
+        self.unidade = No.objects.create(nome="Unidade Exclusao Meta")
+        self.meta = Meta.objects.create(
+            unidade_criadora=self.unidade, criado_por=self.user, titulo="Meta teste"
+        )
+        self.client = Client(enforce_csrf_checks=True)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["contexto_atual"] = self.unidade.pk
+        session.save()
+        self.url = reverse("metas:excluir-meta", args=[self.meta.pk])
+
+    def test_exclui_com_token_do_formulario_e_cookie_httponly(self):
+        page = self.client.get(reverse("metas:atribuir-meta", args=[self.meta.pk]))
+        self.assertEqual(page.status_code, 200)
+        self.assertTrue(page.cookies["csrftoken"]["httponly"])
+        token = re.search(r'name="csrfmiddlewaretoken" value="([a-zA-Z0-9]+)"', page.content.decode())
+        self.assertIsNotNone(token)
+        response = self.client.post(self.url, {"csrfmiddlewaretoken": token.group(1)})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Meta.objects.filter(pk=self.meta.pk).exists())
+
+    def test_sem_token_nao_exclui(self):
+        self.assertEqual(self.client.post(self.url).status_code, 403)
+        self.assertTrue(Meta.objects.filter(pk=self.meta.pk).exists())
 
 
 class MetaTitleSyncTests(TestCase):
