@@ -1,0 +1,63 @@
+<section id="relatorio-termo-ciencia" class="termo-ciencia relatorio-termo-ciencia">
+<style data-print-include>
+  .termo-ciencia{margin-top:1.5rem;color:#212529;font-size:12px;line-height:1.4;}
+  .termo-ciencia h2{font-size:20px;margin:0 0 .5rem;font-weight:600;}
+  .termo-ciencia-periodo{margin-bottom:.75rem;}
+  .termo-ciencia-aviso{border:1px solid #ced4da;border-radius:4px;background:#f8f9fa;padding:.75rem;margin-bottom:1rem;text-align:justify;}
+  .termo-ciencia-aviso p{margin:0 0 .5rem;}
+  .termo-ciencia-aviso p:last-child{margin-bottom:0;}
+  .termo-ciencia-servidor{border:1px solid #ced4da;border-radius:4px;padding:.75rem;margin-bottom:1rem;break-inside:avoid;page-break-inside:avoid;}
+  .termo-ciencia-servidor h3{font-size:13px;font-weight:600;margin:0 0 .5rem;}
+  .termo-ciencia-table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  .termo-ciencia-table th,.termo-ciencia-table td{border:1px solid #adb5bd;padding:5px 7px;vertical-align:top;overflow-wrap:anywhere;}
+  .termo-ciencia-table th{background:#f1f3f5;text-align:left;font-weight:600;}
+  .termo-ciencia-table th:first-child{width:36%;}
+  .termo-ciencia-dia{display:inline;white-space:nowrap;}
+  .termo-ciencia-assinatura{display:flex;align-items:flex-end;gap:1.5rem;margin-top:2rem;break-inside:avoid;page-break-inside:avoid;}
+  .termo-ciencia-assinatura-linha{flex:1;border-top:1px solid #212529;text-align:center;padding-top:4px;}
+  .termo-ciencia-data{white-space:nowrap;padding-bottom:1px;}
+  @media print{
+    .termo-ciencia{break-before:page;page-break-before:always;margin-top:0;font-size:9pt;}
+    .termo-ciencia h2{font-size:15pt;}
+    .termo-ciencia-aviso{padding:7pt;background:#fff;}
+    .termo-ciencia-servidor{padding:7pt;margin-bottom:10pt;border-color:#777;}
+    .termo-ciencia-servidor h3{font-size:10pt;}
+    .termo-ciencia-table th,.termo-ciencia-table td{padding:4pt 5pt;border-color:#555;}
+    .termo-ciencia-table thead{display:table-header-group;}
+    .termo-ciencia-table tr{break-inside:avoid;page-break-inside:avoid;}
+    .termo-ciencia-assinatura{margin-top:22pt;}
+  }
+</style>
+  <h2>Termo de ciência da programação de atividades</h2>
+  <div class="termo-ciencia-periodo">
+    {% if unidade %}<div><strong>Unidade:</strong> {{ unidade }}</div>{% endif %}
+    <strong>Período:</strong> {{ inicio|date:"d/m/Y" }} a {{ fim|date:"d/m/Y" }}
+  </div>
+  <div class="termo-ciencia-aviso">
+    <p><strong>CIÊNCIA DA PROGRAMAÇÃO E CONFIDENCIALIDADE</strong></p>
+    <p>Os servidores abaixo identificados declaram, mediante assinatura, que tomaram ciência das atividades e dos dias previstos para sua atuação no período informado, conforme a programação desta Unidade. Comprometem-se a observar as orientações da chefia e a comunicar os impedimentos ou as necessidades de alteração pelos meios institucionais.</p>
+    <p>Este documento é de uso interno e contém informações restritas ao planejamento, à coordenação e à execução das ações institucionais. Seu conteúdo não deve ser compartilhado, reproduzido ou divulgado a terceiros sem autorização da chefia imediata. A assinatura registra a ciência da programação e não substitui o registro de execução das atividades.</p>
+  </div>
+  {% for servidor in servidores %}
+    <section class="termo-ciencia-servidor" data-servidor-id="{{ servidor.id }}">
+      <h3>Servidor: {{ servidor.nome }}{% if servidor.matricula %} — Matrícula: {{ servidor.matricula }}{% endif %}</h3>
+      <table class="termo-ciencia-table">
+        <thead><tr><th scope="col">Atividade</th><th scope="col">Dias programados</th></tr></thead>
+        <tbody>
+          {% for atividade in servidor.atividades %}
+            <tr>
+              <td>{{ atividade.nome }}</td>
+              <td>{% for dia in atividade.dias %}<span class="termo-ciencia-dia">{{ dia }}</span>{% if not forloop.last %}; {% endif %}{% endfor %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="termo-ciencia-assinatura">
+        <div class="termo-ciencia-assinatura-linha">Assinatura do servidor</div>
+        <div class="termo-ciencia-data">Data: ____/____/________</div>
+      </div>
+    </section>
+  {% empty %}
+    <div class="text-muted">Nenhum servidor com atividades programadas no período informado.</div>
+  {% endfor %}
+</section>

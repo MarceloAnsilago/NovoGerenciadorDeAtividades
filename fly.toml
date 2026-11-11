@@ -1,4 +1,4 @@
-app = "gerenciador-de-atividades"
+app = "novogerenciadordeatividades"
 primary_region = "gru"
 
 [build]
@@ -7,10 +7,16 @@ primary_region = "gru"
 [env]
   PORT = "8080"
   DJANGO_SETTINGS_MODULE = "config.settings"
+  DJANGO_ALLOWED_HOSTS = "novogerenciadordeatividades.fly.dev,gerenciador-de-atividades.fly.dev,gerenciador.celosmg.com.br"
 
 [[services]]
   internal_port = 8080
   protocol = "tcp"
+  # Fora do expediente, inicia com acesso e para quando ociosa.
+  # O GitHub Actions ajusta o minimo para 1 durante o expediente.
+  auto_start_machines = true
+  auto_stop_machines = "stop"
+  min_machines_running = 0
 
   [[services.ports]]
     handlers = ["http"]
@@ -29,3 +35,4 @@ primary_region = "gru"
     interval = "15s"
     timeout = "2s"
     port = 8080
+

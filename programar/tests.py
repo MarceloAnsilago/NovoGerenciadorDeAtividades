@@ -247,10 +247,11 @@ class ExpedienteAdminReportTest(unittest.TestCase):
             {"3", "4"},
         )
 
-    def test_nao_exibe_servidor_inativo_em_atividade_cancelada(self):
+    def test_nao_exibe_servidor_inativo_em_qualquer_atividade(self):
         self.assertFalse(_deve_exibir_servidor_no_item(cancelada=True, servidor_ativo=False))
         self.assertTrue(_deve_exibir_servidor_no_item(cancelada=True, servidor_ativo=True))
-        self.assertTrue(_deve_exibir_servidor_no_item(cancelada=False, servidor_ativo=False))
+        self.assertFalse(_deve_exibir_servidor_no_item(cancelada=False, servidor_ativo=False))
+        self.assertTrue(_deve_exibir_servidor_no_item(cancelada=False, servidor_ativo=True))
 
 
 @override_settings(META_EXPEDIENTE_ID=777909)

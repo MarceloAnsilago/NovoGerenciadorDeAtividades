@@ -1,0 +1,28 @@
+name: Horarios do Fly.io
+
+on:
+  schedule:
+    # Rondonia: UTC-4, sem horario de verao.
+    - cron: '30 11 * * 1-5'
+    - cron: '45 17 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fly-business-hours
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aplicar horario de Rondonia
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_APP_NAME: novogerenciadordeatividades
+          FLY_SCHEDULE: ${{ github.event.schedule }}
+        run: python3 scripts/fly_business_hours.py

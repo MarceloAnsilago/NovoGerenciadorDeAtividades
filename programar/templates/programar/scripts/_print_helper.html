@@ -94,6 +94,12 @@
     if (printableTarget && !includeCharts) {
       printableTarget.querySelectorAll?.('.relatorio-graficos-inferiores').forEach((el) => el.remove());
     }
+
+    const includeTermo = document.getElementById('relatorio-incluir-termo-ciencia')?.checked === true;
+    printableTarget?.querySelectorAll('.relatorio-termo-ciencia').forEach((section) => {
+      if (includeTermo) section.classList.remove('d-none');
+      else section.remove();
+    });
     let html = printableTarget?.outerHTML || '';
     if (!html.trim()) { alert('Nenhum relatório carregado para imprimir.'); return; }
 
