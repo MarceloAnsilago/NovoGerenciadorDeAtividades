@@ -8,6 +8,25 @@ from servidores.models import Servidor
 from core.models import No as Unidade
 
 
+class HistoricalFeriadoIndex(models.Index):
+    """Preserva o nome de 31 caracteres de 0002, valido no PostgreSQL.
+
+    O limite de 30 do Index e portabilidade entre bancos. A serializacao
+    permanece a de um Index comum, sem introduzir alteracao de schema.
+    """
+
+    max_name_length = 31
+
+    def deconstruct(self):
+        _, args, kwargs = super().deconstruct()
+        return "django.db.models.Index", args, kwargs
+
+    def __eq__(self, other):
+        if isinstance(other, models.Index):
+            return self.deconstruct() == other.deconstruct()
+        return NotImplemented
+
+
 class Descanso(models.Model):
     class Tipo(models.TextChoices):
         RECESSO = "RECESSO", "Recesso"
@@ -61,6 +80,8 @@ class Descanso(models.Model):
 
 
 class FeriadoCadastro(models.Model):
+    # Preserve o AutoField criado pela migracao 0002, apesar do padrao BigAutoField.
+    id = models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")
     unidade = models.ForeignKey(Unidade, on_delete=models.CASCADE, related_name="cadastros_feriados")
     descricao = models.CharField(max_length=120)
     criado_em = models.DateTimeField(auto_now_add=True)
@@ -71,7 +92,7 @@ class FeriadoCadastro(models.Model):
     class Meta:
         ordering = ["-criado_em", "-id"]
         indexes = [
-            models.Index(fields=["unidade", "descricao"]),
+            models.Index(fields=["unidade", "descricao"], name="descanso_fe_unidade_6b8f0c_idx"),
         ]
 
     def __str__(self):
@@ -79,6 +100,8 @@ class FeriadoCadastro(models.Model):
 
 
 class Feriado(models.Model):
+    # Preserve o tipo e os metadados da chave primaria historica (0002).
+    id = models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")
     cadastro = models.ForeignKey(FeriadoCadastro, on_delete=models.CASCADE, related_name="feriados")
     data = models.DateField()
     descricao = models.CharField(max_length=120, blank=True, default="")
@@ -90,7 +113,7 @@ class Feriado(models.Model):
     class Meta:
         ordering = ["data", "id"]
         indexes = [
-            models.Index(fields=["cadastro", "data"]),
+            HistoricalFeriadoIndex(fields=["cadastro", "data"], name="descanso_fe_cadastro_d3c3aa_idx"),
         ]
         constraints = [
             models.UniqueConstraint(fields=["cadastro", "data"], name="uniq_feriado_cadastro_data")
