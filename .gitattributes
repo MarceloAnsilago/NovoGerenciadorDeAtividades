@@ -1,0 +1,2 @@
+deploy/*.sh text eol=lf
+deploy/systemd/* text eol=lf

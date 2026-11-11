@@ -1,0 +1,18 @@
+[Unit]
+Description=Consultar e publicar versao aprovada do Gerenciador
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/srv/gerenciador/app
+ExecStart=/home/ubuntu/deploy-gerenciador/oracle.sh
+Environment=GIT_TERMINAL_PROMPT=0
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=20min
+TimeoutStopSec=120
+Restart=no

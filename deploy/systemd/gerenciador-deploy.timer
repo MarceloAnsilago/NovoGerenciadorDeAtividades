@@ -1,0 +1,12 @@
+[Unit]
+Description=Consultar branch oracle-production a cada cinco minutos
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30s
+AccuracySec=30s
+Unit=gerenciador-deploy.service
+
+[Install]
+WantedBy=timers.target

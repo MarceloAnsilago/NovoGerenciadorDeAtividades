@@ -24,6 +24,7 @@ $oracle = $Target -in 'Oracle', 'Ambos'
 $fly = $Target -in 'Fly', 'Ambos'
 $sshArgs = @()
 if ($oracle) {
+    throw 'O deploy Oracle via SSH foi desativado. Use o mecanismo local deploy/oracle.sh na Oracle, que consulta somente oracle-production. Veja deploy/README.md. Nenhum push ou deploy foi executado.'
     Get-Command ssh -ErrorAction Stop | Out-Null
     $configPath = Join-Path $PSScriptRoot 'deploy/oracle.local.json'
     if (!(Test-Path -LiteralPath $configPath)) {
