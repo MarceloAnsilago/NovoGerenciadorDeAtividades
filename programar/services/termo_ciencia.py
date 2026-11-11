@@ -32,7 +32,6 @@ def montar_termo_ciencia(unidade_id, inicio, fim, *, status_para_data, expedient
     if itens:
         for vinculo in ProgramacaoItemServidor.objects.filter(
             item_id__in=[item.pk for item in itens],
-            servidor__unidade_id=unidade_id,
         ).select_related("servidor"):
             vinculos[vinculo.item_id].append(vinculo.servidor)
 
@@ -73,7 +72,7 @@ def montar_termo_ciencia(unidade_id, inicio, fim, *, status_para_data, expedient
             is_expediente = (
                 str(item.meta_id) == meta_expediente_id
                 or nome.strip().casefold() in {
-                    "expediente", "expediente adm", "expediente administrativo"
+                    "expediente", "expediente adm", "expediente adm.", "expediente administrativo"
                 }
             )
             for servidor in vinculos[item.pk]:

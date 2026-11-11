@@ -4,6 +4,7 @@
   NS.periodo = NS.periodo || 'semana';
   NS.reportMode = NS.reportMode || 'all';
   const DEBUG = false;
+  let reportRequest = 0;
 
   function clearNode(node){
     node.replaceChildren();
@@ -141,18 +142,21 @@
     if (!container) return;
     if (!NS.urls || !NS.urls.relatorios){ showError(container, 'Endpoint de relatorios nao configurado.'); return; }
 
+    const requestId = ++reportRequest;
     setLoading(container);
     delete container.dataset.start; delete container.dataset.end;
     container.dataset.mode = 'mapa';
 
     try{
       const rawHtml = await fetchMapaHtml(startISO, endISO);
+      if (requestId !== reportRequest) return;
       if (!renderReportHtml(container, rawHtml)) return;
       container.dataset.start = startISO;
       container.dataset.end = endISO;
       container.dataset.mode = 'mapa';
       document.title = `Mapa de atividades do dia ${formatDateBR(startISO)} a ${formatDateBR(endISO)}`;
     }catch(err){
+      if (requestId !== reportRequest) return;
       if (DEBUG) console.error('[programar] mapa fetch error', err);
       showError(container, 'Erro ao carregar mapa de atividades.');
     }
@@ -283,6 +287,7 @@
     if (!container) return;
     if (!NS.urls || !NS.urls.relatorios){ showError(container, 'Endpoint de relatorios nao configurado.'); return; }
 
+    const requestId = ++reportRequest;
     setLoading(container);
     delete container.dataset.start; delete container.dataset.end;
     delete container.dataset.mode;
@@ -302,10 +307,12 @@
 
     try{
       const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (requestId !== reportRequest) return;
       if (!resp.ok){ showError(container, `Erro ao gerar relatorio (HTTP ${resp.status}).`); return; }
       const ctype = (resp.headers.get('content-type')||'').toLowerCase();
       if (ctype.includes('application/json')){
         const data = await resp.json().catch(()=>null);
+        if (requestId !== reportRequest) return;
         if (data && typeof data.html === 'string'){
           if (!renderReportHtml(container, data.html)) return;
           injectRelatorioToolbar();
@@ -315,6 +322,7 @@
         }
       } else {
         const rawHtml = await resp.text();
+        if (requestId !== reportRequest) return;
         if (!renderReportHtml(container, rawHtml)) return;
         injectRelatorioToolbar();
       }
@@ -330,6 +338,7 @@
       }catch(e){ if (DEBUG) console.warn('dataset fail', e); }
 
     }catch(err){
+      if (requestId !== reportRequest) return;
       if (DEBUG) console.error('[programar] relatorios fetch error', err);
       showError(container, 'Erro ao carregar relatorios.');
     }

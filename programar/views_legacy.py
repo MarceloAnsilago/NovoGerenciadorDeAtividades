@@ -480,7 +480,7 @@ def _servidores_status_para_data(
     if impedidos_ids:
         servidores_qs = servidores_qs.exclude(id__in=impedidos_ids)
 
-    livres = [{"id": s.id, "nome": s.nome} for s in servidores_qs]
+    livres = [{"id": s.id, "nome": s.nome, "matricula": s.matricula or ""} for s in servidores_qs]
     return livres, impedidos_final, feriados_final, plantao_final
 
 
@@ -1475,6 +1475,7 @@ def _fetch_programacao_dia(request, iso: str) -> list[dict[str, Any]]:
 
         out.append({
             "meta": meta_nome,
+            "meta_id": meta_id,
             "servidores": serv_nomes.get(it.id, []),
             "servidor_ids": serv_ids.get(it.id, []),
             "cancelada": bool(getattr(it, "cancelada", False)),
@@ -1627,7 +1628,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         """
         grupos = {}  # meta_norm -> {"cheios": [it], "vazios": [it]}
         for it in items:
-            meta_norm = _norm(it.get("meta", ""))
+            meta_norm = it.get("meta_id") or _norm(it.get("meta", ""))
             grupos.setdefault(meta_norm, {"cheios": [], "vazios": []})
             if _norm_list(it.get("servidores")):
                 grupos[meta_norm]["cheios"].append(it)
@@ -1751,7 +1752,8 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
         itens_atividades = []
         for it in itens:
             if _is_expediente(it.get("meta", "")):
-                expediente_extra.extend(it.get("servidores") or [])
+                if not it.get("cancelada"):
+                    expediente_extra.extend(it.get("servidores") or [])
             else:
                 itens_atividades.append(it)
 
@@ -1782,6 +1784,7 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                 "kind": "atividade",
                 "meta": it["meta"],
                 "servidores": it["servidores"],
+                "servidor_ids": it.get("servidor_ids", []),
                 "veiculo": it["veiculo"],
                 "observacao": it.get("observacao") or "",
                 "meta_descricao": it.get("meta_descricao") or "",
@@ -1872,9 +1875,11 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
                     realizada_opcao = "nao"
                 # acumula para rel. atividades
                 if status_execucao != CANCELADA:
-                    for nome in (b.get("servidores") or []):
+                    for indice, nome in enumerate(b.get("servidores") or []):
                         if nome and isinstance(nome, str):
-                            atividades_por_servidor[nome].append({
+                            ids = b.get("servidor_ids") or []
+                            sid = str(ids[indice]) if indice < len(ids) else nome
+                            atividades_por_servidor[(sid, nome)].append({
                                 "dia_label": dia_label,
                                 "iso": iso,
                                 "atividade": b["meta"],
@@ -2057,11 +2062,12 @@ def _render_programacao_semana_html(request, start_iso: str, end_iso: str) -> st
     )
 
     # ---------- RELATORIO DE ATIVIDADES (embaixo) ----------
-    servidores_ordenados = sorted(atividades_por_servidor.keys(), key=str.casefold)
+    servidores_ordenados = sorted(atividades_por_servidor.keys(), key=lambda pessoa: (pessoa[1].casefold(), pessoa[0]))
 
     cards: list[str] = []
-    for nome in servidores_ordenados:
-        itens = atividades_por_servidor[nome]
+    for pessoa in servidores_ordenados:
+        nome = pessoa[1]
+        itens = atividades_por_servidor[pessoa]
         if not itens:
             continue
 

@@ -67,7 +67,7 @@ class TermoCienciaDadosTest(SimpleTestCase):
         })
         self.assertEqual(self.filtros[1].kwargs["programacao__unidade_id"], 7)
         self.assertFalse(self.filtros[1].kwargs["cancelada"])
-        self.assertEqual(self.filtros[2].kwargs["servidor__unidade_id"], 7)
+        self.assertNotIn("servidor__unidade_id", self.filtros[2].kwargs)
 
     def test_expediente_automatico_e_manual_junto_com_atividade_de_campo(self):
         inicio, fim = date(2026, 11, 2), date(2026, 11, 5)
@@ -205,3 +205,39 @@ class TermoCienciaEndpointTest(SimpleTestCase):
         request.user = AnonymousUser()
         with self.settings(ALLOWED_HOSTS=["testserver"]):
             self.assertEqual(relatorios_parcial(request).status_code, 302)
+
+
+class RelatoriosConsistenciaTest(SimpleTestCase):
+    def renderizar(self, itens):
+        from programar.views_legacy import _render_programacao_semana_html
+        request = RequestFactory().get('/programar/relatorios/', {'only_just': '1'})
+        with (
+            patch('programar.views_legacy.get_unidade_atual_id', return_value=None),
+            patch('programar.views_legacy._fetch_programacao_dia', return_value=itens),
+            patch('programar.views_legacy._fetch_expediente_admin', return_value=([], [])),
+        ):
+            return _render_programacao_semana_html(request, '2026-11-03', '2026-11-03')
+
+    def test_justificativas_separam_servidores_homonimos(self):
+        rendered = self.renderizar([
+            {'meta': 'Fiscalizacao', 'servidores': ['Ana', 'Ana'],
+             'servidor_ids': ['1', '2'], 'veiculo': ''},
+        ])
+        self.assertEqual(rendered.count('Servidor: Ana'), 2)
+
+    def test_metas_distintas_com_mesmo_titulo_preservam_atividade_sem_servidor(self):
+        from programar.views_legacy import _render_programacao_semana_html
+        request = RequestFactory().get('/programar/relatorios/', {'hide_just': '1'})
+        with (
+            patch('programar.views_legacy.get_unidade_atual_id', return_value=None),
+            patch('programar.views_legacy._fetch_programacao_dia', return_value=[
+                {'meta_id': 1, 'meta': 'Fiscalizacao', 'servidores': ['Ana'],
+                 'servidor_ids': ['1'], 'veiculo': '', 'observacao': 'Primeira meta'},
+                {'meta_id': 2, 'meta': 'Fiscalizacao', 'servidores': [],
+                 'servidor_ids': [], 'veiculo': '', 'observacao': 'Segunda meta'},
+            ]),
+            patch('programar.views_legacy._fetch_expediente_admin', return_value=([], [])),
+        ):
+            rendered = _render_programacao_semana_html(request, '2026-11-03', '2026-11-03')
+        self.assertIn('Primeira meta', rendered)
+        self.assertIn('Segunda meta', rendered)
