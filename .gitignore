@@ -67,5 +67,6 @@ poetry.lock
 # Ignore secrets
 senha.txt
 comandos.txt
+comando.txt
 
 senhas.txt
