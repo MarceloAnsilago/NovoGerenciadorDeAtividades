@@ -10,6 +10,13 @@ from core.utils import _get_unidade_atual  # seu util
 from core.utils.security import safe_next_url
 from .forms import CargoForm, ServidorForm
 from .models import Cargo, Servidor
+from programar.models import ProgramacaoItemServidor
+
+
+def _vinculos_em_aberto(servidor):
+    return ProgramacaoItemServidor.objects.filter(
+        servidor=servidor, item__concluido=False, item__cancelada=False,
+    )
 
 
 SERVIDOR_DEPENDENCY_LABELS = {
@@ -202,6 +209,9 @@ def editar(request, pk):
         if form.is_valid():
             if unidade and not request.user.is_superuser:
                 form.instance.unidade = unidade
+            if not form.cleaned_data["ativo"] and _vinculos_em_aberto(serv).exists():
+                form.add_error("ativo", "Este servidor possui atividades em aberto. Use a opção Inativar na lista para revisar e confirmar a remoção dos vínculos.")
+                return render(request, "servidores/editar.html", {"form": form, "object": serv, "unidade": unidade, "next": _get_safe_next(request)})
             form.save()
             messages.success(request, "Servidor atualizado com sucesso.")
             return redirect(_get_safe_next(request) or "servidores:lista")
@@ -222,8 +232,19 @@ def inativar(request, pk):
         messages.warning(request, "Selecione uma unidade para alterar servidores.")
         return redirect("servidores:lista")
     if serv.ativo:
-        serv.ativo = False
-        serv.save(update_fields=["ativo"])
+        using = serv._state.db or "default"
+        with transaction.atomic(using=using):
+            serv = Servidor.objects.using(using).select_for_update().get(pk=serv.pk)
+            vinculos = _vinculos_em_aberto(serv).using(using)
+            if vinculos.exists() and request.POST.get("confirmar_remocao") != "1":
+                return render(request, "servidores/confirmar_inativacao.html", {
+                    "servidor": serv,
+                    "vinculos": vinculos.select_related("item__meta__atividade", "item__programacao").order_by("item__programacao__data", "item_id"),
+                    "next": _get_safe_next(request),
+                })
+            vinculos.delete()
+            serv.ativo = False
+            serv.save(update_fields=["ativo"])
         messages.success(request, f"Servidor {serv.nome} inativado.")
     else:
         messages.info(request, f"Servidor {serv.nome} já está inativo.")
