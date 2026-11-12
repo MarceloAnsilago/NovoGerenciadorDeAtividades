@@ -176,7 +176,7 @@
       wrap.className = 'd-flex flex-wrap justify-content-end align-items-center gap-2 mb-2 no-print';
 
       let group = wrap.querySelector('.btn-group');
-      if (!wrap.querySelector('#relatorio-incluir-graficos')){
+      if (NS.reportMode !== 'just-only' && !wrap.querySelector('#relatorio-incluir-graficos')){
         const option = document.createElement('div');
         option.className = 'form-check form-check-sm mb-0';
 
