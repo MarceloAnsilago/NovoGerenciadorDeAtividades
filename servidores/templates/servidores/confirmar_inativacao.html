@@ -1,0 +1,27 @@
+{% extends "core/base.html" %}
+{% block title %}Confirmar inativação{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h1 class="h4">Inativar {{ servidor.nome }}</h1>
+  <div class="alert alert-warning" role="alert">
+    Este servidor está vinculado a {{ vinculos|length }} atividade(s) em aberto,
+    pendentes ou não realizadas. Para inativá-lo, confirme a remoção dele de todas
+    as atividades abaixo. As atividades e os demais servidores serão preservados,
+    assim como os vínculos com atividades concluídas ou canceladas.
+  </div>
+  <ul class="list-group mb-3">
+    {% for vinculo in vinculos %}
+    <li class="list-group-item">
+      {{ vinculo.item.programacao.data|date:"d/m/Y" }} — {{ vinculo.item.meta.display_titulo }}
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{% url 'servidores:inativar' servidor.pk %}">
+    {% csrf_token %}
+    <input type="hidden" name="confirmar_remocao" value="1">
+    <input type="hidden" name="next" value="{{ next }}">
+    <a class="btn btn-outline-secondary" href="{% if next %}{{ next }}{% else %}{% url 'servidores:lista' %}{% endif %}">Cancelar</a>
+    <button class="btn btn-danger" type="submit">Remover vínculos e inativar</button>
+  </form>
+</div>
+{% endblock %}
