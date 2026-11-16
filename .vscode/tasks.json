@@ -5,28 +5,31 @@
       "label": "Deploy: Oracle",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/deploy.ps1", "-Target", "Oracle"],
-      "problemMatcher": []
-    },
-    {
-      "label": "Deploy: Fly",
-      "type": "process",
-      "command": "powershell.exe",
-      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/deploy.ps1", "-Target", "Fly"],
-      "problemMatcher": []
-    },
-    {
-      "label": "Deploy: Oracle e Fly",
-      "type": "process",
-      "command": "powershell.exe",
-      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/deploy.ps1", "-Target", "Ambos"],
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/deploy.ps1",
+        "-Target",
+        "Oracle"
+      ],
       "problemMatcher": []
     },
     {
       "label": "Deploy: verificar acesso Oracle",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/deploy.ps1", "-Target", "Oracle", "-CheckOnly"],
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/deploy.ps1",
+        "-Target",
+        "Oracle",
+        "-CheckOnly"
+      ],
       "problemMatcher": []
     }
   ]

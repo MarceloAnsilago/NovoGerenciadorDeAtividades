@@ -3,16 +3,14 @@
 Implementação preparada, **não instalada nem ativada**. Nenhum push faz parte da
 instalação. As referências locais analisadas mostram `oracle-production` em
 `e99786ba` e `main` em `91a96755`, oito commits à frente. Não promova esses commits
-para instalar o mecanismo. Fly.io, seus workflows e GFilas não são alterados.
+para instalar o mecanismo. GFilas não é alterado.
 
 ## Modelo e aprovação
 
 A Oracle consulta exclusivamente `refs/heads/oracle-production`. `main` não é
-fonte de deploy Oracle. O workflow existente de `main` continua publicando no
-Fly; portanto até um push de documentação em main mantém esse efeito existente.
+fonte de deploy Oracle. Um push em `main` não publica a aplicação.
 Não há workflow novo, chave Oracle no GitHub, webhook nem SSH saindo do Windows.
-`deploy.ps1 -Target Oracle` e `Ambos` foram bloqueados para impedir o caminho
-antigo. O modo Fly permanece como estava.
+`deploy.ps1 -Target Oracle` permanece bloqueado para impedir o caminho antigo.
 
 **Antes de permitir deploy real, configure e confira a proteção no GitHub:**
 Settings > Rules > Rulesets (ou Branches), regra ativa para `oracle-production`:

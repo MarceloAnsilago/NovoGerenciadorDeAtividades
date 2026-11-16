@@ -1,10 +1,9 @@
 # Gerenciador de Atividades
 
-## Deploy na Oracle e no Fly pelo VS Code
+## Deploy na Oracle
 
-Use as tarefas **Deploy: Oracle**, **Deploy: Fly** ou **Deploy: Oracle e Fly**.
-As instrucoes de acesso SSH e publicacao estao em [deploy/README.md](deploy/README.md).
-O Fly permanece disponivel durante a transicao para a Oracle.
+A aplicação é hospedada na Oracle. O mecanismo de deploy consulta a branch
+`oracle-production`; os procedimentos estão em [deploy/README.md](deploy/README.md).
 
 ## Desenvolvimento local
 
@@ -25,36 +24,7 @@ O Fly permanece disponivel durante a transicao para a Oracle.
    python manage.py collectstatic --noinput
    ```
 
-## Deploy no Fly.io
-
-1. Instale o [`flyctl`](https://fly.io/docs/getting-started/installing-flyctl/) e inicialize a aplicação (skip o `.toml` se já existir):
-   ```
-   flyctl launch --name gerenciador-de-atividades --region gru --dockerfile Dockerfile
-   ```
-2. Configure os segredos com `fly secrets set`. No mínimo defina:
-   ```
-fly secrets set DJANGO_SECRET_KEY="valor-secreto"
-fly secrets set DJANGO_DEBUG="False"
-fly secrets set DJANGO_ALLOWED_HOSTS="gerenciador-de-atividades.fly.dev"
-   fly secrets set SUPABASE_DB_HOST=...
-   fly secrets set SUPABASE_DB_NAME=...
-   fly secrets set SUPABASE_DB_USER=...
-   fly secrets set SUPABASE_DB_PASSWORD=...
-   fly secrets set SUPABASE_DB_PORT=6543
-   ```
-   Inclua outros hosts/segredos adicionais conforme necessário.
-3. O `Dockerfile` já instala as dependências, coleta os arquivos estáticos e expõe a porta 8080. A aplicação é servida pelo Gunicorn apontando para `config.wsgi:application`.
-4. Compile e envie para Fly:
-   ```
-   flyctl deploy
-   ```
-5. Após o deploy, aplique quaisquer migrações manualmente:
-   ```
-   flyctl ssh console -- bash -lc "python manage.py migrate"
-   ```
-
-### Observações de produção
+## Observações de produção
 
 - O middleware WhiteNoise serve os arquivos estáticos em `staticfiles/`.
-- O `fly.toml` configura as portas HTTP/HTTPS padrão e define concorrência com limites conservadores.
-- Adapte o `DJANGO_ALLOWED_HOSTS` e `CSRF_TRUSTED_ORIGINS` no `.env` para incluir `*.fly.dev` ou outros domínios públicos.
+- Configure `DJANGO_ALLOWED_HOSTS` e `CSRF_TRUSTED_ORIGINS` para o domínio público da aplicação.
