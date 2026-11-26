@@ -852,14 +852,25 @@ def relatorio_mapa(request):
             nome = f"{nome}/{mes_ano}"
         meses_label.append((mes_ano, mes, nome))
 
+    def linha_servidor(servidor, dias_numeros):
+        return {
+            "servidor": servidor,
+            "dias": [{"numero": dia, "marcado": False} for dia in dias_numeros],
+        }
+
+    servidores_periodo = list(servidores_qs) if periodo_customizado else []
     mes_mapa = {}
     for mes_ano, mes, _ in meses_label:
         ndias = monthrange(mes_ano, mes)[1]
         mes_inicio = max(date(mes_ano, mes, 1), data_inicio_mapa)
         mes_fim = min(date(mes_ano, mes, ndias), data_fim_mapa)
+        dias_numeros = list(range(mes_inicio.day, mes_fim.day + 1))
         mes_mapa[(mes_ano, mes)] = {
-            "dias_numeros": list(range(mes_inicio.day, mes_fim.day + 1)),
-            "rows": {},
+            "dias_numeros": dias_numeros,
+            "rows": {
+                servidor.pk: linha_servidor(servidor, dias_numeros)
+                for servidor in servidores_periodo
+            },
         }
 
     for descanso in descansos:
@@ -877,13 +888,7 @@ def relatorio_mapa(request):
             rows = mes_mapa[(mes_ano, mes)]["rows"]
             row = rows.get(descanso.servidor_id)
             if row is None:
-                row = {
-                    "servidor": descanso.servidor,
-                    "dias": [
-                        {"numero": dia, "marcado": False}
-                        for dia in mes_mapa[(mes_ano, mes)]["dias_numeros"]
-                    ],
-                }
+                row = linha_servidor(descanso.servidor, mes_mapa[(mes_ano, mes)]["dias_numeros"])
             for dia in range(inicio_mes_descanso.day, fim_mes_descanso.day + 1):
                 row["dias"][dia - mes_inicio.day]["marcado"] = True
             rows[descanso.servidor_id] = row
