@@ -126,8 +126,10 @@
   .month-block { break-inside: avoid; page-break-inside: avoid; margin-bottom:8mm; }
 
   h2, h4 { color:#000 !important; }
-  .day-square { border-color:#000 !important; color:#000 !important; background:#fff !important; }
-  .day-marked { background:#000 !important; color:#fff !important; }
+  .report-container {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 </style>
 
