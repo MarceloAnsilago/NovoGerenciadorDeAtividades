@@ -184,6 +184,37 @@ class RelatorioMapaDescansoTests(TestCase):
         self.assertEqual(response.context["titulo_periodo"], "2026")
         self.assertEqual(len(response.context["meses_data"]), 12)
 
+    def test_relatorio_por_periodo_inclui_servidores_sem_descanso_em_cada_mes(self):
+        servidor = Servidor.objects.create(unidade=self.unidade, nome="Com descanso", ativo=True)
+        Servidor.objects.create(unidade=self.unidade, nome="Sem descanso", ativo=True)
+        Servidor.objects.create(unidade=self.unidade, nome="Inativo", ativo=False)
+        outra_unidade = No.objects.create(nome="Outra unidade")
+        Servidor.objects.create(unidade=outra_unidade, nome="Outra unidade", ativo=True)
+        Descanso.objects.create(
+            servidor=servidor,
+            tipo=Descanso.Tipo.FERIAS,
+            data_inicio=date(2026, 12, 31),
+            data_fim=date(2026, 12, 31),
+        )
+
+        response = self.client.get(
+            reverse("descanso:relatorio_mapa"),
+            {"inicio": "2026-12-30", "fim": "2027-01-02"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        meses = response.context["meses_data"]
+        self.assertEqual([mes[0] for mes in meses], [12, 1])
+        for (_, _, rows), dias_esperados in zip(meses, [
+            [[(30, False), (31, True)], [(30, False), (31, False)]],
+            [[(1, False), (2, False)], [(1, False), (2, False)]],
+        ]):
+            self.assertEqual([row["servidor"].nome for row in rows], ["Com descanso", "Sem descanso"])
+            self.assertEqual(
+                [[(dia["numero"], dia["marcado"]) for dia in row["dias"]] for row in rows],
+                dias_esperados,
+            )
+
     def test_relatorio_mapa_por_periodo_recorta_dias_e_descansos(self):
         servidor = Servidor.objects.create(
             unidade=self.unidade,
