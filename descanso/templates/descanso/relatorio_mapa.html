@@ -10,7 +10,7 @@
     </h2>
 
     <div class="report-toolbar d-flex gap-2">
-      <form method="get" class="d-flex align-items-center gap-2 flex-wrap">
+      <form id="mapaDescansoFiltros" method="get" class="d-flex align-items-center gap-2 flex-wrap">
         <label class="form-label mb-0 small">Ano</label>
         <select name="ano" class="form-select form-select-sm">
           {% for a in anos_opcoes %}
@@ -31,7 +31,7 @@
         {% endif %}
       </form>
 
-      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="window.print()">
+      <button class="btn btn-sm btn-outline-secondary" type="submit" form="mapaDescansoFiltros" name="imprimir" value="1">
         <i class="bi bi-printer"></i> Imprimir
       </button>
 
@@ -133,5 +133,13 @@
 }
 </style>
 
+<script>
+  const mapaDescansoUrl = new URL(window.location.href);
+  if (mapaDescansoUrl.searchParams.get('imprimir') === '1') {
+    mapaDescansoUrl.searchParams.delete('imprimir');
+    window.history.replaceState(window.history.state, '', mapaDescansoUrl);
+    window.addEventListener('load', () => window.print(), { once: true });
+  }
+</script>
 
 {% endblock %}
